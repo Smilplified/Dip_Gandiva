@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +45,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin = createAdminClient();
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
 
     // Create user with email and password - no invite email
     const { data: createData, error: createError } = await admin.auth.admin.createUser({

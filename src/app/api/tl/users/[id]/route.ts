@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +61,10 @@ export async function PATCH(
     const body = await request.json();
     const { status, full_name, department, designation } = body;
 
-    const admin = createAdminClient();
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
 
     const { data: targetUser, error: fetchErr } = await admin
       .from("users")
@@ -132,7 +135,10 @@ export async function DELETE(
       return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 });
     }
 
-    const admin = createAdminClient();
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
 
     const { data: targetUser, error: fetchErr } = await admin
       .from("users")
