@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/types/database.types";
 
-const PUBLIC_PATHS = ["/login", "/no-access"];
+const PUBLIC_PATHS = ["/login"];
 const ROLE_ROUTES: Record<string, string[]> = {
   "/admin": ["admin"],
   "/agent": ["agent"],
@@ -162,7 +162,7 @@ export async function middleware(request: NextRequest) {
     );
 
     if (!hasAccess) {
-      const redirect = NextResponse.redirect(new URL("/no-access", request.url));
+      const redirect = NextResponse.redirect(new URL("/login", request.url));
       response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
       return redirect;
     }

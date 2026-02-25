@@ -17,7 +17,7 @@ export default function SalesRootLayout({
   useEffect(() => {
     if (!isInitialized || isLoading) return;
     if (!hasRole("sales") && !hasRole("admin")) {
-      router.replace("/no-access");
+      router.replace("/login");
     }
   }, [isInitialized, isLoading, hasRole, router]);
 

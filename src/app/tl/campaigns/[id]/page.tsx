@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,10 @@ import {
   Spin,
   Typography,
   Empty,
+  Row,
+  Col,
+  Divider,
+  Space,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -22,33 +26,72 @@ import {
   PlayCircleOutlined,
   PauseCircleOutlined,
   TeamOutlined,
+  FileOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 
 type Campaign = {
   id: string;
+  campaign_id?: string | null;
   name: string;
+  client_name?: string | null;
   description: string | null;
   industry: string | null;
   geography: string | null;
+  target_designation?: string | null;
+  lead_type?: string | null;
   status: string;
   start_date: string | null;
   end_date: string | null;
+  cpl?: number | null;
+  revenue?: number | null;
+  booked?: number | null;
+  total_allocation?: number | null;
+  post_qa?: number | null;
+  achieved?: number | null;
+  pending_allocation?: number | null;
+  region?: string | null;
+  weekly_call?: string | null;
+  weekly_report?: string | null;
+  additional_comments?: string | null;
+  assigned_team_leader_id?: string | null;
+  assigned_team_leader_name?: string | null;
+  created_at?: string;
 };
 
 type Lead = {
   id: string;
   name: string | null;
   company_name: string | null;
+  phone: string | null;
   email: string | null;
+  city: string | null;
   status: string;
   followup_date: string | null;
+  notes: string | null;
+  assigned_agent_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  assigned_agent_name: string | null;
+  created_by_name: string | null;
 };
 
 type Agent = {
   id: string;
   full_name: string | null;
   email: string | null;
+};
+
+type CampaignFile = {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  download_url: string | null;
 };
 
 export default function CampaignDetailPage() {
@@ -60,6 +103,7 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [assignments, setAssignments] = useState<{ agent_id: string; agent_name?: string }[]>([]);
+  const [files, setFiles] = useState<CampaignFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -77,6 +121,7 @@ export default function CampaignDetailPage() {
       setCampaign(data.campaign);
       setLeads(data.leads ?? []);
       setAssignments(data.assignments ?? []);
+      setFiles(data.files ?? []);
       setCampaignId(id);
     } catch {
       message.error("Failed to load campaign");
@@ -93,7 +138,7 @@ export default function CampaignDetailPage() {
     }
     if (!isInitialized) return;
     if (!hasRole("team_leader") && !hasRole("tl")) {
-      router.replace("/no-access");
+      router.replace("/login");
       return;
     }
     fetchCampaign(id);
@@ -197,102 +242,227 @@ export default function CampaignDetailPage() {
   };
 
   const leadColumns = [
-    { title: "Name", dataIndex: "name", key: "name", render: (v: string | null) => v || "—" },
-    { title: "Company", dataIndex: "company_name", key: "company_name", render: (v: string | null) => v || "—" },
-    { title: "Email", dataIndex: "email", key: "email", render: (v: string | null) => v || "—" },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      render: (v: string) => <Tag>{v}</Tag>,
-    },
-    {
-      title: "Follow-up",
-      dataIndex: "followup_date",
-      key: "followup_date",
-      render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : "—"),
-    },
+    { title: "Sr. No.", key: "sr", width: 72, fixed: "left" as const, render: (_: unknown, __: Lead, index: number) => index + 1 },
+    { title: "Name", dataIndex: "name", key: "name", width: 120, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Company", dataIndex: "company_name", key: "company_name", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Phone", dataIndex: "phone", key: "phone", width: 120, render: (v: string | null) => v || "—" },
+    { title: "Email", dataIndex: "email", key: "email", width: 160, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "City", dataIndex: "city", key: "city", width: 100, render: (v: string | null) => v || "—" },
+    { title: "Status", dataIndex: "status", key: "status", width: 110, render: (v: string) => <Tag style={{ textTransform: "capitalize" }}>{v?.replace("_", " ")}</Tag> },
+    { title: "Follow-up", dataIndex: "followup_date", key: "followup_date", width: 100, render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : "—") },
+    { title: "Notes", dataIndex: "notes", key: "notes", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Created By (Agent)", dataIndex: "created_by_name", key: "created_by_name", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Created", dataIndex: "created_at", key: "created_at", width: 110, render: (v: string) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "—") },
   ];
 
+  const DetailItem = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div style={{ marginBottom: 12 }}>
+      <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 2 }}>
+        {label}
+      </Typography.Text>
+      <Typography.Text style={{ fontSize: 14 }}>{value ?? "—"}</Typography.Text>
+    </div>
+  );
+
   return (
-    <>
-      <div style={{ marginBottom: 24 }}>
-        <Link href="/tl/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+    <div style={{ width: "100%", padding: "0 24px 32px" }}>
+      <div style={{ marginBottom: 20 }}>
+        <Link
+          href="/tl/dashboard"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
+        >
           <ArrowLeftOutlined /> Back to Dashboard
         </Link>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
-          <div>
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              {campaign.name}
-            </Typography.Title>
-            <Tag color={statusColors[campaign.status] ?? "default"}>{campaign.status}</Tag>
-            {campaign.industry && <span style={{ marginLeft: 8, color: "#8c8c8c" }}>{campaign.industry}</span>}
-            {campaign.geography && <span style={{ marginLeft: 8, color: "#8c8c8c" }}>{" | "}{campaign.geography}</span>}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button icon={<UserAddOutlined />} onClick={openAssignModal}>
-              Assign Agents
-            </Button>
-            {(campaign.status === "draft" || campaign.status === "paused") && (
-              <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => handleStatusChange("active")}>
-                Activate
-              </Button>
-            )}
-            {campaign.status === "active" && (
-              <Button icon={<PauseCircleOutlined />} onClick={() => handleStatusChange("paused")}>
-                Pause
-              </Button>
-            )}
-          </div>
-        </div>
       </div>
 
-      <Card title="Campaign Details" style={{ marginBottom: 24 }}>
-        <p><strong>Description:</strong> {campaign.description || "—"}</p>
-        <p><strong>Start Date:</strong> {campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : "—"}</p>
-        <p><strong>End Date:</strong> {campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : "—"}</p>
+      <Card
+        style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+        bodyStyle={{ padding: "24px 28px" }}
+      >
+        <Row gutter={24} align="middle" justify="space-between" wrap>
+          <Col flex="1" style={{ minWidth: 0 }}>
+            <Typography.Title level={3} style={{ margin: 0, marginBottom: 6, fontWeight: 600 }}>
+              {campaign.name}
+            </Typography.Title>
+            {campaign.client_name && (
+              <Typography.Text type="secondary" style={{ fontSize: 15, display: "block", marginBottom: 8 }}>
+                {campaign.client_name}
+              </Typography.Text>
+            )}
+            <Space size="small" wrap>
+              {campaign.campaign_id && <Tag style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}>{campaign.campaign_id}</Tag>}
+              <Tag color={statusColors[campaign.status] ?? "default"} style={{ textTransform: "capitalize", margin: 0 }}>
+                {campaign.status}
+              </Tag>
+              {campaign.lead_type && <Tag style={{ margin: 0 }}>{campaign.lead_type}</Tag>}
+              {(campaign.industry || campaign.geography) && (
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {[campaign.industry, campaign.geography].filter(Boolean).join(" · ")}
+                </Typography.Text>
+              )}
+            </Space>
+          </Col>
+          <Col>
+            <Space size="small" wrap>
+              <Button icon={<UserAddOutlined />} onClick={openAssignModal}>
+                Assign Agents
+              </Button>
+              {(campaign.status === "draft" || campaign.status === "paused") && (
+                <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => handleStatusChange("active")}>
+                  Activate
+                </Button>
+              )}
+              {campaign.status === "active" && (
+                <Button icon={<PauseCircleOutlined />} onClick={() => handleStatusChange("paused")}>
+                  Pause
+                </Button>
+              )}
+            </Space>
+          </Col>
+        </Row>
       </Card>
+
+      <Row gutter={24}>
+        <Col xs={24} lg={14}>
+          <Card
+            title="Overview"
+            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+            bodyStyle={{ padding: "24px 28px" }}
+          >
+            {(campaign.description || campaign.target_designation) && (
+              <>
+                {campaign.description && <DetailItem label="Description" value={campaign.description} />}
+                {campaign.target_designation && <DetailItem label="Target Designation" value={campaign.target_designation} />}
+                <Divider style={{ margin: "16px 0" }} />
+              </>
+            )}
+            <Row gutter={24}>
+              <Col xs={24} sm={12}>
+                <DetailItem label="Lead Type" value={campaign.lead_type} />
+                <DetailItem label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
+                <DetailItem label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
+                <DetailItem label="Region" value={campaign.region} />
+                <DetailItem label="Assigned Team Leader" value={campaign.assigned_team_leader_name} />
+                <DetailItem label="Weekly Call" value={campaign.weekly_call} />
+                <DetailItem label="Weekly Report" value={campaign.weekly_report} />
+              </Col>
+              <Col xs={24} sm={12}>
+                <DetailItem label="Total Allocation" value={campaign.total_allocation} />
+                <DetailItem label="Post QA" value={campaign.post_qa} />
+                <DetailItem label="Achieved" value={campaign.achieved} />
+                <DetailItem label="Pending Allocation" value={campaign.pending_allocation} />
+                <DetailItem label="Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
+              </Col>
+            </Row>
+            {campaign.additional_comments && (
+              <>
+                <Divider style={{ margin: "16px 0" }} />
+                <DetailItem label="Additional Comments" value={campaign.additional_comments} />
+              </>
+            )}
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={10}>
+          <Card
+            title={
+              <Space>
+                <FileOutlined />
+                <span>Files</span>
+                <Tag style={{ marginLeft: 4 }}>{files.length}</Tag>
+              </Space>
+            }
+            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+            bodyStyle={{ padding: "24px 28px" }}
+          >
+            {files.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#8c8c8c", fontSize: 14 }}>
+                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+                No files uploaded for this campaign.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {files.map((f, idx) => (
+                  <div
+                    key={f.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "12px 0",
+                      borderBottom: idx < files.length - 1 ? "1px solid #f5f5f5" : "none",
+                      gap: 12,
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                      <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</span>
+                      {f.file_size != null && (
+                        <Typography.Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
+                          {(f.file_size / 1024).toFixed(1)} KB
+                        </Typography.Text>
+                      )}
+                    </span>
+                    {f.download_url && (
+                      <Button type="link" size="small" icon={<DownloadOutlined />} href={f.download_url} target="_blank" rel="noopener noreferrer" style={{ padding: "0 4px", flexShrink: 0 }}>
+                        Download
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card
+            title={
+              <span>
+                <TeamOutlined style={{ marginRight: 8 }} />
+                Assigned Agents ({assignments.length})
+              </span>
+            }
+            extra={
+              <Button type="link" icon={<UserAddOutlined />} onClick={openAssignModal} style={{ padding: 0 }}>
+                {assignments.length > 0 ? "Edit" : "Assign"}
+              </Button>
+            }
+            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+            bodyStyle={{ padding: "24px 28px" }}
+          >
+            {assignments.length === 0 ? (
+              <p style={{ color: "#8c8c8c", margin: 0 }}>
+                No agents assigned.{" "}
+                <Button type="link" onClick={openAssignModal} style={{ padding: 0 }}>
+                  Assign agents
+                </Button>
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {assignments.map((a) => (
+                  <Tag key={a.agent_id} color="blue">
+                    {a.agent_name ?? a.agent_id}
+                  </Tag>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
 
       <Card
-        title={
-          <span>
-            <TeamOutlined style={{ marginRight: 8 }} />
-            Assigned Agents ({assignments.length})
-          </span>
-        }
-        extra={
-          <Button type="link" icon={<UserAddOutlined />} onClick={openAssignModal} style={{ padding: 0 }}>
-            {assignments.length > 0 ? "Edit" : "Assign"}
-          </Button>
-        }
-        style={{ marginBottom: 24 }}
+        title={`Leads (${leads.length})`}
+        style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+        bodyStyle={{ padding: "24px 28px" }}
       >
-        {assignments.length === 0 ? (
-          <p style={{ color: "#8c8c8c", margin: 0 }}>
-            No agents assigned yet.{" "}
-            <Button type="link" onClick={openAssignModal} style={{ padding: 0 }}>
-              Assign agents
-            </Button>
-          </p>
-        ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {assignments.map((a) => (
-              <Tag key={a.agent_id} color="blue">
-                {a.agent_name ?? a.agent_id}
-              </Tag>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card title={`Leads (${leads.length})`}>
         <Table
           className="table-single-line"
           columns={leadColumns}
           dataSource={leads}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          scroll={{ x: 1500 }}
+          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
           locale={{ emptyText: "No leads yet" }}
+          size="middle"
         />
       </Card>
 
@@ -355,6 +525,6 @@ export default function CampaignDetailPage() {
           />
         )}
       </Modal>
-    </>
+    </div>
   );
 }

@@ -18,7 +18,7 @@ export default function CreateCampaignPage() {
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("team_leader") && !hasRole("tl")) {
-      router.replace("/no-access");
+      router.replace("/login");
       return;
     }
   }, [isInitialized, hasRole, router]);

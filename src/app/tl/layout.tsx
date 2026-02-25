@@ -17,7 +17,7 @@ export default function TLRootLayout({
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("team_leader") && !hasRole("tl")) {
-      router.replace("/no-access");
+      router.replace("/login");
     }
   }, [isInitialized, hasRole, router]);
 

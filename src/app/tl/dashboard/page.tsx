@@ -73,7 +73,7 @@ export default function TeamLeaderDashboardPage() {
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("team_leader") && !hasRole("tl")) {
-      router.replace("/no-access");
+      router.replace("/login");
       return;
     }
     fetchData();

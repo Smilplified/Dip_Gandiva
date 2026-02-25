@@ -33,7 +33,7 @@ export async function GET(
 
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, created_at")
+      .select("id, campaign_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, created_at")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -42,16 +42,35 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const [leadsRes, assignmentsRes] = await Promise.all([
+    const camp = campaign as { assigned_team_leader_id?: string | null; [k: string]: unknown };
+    let assigned_team_leader_name: string | null = null;
+    if (camp.assigned_team_leader_id) {
+      const { data: tlUser } = await supabase
+        .from("users")
+        .select("full_name, email")
+        .eq("id", camp.assigned_team_leader_id)
+        .single();
+      const u = tlUser as { full_name: string | null; email: string | null } | null;
+      assigned_team_leader_name = u ? (u.full_name || u.email || null) : null;
+    }
+    const campaignWithTlName = { ...(campaign as Record<string, unknown>), assigned_team_leader_name };
+
+    const [leadsRes, assignmentsRes, filesRes] = await Promise.all([
       supabase
         .from("leads")
-        .select("id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_at")
-        .eq("campaign_id", campaignId),
+        .select("id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at")
+        .eq("campaign_id", campaignId)
+        .order("created_at", { ascending: false }),
       supabase
         .from("campaign_assignments")
         .select("id, agent_id, assigned_by, assigned_at, is_active")
         .eq("campaign_id", campaignId)
         .eq("is_active", true),
+      supabase
+        .from("campaign_files")
+        .select("id, file_name, file_path, file_size, mime_type, created_at")
+        .eq("campaign_id", campaignId)
+        .order("created_at", { ascending: false }),
     ]);
 
     if (leadsRes.error) {
@@ -60,6 +79,7 @@ export async function GET(
     if (assignmentsRes.error) {
       return NextResponse.json({ error: assignmentsRes.error.message }, { status: 500 });
     }
+    const fileRows = filesRes.error ? [] : (filesRes.data ?? []);
 
     type AssignmentRow = { id: string; agent_id: string; assigned_by: string | null; assigned_at: string; is_active: boolean };
     const assignments = (assignmentsRes.data ?? []) as AssignmentRow[];
@@ -80,10 +100,47 @@ export async function GET(
       agent_name: agentNames[a.agent_id] || "Unknown",
     }));
 
+    type LeadRow = { id: string; lead_id: string | null; name: string | null; company_name: string | null; phone: string | null; email: string | null; city: string | null; status: string; followup_date: string | null; notes: string | null; assigned_agent_id: string | null; created_by: string | null; created_at: string; updated_at: string };
+    const leadsList = (leadsRes.data ?? []) as LeadRow[];
+    const leadUserIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
+    let leadUserNames: Record<string, string> = {};
+    if (leadUserIds.length > 0) {
+      const { data: leadUsers } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", leadUserIds);
+      ((leadUsers ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
+        leadUserNames[u.id] = u.full_name || u.email || "Unknown";
+      });
+    }
+    const leadsWithNames = leadsList.map((l) => ({
+      ...l,
+      assigned_agent_name: l.assigned_agent_id ? leadUserNames[l.assigned_agent_id] ?? "—" : null,
+      created_by_name: l.created_by ? leadUserNames[l.created_by] ?? "—" : null,
+    }));
+
+    type FileRow = { id: string; file_name: string; file_path: string; file_size: number | null; mime_type: string | null; created_at: string };
+    const files = fileRows as FileRow[];
+    const filesWithUrls = await Promise.all(
+      files.map(async (f) => {
+        const { data: signed } = await supabase.storage.from("campaign-files").createSignedUrl(f.file_path, 3600);
+        return {
+          id: f.id,
+          file_name: f.file_name,
+          file_path: f.file_path,
+          file_size: f.file_size,
+          mime_type: f.mime_type,
+          created_at: f.created_at,
+          download_url: signed?.signedUrl ?? null,
+        };
+      })
+    );
+
     return NextResponse.json({
-      campaign,
-      leads: leadsRes.data ?? [],
+      campaign: campaignWithTlName,
+      leads: leadsWithNames,
       assignments: assignmentsWithNames,
+      files: filesWithUrls,
     });
   } catch (err) {
     console.error("Fetch campaign error:", err);

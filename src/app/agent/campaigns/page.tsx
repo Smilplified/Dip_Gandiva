@@ -52,7 +52,7 @@ export default function AgentCampaignsPage() {
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("agent")) {
-      router.replace("/no-access");
+      router.replace("/login");
       return;
     }
     const fetchData = async () => {

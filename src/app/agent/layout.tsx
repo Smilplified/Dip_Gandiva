@@ -17,7 +17,7 @@ export default function AgentRootLayout({
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("agent")) {
-      router.replace("/no-access");
+      router.replace("/login");
     }
   }, [isInitialized, hasRole, router]);
 

@@ -34,6 +34,7 @@ import { useAuth } from "@/context/AuthContext";
 
 type CampaignRow = {
   id: string;
+  campaign_id: string;
   name: string;
   client_name: string | null;
   lead_type: string | null;
@@ -89,7 +90,7 @@ export default function SalesCampaignsPage() {
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("sales") && !hasRole("admin")) {
-      router.replace("/no-access");
+      router.replace("/login");
       return;
     }
     fetchData();
@@ -142,17 +143,27 @@ export default function SalesCampaignsPage() {
 
   const columns = [
     {
+      title: "Sr. No.",
+      key: "sr",
+      width: 72,
+      fixed: "left" as const,
+      render: (_: unknown, __: CampaignRow, index: number) => index + 1,
+    },
+    {
       title: "Campaign ID",
-      dataIndex: "id",
-      key: "id",
-      width: 100,
+      dataIndex: "campaign_id",
+      key: "campaign_id",
+      width: 200,
+      ellipsis: true,
       render: (v: string) => (
-        <Tooltip title={v}>
-          <span style={{ fontFamily: "monospace", fontSize: 12 }}>{v ? `${v.slice(0, 8)}...` : "—"}</span>
+        <Tooltip title={v || "—"}>
+          <span style={{ fontFamily: "monospace", fontSize: 12, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {v || "—"}
+          </span>
         </Tooltip>
       ),
     },
-    { title: "Client Name", dataIndex: "client_name", key: "client_name", width: 120, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Client Name", dataIndex: "client_name", key: "client_name", width: 130, ellipsis: true, render: (v: string | null) => v || "—" },
     {
       title: "Campaign Name",
       dataIndex: "name",
@@ -356,7 +367,7 @@ export default function SalesCampaignsPage() {
               columns={columns}
               dataSource={campaigns}
               rowKey="id"
-              scroll={{ x: 1830 }}
+              scroll={{ x: 1900 }}
               pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} campaigns` }}
               locale={{ emptyText: "No campaigns yet. Create your first campaign." }}
             />

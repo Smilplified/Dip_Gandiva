@@ -17,7 +17,7 @@ export default function AdminRootLayout({
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("admin")) {
-      router.replace("/no-access");
+      router.replace("/login");
     }
   }, [isInitialized, hasRole, router]);
 

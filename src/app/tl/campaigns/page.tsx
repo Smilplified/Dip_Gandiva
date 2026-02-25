@@ -80,7 +80,7 @@ export default function TLCampaignsPage() {
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("team_leader") && !hasRole("tl")) {
-      router.replace("/no-access");
+      router.replace("/login");
       return;
     }
     fetchData();
@@ -115,6 +115,13 @@ export default function TLCampaignsPage() {
   }
 
   const columns = [
+    {
+      title: "Sr. No.",
+      key: "sr",
+      width: 72,
+      fixed: "left" as const,
+      render: (_: unknown, __: CampaignRow, index: number) => index + 1,
+    },
     {
       title: "Campaign Name",
       dataIndex: "name",

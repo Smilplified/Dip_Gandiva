@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { generateCampaignId } from "@/lib/campaigns";
 
 export const dynamic = "force-dynamic";
+
+const MAX_CAMPAIGN_ID_RETRIES = 10;
 
 export async function POST(request: Request) {
   try {
@@ -53,16 +56,48 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Campaign Name is required" }, { status: 400 });
     }
 
+    const clientNameStr =
+      client_name != null && typeof client_name === "string" ? client_name.trim() : "";
+    if (!clientNameStr) {
+      return NextResponse.json(
+        { error: "Client Name is required to create a campaign" },
+        { status: 400 }
+      );
+    }
+
     const validStatus = ["draft", "active", "paused", "completed"].includes(status)
       ? status
       : "draft";
+
+    let campaignId: string;
+    let attempts = 0;
+    do {
+      campaignId = generateCampaignId({
+        clientName: clientNameStr,
+        campaignName: name.trim(),
+      });
+      const { data: existing } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .maybeSingle();
+      if (!existing) break;
+      attempts++;
+      if (attempts >= MAX_CAMPAIGN_ID_RETRIES) {
+        return NextResponse.json(
+          { error: "Could not generate a unique Campaign ID. Please try again." },
+          { status: 500 }
+        );
+      }
+    } while (true);
 
     const { data: campaign, error: insertError } = await supabase
       .from("campaigns")
       .insert({
         organization_id: orgId,
+        campaign_id: campaignId,
         name: name.trim(),
-        client_name: client_name?.trim() || null,
+        client_name: clientNameStr || null,
         description: description?.trim() || null,
         industry: industry?.trim() || null,
         geography: geography?.trim() || null,
@@ -85,14 +120,24 @@ export async function POST(request: Request) {
         assigned_team_leader_id: assigned_team_leader_id || null,
         created_by: user.id,
       } as never)
-      .select("id")
+      .select("id, campaign_id")
       .single();
 
     if (insertError) {
+      if (insertError.code === "23505") {
+        return NextResponse.json(
+          { error: "A campaign with this ID already exists. Please try again." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ campaign_id: (campaign as { id: string } | null)?.id });
+    const row = campaign as { id: string; campaign_id: string } | null;
+    return NextResponse.json({
+      campaign_id: row?.id,
+      campaign_display_id: row?.campaign_id,
+    });
   } catch (err) {
     console.error("Create campaign error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

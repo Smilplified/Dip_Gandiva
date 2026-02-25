@@ -144,6 +144,7 @@ export type Database = {
       campaigns: {
         Row: {
           id: string;
+          campaign_id: string;
           organization_id: string;
           name: string;
           description: string | null;
@@ -172,6 +173,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
+          campaign_id: string;
           organization_id: string;
           name: string;
           description?: string | null;
@@ -200,6 +202,7 @@ export type Database = {
         };
         Update: {
           id?: string;
+          campaign_id?: string;
           organization_id?: string;
           name?: string;
           description?: string | null;
@@ -254,6 +257,41 @@ export type Database = {
           assigned_by?: string | null;
           assigned_at?: string;
           is_active?: boolean;
+        };
+      };
+      campaign_files: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          organization_id: string;
+          file_name: string;
+          file_path: string;
+          file_size: number | null;
+          mime_type: string | null;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          organization_id: string;
+          file_name: string;
+          file_path: string;
+          file_size?: number | null;
+          mime_type?: string | null;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          organization_id?: string;
+          file_name?: string;
+          file_path?: string;
+          file_size?: number | null;
+          mime_type?: string | null;
+          uploaded_by?: string | null;
+          created_at?: string;
         };
       };
       leads: {

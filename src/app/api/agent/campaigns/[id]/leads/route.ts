@@ -46,10 +46,10 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const { data: leads, error: leadsError } = await supabase
+    const { data: leadsList, error: leadsError } = await supabase
       .from("leads")
       .select(
-        "id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_at"
+        "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at"
       )
       .eq("campaign_id", campaignId)
       .eq("assigned_agent_id", user.id)
@@ -59,7 +59,23 @@ export async function GET(
       return NextResponse.json({ error: leadsError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ leads: leads ?? [] });
+    type LeadRow = { id: string; lead_id: string | null; name: string | null; company_name: string | null; phone: string | null; email: string | null; city: string | null; status: string; followup_date: string | null; notes: string | null; assigned_agent_id: string | null; created_by: string | null; created_at: string; updated_at: string };
+    const leads = (leadsList ?? []) as LeadRow[];
+    const userIds = [...new Set(leads.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
+    let userNames: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: users } = await supabase.from("users").select("id, full_name, email").in("id", userIds);
+      ((users ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
+        userNames[u.id] = u.full_name || u.email || "Unknown";
+      });
+    }
+    const leadsWithNames = leads.map((l) => ({
+      ...l,
+      assigned_agent_name: l.assigned_agent_id ? userNames[l.assigned_agent_id] ?? "—" : null,
+      created_by_name: l.created_by ? userNames[l.created_by] ?? "—" : null,
+    }));
+
+    return NextResponse.json({ leads: leadsWithNames });
   } catch (err) {
     console.error("Agent leads fetch error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -151,14 +167,15 @@ export async function POST(
         notes: notes || null,
         created_by: user.id,
       } as never)
-      .select("id")
+      .select("id, lead_id")
       .single();
 
     if (insertError) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ lead_id: (inserted as { id: string } | null)?.id });
+    const row = inserted as { id: string; lead_id: string | null } | null;
+    return NextResponse.json({ lead_id: row?.lead_id ?? row?.id, id: row?.id });
   } catch (err) {
     console.error("Agent leads create error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

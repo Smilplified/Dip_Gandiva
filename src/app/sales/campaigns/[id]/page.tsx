@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import dayjs from "dayjs";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
@@ -19,20 +19,34 @@ import {
   Spin,
   Typography,
   Popconfirm,
+  Row,
+  Col,
+  Divider,
+  Space,
+  Upload,
 } from "antd";
+import type { UploadFile } from "antd";
 import {
   ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
+  FileOutlined,
+  DownloadOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 
 const { TextArea } = Input;
+const { Dragger } = Upload;
+
+const ACCEPT_FILE_TYPES =
+  ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,image/*";
 
 type Campaign = {
   id: string;
+  campaign_id: string;
   name: string;
   client_name: string | null;
   description: string | null;
@@ -61,9 +75,28 @@ type Lead = {
   id: string;
   name: string | null;
   company_name: string | null;
+  phone: string | null;
   email: string | null;
+  city: string | null;
   status: string;
   followup_date: string | null;
+  notes: string | null;
+  assigned_agent_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  assigned_agent_name: string | null;
+  created_by_name: string | null;
+};
+
+type CampaignFile = {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  download_url: string | null;
 };
 
 export default function SalesCampaignDetailPage() {
@@ -74,9 +107,12 @@ export default function SalesCampaignDetailPage() {
   const { hasRole, isInitialized } = useAuth();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [files, setFiles] = useState<CampaignFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
+  const [removingFileId, setRemovingFileId] = useState<string | null>(null);
   const [leadTypeOptions, setLeadTypeOptions] = useState([
     { value: "B2B", label: "B2B" },
     { value: "B2C", label: "B2C" },
@@ -107,6 +143,7 @@ export default function SalesCampaignDetailPage() {
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setCampaign(data.campaign);
       setLeads(data.leads ?? []);
+      setFiles(data.files ?? []);
     } catch {
       message.error("Failed to load campaign");
       router.replace("/sales/campaigns");
@@ -122,7 +159,7 @@ export default function SalesCampaignDetailPage() {
     }
     if (!isInitialized) return;
     if (!hasRole("sales") && !hasRole("admin")) {
-      router.replace("/no-access");
+      router.replace("/login");
       return;
     }
     fetchCampaign(id);
@@ -164,7 +201,7 @@ export default function SalesCampaignDetailPage() {
         assigned_team_leader_id: campaign.assigned_team_leader_id ?? undefined,
       });
     }
-  }, [campaign, editModalOpen, form]);
+  }, [campaign, editModalOpen, form, id]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (!id) return;
@@ -221,7 +258,29 @@ export default function SalesCampaignDetailPage() {
         const data = await res.json();
         throw new Error(data.error || "Failed to update");
       }
+
+      const filesToUpload = uploadFileList.filter((f) => f.originFileObj);
+      if (filesToUpload.length > 0) {
+        const formData = new FormData();
+        filesToUpload.forEach((f) => {
+          if (f.originFileObj) formData.append("files", f.originFileObj);
+        });
+        const uploadRes = await fetch(`/api/tl/campaigns/${id}/files`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          message.warning(uploadData.error || "Campaign saved but some files failed to upload.");
+        } else if (uploadData.errors?.length) {
+          message.warning(`Campaign saved. ${uploadData.errors.join(" ")}`);
+        }
+      }
+
       message.success("Campaign updated");
+      setUploadFileList([]);
+      form.resetFields();
       setEditModalOpen(false);
       fetchCampaign(id);
     } catch (err) {
@@ -247,6 +306,33 @@ export default function SalesCampaignDetailPage() {
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to delete campaign");
     }
+  };
+
+  const handleRemoveFile = async (fileId: string) => {
+    if (!id) return;
+    setRemovingFileId(fileId);
+    try {
+      const res = await fetch(`/api/tl/campaigns/${id}/files/${fileId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to remove file");
+      }
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+      message.success("File removed");
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to remove file");
+    } finally {
+      setRemovingFileId(null);
+    }
+  };
+
+  const handleCloseEditModal = () => {
+    form.resetFields();
+    setUploadFileList([]);
+    setEditModalOpen(false);
   };
 
   if (!isInitialized) {
@@ -275,125 +361,331 @@ export default function SalesCampaignDetailPage() {
   };
 
   const leadColumns = [
-    { title: "Name", dataIndex: "name", key: "name", render: (v: string | null) => v || "—" },
-    { title: "Company", dataIndex: "company_name", key: "company_name", render: (v: string | null) => v || "—" },
-    { title: "Email", dataIndex: "email", key: "email", render: (v: string | null) => v || "—" },
+    {
+      title: "Sr. No.",
+      key: "sr",
+      width: 72,
+      fixed: "left" as const,
+      render: (_: unknown, __: Lead, index: number) => index + 1,
+    },
+    { title: "Name", dataIndex: "name", key: "name", width: 120, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Company", dataIndex: "company_name", key: "company_name", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Phone", dataIndex: "phone", key: "phone", width: 120, render: (v: string | null) => v || "—" },
+    { title: "Email", dataIndex: "email", key: "email", width: 160, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "City", dataIndex: "city", key: "city", width: 100, render: (v: string | null) => v || "—" },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (v: string) => <Tag>{v}</Tag>,
+      width: 110,
+      render: (v: string) => <Tag style={{ textTransform: "capitalize" }}>{v?.replace("_", " ")}</Tag>,
     },
     {
       title: "Follow-up",
       dataIndex: "followup_date",
       key: "followup_date",
+      width: 100,
       render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : "—"),
+    },
+    { title: "Notes", dataIndex: "notes", key: "notes", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
+    {
+      title: "Created By (Agent)",
+      dataIndex: "created_by_name",
+      key: "created_by_name",
+      width: 140,
+      ellipsis: true,
+      render: (v: string | null) => v || "—",
+    },
+    {
+      title: "Created",
+      dataIndex: "created_at",
+      key: "created_at",
+      width: 110,
+      render: (v: string) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "—"),
     },
   ];
 
+  const DetailItem = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div style={{ marginBottom: 12 }}>
+      <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 2 }}>
+        {label}
+      </Typography.Text>
+      <Typography.Text style={{ fontSize: 14 }}>{value ?? "—"}</Typography.Text>
+    </div>
+  );
+
   return (
-    <>
-      <div style={{ marginBottom: 24 }}>
-        <Link href="/sales/campaigns" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+    <div style={{ width: "100%", padding: "0 24px 32px" }}>
+      {/* Breadcrumb & back */}
+      <div style={{ marginBottom: 20 }}>
+        <Link
+          href="/sales/campaigns"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 14,
+            color: "#1677ff",
+            textDecoration: "none",
+            marginBottom: 16,
+          }}
+        >
           <ArrowLeftOutlined /> Back to Campaigns
         </Link>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
-          <div>
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              {campaign.name}
-            </Typography.Title>
-            {campaign.client_name && <Typography.Text type="secondary" style={{ display: "block" }}>{campaign.client_name}</Typography.Text>}
-            <Tag color={statusColors[campaign.status] ?? "default"}>{campaign.status}</Tag>
-            {campaign.lead_type && <Tag style={{ marginLeft: 4 }}>{campaign.lead_type}</Tag>}
-            {campaign.industry && <span style={{ marginLeft: 8, color: "#8c8c8c" }}>{campaign.industry}</span>}
-            {campaign.geography && <span style={{ marginLeft: 8, color: "#8c8c8c" }}>{" | "}{campaign.geography}</span>}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button icon={<EditOutlined />} onClick={() => setEditModalOpen(true)}>
-              Edit
-            </Button>
-            {(campaign.status === "draft" || campaign.status === "paused") && (
-              <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => handleStatusChange("active")}>
-                Activate
-              </Button>
-            )}
-            {campaign.status === "active" && (
-              <Button icon={<PauseCircleOutlined />} onClick={() => handleStatusChange("paused")}>
-                Pause
-              </Button>
-            )}
-            <Popconfirm
-              title="Delete campaign?"
-              description="This action cannot be undone."
-              onConfirm={handleDelete}
-              okText="Delete"
-              okType="danger"
-            >
-              <Button danger icon={<DeleteOutlined />}>
-                Delete
-              </Button>
-            </Popconfirm>
-          </div>
-        </div>
       </div>
 
-      <Card title="Campaign Details" style={{ marginBottom: 24 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
-          <p>
-            <strong>Campaign ID:</strong>{" "}
-            <code style={{ fontSize: 12, padding: "2px 6px", background: "#f5f5f5", borderRadius: 4 }}>{campaign.id}</code>
-            {" "}
-            <Button
-              type="link"
-              size="small"
-              onClick={() => {
-                navigator.clipboard.writeText(campaign.id);
-                message.success("Campaign ID copied to clipboard");
-              }}
-            >
-              Copy
-            </Button>
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 4 }}>Auto-generated unique identifier</Typography.Text>
-          </p>
-          <p><strong>Client Name:</strong> {campaign.client_name || "—"}</p>
-          <p><strong>Campaign Name:</strong> {campaign.name}</p>
-          <p><strong>Lead Type:</strong> {campaign.lead_type || "—"}</p>
-          <p><strong>Start Date:</strong> {campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : "—"}</p>
-          <p><strong>End Date:</strong> {campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : "—"}</p>
-          <p><strong>Status:</strong> {campaign.status}</p>
-          <p><strong>CPL:</strong> {campaign.cpl != null ? `$${campaign.cpl}` : "—"}</p>
-          <p><strong>Revenue:</strong> {campaign.revenue != null ? `$${Number(campaign.revenue).toLocaleString()}` : "—"}</p>
-          <p><strong>Booked:</strong> {campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : "—"}</p>
-          <p><strong>Total Allocation:</strong> {campaign.total_allocation ?? "—"}</p>
-          <p><strong>Post QA:</strong> {campaign.post_qa ?? "—"}</p>
-          <p><strong>Achieved:</strong> {campaign.achieved ?? "—"}</p>
-          <p><strong>Pending Allocation:</strong> {campaign.pending_allocation ?? "—"}</p>
-          <p><strong>Region:</strong> {campaign.region || "—"}</p>
-          <p><strong>Weekly Call:</strong> {campaign.weekly_call || "—"}</p>
-          <p><strong>Weekly Report:</strong> {campaign.weekly_report || "—"}</p>
-          <p><strong>Assigned Team Leader:</strong> {campaign.assigned_team_leader_id ? (teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.full_name || teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.email || "—") : "—"}</p>
-        </div>
-        <p style={{ marginTop: 16 }}><strong>Description:</strong> {campaign.description || "—"}</p>
-        <p><strong>Target Designation:</strong> {campaign.target_designation || "—"}</p>
-        {campaign.additional_comments && <p><strong>Additional Comments:</strong> {campaign.additional_comments}</p>}
+      {/* Hero header */}
+      <Card
+        style={{
+          marginBottom: 24,
+          borderRadius: 8,
+          border: "1px solid #f0f0f0",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+        }}
+        bodyStyle={{ padding: "24px 28px" }}
+      >
+        <Row gutter={24} align="middle" justify="space-between" wrap>
+          <Col flex="1" style={{ minWidth: 0 }}>
+            <Typography.Title level={3} style={{ margin: 0, marginBottom: 6, fontWeight: 600 }}>
+              {campaign.name}
+            </Typography.Title>
+            {campaign.client_name && (
+              <Typography.Text type="secondary" style={{ fontSize: 15, display: "block", marginBottom: 8 }}>
+                {campaign.client_name}
+              </Typography.Text>
+            )}
+            <Space size="small" wrap>
+              {campaign.campaign_id && (
+                <Tag style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}>
+                  {campaign.campaign_id}
+                </Tag>
+              )}
+              <Tag color={statusColors[campaign.status] ?? "default"} style={{ textTransform: "capitalize", margin: 0 }}>
+                {campaign.status}
+              </Tag>
+              {campaign.lead_type && <Tag style={{ margin: 0 }}>{campaign.lead_type}</Tag>}
+              {(campaign.industry || campaign.geography) && (
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {[campaign.industry, campaign.geography].filter(Boolean).join(" · ")}
+                </Typography.Text>
+              )}
+            </Space>
+          </Col>
+          <Col>
+            <Space size="small" wrap>
+              <Button icon={<EditOutlined />} onClick={() => setEditModalOpen(true)}>
+                Edit
+              </Button>
+              {(campaign.status === "draft" || campaign.status === "paused") && (
+                <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => handleStatusChange("active")}>
+                  Activate
+                </Button>
+              )}
+              {campaign.status === "active" && (
+                <Button icon={<PauseCircleOutlined />} onClick={() => handleStatusChange("paused")}>
+                  Pause
+                </Button>
+              )}
+              <Popconfirm
+                title="Delete campaign?"
+                description="This action cannot be undone."
+                onConfirm={handleDelete}
+                okText="Delete"
+                okType="danger"
+              >
+                <Button danger icon={<DeleteOutlined />}>
+                  Delete
+                </Button>
+              </Popconfirm>
+            </Space>
+          </Col>
+        </Row>
       </Card>
 
-      <Card title={`Leads (${leads.length})`}>
+      {/* Campaign details – grouped sections */}
+      <Row gutter={24}>
+        <Col xs={24} lg={14}>
+          <Card
+            title="Overview"
+            style={{
+              marginBottom: 24,
+              borderRadius: 8,
+              border: "1px solid #f0f0f0",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            }}
+            bodyStyle={{ padding: "24px 28px" }}
+          >
+            {(campaign.description || campaign.target_designation) && (
+              <>
+                {campaign.description && (
+                  <DetailItem label="Description" value={campaign.description} />
+                )}
+                {campaign.target_designation && (
+                  <DetailItem label="Target Designation" value={campaign.target_designation} />
+                )}
+                <Divider style={{ margin: "16px 0" }} />
+              </>
+            )}
+            <Row gutter={24}>
+              <Col xs={24} sm={12}>
+                <DetailItem
+                  label="Start Date"
+                  value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null}
+                />
+                <DetailItem
+                  label="End Date"
+                  value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null}
+                />
+                <DetailItem label="Region" value={campaign.region} />
+                <DetailItem
+                  label="Assigned Team Leader"
+                  value={
+                    campaign.assigned_team_leader_id
+                      ? teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.full_name ||
+                        teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.email
+                      : null
+                  }
+                />
+                <DetailItem label="Weekly Call" value={campaign.weekly_call} />
+                <DetailItem label="Weekly Report" value={campaign.weekly_report} />
+              </Col>
+              <Col xs={24} sm={12}>
+                <DetailItem
+                  label="CPL"
+                  value={campaign.cpl != null ? `$${Number(campaign.cpl).toLocaleString()}` : null}
+                />
+                <DetailItem
+                  label="Revenue"
+                  value={campaign.revenue != null ? `$${Number(campaign.revenue).toLocaleString()}` : null}
+                />
+                <DetailItem
+                  label="Booked"
+                  value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null}
+                />
+                <DetailItem label="Total Allocation" value={campaign.total_allocation} />
+                <DetailItem label="Post QA" value={campaign.post_qa} />
+                <DetailItem label="Achieved" value={campaign.achieved} />
+                <DetailItem label="Pending Allocation" value={campaign.pending_allocation} />
+              </Col>
+            </Row>
+            {campaign.additional_comments && (
+              <>
+                <Divider style={{ margin: "16px 0" }} />
+                <DetailItem label="Additional Comments" value={campaign.additional_comments} />
+              </>
+            )}
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={10}>
+          <Card
+            title={
+              <Space>
+                <FileOutlined />
+                <span>Files</span>
+                <Tag style={{ marginLeft: 4 }}>{files.length}</Tag>
+              </Space>
+            }
+            style={{
+              marginBottom: 24,
+              borderRadius: 8,
+              border: "1px solid #f0f0f0",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            }}
+            bodyStyle={{ padding: "24px 28px" }}
+          >
+            {files.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "32px 16px",
+                  color: "#8c8c8c",
+                  fontSize: 14,
+                }}
+              >
+                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+                No files uploaded for this campaign.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {files.map((f, idx) => (
+                  <div
+                    key={f.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "12px 0",
+                      borderBottom: idx < files.length - 1 ? "1px solid #f5f5f5" : "none",
+                      gap: 12,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {f.file_name}
+                      </span>
+                      {f.file_size != null && (
+                        <Typography.Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
+                          {(f.file_size / 1024).toFixed(1)} KB
+                        </Typography.Text>
+                      )}
+                    </span>
+                    {f.download_url && (
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<DownloadOutlined />}
+                        href={f.download_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ padding: "0 4px", flexShrink: 0 }}
+                      >
+                        Download
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Leads table */}
+      <Card
+        title={`Leads (${leads.length})`}
+        style={{
+          borderRadius: 8,
+          border: "1px solid #f0f0f0",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+        }}
+        bodyStyle={{ padding: "24px 28px" }}
+      >
         <Table
           className="table-single-line"
           columns={leadColumns}
           dataSource={leads}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          scroll={{ x: 1500 }}
+          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
           locale={{ emptyText: "No leads yet" }}
+          size="middle"
         />
       </Card>
 
       <Modal
         title="Edit Campaign"
         open={editModalOpen}
-        onCancel={() => setEditModalOpen(false)}
+        onCancel={handleCloseEditModal}
         onOk={handleSaveEdit}
         confirmLoading={saving}
         okText="Save"
@@ -503,9 +795,81 @@ export default function SalesCampaignDetailPage() {
             <Form.Item name="additional_comments" label="Additional Comments">
               <TextArea rows={3} placeholder="Additional notes" />
             </Form.Item>
+
+            <Divider style={{ margin: "20px 0 12px" }} />
+
+            <Form.Item label="Campaign Files">
+              <div style={{ marginBottom: 12 }}>
+                {files.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
+                      Existing files (click Remove to delete)
+                    </Typography.Text>
+                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                      {files.map((f) => (
+                        <li
+                          key={f.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "6px 0",
+                            borderBottom: "1px solid #f0f0f0",
+                          }}
+                        >
+                          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                            <FileOutlined />
+                            {f.file_name}
+                            {f.file_size != null && (
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                ({(f.file_size / 1024).toFixed(1)} KB)
+                              </Typography.Text>
+                            )}
+                          </span>
+                          <Popconfirm
+                            title="Remove this file?"
+                            onConfirm={() => handleRemoveFile(f.id)}
+                            okText="Remove"
+                            okType="danger"
+                          >
+                            <Button
+                              type="link"
+                              size="small"
+                              danger
+                              loading={removingFileId === f.id}
+                              disabled={!!removingFileId}
+                            >
+                              Remove
+                            </Button>
+                          </Popconfirm>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
+                  Add new files (saved when you click Save)
+                </Typography.Text>
+                <Dragger
+                  multiple
+                  fileList={uploadFileList}
+                  accept={ACCEPT_FILE_TYPES}
+                  beforeUpload={() => false}
+                  onRemove={(file) => setUploadFileList((prev) => prev.filter((f) => f.uid !== file.uid))}
+                  onChange={({ fileList: next }) => setUploadFileList(next)}
+                  maxCount={20}
+                >
+                  <p className="ant-upload-drag-icon">
+                    <InboxOutlined style={{ fontSize: 32, color: "#1677ff" }} />
+                  </p>
+                  <p className="ant-upload-text">Click or drag files to add</p>
+                  <p className="ant-upload-hint">PDF, Word, Excel, images, etc. Max 50MB per file.</p>
+                </Dragger>
+              </div>
+            </Form.Item>
           </Form>
         </div>
       </Modal>
-    </>
+    </div>
   );
 }
