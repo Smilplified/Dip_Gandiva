@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Card,
   Table,
@@ -41,17 +40,11 @@ type AgentCampaignRow = {
 };
 
 export default function AgentDashboardPage() {
-  const router = useRouter();
-  const { hasRole, isInitialized, profile } = useAuth();
+  const { profile } = useAuth();
   const [campaigns, setCampaigns] = useState<AgentCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isInitialized) return;
-    if (!hasRole("agent")) {
-      router.replace("/login");
-      return;
-    }
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -68,7 +61,7 @@ export default function AgentDashboardPage() {
       }
     };
     fetchData();
-  }, [isInitialized, hasRole, router]);
+  }, []);
 
   const totals = useMemo(() => {
     const totalCampaigns = campaigns.length;
@@ -89,6 +82,13 @@ export default function AgentDashboardPage() {
   };
 
   const columns = [
+    {
+      title: "Sr. No",
+      key: "index",
+      width: 80,
+      align: "center" as const,
+      render: (_: unknown, __: AgentCampaignRow, index: number) => index + 1,
+    },
     {
       title: "Campaign",
       dataIndex: "name",
@@ -146,108 +146,96 @@ export default function AgentDashboardPage() {
       key: "actions",
       width: 120,
       render: (_: unknown, r: AgentCampaignRow) => (
-        <Button
-          type="link"
-          icon={<EyeOutlined />}
-          onClick={() => router.push(`/agent/campaigns/${r.id}`)}
-        >
-          View
-        </Button>
+          <Link href={`/agent/campaigns/${r.id}`}>
+            <Button type="link" icon={<EyeOutlined />}>
+              View
+            </Button>
+          </Link>
       ),
     },
   ];
 
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!hasRole("agent")) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        <div style={{ marginBottom: 24 }}>
-          <Typography.Title level={3} style={{ margin: 0 }}>
-            Welcome back, {profile?.full_name || "Agent"}
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            Here are the campaigns assigned to you and your lead progress.
-          </Typography.Text>
-        </div>
-
-        {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
-            <Spin size="large" />
-          </div>
-        ) : (
-          <>
-            <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-              <Col xs={24} sm={12} lg={6}>
-                <Card size="small">
-                  <Statistic
-                    title="Assigned Campaigns"
-                    value={totals.totalCampaigns}
-                    prefix={<FundProjectionScreenOutlined style={{ color: "#1677ff" }} />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Card size="small">
-                  <Statistic
-                    title="Active Campaigns"
-                    value={totals.activeCampaigns}
-                    prefix={<RiseOutlined style={{ color: "#52c41a" }} />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Card size="small">
-                  <Statistic
-                    title="My Leads"
-                    value={totals.totalLeads}
-                    prefix={<TeamOutlined style={{ color: "#722ed1" }} />}
-                  />
-                </Card>
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Card size="small">
-                  <Statistic
-                    title="My Conversion %"
-                    value={totals.conversionPct}
-                    suffix="%"
-                    prefix={<CheckCircleOutlined style={{ color: "#fa8c16" }} />}
-                  />
-                </Card>
-              </Col>
-            </Row>
-
-            <Card title="My Assigned Campaigns">
-              <Table
-                className="table-single-line"
-                columns={columns}
-                dataSource={campaigns}
-                rowKey="id"
-                pagination={{
-                  pageSize: 10,
-                  showSizeChanger: true,
-                  showTotal: (t) => `Total ${t} campaigns`,
-                }}
-                locale={{
-                  emptyText:
-                    "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
-                }}
-              />
-            </Card>
-          </>
-        )}
+    <>
+      <div style={{ marginBottom: 32 }}>
+        <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
+          Welcome back, {profile?.full_name || "Agent"}
+        </Typography.Title>
+        <Typography.Text type="secondary" style={{ fontSize: 15 }}>
+          Here are the campaigns assigned to you and your lead progress.
+        </Typography.Text>
       </div>
-    </div>
+
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
+          <Spin size="large" />
+        </div>
+      ) : (
+        <>
+          <Row gutter={[24, 24]} style={{ marginBottom: 32 }}>
+            <Col xs={24} sm={12} lg={6}>
+              <Card size="small">
+                <Statistic
+                  title="Assigned Campaigns"
+                  value={totals.totalCampaigns}
+                  prefix={<FundProjectionScreenOutlined style={{ color: "#1677ff" }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card size="small">
+                <Statistic
+                  title="Active Campaigns"
+                  value={totals.activeCampaigns}
+                  prefix={<RiseOutlined style={{ color: "#52c41a" }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card size="small">
+                <Statistic
+                  title="My Leads"
+                  value={totals.totalLeads}
+                  prefix={<TeamOutlined style={{ color: "#722ed1" }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card size="small">
+                <Statistic
+                  title="My Conversion %"
+                  value={totals.conversionPct}
+                  suffix="%"
+                  prefix={<CheckCircleOutlined style={{ color: "#fa8c16" }} />}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          <Card
+            title="My Assigned Campaigns"
+            bodyStyle={{ padding: 0 }}
+            style={{ borderRadius: 12, overflow: "hidden" }}
+          >
+            <Table
+              className="table-single-line"
+              columns={columns}
+              dataSource={campaigns}
+              rowKey="id"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (t) => `Total ${t} campaigns`,
+              }}
+              locale={{
+                emptyText:
+                  "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
+              }}
+            />
+          </Card>
+        </>
+      )}
+    </>
   );
 }
 

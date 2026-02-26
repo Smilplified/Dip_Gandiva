@@ -26,7 +26,12 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Refresh session - updates cookies if expired
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch (err) {
+    // e.g. ConnectTimeoutError when Supabase is unreachable (network, paused project, firewall)
+    console.warn("[middleware] Supabase session refresh failed:", (err as Error)?.message ?? err);
+  }
 
   return response;
 }

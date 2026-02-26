@@ -58,7 +58,9 @@ export async function GET(
     const [leadsRes, assignmentsRes, filesRes] = await Promise.all([
       supabase
         .from("leads")
-        .select("id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at")
+        .select(
+          "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition"
+        )
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false }),
       supabase
@@ -100,7 +102,40 @@ export async function GET(
       agent_name: agentNames[a.agent_id] || "Unknown",
     }));
 
-    type LeadRow = { id: string; lead_id: string | null; name: string | null; company_name: string | null; phone: string | null; email: string | null; city: string | null; status: string; followup_date: string | null; notes: string | null; assigned_agent_id: string | null; created_by: string | null; created_at: string; updated_at: string };
+    type LeadRow = {
+      id: string;
+      lead_id: string | null;
+      name: string | null;
+      company_name: string | null;
+      phone: string | null;
+      email: string | null;
+      city: string | null;
+      status: string;
+      followup_date: string | null;
+      notes: string | null;
+      assigned_agent_id: string | null;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+      job_title: string | null;
+      job_function: string | null;
+      job_level: string | null;
+      direct_number: string | null;
+      industry: string | null;
+      company_number: string | null;
+      employee_size: string | null;
+      address: string | null;
+      state: string | null;
+      country: string | null;
+      zip_code: string | null;
+      founded_years: number | null;
+      founded_years_link: string | null;
+      revenue_range: string | null;
+      revenue_link: string | null;
+      contact_linkedin_url: string | null;
+      company_linkedin_url: string | null;
+      lead_disposition: string | null;
+    };
     const leadsList = (leadsRes.data ?? []) as LeadRow[];
     const leadUserIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
     let leadUserNames: Record<string, string> = {};

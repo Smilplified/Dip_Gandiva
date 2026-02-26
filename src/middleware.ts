@@ -40,8 +40,14 @@ function isProtectedPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Update session (refresh tokens)
-  const response = await updateSession(request);
+  // 1. Update session (refresh tokens) — may fail if Supabase is unreachable
+  let response: NextResponse;
+  try {
+    response = await updateSession(request);
+  } catch (err) {
+    console.warn("[middleware] updateSession failed:", (err as Error)?.message ?? err);
+    response = NextResponse.next({ request: { headers: request.headers } });
+  }
 
   // 2. Public paths - allow
   if (isPublicPath(pathname)) {
@@ -50,39 +56,43 @@ export async function middleware(request: NextRequest) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       if (supabaseUrl && supabaseKey) {
-        const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
-          cookies: {
-            getAll: () => request.cookies.getAll(),
-            setAll: (cookiesToSet) => {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                response.cookies.set(name, value, options)
-              );
+        try {
+          const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
+            cookies: {
+              getAll: () => request.cookies.getAll(),
+              setAll: (cookiesToSet) => {
+                cookiesToSet.forEach(({ name, value, options }) =>
+                  response.cookies.set(name, value, options)
+                );
+              },
             },
-          },
-        });
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          // Fetch roles to redirect to correct dashboard
-          const { data: roleRows } = await supabase
-            .from("user_roles")
-            .select("roles(name)")
-            .eq("user_id", user.id);
+          });
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            // Fetch roles to redirect to correct dashboard
+            const { data: roleRows } = await supabase
+              .from("user_roles")
+              .select("roles(name)")
+              .eq("user_id", user.id);
 
-          const userRoleNames = (roleRows ?? [])
-            .map((r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase().replace(/\s+/g, "_"))
-            .filter(Boolean);
+            const userRoleNames = (roleRows ?? [])
+              .map((r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase().replace(/\s+/g, "_"))
+              .filter(Boolean);
 
-          let redirectPath = "/agent/dashboard";
-          for (const r of ["admin", "team_leader", "tl", "sales", "agent"]) {
-            if (userRoleNames.includes(r)) {
-              redirectPath = ROLE_DASHBOARD[r] ?? redirectPath;
-              break;
+            let redirectPath = "/agent/dashboard";
+            for (const r of ["admin", "team_leader", "tl", "sales", "agent"]) {
+              if (userRoleNames.includes(r)) {
+                redirectPath = ROLE_DASHBOARD[r] ?? redirectPath;
+                break;
+              }
             }
-          }
 
-          const redirect = NextResponse.redirect(new URL(redirectPath, request.url));
-          response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
-          return redirect;
+            const redirect = NextResponse.redirect(new URL(redirectPath, request.url));
+            response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
+            return redirect;
+          }
+        } catch (err) {
+          console.warn("[middleware] /login auth check failed:", (err as Error)?.message ?? err);
         }
       }
     }
@@ -101,71 +111,83 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: (cookiesToSet) => {
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        );
+  let user: { id: string } | null = null;
+  try {
+    const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
       },
-    },
-  });
+    });
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+    const { data: { user: u } } = await supabase.auth.getUser();
+    user = u;
+    if (!user) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      const redirect = NextResponse.redirect(loginUrl);
+      response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
+      return redirect;
+    }
+
+    // 4b. Root/dashboard - redirect authenticated users to role dashboard immediately
+    if (pathname === "/" || pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("roles(name)")
+        .eq("user_id", user.id);
+
+      const userRoleNames = (roleRows ?? [])
+        .map((r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase().replace(/\s+/g, "_"))
+        .filter(Boolean);
+
+      let redirectPath = "/agent/dashboard";
+      for (const r of ["admin", "team_leader", "tl", "sales", "agent"]) {
+        if (userRoleNames.includes(r)) {
+          redirectPath = ROLE_DASHBOARD[r] ?? redirectPath;
+          break;
+        }
+      }
+
+      const redirect = NextResponse.redirect(new URL(redirectPath, request.url));
+      response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
+      return redirect;
+    }
+
+    // 5. Check role permission (only for role-specific paths)
+    const requiredRoles = getRequiredRole(pathname);
+    if (requiredRoles && requiredRoles.length > 0) {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("roles(name)")
+        .eq("user_id", user.id);
+
+      const userRoleNames = (roleRows ?? [])
+        .map((r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase().replace(/\s+/g, "_"))
+        .filter(Boolean);
+
+      const hasAccess = requiredRoles.some((r) =>
+        userRoleNames.includes(r.toLowerCase())
+      );
+
+      if (!hasAccess) {
+        const redirect = NextResponse.redirect(new URL("/login", request.url));
+        response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
+        return redirect;
+      }
+    }
+  } catch (err) {
+    console.warn("[middleware] Supabase auth/roles failed:", (err as Error)?.message ?? err);
+    // On timeout/unreachable: treat protected paths as unauthenticated and send to login
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     const redirect = NextResponse.redirect(loginUrl);
     response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
     return redirect;
-  }
-
-  // 4b. Root/dashboard - redirect authenticated users to role dashboard immediately
-  if (pathname === "/" || pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", user.id);
-
-    const userRoleNames = (roleRows ?? [])
-      .map((r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase().replace(/\s+/g, "_"))
-      .filter(Boolean);
-
-    let redirectPath = "/agent/dashboard";
-    for (const r of ["admin", "team_leader", "tl", "sales", "agent"]) {
-      if (userRoleNames.includes(r)) {
-        redirectPath = ROLE_DASHBOARD[r] ?? redirectPath;
-        break;
-      }
-    }
-
-    const redirect = NextResponse.redirect(new URL(redirectPath, request.url));
-    response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
-    return redirect;
-  }
-
-  // 5. Check role permission (only for role-specific paths)
-  const requiredRoles = getRequiredRole(pathname);
-  if (requiredRoles && requiredRoles.length > 0) {
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", user.id);
-
-    const userRoleNames = (roleRows ?? [])
-      .map((r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase().replace(/\s+/g, "_"))
-      .filter(Boolean);
-
-    const hasAccess = requiredRoles.some((r) =>
-      userRoleNames.includes(r.toLowerCase())
-    );
-
-    if (!hasAccess) {
-      const redirect = NextResponse.redirect(new URL("/login", request.url));
-      response.cookies.getAll().forEach((c) => redirect.cookies.set(c.name, c.value));
-      return redirect;
-    }
   }
 
   return response;
