@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { MailOutlined, LockOutlined } from "@ant-design/icons";
 
@@ -67,8 +68,8 @@ function LoginContent() {
   return (
     <div className="login-page min-h-screen flex flex-col md:flex-row bg-[#f8fafc]">
       {/* Left panel - branding */}
-      <div className="hidden md:flex md:w-[48%] lg:w-[52%] flex-col justify-between p-10 lg:p-14 bg-gradient-to-br from-white via-[#fafbfc] to-[#f1f5f9] border-r border-slate-200/80">
-        <div>
+      <div className="hidden md:flex md:w-[48%] lg:w-[52%] flex-col justify-between p-10 lg:p-14 border-r border-slate-200/80" style={{ backgroundColor: "#F2F4F5" }}>
+        <div className="flex flex-col flex-1 min-h-0">
           <div className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             CRM Platform
@@ -79,6 +80,16 @@ function LoginContent() {
           <p className="mt-4 max-w-sm text-base text-slate-600 leading-relaxed">
             Sign in to access your workspace and manage campaigns, contacts, and deals in one place.
           </p>
+          <div className="mt-8 relative w-full flex-1 min-h-0">
+            <Image
+              src="/projects/Corporate%20CRM%20Workflows%20Infographic%20Presentation.png"
+              alt="Corporate CRM Workflows Infographic"
+              fill
+              className="object-contain"
+              priority
+              sizes="(max-width: 768px) 100vw, 52vw"
+            />
+          </div>
         </div>
         <p className="text-xs text-slate-400">
           Secure authentication · Role-based access
