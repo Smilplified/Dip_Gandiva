@@ -97,16 +97,26 @@ function LoginContent() {
       </div>
 
       {/* Right panel - form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 md:p-10">
-        <div className="w-full max-w-[400px]">
-          <div className="md:hidden mb-8 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 md:p-10">
+        <div className="w-full max-w-[400px] flex flex-col items-center">
+          <div className="flex justify-center mb-6">
+            <Image
+              src="/projects/gandiva_logo.png"
+              alt="Gandiva"
+              width={160}
+              height={56}
+              className="object-contain"
+              priority
+            />
+          </div>
+          <div className="md:hidden mb-6 text-center">
             <h1 className="text-xl font-semibold text-slate-800">CRM Dashboard</h1>
             <p className="mt-1 text-sm text-slate-600">Sign in to your account</p>
           </div>
 
           <div
             data-login-card
-            className="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/60 sm:p-10"
+            className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/60 sm:p-10"
             style={{ boxSizing: "border-box" }}
           >
             <div className="mb-8 hidden md:block">
