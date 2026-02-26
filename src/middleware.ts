@@ -9,6 +9,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/agent": ["agent"],
   "/tl": ["team_leader", "tl"],
   "/sales": ["sales", "admin"],
+  "/qa": ["qa", "admin"],
 };
 
 // Role name (normalized) -> dashboard path
@@ -18,6 +19,7 @@ const ROLE_DASHBOARD: Record<string, string> = {
   team_leader: "/tl/dashboard",
   tl: "/tl/dashboard",
   sales: "/sales",
+  qa: "/qa/dashboard",
 };
 
 function isPublicPath(pathname: string): boolean {
@@ -80,7 +82,7 @@ export async function middleware(request: NextRequest) {
               .filter(Boolean);
 
             let redirectPath = "/agent/dashboard";
-            for (const r of ["admin", "team_leader", "tl", "sales", "agent"]) {
+            for (const r of ["admin", "team_leader", "tl", "sales", "qa", "agent"]) {
               if (userRoleNames.includes(r)) {
                 redirectPath = ROLE_DASHBOARD[r] ?? redirectPath;
                 break;
@@ -146,7 +148,7 @@ export async function middleware(request: NextRequest) {
         .filter(Boolean);
 
       let redirectPath = "/agent/dashboard";
-      for (const r of ["admin", "team_leader", "tl", "sales", "agent"]) {
+      for (const r of ["admin", "team_leader", "tl", "sales", "qa", "agent"]) {
         if (userRoleNames.includes(r)) {
           redirectPath = ROLE_DASHBOARD[r] ?? redirectPath;
           break;

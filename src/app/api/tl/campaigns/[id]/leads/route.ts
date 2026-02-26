@@ -61,6 +61,7 @@ export async function PATCH(
       email,
       city,
       status,
+      qa_status,
       followup_date,
       notes,
       job_title,
@@ -98,6 +99,9 @@ export async function PATCH(
     if (city !== undefined) updates.city = city || null;
     if (status !== undefined && typeof status === "string" && status.length > 0) {
       updates.status = status;
+    }
+    if (qa_status !== undefined) {
+      updates.qa_status = qa_status && typeof qa_status === "string" ? qa_status : null;
     }
     if (followup_date !== undefined)
       updates.followup_date = followup_date || null;

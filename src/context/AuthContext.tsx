@@ -12,6 +12,7 @@ export const ROLE_ROUTES: Record<string, string> = {
   team_leader: "/tl/dashboard",
   tl: "/tl/dashboard", // alias
   sales: "/sales",
+  qa: "/qa/dashboard",
 };
 
 export type UserRole = { id: string; name: string; role_name: string; description?: string | null; organization_id: string };

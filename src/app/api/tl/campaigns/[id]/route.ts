@@ -59,7 +59,7 @@ export async function GET(
       supabase
         .from("leads")
         .select(
-          "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition"
+          "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition"
         )
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false }),
@@ -135,6 +135,7 @@ export async function GET(
       contact_linkedin_url: string | null;
       company_linkedin_url: string | null;
       lead_disposition: string | null;
+      qa_status: string | null;
     };
     const leadsList = (leadsRes.data ?? []) as LeadRow[];
     const leadUserIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
