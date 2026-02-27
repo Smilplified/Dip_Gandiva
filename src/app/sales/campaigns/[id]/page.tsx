@@ -35,11 +35,24 @@ import {
   FileOutlined,
   DownloadOutlined,
   InboxOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
+
+const EMPLOYEE_SIZE_OPTIONS = [
+  { value: "2-11", label: "2-11" },
+  { value: "11-50", label: "11-50" },
+  { value: "51-200", label: "51-200" },
+  { value: "200-500", label: "200-500" },
+  { value: "500-1000", label: "500-1000" },
+  { value: "1000-5000", label: "1000-5000" },
+  { value: "5000-10000", label: "5000-10000" },
+  { value: "10000+", label: "10000+" },
+  { value: "All Emp", label: "All Emp" },
+];
 
 const ACCEPT_FILE_TYPES =
   ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,image/*";
@@ -69,6 +82,11 @@ type Campaign = {
   weekly_report: string | null;
   additional_comments: string | null;
   assigned_team_leader_id: string | null;
+  employee_size: string[] | null;
+  abm: boolean | null;
+  seniority: string | null;
+  job_function: string | null;
+  creatives_url: string[] | null;
 };
 
 type Lead = {
@@ -114,11 +132,14 @@ export default function SalesCampaignDetailPage() {
   const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
   const [removingFileId, setRemovingFileId] = useState<string | null>(null);
   const [leadTypeOptions, setLeadTypeOptions] = useState([
-    { value: "B2B", label: "B2B" },
-    { value: "B2C", label: "B2C" },
-    { value: "Enterprise", label: "Enterprise" },
-    { value: "SMB", label: "SMB" },
-    { value: "Other", label: "Other" },
+    { value: "AG", label: "AG" },
+    { value: "CD", label: "CD" },
+    { value: "CDQA", label: "CDQA" },
+    { value: "Double Touch - Whitepaper", label: "Double Touch - Whitepaper" },
+    { value: "HQL / BANT", label: "HQL / BANT" },
+    { value: "Tele", label: "Tele" },
+    { value: "Webinar", label: "Webinar" },
+    { value: "Whitepaper", label: "Whitepaper" },
   ]);
   const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
   const [form] = Form.useForm();
@@ -173,13 +194,28 @@ export default function SalesCampaignDetailPage() {
 
   useEffect(() => {
     if (campaign && editModalOpen) {
-      if (campaign.lead_type && !leadTypeOptions.some((o) => o.value === campaign.lead_type)) {
-        setLeadTypeOptions((prev) => [...prev, { value: campaign.lead_type!, label: campaign.lead_type! }]);
+      const leadTypesArray =
+        typeof campaign.lead_type === "string"
+          ? campaign.lead_type
+              .split(",")
+              .map((v) => v.trim())
+              .filter(Boolean)
+          : [];
+
+      if (leadTypesArray.length) {
+        setLeadTypeOptions((prev) => {
+          const existing = new Set(prev.map((o) => o.value));
+          const extras = leadTypesArray
+            .filter((v) => v && !existing.has(v))
+            .map((v) => ({ value: v, label: v }));
+          return extras.length ? [...prev, ...extras] : prev;
+        });
       }
+
       form.setFieldsValue({
         client_name: campaign.client_name ?? "",
         name: campaign.name,
-        lead_type: campaign.lead_type ?? undefined,
+        lead_type: leadTypesArray.length ? leadTypesArray : undefined,
         description: campaign.description ?? "",
         industry: campaign.industry ?? "",
         geography: campaign.geography ?? "",
@@ -199,6 +235,11 @@ export default function SalesCampaignDetailPage() {
         weekly_report: campaign.weekly_report ?? "",
         additional_comments: campaign.additional_comments ?? "",
         assigned_team_leader_id: campaign.assigned_team_leader_id ?? undefined,
+        employee_size: campaign.employee_size ?? undefined,
+        abm: campaign.abm,
+        seniority: campaign.seniority ?? "",
+        job_function: campaign.job_function ?? "",
+        creatives_url: campaign.creatives_url?.length ? campaign.creatives_url : undefined,
       });
     }
   }, [campaign, editModalOpen, form, id]);
@@ -225,6 +266,11 @@ export default function SalesCampaignDetailPage() {
     try {
       const values = await form.validateFields();
       setSaving(true);
+
+      const leadTypeValue = Array.isArray(values.lead_type)
+        ? values.lead_type.join(", ")
+        : values.lead_type;
+
       const res = await fetch(`/api/tl/campaigns/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -232,7 +278,7 @@ export default function SalesCampaignDetailPage() {
         body: JSON.stringify({
           client_name: values.client_name || null,
           name: values.name,
-          lead_type: values.lead_type || null,
+          lead_type: leadTypeValue || null,
           description: values.description || null,
           industry: values.industry || null,
           geography: values.geography || null,
@@ -252,6 +298,11 @@ export default function SalesCampaignDetailPage() {
           weekly_report: values.weekly_report || null,
           additional_comments: values.additional_comments || null,
           assigned_team_leader_id: values.assigned_team_leader_id || null,
+          employee_size: values.employee_size,
+          abm: values.abm,
+          seniority: values.seniority?.trim() || null,
+          job_function: values.job_function?.trim() || null,
+          creatives_url: values.creatives_url?.filter((u: string) => u?.trim()) || null,
         }),
       });
       if (!res.ok) {
@@ -568,6 +619,35 @@ export default function SalesCampaignDetailPage() {
                 <DetailItem label="Pending Allocation" value={campaign.pending_allocation} />
               </Col>
             </Row>
+            {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
+              <>
+                <Divider style={{ margin: "16px 0" }} />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#595959", marginBottom: 12 }}>Targeting</div>
+                <Row gutter={24}>
+                  <Col xs={24} sm={12}>
+                    <DetailItem label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
+                    <DetailItem label="Industry" value={campaign.industry} />
+                    <DetailItem label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <DetailItem label="Seniority" value={campaign.seniority} />
+                    <DetailItem label="Job Function" value={campaign.job_function} />
+                    {campaign.creatives_url?.length ? (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
+                        <div>
+                          {campaign.creatives_url.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 4 }}>
+                              {url}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </Col>
+                </Row>
+              </>
+            ) : null}
             {campaign.additional_comments && (
               <>
                 <Divider style={{ margin: "16px 0" }} />
@@ -700,25 +780,25 @@ export default function SalesCampaignDetailPage() {
             <Form.Item name="name" label="Campaign Name" rules={[{ required: true }]}>
               <Input placeholder="Campaign name" />
             </Form.Item>
-            <Form.Item
-              name="lead_type"
-              label="Lead Type"
-              getValueFromEvent={(vals) => {
-                const v = Array.isArray(vals) && vals.length ? vals[vals.length - 1] : undefined;
-                if (v && !leadTypeOptions.some((o) => o.value === v)) {
-                  setLeadTypeOptions((prev) => [...prev, { value: v, label: v }]);
-                }
-                return v;
-              }}
-              getValueProps={(v) => ({ value: v ? [v] : [] })}
-            >
+            <Form.Item name="lead_type" label="Lead Type">
               <Select
                 mode="tags"
-                maxTagCount={1}
-                placeholder="Select or type new lead type and press Enter"
+                maxTagCount="responsive"
+                placeholder="Select or type lead types and press Enter"
                 allowClear
                 options={leadTypeOptions}
                 tokenSeparators={[","]}
+                onChange={(vals) => {
+                  const arr = Array.isArray(vals) ? vals : [];
+                  setLeadTypeOptions((prev) => {
+                    const existing = new Set(prev.map((o) => o.value));
+                    const extras = arr
+                      .map((v) => String(v).trim())
+                      .filter((v) => v && !existing.has(v))
+                      .map((v) => ({ value: v, label: v }));
+                    return extras.length ? [...prev, ...extras] : prev;
+                  });
+                }}
               />
             </Form.Item>
             <Form.Item name="start_date" label="Start Date">
@@ -791,6 +871,37 @@ export default function SalesCampaignDetailPage() {
             </Form.Item>
             <Form.Item name="geography" label="Geography">
               <Input placeholder="e.g. North America, APAC" />
+            </Form.Item>
+            <Form.Item name="employee_size" label="Employee Size">
+              <Select mode="multiple" placeholder="Select ranges" allowClear options={EMPLOYEE_SIZE_OPTIONS} style={{ width: "100%" }} maxTagCount="responsive" />
+            </Form.Item>
+            <Form.Item name="abm" label="ABM">
+              <Select placeholder="Yes / No" allowClear options={[{ value: true, label: "Yes" }, { value: false, label: "No" }]} />
+            </Form.Item>
+            <Form.Item name="seniority" label="Seniority">
+              <Input placeholder="e.g. C-Level, VP, Director" />
+            </Form.Item>
+            <Form.Item name="job_function" label="Job Function">
+              <Input placeholder="e.g. Sales, Marketing, Engineering" />
+            </Form.Item>
+            <Form.Item label="Creatives URL">
+              <Form.List name="creatives_url">
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
+                        <Form.Item {...restField} name={[name]} rules={[{ type: "url", message: "Valid URL" }]} style={{ flex: 1, marginBottom: 0, minWidth: 180 }}>
+                          <Input placeholder="https://..." />
+                        </Form.Item>
+                        <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                      </Space>
+                    ))}
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} size="small">
+                      Add URL
+                    </Button>
+                  </>
+                )}
+              </Form.List>
             </Form.Item>
             <Form.Item name="additional_comments" label="Additional Comments">
               <TextArea rows={3} placeholder="Additional notes" />

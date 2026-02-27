@@ -33,7 +33,7 @@ export async function GET(
 
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("id, campaign_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, created_at")
+      .select("id, campaign_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, employee_size, abm, seniority, job_function, creatives_url, created_at")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -236,6 +236,11 @@ export async function PATCH(
       weekly_report,
       additional_comments,
       assigned_team_leader_id,
+      employee_size,
+      abm,
+      seniority,
+      job_function,
+      creatives_url,
     } = body;
 
     const updates: Record<string, unknown> = {};
@@ -245,7 +250,18 @@ export async function PATCH(
     if (industry !== undefined) updates.industry = industry?.trim() || null;
     if (geography !== undefined) updates.geography = geography?.trim() || null;
     if (target_designation !== undefined) updates.target_designation = target_designation?.trim() || null;
-    if (lead_type !== undefined) updates.lead_type = lead_type?.trim() || null;
+    if (lead_type !== undefined) {
+      const leadTypeStr =
+        Array.isArray(lead_type) && lead_type.length
+          ? lead_type
+              .map((v: unknown) => (typeof v === "string" ? v.trim() : String(v).trim()))
+              .filter(Boolean)
+              .join(", ")
+          : typeof lead_type === "string"
+          ? lead_type.trim() || null
+          : null;
+      updates.lead_type = leadTypeStr;
+    }
     if (start_date !== undefined) updates.start_date = start_date || null;
     if (end_date !== undefined) updates.end_date = end_date || null;
     if (typeof status === "string" && ["draft", "active", "paused", "completed"].includes(status)) {
@@ -263,6 +279,11 @@ export async function PATCH(
     if (weekly_report !== undefined) updates.weekly_report = weekly_report?.trim() || null;
     if (additional_comments !== undefined) updates.additional_comments = additional_comments?.trim() || null;
     if (assigned_team_leader_id !== undefined) updates.assigned_team_leader_id = assigned_team_leader_id || null;
+    if (employee_size !== undefined) updates.employee_size = Array.isArray(employee_size) && employee_size.length > 0 ? employee_size.filter((v) => v && typeof v === "string").map((v) => String(v).trim()) : null;
+    if (abm !== undefined) updates.abm = abm === true || abm === "true" || abm === "yes" ? true : abm === false || abm === "false" || abm === "no" ? false : null;
+    if (seniority !== undefined) updates.seniority = seniority != null && typeof seniority === "string" ? seniority.trim() || null : null;
+    if (job_function !== undefined) updates.job_function = job_function != null && typeof job_function === "string" ? job_function.trim() || null : null;
+    if (creatives_url !== undefined) updates.creatives_url = Array.isArray(creatives_url) && creatives_url.length > 0 ? creatives_url.filter((v) => v && typeof v === "string").map((v) => String(v).trim()).filter(Boolean) : null;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });

@@ -64,7 +64,7 @@ export async function GET() {
       .from("campaigns")
       .select(`
         id, campaign_id, name, client_name, description, industry, geography, lead_type, status,
-        start_date, end_date, created_at
+        start_date, end_date, created_at, employee_size, abm, seniority, job_function, creatives_url
       `)
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });

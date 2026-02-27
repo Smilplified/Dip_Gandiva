@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       name,
+      client_id: clientIdParam,
       client_name,
       description,
       industry,
@@ -50,17 +51,42 @@ export async function POST(request: Request) {
       weekly_report,
       additional_comments,
       assigned_team_leader_id,
+      employee_size,
+      abm,
+      seniority,
+      job_function,
+      creatives_url,
     } = body;
 
     if (!name || typeof name !== "string") {
       return NextResponse.json({ error: "Campaign Name is required" }, { status: 400 });
     }
 
-    const clientNameStr =
+    let clientNameStr =
       client_name != null && typeof client_name === "string" ? client_name.trim() : "";
+    let clientId: string | null = null;
+
+    if (clientIdParam && typeof clientIdParam === "string" && clientIdParam.trim()) {
+      const { data: clientRow, error: clientErr } = await supabase
+        .from("clients")
+        .select("id, company_name")
+        .eq("id", clientIdParam.trim())
+        .eq("organization_id", orgId)
+        .single();
+      if (clientErr || !clientRow) {
+        return NextResponse.json(
+          { error: "Invalid or unauthorized client selection" },
+          { status: 400 }
+        );
+      }
+      const row = clientRow as unknown as { id: string; company_name: string };
+      clientId = row.id;
+      clientNameStr = row.company_name?.trim() || clientNameStr || "";
+    }
+
     if (!clientNameStr) {
       return NextResponse.json(
-        { error: "Client Name is required to create a campaign" },
+        { error: "Client Name is required to create a campaign. Select a client or enter a name." },
         { status: 400 }
       );
     }
@@ -68,6 +94,16 @@ export async function POST(request: Request) {
     const validStatus = ["draft", "active", "paused", "completed"].includes(status)
       ? status
       : "draft";
+
+    const leadTypeStr =
+      Array.isArray(lead_type) && lead_type.length
+        ? lead_type
+            .map((v: unknown) => (typeof v === "string" ? v.trim() : String(v).trim()))
+            .filter(Boolean)
+            .join(", ")
+        : typeof lead_type === "string"
+        ? lead_type.trim() || null
+        : null;
 
     let campaignId: string;
     let attempts = 0;
@@ -97,12 +133,13 @@ export async function POST(request: Request) {
         organization_id: orgId,
         campaign_id: campaignId,
         name: name.trim(),
+        client_id: clientId,
         client_name: clientNameStr || null,
         description: description?.trim() || null,
         industry: industry?.trim() || null,
         geography: geography?.trim() || null,
         target_designation: target_designation?.trim() || null,
-        lead_type: lead_type?.trim() || null,
+        lead_type: leadTypeStr,
         start_date: start_date || null,
         end_date: end_date || null,
         status: validStatus,
@@ -118,6 +155,11 @@ export async function POST(request: Request) {
         weekly_report: weekly_report?.trim() || null,
         additional_comments: additional_comments?.trim() || null,
         assigned_team_leader_id: assigned_team_leader_id || null,
+        employee_size: Array.isArray(employee_size) && employee_size.length > 0 ? employee_size.filter((v) => v && typeof v === "string").map((v) => String(v).trim()) : null,
+        abm: abm === true || abm === "true" || abm === "yes" ? true : abm === false || abm === "false" || abm === "no" ? false : null,
+        seniority: seniority != null && typeof seniority === "string" ? seniority.trim() || null : null,
+        job_function: job_function != null && typeof job_function === "string" ? job_function.trim() || null : null,
+        creatives_url: Array.isArray(creatives_url) && creatives_url.length > 0 ? creatives_url.filter((v) => v && typeof v === "string").map((v) => String(v).trim()).filter(Boolean) : null,
         created_by: user.id,
       } as never)
       .select("id, campaign_id")

@@ -3,12 +3,13 @@
 import { Layout, Menu } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { DollarOutlined, FundProjectionScreenOutlined } from "@ant-design/icons";
+import { DollarOutlined, FundProjectionScreenOutlined, TeamOutlined } from "@ant-design/icons";
 
 const { Sider } = Layout;
 
 const menuItems = [
   { key: "/sales", icon: <DollarOutlined />, label: "Sales Dashboard", href: "/sales" },
+  { key: "/sales/clients", icon: <TeamOutlined />, label: "Clients", href: "/sales/clients" },
   { key: "/sales/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaign", href: "/sales/campaigns" },
 ];
 
@@ -60,7 +61,13 @@ export default function SalesSidebar() {
       >
         <Menu
           theme="dark"
-          selectedKeys={pathname?.startsWith("/sales/campaigns") ? ["/sales/campaigns"] : [pathname || "/sales"]}
+          selectedKeys={
+            pathname?.startsWith("/sales/campaigns")
+              ? ["/sales/campaigns"]
+              : pathname?.startsWith("/sales/clients")
+                ? ["/sales/clients"]
+                : [pathname || "/sales"]
+          }
           mode="inline"
           items={menuItems.map((item) => ({
             key: item.key,

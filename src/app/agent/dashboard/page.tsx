@@ -100,12 +100,6 @@ export default function AgentDashboardPage() {
       ),
     },
     {
-      title: "Client",
-      dataIndex: "client_name",
-      key: "client_name",
-      render: (v: string | null) => v || "—",
-    },
-    {
       title: "Status",
       dataIndex: "status",
       key: "status",

@@ -63,6 +63,11 @@ type Campaign = {
   additional_comments?: string | null;
   assigned_team_leader_id?: string | null;
   assigned_team_leader_name?: string | null;
+  employee_size?: string[] | null;
+  abm?: boolean | null;
+  seniority?: string | null;
+  job_function?: string | null;
+  creatives_url?: string[] | null;
   created_at?: string;
 };
 
@@ -434,11 +439,6 @@ export default function CampaignDetailPage() {
             <Typography.Title level={3} style={{ margin: 0, marginBottom: 6, fontWeight: 600 }}>
               {campaign.name}
             </Typography.Title>
-            {campaign.client_name && (
-              <Typography.Text type="secondary" style={{ fontSize: 15, display: "block", marginBottom: 8 }}>
-                {campaign.client_name}
-              </Typography.Text>
-            )}
             <Space size="small" wrap>
               {campaign.campaign_id && <Tag style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}>{campaign.campaign_id}</Tag>}
               <Tag color={statusColors[campaign.status] ?? "default"} style={{ textTransform: "capitalize", margin: 0 }}>
@@ -504,6 +504,35 @@ export default function CampaignDetailPage() {
                 <DetailItem label="Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
               </Col>
             </Row>
+            {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
+              <>
+                <Divider style={{ margin: "16px 0" }} />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#595959", marginBottom: 12 }}>Targeting</div>
+                <Row gutter={24}>
+                  <Col xs={24} sm={12}>
+                    <DetailItem label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
+                    <DetailItem label="Industry" value={campaign.industry} />
+                    <DetailItem label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <DetailItem label="Seniority" value={campaign.seniority} />
+                    <DetailItem label="Job Function" value={campaign.job_function} />
+                    {campaign.creatives_url?.length ? (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
+                        <div>
+                          {campaign.creatives_url.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 4 }}>
+                              {url}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </Col>
+                </Row>
+              </>
+            ) : null}
             {campaign.additional_comments && (
               <>
                 <Divider style={{ margin: "16px 0" }} />

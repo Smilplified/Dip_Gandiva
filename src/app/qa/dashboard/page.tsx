@@ -70,7 +70,7 @@ type CampaignWithLeads = {
   id: string;
   campaign_id: string;
   name: string;
-  client_name: string | null;
+  client_name?: string | null;
   description: string | null;
   industry: string | null;
   geography: string | null;
@@ -79,6 +79,11 @@ type CampaignWithLeads = {
   start_date: string | null;
   end_date: string | null;
   created_at: string;
+  employee_size: string[] | null;
+  abm: boolean | null;
+  seniority: string | null;
+  job_function: string | null;
+  creatives_url: string[] | null;
   leads: Lead[];
 };
 
@@ -327,7 +332,6 @@ export default function QADashboardPage() {
     ? campaigns.filter(
         (c) =>
           c.name?.toLowerCase().includes(search.toLowerCase()) ||
-          c.client_name?.toLowerCase().includes(search.toLowerCase()) ||
           c.leads.some(
             (l) =>
               l.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -460,11 +464,6 @@ export default function QADashboardPage() {
                     <span style={{ fontWeight: 600, fontSize: 15 }}>
                       {campaign.name || "Unnamed campaign"}
                     </span>
-                    {campaign.client_name && (
-                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                        {campaign.client_name}
-                      </Typography.Text>
-                    )}
                     <Tag color={AGENT_STATUS_COLORS[campaign.status] || "default"}>
                       {campaign.status}
                     </Tag>
@@ -477,6 +476,19 @@ export default function QADashboardPage() {
               ),
               children: (
                 <div style={{ padding: "8px 0" }}>
+                  {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
+                    <div style={{ marginBottom: 16, padding: "12px 16px", background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 8 }}>Campaign Targeting</div>
+                      <Row gutter={16}>
+                        <Col span={8}><span style={{ fontSize: 12, color: "#8c8c8c" }}>Employee Size:</span> {campaign.employee_size?.length ? campaign.employee_size.join(", ") : "—"}</Col>
+                        <Col span={8}><span style={{ fontSize: 12, color: "#8c8c8c" }}>Industry:</span> {campaign.industry || "—"}</Col>
+                        <Col span={8}><span style={{ fontSize: 12, color: "#8c8c8c" }}>ABM:</span> {campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : "—"}</Col>
+                        <Col span={8}><span style={{ fontSize: 12, color: "#8c8c8c" }}>Seniority:</span> {campaign.seniority || "—"}</Col>
+                        <Col span={8}><span style={{ fontSize: 12, color: "#8c8c8c" }}>Job Function:</span> {campaign.job_function || "—"}</Col>
+                        <Col span={8}><span style={{ fontSize: 12, color: "#8c8c8c" }}>Creatives:</span> {campaign.creatives_url?.length ? `${campaign.creatives_url.length} URL(s)` : "—"}</Col>
+                      </Row>
+                    </div>
+                  ) : null}
                   {campaign.leads.length === 0 ? (
                     <Empty description="No leads in this campaign" style={{ margin: "24px 0" }} />
                   ) : (

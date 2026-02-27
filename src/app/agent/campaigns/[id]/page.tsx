@@ -34,7 +34,6 @@ import { useAuth } from "@/context/AuthContext";
 type Campaign = {
   id: string;
   name: string;
-  client_name: string | null;
   description: string | null;
   industry: string | null;
   geography: string | null;
@@ -48,6 +47,11 @@ type Campaign = {
   pending_allocation: number | null;
   region: string | null;
   additional_comments: string | null;
+  employee_size: string[] | null;
+  abm: boolean | null;
+  seniority: string | null;
+  job_function: string | null;
+  creatives_url: string[] | null;
 };
 
 type Lead = {
@@ -152,7 +156,6 @@ export default function AgentCampaignDetailPage() {
         setCampaign({
           id: campaignJson.campaign.id,
           name: campaignJson.campaign.name,
-          client_name: campaignJson.campaign.client_name,
           description: campaignJson.campaign.description,
           industry: campaignJson.campaign.industry,
           geography: campaignJson.campaign.geography,
@@ -166,6 +169,11 @@ export default function AgentCampaignDetailPage() {
           pending_allocation: campaignJson.campaign.pending_allocation ?? null,
           region: campaignJson.campaign.region ?? null,
           additional_comments: campaignJson.campaign.additional_comments ?? null,
+          employee_size: campaignJson.campaign.employee_size ?? null,
+          abm: campaignJson.campaign.abm ?? null,
+          seniority: campaignJson.campaign.seniority ?? null,
+          job_function: campaignJson.campaign.job_function ?? null,
+          creatives_url: campaignJson.campaign.creatives_url ?? null,
         });
         setLeads(leadsJson.leads ?? []);
         setFiles(campaignJson.files ?? []);
@@ -690,6 +698,35 @@ export default function AgentCampaignDetailPage() {
                 <DetailItem label="Pending Allocation" value={campaign.pending_allocation} />
               </Col>
             </Row>
+            {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
+              <>
+                <Divider style={{ margin: "16px 0" }} />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#595959", marginBottom: 12 }}>Targeting</div>
+                <Row gutter={24}>
+                  <Col xs={24} sm={12}>
+                    <DetailItem label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
+                    <DetailItem label="Industry" value={campaign.industry} />
+                    <DetailItem label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <DetailItem label="Seniority" value={campaign.seniority} />
+                    <DetailItem label="Job Function" value={campaign.job_function} />
+                    {campaign.creatives_url?.length ? (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
+                        <div>
+                          {campaign.creatives_url.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 4 }}>
+                              {url}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </Col>
+                </Row>
+              </>
+            ) : null}
           </Card>
         </Col>
 

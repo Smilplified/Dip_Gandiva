@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Card, Form, Input, DatePicker, Select, Button, message, InputNumber, Row, Col, Upload } from "antd";
-import { InboxOutlined } from "@ant-design/icons";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Card, Form, Input, DatePicker, Select, Button, message, InputNumber, Row, Col, Upload, Alert, Space } from "antd";
+import { InboxOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { Spin } from "antd";
 import type { UploadFile } from "antd";
@@ -14,22 +14,50 @@ const { Dragger } = Upload;
 const ACCEPT_FILE_TYPES =
   ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,image/*";
 
+const EMPLOYEE_SIZE_OPTIONS = [
+  { value: "2-11", label: "2-11" },
+  { value: "11-50", label: "11-50" },
+  { value: "51-200", label: "51-200" },
+  { value: "200-500", label: "200-500" },
+  { value: "500-1000", label: "500-1000" },
+  { value: "1000-5000", label: "1000-5000" },
+  { value: "5000-10000", label: "5000-10000" },
+  { value: "10000+", label: "10000+" },
+  { value: "All Emp", label: "All Emp" },
+];
+
 const DEFAULT_LEAD_TYPES = [
-  { value: "B2B", label: "B2B" },
-  { value: "B2C", label: "B2C" },
-  { value: "Enterprise", label: "Enterprise" },
-  { value: "SMB", label: "SMB" },
-  { value: "Other", label: "Other" },
+  { value: "AG", label: "AG" },
+  { value: "CD", label: "CD" },
+  { value: "CDQA", label: "CDQA" },
+  { value: "Double Touch - Whitepaper", label: "Double Touch - Whitepaper" },
+  { value: "HQL / BANT", label: "HQL / BANT" },
+  { value: "Tele", label: "Tele" },
+  { value: "Webinar", label: "Webinar" },
+  { value: "Whitepaper", label: "Whitepaper" },
 ];
 
 export default function SalesCreateCampaignPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { hasRole, isInitialized } = useAuth();
   const [loading, setLoading] = useState(false);
   const [leadTypeOptions, setLeadTypeOptions] = useState(DEFAULT_LEAD_TYPES);
   const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
+  const [clients, setClients] = useState<{ id: string; company_name: string }[]>([]);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (!hasRole("sales") && !hasRole("admin")) return;
+    fetch("/api/sales/clients", { credentials: "include" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.clients) setClients(data.clients);
+      })
+      .catch(() => {});
+  }, [isInitialized, hasRole]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -54,30 +82,55 @@ export default function SalesCreateCampaignPage() {
     }
   }, [isInitialized, hasRole, router]);
 
+  const clientNameFromUrl = searchParams?.get("client_name");
+  useEffect(() => {
+    if (clientNameFromUrl && form && clients.length > 0) {
+      const match = clients.find((c) => c.company_name === clientNameFromUrl || c.company_name?.toLowerCase() === clientNameFromUrl?.toLowerCase());
+      if (match) form.setFieldValue("client_id", match.id);
+    }
+  }, [clientNameFromUrl, form, clients]);
+
+  const cpl = Form.useWatch("cpl", form);
+  const totalAllocation = Form.useWatch("total_allocation", form);
+  const calculatedRevenue = cpl != null && totalAllocation != null && Number(cpl) >= 0 && Number(totalAllocation) >= 0
+    ? Number(cpl) * Number(totalAllocation)
+    : null;
+
   const submit = async () => {
     try {
       const values = await form.validateFields();
       setLoading(true);
+      const revenueBooked = values.cpl != null && values.total_allocation != null
+        ? Number(values.cpl) * Number(values.total_allocation)
+        : null;
+
+      const leadTypeValue = Array.isArray(values.lead_type)
+        ? values.lead_type.join(", ")
+        : values.lead_type;
 
       const res = await fetch("/api/tl/campaigns/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          client_name: values.client_name,
+          client_id: values.client_id || undefined,
+          client_name: values.client_id ? undefined : values.client_name,
           name: values.name,
-          lead_type: Array.isArray(values.lead_type) ? values.lead_type[0] : values.lead_type,
+          lead_type: leadTypeValue,
           start_date: values.start_date?.format?.("YYYY-MM-DD") ?? null,
           end_date: values.end_date?.format?.("YYYY-MM-DD") ?? null,
           status: values.status ?? "draft",
           cpl: values.cpl,
-          revenue: values.revenue,
-          booked: values.booked,
           total_allocation: values.total_allocation,
-          post_qa: values.post_qa,
-          achieved: values.achieved,
-          pending_allocation: values.pending_allocation,
+          revenue: revenueBooked,
+          booked: revenueBooked,
           region: values.region,
+          employee_size: values.employee_size,
+          industry: values.industry?.trim() || null,
+          abm: values.abm,
+          seniority: values.seniority?.trim() || null,
+          job_function: values.job_function?.trim() || null,
+          creatives_url: values.creatives_url?.filter((u: string) => u?.trim()) || null,
           weekly_call: values.weekly_call,
           weekly_report: values.weekly_report,
           additional_comments: values.additional_comments,
@@ -128,12 +181,39 @@ export default function SalesCreateCampaignPage() {
 
   return (
     <div style={{ padding: "0 24px 24px", maxWidth: 1200, margin: "0 auto" }}>
+      {clients.length === 0 && (
+        <Alert
+          type="info"
+          showIcon
+          message="No clients yet"
+          description={
+            <>
+              Add at least one client before creating a campaign.{" "}
+              <Button type="link" size="small" onClick={() => router.push("/sales/clients")} style={{ padding: 0 }}>
+                Go to Clients
+              </Button>
+            </>
+          }
+          style={{ marginBottom: 24 }}
+        />
+      )}
       <Card title="Create Campaign" style={{ marginBottom: 24 }}>
         <Form form={form} layout="vertical" initialValues={{ status: "draft" }}>
           <Row gutter={24}>
             <Col xs={24} md={12} lg={8}>
-              <Form.Item name="client_name" label="Client Name" rules={[{ required: true, message: "Client Name is required" }]}>
-                <Input placeholder="Enter client name" />
+              <Form.Item
+                name="client_id"
+                label="Client Name"
+                rules={[{ required: true, message: "Select a client" }]}
+              >
+                <Select
+                  placeholder="Select client"
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  options={clients.map((c) => ({ value: c.id, label: c.company_name }))}
+                  notFoundContent={clients.length === 0 ? "No clients yet. Add a client first." : null}
+                />
               </Form.Item>
             </Col>
             <Col xs={24} md={12} lg={8}>
@@ -142,25 +222,25 @@ export default function SalesCreateCampaignPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12} lg={8}>
-              <Form.Item
-                name="lead_type"
-                label="Lead Type"
-                getValueFromEvent={(vals) => {
-                  const v = Array.isArray(vals) && vals.length ? vals[vals.length - 1] : undefined;
-                  if (v && !leadTypeOptions.some((o) => o.value === v)) {
-                    setLeadTypeOptions((prev) => [...prev, { value: v, label: v }]);
-                  }
-                  return v;
-                }}
-                getValueProps={(v) => ({ value: v ? [v] : [] })}
-              >
+              <Form.Item name="lead_type" label="Lead Type">
                 <Select
                   mode="tags"
-                  maxTagCount={1}
-                  placeholder="Select or type new lead type"
+                  maxTagCount="responsive"
+                  placeholder="Select or type lead types"
                   allowClear
                   options={leadTypeOptions}
                   tokenSeparators={[","]}
+                  onChange={(vals) => {
+                    const arr = Array.isArray(vals) ? vals : [];
+                    setLeadTypeOptions((prev) => {
+                      const existing = new Set(prev.map((o) => o.value));
+                      const extras = arr
+                        .map((v) => String(v).trim())
+                        .filter((v) => v && !existing.has(v))
+                        .map((v) => ({ value: v, label: v }));
+                      return extras.length ? [...prev, ...extras] : prev;
+                    });
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -198,33 +278,80 @@ export default function SalesCreateCampaignPage() {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} md={8} lg={6}>
-              <Form.Item name="revenue" label="Revenue">
-                <InputNumber style={{ width: "100%" }} placeholder="e.g. 10000" min={0} step={0.01} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Form.Item name="booked" label="Booked">
-                <InputNumber style={{ width: "100%" }} placeholder="e.g. 5000" min={0} step={0.01} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
               <Form.Item name="total_allocation" label="Total Allocation">
                 <InputNumber style={{ width: "100%" }} placeholder="e.g. 1000" min={0} precision={0} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} md={8} lg={6}>
-              <Form.Item name="post_qa" label="Post QA">
-                <InputNumber style={{ width: "100%" }} placeholder="e.g. 800" min={0} precision={0} />
+              <Form.Item label="Revenue / Booked (auto)">
+                <div style={{ padding: "4px 11px", minHeight: 32, lineHeight: "22px", background: "#fafafa", borderRadius: 6, border: "1px solid #d9d9d9", color: calculatedRevenue != null ? "inherit" : "#999" }}>
+                  {calculatedRevenue != null ? `$${Number(calculatedRevenue).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                </div>
+                <div style={{ fontSize: 12, color: "#999", marginTop: 4 }}>CPL × Total Allocation</div>
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Form.Item name="achieved" label="Achieved">
-                <InputNumber style={{ width: "100%" }} placeholder="e.g. 750" min={0} precision={0} />
+          </Row>
+
+          <Row gutter={24}>
+            <Col xs={24}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#262626" }}>Targeting</div>
+            </Col>
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item name="employee_size" label="Employee Size">
+                <Select
+                  mode="multiple"
+                  placeholder="Select employee size ranges"
+                  allowClear
+                  options={EMPLOYEE_SIZE_OPTIONS}
+                  style={{ width: "100%" }}
+                  maxTagCount="responsive"
+                />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Form.Item name="pending_allocation" label="Pending Allocation">
-                <InputNumber style={{ width: "100%" }} placeholder="e.g. 250" min={0} precision={0} />
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item name="industry" label="Industry">
+                <Input placeholder="e.g. Technology, Healthcare, Finance" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item name="abm" label="ABM">
+                <Select placeholder="Yes / No" allowClear options={[{ value: true, label: "Yes" }, { value: false, label: "No" }]} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item name="seniority" label="Seniority">
+                <Input placeholder="e.g. C-Level, VP, Director, Manager" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12} lg={8}>
+              <Form.Item name="job_function" label="Job Function">
+                <Input placeholder="e.g. Sales, Marketing, Engineering" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col xs={24}>
+              <Form.Item label="Creatives URL">
+                <Form.List name="creatives_url">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map(({ key, name, ...restField }) => (
+                        <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
+                          <Form.Item {...restField} name={[name]} rules={[{ type: "url", message: "Enter a valid URL" }]} style={{ flex: 1, marginBottom: 0, minWidth: 200 }}>
+                            <Input placeholder="https://..." />
+                          </Form.Item>
+                          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                        </Space>
+                      ))}
+                      <Form.Item style={{ marginBottom: 0 }}>
+                        <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                          Add URL
+                        </Button>
+                      </Form.Item>
+                    </>
+                  )}
+                </Form.List>
               </Form.Item>
             </Col>
           </Row>
