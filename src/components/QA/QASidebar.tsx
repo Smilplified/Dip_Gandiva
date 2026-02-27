@@ -3,18 +3,18 @@
 import { Layout, Menu } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AuditOutlined, FundProjectionScreenOutlined } from "@ant-design/icons";
+import { FundProjectionScreenOutlined, DashboardOutlined } from "@ant-design/icons";
 
 const { Sider } = Layout;
 
 const menuItems = [
-  { key: "/qa/dashboard", icon: <AuditOutlined />, label: "QA Dashboard", href: "/qa/dashboard" },
-  { key: "/qa/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns & Leads", href: "/qa/dashboard" },
+  { key: "/qa/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/qa/dashboard" },
+  { key: "/qa/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaign & Leads", href: "/qa/campaigns" },
 ];
 
 export default function QASidebar() {
   const pathname = usePathname();
-  const selectedKey = pathname?.startsWith("/qa/dashboard") ? "/qa/dashboard" : pathname || "/qa/dashboard";
+  const selectedKey = pathname?.startsWith("/qa/campaigns") ? "/qa/campaigns" : pathname?.startsWith("/qa/dashboard") ? "/qa/dashboard" : pathname || "/qa/dashboard";
 
   return (
     <Sider

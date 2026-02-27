@@ -38,6 +38,9 @@ type LeadRow = {
   company_linkedin_url: string | null;
   lead_disposition: string | null;
   qa_status: string | null;
+  disqualification_reasons: string | null;
+  disqualification_reason: string | null;
+  rectified_reason: string | null;
 };
 
 export async function GET() {
@@ -63,8 +66,10 @@ export async function GET() {
     const { data: campaigns, error: campaignsError } = await supabase
       .from("campaigns")
       .select(`
-        id, campaign_id, name, client_name, description, industry, geography, lead_type, status,
-        start_date, end_date, created_at, employee_size, abm, seniority, job_function, creatives_url
+        id, campaign_id, name, client_name, description, industry, geography, target_designation, lead_type, status,
+        start_date, end_date, created_at, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation,
+        region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id,
+        employee_size, abm, seniority, job_function, creatives_url
       `)
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
@@ -73,24 +78,54 @@ export async function GET() {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });
     }
 
-    const campaignsList = (campaigns ?? []) as { id: string; campaign_id: string; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; created_at: string }[];
+    const campaignsList = (campaigns ?? []) as { id: string; campaign_id: string; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; target_designation: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; created_at: string; cpl: number | null; revenue: number | null; booked: number | null; total_allocation: number | null; post_qa: number | null; achieved: number | null; pending_allocation: number | null; region: string | null; weekly_call: string | null; weekly_report: string | null; additional_comments: string | null; assigned_team_leader_id: string | null; employee_size: string[] | null; abm: boolean | null; seniority: string | null; job_function: string | null; creatives_url: string[] | null }[];
+    const tlIds = [...new Set(campaignsList.map((c) => c.assigned_team_leader_id).filter(Boolean))] as string[];
+    let tlNames: Record<string, string> = {};
+    if (tlIds.length > 0) {
+      const { data: tlUsers } = await supabase.from("users").select("id, full_name, email").in("id", tlIds);
+      ((tlUsers ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
+        tlNames[u.id] = u.full_name || u.email || "Unknown";
+      });
+    }
+    const campaignsWithTlName = campaignsList.map((c) => ({
+      ...c,
+      assigned_team_leader_name: c.assigned_team_leader_id ? tlNames[c.assigned_team_leader_id] ?? null : null,
+    }));
     const campaignIds = campaignsList.map((c) => c.id);
 
     if (campaignIds.length === 0) {
-      return NextResponse.json({ campaigns: campaignsList.map((c) => ({ ...c, leads: [] })) });
+      return NextResponse.json({ campaigns: campaignsWithTlName.map((c) => ({ ...c, leads: [] })) });
     }
 
-    const { data: leadsData, error: leadsError } = await supabase
+    const leadsSelect = "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition";
+    let { data: leadsData, error: leadsError } = await supabase
       .from("leads")
-      .select("id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition")
+      .select(leadsSelect + ", disqualification_reasons, disqualification_reason, rectified_reason")
       .in("campaign_id", campaignIds)
       .order("created_at", { ascending: false });
+
+    if (leadsError && (leadsError.message?.includes("disqualification_reasons") || leadsError.message?.includes("disqualification_reason") || leadsError.message?.includes("column"))) {
+      leadsError = null;
+      const fallback = await supabase
+        .from("leads")
+        .select(leadsSelect)
+        .in("campaign_id", campaignIds)
+        .order("created_at", { ascending: false });
+      leadsData = fallback.data;
+      leadsError = fallback.error;
+    }
 
     if (leadsError) {
       return NextResponse.json({ error: leadsError.message }, { status: 500 });
     }
 
-    const leadsList = (leadsData ?? []) as LeadRow[];
+    const rawList = (leadsData ?? []) as Record<string, unknown>[];
+    const leadsList = rawList.map((row) => ({
+      ...row,
+      disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
+      disqualification_reason: (row.disqualification_reason as string | null) ?? null,
+      rectified_reason: (row.rectified_reason as string | null) ?? null,
+    })) as LeadRow[];
     const userIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
     let userNames: Record<string, string> = {};
     if (userIds.length > 0) {
@@ -110,7 +145,7 @@ export async function GET() {
     }));
 
     const leadsByCampaign: Record<string, typeof leadsWithNames> = {};
-    campaignsList.forEach((c) => {
+    campaignsWithTlName.forEach((c) => {
       leadsByCampaign[c.id] = [];
     });
     leadsWithNames.forEach((l) => {
@@ -119,7 +154,7 @@ export async function GET() {
       }
     });
 
-    const campaignsWithLeads = campaignsList.map((c) => ({
+    const campaignsWithLeads = campaignsWithTlName.map((c) => ({
       ...c,
       leads: leadsByCampaign[c.id] ?? [],
     }));

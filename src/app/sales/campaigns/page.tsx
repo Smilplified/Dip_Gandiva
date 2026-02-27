@@ -50,7 +50,6 @@ type CampaignRow = {
   region: string | null;
   created_at: string;
   total_leads: number;
-  total_agents: number;
   assigned_team_leader_name: string | null;
 };
 
@@ -195,7 +194,6 @@ export default function SalesCampaignsPage() {
       },
     },
     { title: "Total Leads", dataIndex: "total_leads", key: "total_leads", width: 100 },
-    { title: "Agents", dataIndex: "total_agents", key: "total_agents", width: 80 },
     { title: "Team Leader", dataIndex: "assigned_team_leader_name", key: "assigned_team_leader_name", width: 130, ellipsis: true, render: (v: string | null) => v || "—" },
     {
       title: "Start Date",

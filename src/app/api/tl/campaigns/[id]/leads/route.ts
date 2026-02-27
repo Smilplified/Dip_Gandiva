@@ -62,6 +62,9 @@ export async function PATCH(
       city,
       status,
       qa_status,
+      disqualification_reasons,
+      disqualification_reason,
+      rectified_reason,
       followup_date,
       notes,
       job_title,
@@ -103,6 +106,20 @@ export async function PATCH(
     if (qa_status !== undefined) {
       updates.qa_status = qa_status && typeof qa_status === "string" ? qa_status : null;
     }
+    if (disqualification_reasons !== undefined) {
+      const val = Array.isArray(disqualification_reasons)
+        ? disqualification_reasons.filter((v) => v != null && String(v).trim()).map((v) => String(v).trim()).join(", ")
+        : typeof disqualification_reasons === "string"
+        ? disqualification_reasons.trim() || null
+        : null;
+      updates.disqualification_reasons = val;
+    }
+    if (disqualification_reason !== undefined) {
+      updates.disqualification_reason = disqualification_reason != null && String(disqualification_reason).trim() ? String(disqualification_reason).trim() : null;
+    }
+    if (rectified_reason !== undefined) {
+      updates.rectified_reason = rectified_reason != null && String(rectified_reason).trim() ? String(rectified_reason).trim() : null;
+    }
     if (followup_date !== undefined)
       updates.followup_date = followup_date || null;
     if (notes !== undefined) updates.notes = notes || null;
@@ -136,6 +153,21 @@ export async function PATCH(
       updates.company_linkedin_url = company_linkedin_url || null;
     if (lead_disposition !== undefined)
       updates.lead_disposition = lead_disposition || null;
+
+    const { data: roleRows } = await supabase
+      .from("user_roles")
+      .select("roles(name)")
+      .eq("user_id", user.id);
+    const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[]).map((r) =>
+      r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_")
+    );
+    const canEditQa = roleNames.includes("qa") || roleNames.includes("admin");
+    if (!canEditQa) {
+      delete updates.qa_status;
+      delete updates.disqualification_reasons;
+      delete updates.disqualification_reason;
+      delete updates.rectified_reason;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

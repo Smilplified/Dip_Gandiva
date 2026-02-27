@@ -46,14 +46,27 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const { data: leadsList, error: leadsError } = await supabase
+    const leadsSelect = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition";
+    let leadsList: unknown[] | null = null;
+    let leadsError: { message?: string } | null = null;
+    let res = await supabase
       .from("leads")
-      .select(
-        "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition"
-      )
+      .select(leadsSelect + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
       .eq("campaign_id", campaignId)
       .eq("assigned_agent_id", user.id)
       .order("created_at", { ascending: false });
+    leadsList = res.data;
+    leadsError = res.error;
+    if (leadsError && (res.error?.message?.includes("qa_status") || res.error?.message?.includes("column"))) {
+      res = await supabase
+        .from("leads")
+        .select(leadsSelect)
+        .eq("campaign_id", campaignId)
+        .eq("assigned_agent_id", user.id)
+        .order("created_at", { ascending: false });
+      leadsList = res.data;
+      leadsError = res.error;
+    }
 
     if (leadsError) {
       return NextResponse.json({ error: leadsError.message }, { status: 500 });
@@ -92,8 +105,19 @@ export async function GET(
       contact_linkedin_url: string | null;
       company_linkedin_url: string | null;
       lead_disposition: string | null;
+      qa_status?: string | null;
+      disqualification_reasons?: string | null;
+      disqualification_reason?: string | null;
+      rectified_reason?: string | null;
     };
-    const leads = (leadsList ?? []) as LeadRow[];
+    const rawLeads = (leadsList ?? []) as Record<string, unknown>[];
+    const leads = rawLeads.map((row) => ({
+      ...row,
+      qa_status: (row.qa_status as string | null) ?? null,
+      disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
+      disqualification_reason: (row.disqualification_reason as string | null) ?? null,
+      rectified_reason: (row.rectified_reason as string | null) ?? null,
+    })) as LeadRow[];
     const userIds = [...new Set(leads.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
     let userNames: Record<string, string> = {};
     if (userIds.length > 0) {

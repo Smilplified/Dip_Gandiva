@@ -106,6 +106,10 @@ type Lead = {
   contact_linkedin_url: string | null;
   company_linkedin_url: string | null;
   lead_disposition: string | null;
+  qa_status?: string | null;
+  disqualification_reasons?: string | null;
+  disqualification_reason?: string | null;
+  rectified_reason?: string | null;
 };
 
 const STATUS_OPTIONS = [
@@ -388,6 +392,7 @@ export default function CampaignDetailPage() {
     { title: "Company LinkedIn", dataIndex: "company_linkedin_url", key: "company_linkedin_url", width: 200, ellipsis: true, render: (v: string | null) => v || "—" },
     { title: "Lead Disposition", dataIndex: "lead_disposition", key: "lead_disposition", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
     { title: "Status", dataIndex: "status", key: "status", width: 110, render: (v: string) => <Tag color={leadStatusColors[v] ?? "default"} style={{ textTransform: "capitalize" }}>{v?.replace("_", " ")}</Tag> },
+    { title: "QA status", dataIndex: "qa_status", key: "qa_status", width: 110, render: (v: string | null | undefined) => (v ? <Tag color={v === "qualified" ? "green" : v === "disqualified" ? "red" : "blue"}>{v}</Tag> : "—") },
     { title: "Follow-up", dataIndex: "followup_date", key: "followup_date", width: 110, render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : "—") },
     { title: "Notes", dataIndex: "notes", key: "notes", width: 160, ellipsis: true, render: (v: string | null) => v || "—" },
     { title: "Created By (Agent)", dataIndex: "created_by_name", key: "created_by_name", width: 160, ellipsis: true, render: (v: string | null) => v || "—" },
@@ -904,6 +909,37 @@ export default function CampaignDetailPage() {
               </Form.Item>
             </Col>
           </Row>
+          {editingLead && (editingLead.qa_status || editingLead.disqualification_reasons || editingLead.disqualification_reason || editingLead.rectified_reason) && (
+            <div style={{ marginBottom: 24, padding: 16, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
+              <Typography.Text strong style={{ display: "block", marginBottom: 12, fontSize: 13, color: "#595959" }}>
+                QA review (read-only)
+              </Typography.Text>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>QA status</Typography.Text>
+                  <div style={{ marginTop: 4 }}>{editingLead.qa_status ? <Tag color={editingLead.qa_status === "qualified" ? "green" : editingLead.qa_status === "disqualified" ? "red" : "blue"}>{editingLead.qa_status}</Tag> : "—"}</div>
+                </Col>
+                {editingLead.disqualification_reasons && (
+                  <Col span={24}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Disqualification reasons</Typography.Text>
+                    <div style={{ marginTop: 4 }}>{editingLead.disqualification_reasons}</div>
+                  </Col>
+                )}
+                {editingLead.disqualification_reason && (
+                  <Col span={24}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Disqualification reason</Typography.Text>
+                    <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{editingLead.disqualification_reason}</div>
+                  </Col>
+                )}
+                {editingLead.rectified_reason && (
+                  <Col span={24}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Rectified reason</Typography.Text>
+                    <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{editingLead.rectified_reason}</div>
+                  </Col>
+                )}
+              </Row>
+            </div>
+          )}
           <Form.Item label="Notes" name="notes">
             <Input.TextArea rows={3} placeholder="Notes, context, objections..." />
           </Form.Item>
