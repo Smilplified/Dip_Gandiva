@@ -435,7 +435,7 @@ export default function AgentCampaignDetailPage() {
           locale={{ emptyText: "No leads yet. Use 'Add Lead' to create one." }}
           size="middle"
           onRow={(record) => ({
-            onClick: () => openEditLeadDrawer(record),
+            onClick: () => openEditLeadDrawer(record as Lead),
             style: { cursor: "pointer" },
           })}
         />

@@ -372,7 +372,7 @@ export default function QACampaignsPage() {
                   scroll={{ x: 2600 }}
                   pagination={{ pageSize: 10, showTotal: (t) => `Total ${t} leads` }}
                   onRow={(record) => ({
-                    onClick: () => openLeadDrawer(record, campaign.id),
+                    onClick: () => openLeadDrawer(record as Lead, campaign.id),
                     style: { cursor: "pointer" },
                   })}
                 />

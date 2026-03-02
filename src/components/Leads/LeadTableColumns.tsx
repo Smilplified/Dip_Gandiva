@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Table, Tag, Button } from "antd";
+import type { TableProps } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import type { Lead } from "@/types/lead.types";
 
@@ -22,7 +23,7 @@ type ColumnConfig = {
 export function getLeadTableColumns(config: ColumnConfig = {}) {
   const { showActions = true, onEdit } = config;
 
-  const baseColumns: Parameters<typeof Table>[0]["columns"] = [
+  const baseColumns: NonNullable<TableProps<Lead>["columns"]> = [
     {
       title: "Sr. No.",
       key: "sr",
