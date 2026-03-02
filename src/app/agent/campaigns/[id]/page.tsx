@@ -10,9 +10,6 @@ import {
   Button,
   Drawer,
   Form,
-  Input,
-  DatePicker,
-  Select,
   Spin,
   Typography,
   message,
@@ -26,10 +23,12 @@ import {
   PlusOutlined,
   FileOutlined,
   DownloadOutlined,
-  EditOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
 import { useAuth } from "@/context/AuthContext";
+import { LeadForm } from "@/components/Leads/LeadForm";
+import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
+import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
+import type { Lead } from "@/types/lead.types";
 
 type Campaign = {
   id: string;
@@ -54,47 +53,6 @@ type Campaign = {
   creatives_url: string[] | null;
 };
 
-type Lead = {
-  id: string;
-  lead_id: string | null;
-  name: string | null;
-  company_name: string | null;
-  phone: string | null;
-  email: string | null;
-  city: string | null;
-  status: string;
-  followup_date: string | null;
-  notes: string | null;
-  assigned_agent_id: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  assigned_agent_name: string | null;
-  created_by_name: string | null;
-  job_title: string | null;
-  job_function: string | null;
-  job_level: string | null;
-  direct_number: string | null;
-  industry: string | null;
-  company_number: string | null;
-  employee_size: string | null;
-  address: string | null;
-  state: string | null;
-  country: string | null;
-  zip_code: string | null;
-  founded_years: number | null;
-  founded_years_link: string | null;
-  revenue_range: string | null;
-  revenue_link: string | null;
-  contact_linkedin_url: string | null;
-  company_linkedin_url: string | null;
-  lead_disposition: string | null;
-  qa_status?: string | null;
-  disqualification_reasons?: string | null;
-  disqualification_reason?: string | null;
-  rectified_reason?: string | null;
-};
-
 type CampaignFile = {
   id: string;
   file_name: string;
@@ -105,20 +63,12 @@ type CampaignFile = {
   download_url: string | null;
 };
 
-const STATUS_OPTIONS = [
-  { value: "new", label: "New" },
-  { value: "contacted", label: "Contacted" },
-  { value: "interested", label: "Interested" },
-  { value: "followup", label: "Follow-up" },
-  { value: "closed_won", label: "Closed Won" },
-  { value: "closed_lost", label: "Closed Lost" },
-];
-
 export default function AgentCampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string | undefined;
   const { hasRole, isInitialized } = useAuth();
+  const canEditQaAudit = hasRole("qa") || hasRole("admin");
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -204,10 +154,7 @@ export default function AgentCampaignDetailPage() {
   const openEditLeadDrawer = (lead: Lead) => {
     setDrawerMode("edit");
     setEditingLead(lead);
-    form.setFieldsValue({
-      ...lead,
-      followup_date: lead.followup_date ? dayjs(lead.followup_date) : null,
-    });
+    form.setFieldsValue(leadToFormValues(lead as unknown as Record<string, unknown>));
     setLeadDrawerOpen(true);
   };
 
@@ -222,40 +169,12 @@ export default function AgentCampaignDetailPage() {
     try {
       const values = await form.validateFields();
       setCreatingLead(true);
+      const payload = buildLeadPayload(values);
       const res = await fetch(`/api/agent/campaigns/${id}/leads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          name: values.name || null,
-          company_name: values.company_name || null,
-          phone: values.phone || null,
-          email: values.email || null,
-          city: values.city || null,
-          status: values.status || "new",
-          followup_date: values.followup_date
-            ? values.followup_date.format("YYYY-MM-DD")
-            : null,
-          notes: values.notes || null,
-          job_title: values.job_title || null,
-          job_function: values.job_function || null,
-          job_level: values.job_level || null,
-          direct_number: values.direct_number || null,
-          industry: values.industry || null,
-          company_number: values.company_number || null,
-          employee_size: values.employee_size || null,
-          address: values.address || null,
-          state: values.state || null,
-          country: values.country || null,
-          zip_code: values.zip_code || null,
-          founded_years: values.founded_years || null,
-          founded_years_link: values.founded_years_link || null,
-          revenue_range: values.revenue_range || null,
-          revenue_link: values.revenue_link || null,
-          contact_linkedin_url: values.contact_linkedin_url || null,
-          company_linkedin_url: values.company_linkedin_url || null,
-          lead_disposition: values.lead_disposition || null,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create lead");
@@ -280,41 +199,12 @@ export default function AgentCampaignDetailPage() {
     try {
       const values = await form.validateFields();
       setUpdatingLead(true);
+      const payload = { ...buildLeadPayload(values), id: editingLead.id };
       const res = await fetch(`/api/agent/campaigns/${id}/leads`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          id: editingLead.id,
-          name: values.name ?? null,
-          company_name: values.company_name ?? null,
-          phone: values.phone ?? null,
-          email: values.email ?? null,
-          city: values.city ?? null,
-          status: values.status ?? null,
-          followup_date: values.followup_date
-            ? values.followup_date.format("YYYY-MM-DD")
-            : null,
-          notes: values.notes ?? null,
-          job_title: values.job_title ?? null,
-          job_function: values.job_function ?? null,
-          job_level: values.job_level ?? null,
-          direct_number: values.direct_number ?? null,
-          industry: values.industry ?? null,
-          company_number: values.company_number ?? null,
-          employee_size: values.employee_size ?? null,
-          address: values.address ?? null,
-          state: values.state ?? null,
-          country: values.country ?? null,
-          zip_code: values.zip_code ?? null,
-          founded_years: values.founded_years ?? null,
-          founded_years_link: values.founded_years_link ?? null,
-          revenue_range: values.revenue_range ?? null,
-          revenue_link: values.revenue_link ?? null,
-          contact_linkedin_url: values.contact_linkedin_url ?? null,
-          company_linkedin_url: values.company_linkedin_url ?? null,
-          lead_disposition: values.lead_disposition ?? null,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to update lead");
@@ -363,285 +253,10 @@ export default function AgentCampaignDetailPage() {
     closed_lost: "red",
   };
 
-  const leadColumns = [
-    {
-      title: "Sr. No.",
-      key: "sr",
-      width: 72,
-      fixed: "left" as const,
-      render: (_: unknown, __: Lead, index: number) => index + 1,
-    },
-    {
-      title: "Lead ID",
-      dataIndex: "lead_id",
-      key: "lead_id",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Company",
-      dataIndex: "company_name",
-      key: "company_name",
-      width: 160,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Job Title",
-      dataIndex: "job_title",
-      key: "job_title",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Job Function",
-      dataIndex: "job_function",
-      key: "job_function",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Job Level",
-      dataIndex: "job_level",
-      key: "job_level",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Phone",
-      dataIndex: "phone",
-      key: "phone",
-      width: 120,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Direct Number",
-      dataIndex: "direct_number",
-      key: "direct_number",
-      width: 140,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Email",
-      dataIndex: "email",
-      key: "email",
-      width: 180,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Industry",
-      dataIndex: "industry",
-      key: "industry",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Company Number",
-      dataIndex: "company_number",
-      key: "company_number",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Employee Size",
-      dataIndex: "employee_size",
-      key: "employee_size",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Address",
-      dataIndex: "address",
-      key: "address",
-      width: 200,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "City",
-      dataIndex: "city",
-      key: "city",
-      width: 120,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "State",
-      dataIndex: "state",
-      key: "state",
-      width: 120,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Country",
-      dataIndex: "country",
-      key: "country",
-      width: 120,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Zip / Postal",
-      dataIndex: "zip_code",
-      key: "zip_code",
-      width: 120,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Founded Year",
-      dataIndex: "founded_years",
-      key: "founded_years",
-      width: 120,
-      render: (v: number | null) => v ?? "—",
-    },
-    {
-      title: "Founded Link",
-      dataIndex: "founded_years_link",
-      key: "founded_years_link",
-      width: 180,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Revenue Range",
-      dataIndex: "revenue_range",
-      key: "revenue_range",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Revenue Link",
-      dataIndex: "revenue_link",
-      key: "revenue_link",
-      width: 180,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Contact LinkedIn",
-      dataIndex: "contact_linkedin_url",
-      key: "contact_linkedin_url",
-      width: 200,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Company LinkedIn",
-      dataIndex: "company_linkedin_url",
-      key: "company_linkedin_url",
-      width: 200,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Lead Disposition",
-      dataIndex: "lead_disposition",
-      key: "lead_disposition",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 110,
-      render: (v: string) => (
-        <Tag
-          color={statusColors[v] ?? "default"}
-          style={{ textTransform: "capitalize" }}
-        >
-          {v?.replace("_", " ")}
-        </Tag>
-      ),
-    },
-    {
-      title: "QA status",
-      dataIndex: "qa_status",
-      key: "qa_status",
-      width: 110,
-      render: (v: string | null | undefined) =>
-        v ? (
-          <Tag
-            color={
-              v === "qualified" ? "green" : v === "disqualified" ? "red" : "blue"
-            }
-          >
-            {v}
-          </Tag>
-        ) : (
-          "—"
-        ),
-    },
-    {
-      title: "Follow-up",
-      dataIndex: "followup_date",
-      key: "followup_date",
-      width: 110,
-      render: (v: string | null) =>
-        v ? new Date(v).toLocaleDateString() : "—",
-    },
-    {
-      title: "Notes",
-      dataIndex: "notes",
-      key: "notes",
-      width: 160,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Created By (Agent)",
-      dataIndex: "created_by_name",
-      key: "created_by_name",
-      width: 160,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Created",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 140,
-      render: (v: string) =>
-        v
-          ? new Date(v).toLocaleString(undefined, {
-              dateStyle: "short",
-              timeStyle: "short",
-            })
-          : "—",
-    },
-    {
-      title: "",
-      key: "actions",
-      width: 60,
-      fixed: "right" as const,
-      render: (_: unknown, record: Lead) => (
-        <Button
-          type="text"
-          icon={<EditOutlined />}
-          onClick={(e) => {
-            e.stopPropagation();
-            openEditLeadDrawer(record);
-          }}
-        />
-      ),
-    },
-  ];
+  const leadColumns = getLeadTableColumns({
+    showActions: true,
+    onEdit: openEditLeadDrawer,
+  });
 
   const DetailItem = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <div style={{ marginBottom: 12 }}>
@@ -829,7 +444,7 @@ export default function AgentCampaignDetailPage() {
       <Drawer
         title={drawerMode === "edit" ? "Edit Lead" : "Add Lead"}
         placement="right"
-        width="50%"
+        width={640}
         open={leadDrawerOpen}
         onClose={closeLeadDrawer}
         destroyOnClose
@@ -861,230 +476,16 @@ export default function AgentCampaignDetailPage() {
         }
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 20, fontSize: 13 }}>
-          Add a new lead to this campaign. After saving, the form will reset so you can add another. Close when finished.
+          {drawerMode === "create"
+            ? "Add a new lead to this campaign. After saving, the form will reset so you can add another. Close when finished."
+            : "Update lead details. All fields are organized in collapsible sections."}
         </Typography.Paragraph>
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Name" name="name">
-                <Input placeholder="Lead name" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Company" name="company_name">
-                <Input placeholder="Company name" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Job Title" name="job_title">
-                <Input placeholder="Job title" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Job Function" name="job_function">
-                <Select
-                  placeholder="Select job function"
-                  options={[
-                    { value: "sales", label: "Sales" },
-                    { value: "marketing", label: "Marketing" },
-                    { value: "operations", label: "Operations" },
-                    { value: "finance", label: "Finance" },
-                    { value: "it", label: "IT" },
-                    { value: "hr", label: "HR" },
-                    { value: "other", label: "Other" },
-                  ]}
-                  allowClear
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Job Level" name="job_level">
-                <Select
-                  placeholder="Select job level"
-                  options={[
-                    { value: "entry", label: "Entry / Junior" },
-                    { value: "mid", label: "Mid-level" },
-                    { value: "senior", label: "Senior" },
-                    { value: "director", label: "Director" },
-                    { value: "vp", label: "VP" },
-                    { value: "c_level", label: "C-level" },
-                    { value: "owner", label: "Owner / Founder" },
-                  ]}
-                  allowClear
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Email" name="email">
-                <Input placeholder="email@example.com" type="email" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Phone" name="phone">
-                <Input placeholder="+1 555 123 4567" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Direct Number" name="direct_number">
-                <Input placeholder="+1 555 987 6543" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Industry" name="industry">
-                <Input placeholder="Industry" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Company Number" name="company_number">
-                <Input placeholder="Company phone number" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Employee Size" name="employee_size">
-                <Select
-                  placeholder="Select employee size"
-                  options={[
-                    { value: "1-10", label: "1-10" },
-                    { value: "11-50", label: "11-50" },
-                    { value: "51-200", label: "51-200" },
-                    { value: "201-500", label: "201-500" },
-                    { value: "501-1000", label: "501-1000" },
-                    { value: "1001-5000", label: "1001-5000" },
-                    { value: "5001-10000", label: "5001-10000" },
-                    { value: "10001+", label: "10001+" },
-                  ]}
-                  allowClear
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item label="Address" name="address">
-                <Input placeholder="Street address" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item label="City" name="city">
-                <Input placeholder="City" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="State" name="state">
-                <Input placeholder="State / Region" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Country" name="country">
-                <Input placeholder="Country" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Zip / Postal Code" name="zip_code">
-                <Input placeholder="Zip / Postal code" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Founded Year" name="founded_years">
-                <Input placeholder="e.g. 2010" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={16}>
-              <Form.Item label="Founded Year Link" name="founded_years_link">
-                <Input placeholder="URL confirming founded year" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Revenue Range" name="revenue_range">
-                <Input placeholder="e.g. $1M - $5M" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={16}>
-              <Form.Item label="Revenue Link" name="revenue_link">
-                <Input placeholder="URL confirming revenue" />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item
-                label="Contact LinkedIn URL"
-                name="contact_linkedin_url"
-              >
-                <Input placeholder="https://linkedin.com/in/..." />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item
-                label="Company LinkedIn URL"
-                name="company_linkedin_url"
-              >
-                <Input placeholder="https://linkedin.com/company/..." />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Lead Disposition" name="lead_disposition">
-                <Select
-                  placeholder="Select disposition"
-                  options={[
-                    { value: "new_lead", label: "New Lead" },
-                    { value: "working", label: "Working" },
-                    { value: "qualified", label: "Qualified" },
-                    { value: "unqualified", label: "Unqualified" },
-                    { value: "nurture", label: "Nurture" },
-                  ]}
-                  allowClear
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Status" name="status" initialValue="new">
-                <Select options={STATUS_OPTIONS} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={8}>
-              <Form.Item label="Follow-up Date" name="followup_date">
-                <DatePicker
-                  style={{ width: "100%" }}
-                  disabledDate={(d) => d && d < dayjs().startOf("day")}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-          {drawerMode === "edit" && editingLead && (editingLead.qa_status || editingLead.disqualification_reasons || editingLead.disqualification_reason || editingLead.rectified_reason) && (
-            <div style={{ marginBottom: 24, padding: 16, background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>
-              <Typography.Text strong style={{ display: "block", marginBottom: 12, fontSize: 13, color: "#595959" }}>
-                QA review (read-only)
-              </Typography.Text>
-              <Row gutter={16}>
-                <Col span={24}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>QA status</Typography.Text>
-                  <div style={{ marginTop: 4 }}>{editingLead.qa_status ? <Tag color={editingLead.qa_status === "qualified" ? "green" : editingLead.qa_status === "disqualified" ? "red" : "blue"}>{editingLead.qa_status}</Tag> : "—"}</div>
-                </Col>
-                {editingLead.disqualification_reasons && (
-                  <Col span={24}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Disqualification reasons</Typography.Text>
-                    <div style={{ marginTop: 4 }}>{editingLead.disqualification_reasons}</div>
-                  </Col>
-                )}
-                {editingLead.disqualification_reason && (
-                  <Col span={24}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Disqualification reason</Typography.Text>
-                    <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{editingLead.disqualification_reason}</div>
-                  </Col>
-                )}
-                {editingLead.rectified_reason && (
-                  <Col span={24}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Rectified reason</Typography.Text>
-                    <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{editingLead.rectified_reason}</div>
-                  </Col>
-                )}
-              </Row>
-            </div>
-          )}
-          <Form.Item label="Notes" name="notes">
-            <Input.TextArea
-              rows={3}
-              placeholder="Notes, context, objections..."
-            />
-          </Form.Item>
-        </Form>
+        <LeadForm
+          form={form}
+          mode={drawerMode}
+          lead={editingLead ?? undefined}
+          canEditQaAudit={canEditQaAudit}
+        />
       </Drawer>
     </div>
   );

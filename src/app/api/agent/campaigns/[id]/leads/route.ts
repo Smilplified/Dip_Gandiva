@@ -46,21 +46,22 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const leadsSelect = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition";
+    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition";
+    const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
     let leadsList: unknown[] | null = null;
     let leadsError: { message?: string } | null = null;
     let res = await supabase
       .from("leads")
-      .select(leadsSelect + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
+      .select(leadsSelectExtended + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
       .eq("campaign_id", campaignId)
       .eq("assigned_agent_id", user.id)
       .order("created_at", { ascending: false });
     leadsList = res.data;
     leadsError = res.error;
-    if (leadsError && (res.error?.message?.includes("qa_status") || res.error?.message?.includes("column"))) {
+    if (leadsError && (res.error?.message?.includes("column") || res.error?.message?.includes("qa_status"))) {
       res = await supabase
         .from("leads")
-        .select(leadsSelect)
+        .select(leadsSelectBase + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
         .eq("campaign_id", campaignId)
         .eq("assigned_agent_id", user.id)
         .order("created_at", { ascending: false });
@@ -189,34 +190,70 @@ export async function POST(
     const body = await request.json();
     const {
       name,
+      first_name,
+      last_name,
+      salutation,
       company_name,
       phone,
       email,
-      city,
-      status,
-      followup_date,
-      notes,
-      job_title,
-      job_function,
-      job_level,
+      domain,
       direct_number,
-      industry,
       company_number,
-      employee_size,
+      phone_number_link,
+      job_title,
+      job_level,
+      department,
+      job_function,
+      job_title_link,
+      tenurity,
+      vv_status,
+      email_status,
+      ev_tool,
       address,
+      city,
       state,
       country,
       zip_code,
-      founded_years,
-      founded_years_link,
+      employee_size,
+      see_all_employees,
+      industry,
+      employee_size_link,
+      company_website_link,
       revenue_range,
       revenue_link,
+      sic_code,
+      sic_code_link,
+      naics_code,
+      naics_code_link,
+      founded_years,
+      founded_years_link,
       contact_linkedin_url,
       company_linkedin_url,
+      ra_comment,
+      special_comments,
+      call_back,
+      call_notes,
+      primary_reason,
+      secondary_reason,
+      qa_comments,
+      cq1,
+      cq2,
+      cq3,
+      cq4,
+      cq5,
+      audit_date,
+      qa_name,
+      asset_title,
+      status,
       lead_disposition,
+      followup_date,
+      notes,
     } = body ?? {};
 
-    if (!name && !company_name && !email && !phone) {
+    const derivedName =
+      [first_name, last_name].filter(Boolean).join(" ").trim() || name || null;
+
+    if (!derivedName && !company_name && !email && !phone) {
       return NextResponse.json(
         { error: "At least one of name, company, email, or phone is required" },
         { status: 400 }
@@ -232,32 +269,65 @@ export async function POST(
         organization_id: orgId,
         campaign_id: campaignId,
         assigned_agent_id: user.id,
-        name: name || null,
+        name: derivedName || null,
+        first_name: first_name || null,
+        last_name: last_name || null,
+        salutation: salutation || null,
         company_name: company_name || null,
         phone: phone || null,
         email: email || null,
-        city: city || null,
-        status: leadStatus,
-        followup_date: followup_date || null,
-        notes: notes || null,
-        job_title: job_title || null,
-        job_function: job_function || null,
-        job_level: job_level || null,
+        domain: domain || null,
         direct_number: direct_number || null,
-        industry: industry || null,
         company_number: company_number || null,
-        employee_size: employee_size || null,
+        phone_number_link: phone_number_link || null,
+        job_title: job_title || null,
+        job_level: job_level || null,
+        department: department || null,
+        job_function: job_function || null,
+        job_title_link: job_title_link || null,
+        tenurity: tenurity || null,
+        vv_status: vv_status || null,
+        email_status: email_status || null,
+        ev_tool: ev_tool || null,
         address: address || null,
+        city: city || null,
         state: state || null,
         country: country || null,
         zip_code: zip_code || null,
-        founded_years: founded_years ?? null,
-        founded_years_link: founded_years_link || null,
+        employee_size: employee_size || null,
+        see_all_employees: see_all_employees || null,
+        industry: industry || null,
+        employee_size_link: employee_size_link || null,
+        company_website_link: company_website_link || null,
         revenue_range: revenue_range || null,
         revenue_link: revenue_link || null,
+        sic_code: sic_code || null,
+        sic_code_link: sic_code_link || null,
+        naics_code: naics_code || null,
+        naics_code_link: naics_code_link || null,
+        founded_years: founded_years ?? null,
+        founded_years_link: founded_years_link || null,
         contact_linkedin_url: contact_linkedin_url || null,
         company_linkedin_url: company_linkedin_url || null,
+        ra_comment: ra_comment || null,
+        special_comments: special_comments || null,
+        call_back: call_back || null,
+        call_notes: call_notes || null,
+        primary_reason: primary_reason || null,
+        secondary_reason: secondary_reason || null,
+        qa_comments: qa_comments || null,
+        cq1: cq1 || null,
+        cq2: cq2 || null,
+        cq3: cq3 || null,
+        cq4: cq4 || null,
+        cq5: cq5 || null,
+        audit_date: audit_date || null,
+        qa_name: qa_name || null,
+        asset_title: asset_title || null,
+        status: leadStatus,
         lead_disposition: lead_disposition || null,
+        followup_date: followup_date || null,
+        notes: notes || null,
         created_by: user.id,
       } as never)
       .select("id, lead_id")
@@ -330,31 +400,64 @@ export async function PATCH(
     const {
       id: leadRowId,
       name,
+      first_name,
+      last_name,
+      salutation,
       company_name,
       phone,
       email,
-      city,
-      status,
-      followup_date,
-      notes,
-      job_title,
-      job_function,
-      job_level,
+      domain,
       direct_number,
-      industry,
       company_number,
-      employee_size,
+      phone_number_link,
+      job_title,
+      job_level,
+      department,
+      job_function,
+      job_title_link,
+      tenurity,
+      vv_status,
+      email_status,
+      ev_tool,
       address,
+      city,
       state,
       country,
       zip_code,
-      founded_years,
-      founded_years_link,
+      employee_size,
+      see_all_employees,
+      industry,
+      employee_size_link,
+      company_website_link,
       revenue_range,
       revenue_link,
+      sic_code,
+      sic_code_link,
+      naics_code,
+      naics_code_link,
+      founded_years,
+      founded_years_link,
       contact_linkedin_url,
       company_linkedin_url,
+      ra_comment,
+      special_comments,
+      call_back,
+      call_notes,
+      primary_reason,
+      secondary_reason,
+      qa_comments,
+      cq1,
+      cq2,
+      cq3,
+      cq4,
+      cq5,
+      audit_date,
+      qa_name,
+      asset_title,
+      status,
       lead_disposition,
+      followup_date,
+      notes,
     } = body ?? {};
 
     if (!leadRowId) {
@@ -364,48 +467,72 @@ export async function PATCH(
       );
     }
 
+    const derivedName =
+      [first_name, last_name].filter(Boolean).join(" ").trim() || name || null;
+
     const updates: Record<string, unknown> = {};
-    if (name !== undefined) updates.name = name || null;
+    if (name !== undefined || first_name !== undefined || last_name !== undefined)
+      updates.name = derivedName || null;
+    if (first_name !== undefined) updates.first_name = first_name || null;
+    if (last_name !== undefined) updates.last_name = last_name || null;
+    if (salutation !== undefined) updates.salutation = salutation || null;
     if (company_name !== undefined) updates.company_name = company_name || null;
     if (phone !== undefined) updates.phone = phone || null;
     if (email !== undefined) updates.email = email || null;
-    if (city !== undefined) updates.city = city || null;
-    if (status !== undefined && typeof status === "string" && status.length > 0) {
-      updates.status = status;
-    }
-    if (followup_date !== undefined)
-      updates.followup_date = followup_date || null;
-    if (notes !== undefined) updates.notes = notes || null;
+    if (domain !== undefined) updates.domain = domain || null;
+    if (direct_number !== undefined) updates.direct_number = direct_number || null;
+    if (company_number !== undefined) updates.company_number = company_number || null;
+    if (phone_number_link !== undefined) updates.phone_number_link = phone_number_link || null;
     if (job_title !== undefined) updates.job_title = job_title || null;
-    if (job_function !== undefined) updates.job_function = job_function || null;
     if (job_level !== undefined) updates.job_level = job_level || null;
-    if (direct_number !== undefined)
-      updates.direct_number = direct_number || null;
-    if (industry !== undefined) updates.industry = industry || null;
-    if (company_number !== undefined)
-      updates.company_number = company_number || null;
-    if (employee_size !== undefined)
-      updates.employee_size = employee_size || null;
+    if (department !== undefined) updates.department = department || null;
+    if (job_function !== undefined) updates.job_function = job_function || null;
+    if (job_title_link !== undefined) updates.job_title_link = job_title_link || null;
+    if (tenurity !== undefined) updates.tenurity = tenurity || null;
+    if (vv_status !== undefined) updates.vv_status = vv_status || null;
+    if (email_status !== undefined) updates.email_status = email_status || null;
+    if (ev_tool !== undefined) updates.ev_tool = ev_tool || null;
     if (address !== undefined) updates.address = address || null;
+    if (city !== undefined) updates.city = city || null;
     if (state !== undefined) updates.state = state || null;
     if (country !== undefined) updates.country = country || null;
     if (zip_code !== undefined) updates.zip_code = zip_code || null;
+    if (employee_size !== undefined) updates.employee_size = employee_size || null;
+    if (see_all_employees !== undefined) updates.see_all_employees = see_all_employees || null;
+    if (industry !== undefined) updates.industry = industry || null;
+    if (employee_size_link !== undefined) updates.employee_size_link = employee_size_link || null;
+    if (company_website_link !== undefined) updates.company_website_link = company_website_link || null;
+    if (revenue_range !== undefined) updates.revenue_range = revenue_range || null;
+    if (revenue_link !== undefined) updates.revenue_link = revenue_link || null;
+    if (sic_code !== undefined) updates.sic_code = sic_code || null;
+    if (sic_code_link !== undefined) updates.sic_code_link = sic_code_link || null;
+    if (naics_code !== undefined) updates.naics_code = naics_code || null;
+    if (naics_code_link !== undefined) updates.naics_code_link = naics_code_link || null;
     if (founded_years !== undefined)
       updates.founded_years =
-        founded_years !== null && founded_years !== ""
-          ? Number(founded_years)
-          : null;
-    if (founded_years_link !== undefined)
-      updates.founded_years_link = founded_years_link || null;
-    if (revenue_range !== undefined)
-      updates.revenue_range = revenue_range || null;
-    if (revenue_link !== undefined) updates.revenue_link = revenue_link || null;
-    if (contact_linkedin_url !== undefined)
-      updates.contact_linkedin_url = contact_linkedin_url || null;
-    if (company_linkedin_url !== undefined)
-      updates.company_linkedin_url = company_linkedin_url || null;
-    if (lead_disposition !== undefined)
-      updates.lead_disposition = lead_disposition || null;
+        founded_years !== null && founded_years !== "" ? Number(founded_years) : null;
+    if (founded_years_link !== undefined) updates.founded_years_link = founded_years_link || null;
+    if (contact_linkedin_url !== undefined) updates.contact_linkedin_url = contact_linkedin_url || null;
+    if (company_linkedin_url !== undefined) updates.company_linkedin_url = company_linkedin_url || null;
+    if (ra_comment !== undefined) updates.ra_comment = ra_comment || null;
+    if (special_comments !== undefined) updates.special_comments = special_comments || null;
+    if (call_back !== undefined) updates.call_back = call_back || null;
+    if (call_notes !== undefined) updates.call_notes = call_notes || null;
+    if (primary_reason !== undefined) updates.primary_reason = primary_reason || null;
+    if (secondary_reason !== undefined) updates.secondary_reason = secondary_reason || null;
+    if (qa_comments !== undefined) updates.qa_comments = qa_comments || null;
+    if (cq1 !== undefined) updates.cq1 = cq1 || null;
+    if (cq2 !== undefined) updates.cq2 = cq2 || null;
+    if (cq3 !== undefined) updates.cq3 = cq3 || null;
+    if (cq4 !== undefined) updates.cq4 = cq4 || null;
+    if (cq5 !== undefined) updates.cq5 = cq5 || null;
+    if (audit_date !== undefined) updates.audit_date = audit_date || null;
+    if (qa_name !== undefined) updates.qa_name = qa_name || null;
+    if (asset_title !== undefined) updates.asset_title = asset_title || null;
+    if (status !== undefined && typeof status === "string" && status.length > 0) updates.status = status;
+    if (lead_disposition !== undefined) updates.lead_disposition = lead_disposition || null;
+    if (followup_date !== undefined) updates.followup_date = followup_date || null;
+    if (notes !== undefined) updates.notes = notes || null;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
