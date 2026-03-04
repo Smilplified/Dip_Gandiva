@@ -21,7 +21,11 @@ import {
   Space,
   Drawer,
   Form,
+  Upload,
+  DatePicker,
 } from "antd";
+import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
 import {
   ArrowLeftOutlined,
   UserAddOutlined,
@@ -30,8 +34,12 @@ import {
   TeamOutlined,
   FileOutlined,
   DownloadOutlined,
+  UploadOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { downloadCsv } from "@/lib/leadsExport";
+import { parseLeadsCsv } from "@/lib/leadsImport";
 import { LeadForm } from "@/components/Leads/LeadForm";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
@@ -109,6 +117,12 @@ export default function CampaignDetailPage() {
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [updatingLead, setUpdatingLead] = useState(false);
   const [form] = Form.useForm();
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [leadSearch, setLeadSearch] = useState("");
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
 
   const fetchCampaign = useCallback(async (id: string) => {
     setLoading(true);
@@ -249,6 +263,81 @@ export default function CampaignDetailPage() {
       setUpdatingLead(false);
     }
   };
+
+  const handleExport = () => {
+    if (leads.length === 0) {
+      message.warning("No leads to export");
+      return;
+    }
+    downloadCsv(leads, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
+    message.success(`Exported ${leads.length} leads`);
+  };
+
+  const handleUploadFile = (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      message.error("Please upload a CSV file");
+      return false;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = (e.target?.result as string) ?? "";
+        const leads = parseLeadsCsv(text);
+        setParsedLeads(leads);
+        setUploadFile(file);
+      } catch {
+        message.error("Failed to parse CSV");
+      }
+    };
+    reader.readAsText(file);
+    return false;
+  };
+
+  const handleImport = async () => {
+    if (!campaignId || parsedLeads.length === 0) return;
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/tl/campaigns/${campaignId}/leads/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ leads: parsedLeads }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+      const created = data.created ?? 0;
+      const updated = data.updated ?? 0;
+      const total = data.total ?? created + updated;
+      message.success(`Processed ${total} leads (${created} new, ${updated} updated)`);
+      if (data.errors?.length) {
+        message.warning(data.errors.slice(0, 3).join("; ") + (data.errors.length > 3 ? "..." : ""));
+      }
+      setUploadModalOpen(false);
+      setUploadFile(null);
+      setParsedLeads([]);
+      fetchCampaign(campaignId);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const filteredLeads = leads.filter((l) => {
+    const matchesSearch = !leadSearch.trim()
+      ? true
+      : (l.name ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
+        (l.company_name ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
+        (l.email ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
+        (l.phone ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
+        ([l.first_name, l.last_name].filter(Boolean).join(" ") ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase());
+    if (!matchesSearch) return false;
+    if (!dateRange || !dateRange[0] || !dateRange[1]) return true;
+    const leadDate = dayjs(l.created_at).startOf("day");
+    const start = dateRange[0].startOf("day");
+    const end = dateRange[1].endOf("day");
+    return !leadDate.isBefore(start) && !leadDate.isAfter(end);
+  });
 
   if (!isInitialized) {
     return (
@@ -500,13 +589,59 @@ export default function CampaignDetailPage() {
 
       <Card
         title={`Leads (${leads.length})`}
+        extra={
+          <Space>
+            <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={leads.length === 0}>
+              Export
+            </Button>
+            <Button icon={<UploadOutlined />} onClick={() => { setUploadModalOpen(true); setUploadFile(null); setParsedLeads([]); }}>
+              Upload
+            </Button>
+          </Space>
+        }
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         bodyStyle={{ padding: "24px 28px" }}
       >
+        <Space direction="vertical" size="middle" style={{ width: "100%", marginBottom: 16 }}>
+          <Row gutter={12} wrap align="middle">
+            <Col>
+              <Typography.Text type="secondary" style={{ marginRight: 8 }}>Date range (created):</Typography.Text>
+            </Col>
+            <Col>
+              <DatePicker.RangePicker
+                value={dateRange}
+                onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+                allowClear
+                style={{ width: 260 }}
+              />
+            </Col>
+            <Col>
+              <Button
+                size="middle"
+                onClick={() => setDateRange(null)}
+                disabled={!dateRange?.[0] && !dateRange?.[1]}
+              >
+                Clear dates
+              </Button>
+            </Col>
+            <Col flex="auto" style={{ minWidth: 200 }}>
+              <Input.Search
+                placeholder="Search leads (name, company, email, phone)..."
+                allowClear
+                value={leadSearch}
+                onChange={(e) => setLeadSearch(e.target.value)}
+                style={{ width: "100%", maxWidth: 280 }}
+              />
+            </Col>
+          </Row>
+        </Space>
+        <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
+          Showing {filteredLeads.length} of {leads.length} leads. Click a row to edit.
+        </Typography.Text>
         <Table
           className="table-single-line"
           columns={leadColumns}
-          dataSource={leads}
+          dataSource={filteredLeads}
           rowKey="id"
           scroll={{ x: 2600 }}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
@@ -518,6 +653,40 @@ export default function CampaignDetailPage() {
           })}
         />
       </Card>
+
+      <Modal
+        title="Upload Leads (CSV)"
+        open={uploadModalOpen}
+        onCancel={() => { setUploadModalOpen(false); setUploadFile(null); setParsedLeads([]); }}
+        onOk={handleImport}
+        okText={parsedLeads.length > 0 ? `Import ${parsedLeads.length} leads` : "Import"}
+        okButtonProps={{ disabled: parsedLeads.length === 0, loading: importing }}
+        cancelButtonProps={{ disabled: importing }}
+        width={520}
+      >
+        <Typography.Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+          Upload a CSV with columns: First Name, Last Name, Company, Email, Phone, Job Title, Industry, etc.
+        </Typography.Text>
+        <Upload.Dragger
+          accept=".csv"
+          multiple={false}
+          beforeUpload={(file) => { handleUploadFile(file); return false; }}
+          fileList={uploadFile ? [{ uid: "1", name: uploadFile.name, status: "done" }] : []}
+          onRemove={() => { setUploadFile(null); setParsedLeads([]); }}
+          maxCount={1}
+        >
+          <p className="ant-upload-drag-icon">
+            <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
+          </p>
+          <p className="ant-upload-text">Click or drag CSV file here</p>
+          <p className="ant-upload-hint">Supports First Name, Last Name, Company, Email, Phone, Job Title, Industry, City, State, Country</p>
+        </Upload.Dragger>
+        {parsedLeads.length > 0 && (
+          <Typography.Text style={{ display: "block", marginTop: 12, color: "#52c41a" }}>
+            {parsedLeads.length} leads parsed and ready to import
+          </Typography.Text>
+        )}
+      </Modal>
 
       <Modal
         title={

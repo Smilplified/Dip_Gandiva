@@ -25,6 +25,7 @@ import {
   DownloadOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { downloadCsv } from "@/lib/leadsExport";
 import { LeadForm } from "@/components/Leads/LeadForm";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
@@ -422,6 +423,21 @@ export default function AgentCampaignDetailPage() {
 
       <Card
         title={`My Leads (${leads.length})`}
+        extra={
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={() => {
+              if (leads.length === 0) message.warning("No leads to export");
+              else {
+                downloadCsv(leads, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
+                message.success(`Exported ${leads.length} leads`);
+              }
+            }}
+            disabled={leads.length === 0}
+          >
+            Export
+          </Button>
+        }
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         bodyStyle={{ padding: "24px 28px" }}
       >
