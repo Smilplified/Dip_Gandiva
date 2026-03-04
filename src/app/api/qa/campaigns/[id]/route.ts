@@ -6,6 +6,15 @@ export const dynamic = "force-dynamic";
 const LEADS_SELECT =
   "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
 
+type LeadRow = {
+  assigned_agent_id: string | null;
+  created_by: string | null;
+  disqualification_reasons: string | null;
+  disqualification_reason: string | null;
+  rectified_reason: string | null;
+  [key: string]: unknown;
+};
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -84,12 +93,12 @@ export async function GET(
       return NextResponse.json({ error: leadsError.message }, { status: 500 });
     }
 
-    const rawList = (leadsData ?? []) as Record<string, unknown>[];
-    const leadsList = rawList.map((row) => ({
+    const rawList = (leadsData ?? []) as LeadRow[];
+    const leadsList: LeadRow[] = rawList.map((row) => ({
       ...row,
-      disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
-      disqualification_reason: (row.disqualification_reason as string | null) ?? null,
-      rectified_reason: (row.rectified_reason as string | null) ?? null,
+      disqualification_reasons: row.disqualification_reasons ?? null,
+      disqualification_reason: row.disqualification_reason ?? null,
+      rectified_reason: row.rectified_reason ?? null,
     }));
 
     const userIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
