@@ -46,7 +46,7 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, lead_disposition";
+    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
     const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
     let leadsList: unknown[] | null = null;
     let leadsError: { message?: string } | null = null;
@@ -105,6 +105,9 @@ export async function GET(
       revenue_link: string | null;
       contact_linkedin_url: string | null;
       company_linkedin_url: string | null;
+      scored: string | null;
+      appointment: string | null;
+      lead_tagging: string | null;
       lead_disposition: string | null;
       qa_status?: string | null;
       disqualification_reasons?: string | null;
@@ -229,6 +232,9 @@ export async function POST(
       founded_years_link,
       contact_linkedin_url,
       company_linkedin_url,
+      scored,
+      appointment,
+      lead_tagging,
       ra_comment,
       special_comments,
       call_back,
@@ -362,6 +368,9 @@ export async function POST(
         founded_years_link: founded_years_link || null,
         contact_linkedin_url: contact_linkedin_url || null,
         company_linkedin_url: company_linkedin_url || null,
+        scored: scored || null,
+        appointment: appointment || null,
+        lead_tagging: lead_tagging || null,
         ra_comment: ra_comment || null,
         special_comments: special_comments || null,
         call_back: call_back || null,
@@ -492,6 +501,9 @@ export async function PATCH(
       founded_years_link,
       contact_linkedin_url,
       company_linkedin_url,
+      scored,
+      appointment,
+      lead_tagging,
       ra_comment,
       special_comments,
       call_back,
@@ -567,6 +579,9 @@ export async function PATCH(
     if (founded_years_link !== undefined) updates.founded_years_link = founded_years_link || null;
     if (contact_linkedin_url !== undefined) updates.contact_linkedin_url = contact_linkedin_url || null;
     if (company_linkedin_url !== undefined) updates.company_linkedin_url = company_linkedin_url || null;
+    if (scored !== undefined) updates.scored = scored || null;
+    if (appointment !== undefined) updates.appointment = appointment || null;
+    if (lead_tagging !== undefined) updates.lead_tagging = lead_tagging || null;
     if (ra_comment !== undefined) updates.ra_comment = ra_comment || null;
     if (special_comments !== undefined) updates.special_comments = special_comments || null;
     if (call_back !== undefined) updates.call_back = call_back || null;

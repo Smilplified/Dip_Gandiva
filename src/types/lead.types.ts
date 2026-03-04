@@ -55,6 +55,9 @@ export type Lead = {
   founded_years_link: string | null;
   contact_linkedin_url: string | null;
   company_linkedin_url: string | null;
+  scored: string | null;
+  appointment: string | null;
+  lead_tagging: string | null;
   job_function: string | null;
   // QA & Call
   ra_comment: string | null;
@@ -96,6 +99,20 @@ export const QA_STATUS_OPTIONS = [
   { value: "rectified", label: "Rectified" },
 ];
 
+export const LEAD_TAGGING_OPTIONS = [
+  { value: "Scored", label: "Scored" },
+  { value: "Not Interested", label: "Not Interested" },
+  { value: "Voicemail", label: "Voicemail" },
+  { value: "Call Dropped", label: "Call Dropped" },
+  { value: "Invalid Number", label: "Invalid Number" },
+  { value: "Number Not Reachable", label: "Number Not Reachable" },
+  { value: "Call Back", label: "Call Back" },
+  { value: "Dead Contact", label: "Dead Contact" },
+  { value: "Gatekeeper Declined", label: "Gatekeeper Declined" },
+  { value: "Follow-up Scheduled", label: "Follow-up Scheduled" },
+  { value: "Do Not Call", label: "Do Not Call" },
+];
+
 export const SALUTATION_OPTIONS = [
   { value: "Mr", label: "Mr" },
   { value: "Mrs", label: "Mrs" },
@@ -115,9 +132,8 @@ export const JOB_FUNCTION_OPTIONS = [
 ];
 
 export const JOB_LEVEL_OPTIONS = [
-  { value: "entry", label: "Entry / Junior" },
-  { value: "mid", label: "Mid-level" },
-  { value: "senior", label: "Senior" },
+  { value: "entry", label: "Staff" },
+  { value: "mid", label: "Manager" },
   { value: "director", label: "Director" },
   { value: "vp", label: "VP" },
   { value: "c_level", label: "C-level" },

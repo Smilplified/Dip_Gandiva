@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   DashboardOutlined,
   FundProjectionScreenOutlined,
-  TeamOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 
 const { Sider } = Layout;
@@ -14,14 +14,17 @@ const { Sider } = Layout;
 const agentMenuItems = [
   { key: "/agent/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/agent/dashboard" },
   { key: "/agent/campaigns", icon: <FundProjectionScreenOutlined />, label: "My Campaigns", href: "/agent/campaigns" },
+  { key: "/agent/leads", icon: <UserOutlined />, label: "My Leads", href: "/agent/leads" },
 ];
 
 export default function AgentSidebar() {
   const pathname = usePathname();
 
-  const selectedKey = pathname?.startsWith("/agent/campaigns")
-    ? "/agent/campaigns"
-    : "/agent/dashboard";
+  const selectedKey = pathname?.startsWith("/agent/leads")
+    ? "/agent/leads"
+    : pathname?.startsWith("/agent/campaigns")
+      ? "/agent/campaigns"
+      : "/agent/dashboard";
 
   return (
     <Sider

@@ -48,6 +48,8 @@ export default function AgentCampaignsPage() {
   const [campaigns, setCampaigns] = useState<AgentCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -86,6 +88,13 @@ export default function AgentCampaignsPage() {
   }, [campaigns, search]);
 
   const columns = [
+    {
+      title: "Sr. No",
+      key: "index",
+      width: 80,
+      render: (_: unknown, __: AgentCampaignRow, index: number) =>
+        (page - 1) * pageSize + index + 1,
+    },
     {
       title: "Campaign",
       dataIndex: "name",
@@ -214,9 +223,14 @@ export default function AgentCampaignsPage() {
             loading={loading}
             scroll={{ x: 1100 }}
             pagination={{
-              pageSize: 15,
+              current: page,
+              pageSize,
               showSizeChanger: true,
               showTotal: (t) => `Total ${t} campaigns`,
+              onChange: (p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              },
             }}
             locale={{
               emptyText: "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",

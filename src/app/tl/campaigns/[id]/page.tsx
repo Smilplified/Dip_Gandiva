@@ -40,8 +40,8 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { downloadCsv } from "@/lib/leadsExport";
 import { parseLeadsCsv } from "@/lib/leadsImport";
-import { LeadForm } from "@/components/Leads/LeadForm";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
+import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
 
@@ -751,13 +751,13 @@ export default function CampaignDetailPage() {
       <Drawer
         title="Edit Lead"
         placement="right"
-        width={640}
+        width={LEAD_DRAWER_WIDTH}
         open={leadDrawerOpen}
         onClose={closeLeadDrawer}
         destroyOnClose
-        styles={{ body: { paddingBottom: 80 } }}
+        styles={{ body: LEAD_DRAWER_BODY_STYLE }}
         footer={
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Button onClick={closeLeadDrawer}>Cancel</Button>
             <Button type="primary" loading={updatingLead} onClick={handleUpdateLead}>
               Save Changes
@@ -765,7 +765,7 @@ export default function CampaignDetailPage() {
           </div>
         }
       >
-        <LeadForm
+        <LeadDrawerContent
           form={form}
           mode="edit"
           lead={editingLead ?? undefined}

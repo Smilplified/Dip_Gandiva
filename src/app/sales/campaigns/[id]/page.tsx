@@ -28,6 +28,7 @@ import {
 import type { UploadFile } from "antd";
 import {
   ArrowLeftOutlined,
+  CopyOutlined,
   EditOutlined,
   DeleteOutlined,
   PlayCircleOutlined,
@@ -419,9 +420,41 @@ export default function SalesCampaignDetailPage() {
       fixed: "left" as const,
       render: (_: unknown, __: Lead, index: number) => index + 1,
     },
+    {
+      title: "Lead ID",
+      dataIndex: "lead_id",
+      key: "lead_id",
+      width: 160,
+      fixed: "left" as const,
+      render: (v: string | null) => {
+        const id = v || "";
+        if (!id) return "—";
+        const copy = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(id).then(
+            () => message.success("Lead ID copied"),
+            () => message.error("Failed to copy")
+          );
+        };
+        return (
+          <span className="lead-id-cell" style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{id}</span>
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined style={{ fontSize: 12 }} />}
+              onClick={copy}
+              className="lead-id-copy-btn"
+              style={{ padding: "0 4px", minWidth: 24, height: 22, flexShrink: 0 }}
+              title="Copy Lead ID"
+            />
+          </span>
+        );
+      },
+    },
     { title: "Name", dataIndex: "name", key: "name", width: 120, ellipsis: true, render: (v: string | null) => v || "—" },
     { title: "Company", dataIndex: "company_name", key: "company_name", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
-    { title: "Phone", dataIndex: "phone", key: "phone", width: 120, render: (v: string | null) => v || "—" },
+    { title: "Phone", dataIndex: "phone", key: "phone", width: 120, render: (v: string | null) => <span className="lead-phone-cell" data-no-dialer="true">{v || "—"}</span> },
     { title: "Email", dataIndex: "email", key: "email", width: 160, ellipsis: true, render: (v: string | null) => v || "—" },
     { title: "City", dataIndex: "city", key: "city", width: 100, render: (v: string | null) => v || "—" },
     {

@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { Table, Tag, Button } from "antd";
+import { Table, Tag, Button, message } from "antd";
 import type { TableProps } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { EditOutlined, CopyOutlined } from "@ant-design/icons";
 import type { Lead } from "@/types/lead.types";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -35,9 +35,33 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       title: "Lead ID",
       dataIndex: "lead_id",
       key: "lead_id",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
+      width: 160,
+      fixed: "left" as const,
+      render: (v: string | null) => {
+        const id = v || "";
+        if (!id) return "—";
+        const copy = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          navigator.clipboard.writeText(id).then(
+            () => message.success("Lead ID copied"),
+            () => message.error("Failed to copy")
+          );
+        };
+        return (
+          <span className="lead-id-cell" style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{id}</span>
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined style={{ fontSize: 12 }} />}
+              onClick={copy}
+              className="lead-id-copy-btn"
+              style={{ padding: "0 4px", minWidth: 24, height: 22, flexShrink: 0 }}
+              title="Copy Lead ID"
+            />
+          </span>
+        );
+      },
     },
     {
       title: "Name",
@@ -68,7 +92,9 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       dataIndex: "phone",
       key: "phone",
       width: 120,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null) => (
+        <span className="lead-phone-cell" data-no-dialer="true">{v || "—"}</span>
+      ),
     },
     {
       title: "Job Title",
@@ -153,7 +179,9 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       dataIndex: "direct_number",
       key: "direct_number",
       width: 120,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null) => (
+        <span className="lead-phone-cell" data-no-dialer="true">{v || "—"}</span>
+      ),
     },
     ...baseColumns.slice(4, 6),
     {
@@ -161,7 +189,9 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       dataIndex: "company_number",
       key: "company_number",
       width: 120,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null) => (
+        <span className="lead-phone-cell" data-no-dialer="true">{v || "—"}</span>
+      ),
     },
     ...baseColumns.slice(6, 8),
     {

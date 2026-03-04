@@ -36,7 +36,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { downloadCsv } from "@/lib/leadsExport";
 import { parseLeadsCsv } from "@/lib/leadsImport";
-import { LeadForm } from "@/components/Leads/LeadForm";
+import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
@@ -540,13 +540,13 @@ export default function QACampaignDetailPage() {
       <Drawer
         title="Edit Lead"
         placement="right"
-        width="50%"
+        width={LEAD_DRAWER_WIDTH}
         open={leadDrawerOpen}
         onClose={closeLeadDrawer}
         destroyOnClose={false}
-        styles={{ body: { paddingBottom: 100 } }}
+        styles={{ body: LEAD_DRAWER_BODY_STYLE }}
         footer={
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Button
               icon={<LeftOutlined />}
               onClick={handlePreviousLead}
@@ -554,7 +554,7 @@ export default function QACampaignDetailPage() {
             >
               Previous
             </Button>
-            <Space>
+            <Space size="middle">
               <Button onClick={closeLeadDrawer}>Cancel</Button>
               <Button
                 type="primary"
@@ -576,7 +576,7 @@ export default function QACampaignDetailPage() {
           </div>
         }
       >
-        <LeadForm
+        <LeadDrawerContent
           form={form}
           mode="edit"
           lead={editingLead ?? undefined}

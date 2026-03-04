@@ -73,6 +73,22 @@ html, body {
   font-size: 14px;
 }
 
+/* Lead tables: display-only phone cells – prevent dialer extensions (e.g. Ringover) from making phone numbers clickable */
+.lead-phone-cell a,
+td:has(.lead-phone-cell) a {
+  pointer-events: none !important;
+  visibility: hidden !important;
+  display: none !important;
+}
+
+/* Lead ID column: keep copy icon visible (table cell must not clip it) */
+.ant-table-cell .lead-id-cell {
+  max-width: 100%;
+}
+.ant-table-cell .lead-id-copy-btn {
+  flex-shrink: 0;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

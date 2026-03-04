@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,7 +17,11 @@ import {
   Col,
   Divider,
   Space,
+  DatePicker,
+  Input,
 } from "antd";
+import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
 import {
   ArrowLeftOutlined,
   PlusOutlined,
@@ -26,7 +30,7 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { downloadCsv } from "@/lib/leadsExport";
-import { LeadForm } from "@/components/Leads/LeadForm";
+import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
@@ -81,6 +85,8 @@ export default function AgentCampaignDetailPage() {
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [form] = Form.useForm();
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [leadSearch, setLeadSearch] = useState("");
 
   useEffect(() => {
     if (!id) {
@@ -144,6 +150,26 @@ export default function AgentCampaignDetailPage() {
 
     fetchData();
   }, [id, isInitialized, hasRole, router]);
+
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      const q = leadSearch.trim().toLowerCase();
+      const matchesSearch = !q
+        ? true
+        : (l.lead_id ?? "").toLowerCase().includes(q) ||
+          (l.name ?? "").toLowerCase().includes(q) ||
+          (l.company_name ?? "").toLowerCase().includes(q) ||
+          (l.email ?? "").toLowerCase().includes(q) ||
+          (l.phone ?? "").toLowerCase().includes(q) ||
+          ([l.first_name, l.last_name].filter(Boolean).join(" ") ?? "").toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+      if (!dateRange?.[0] || !dateRange?.[1]) return true;
+      const leadDate = dayjs(l.created_at).startOf("day");
+      const start = dateRange[0].startOf("day");
+      const end = dateRange[1].endOf("day");
+      return !leadDate.isBefore(start) && !leadDate.isAfter(end);
+    });
+  }, [leads, leadSearch, dateRange]);
 
   const openLeadDrawer = () => {
     setDrawerMode("create");
@@ -422,15 +448,16 @@ export default function AgentCampaignDetailPage() {
       </Row>
 
       <Card
-        title={`My Leads (${leads.length})`}
+        title={`My Leads (${filteredLeads.length}${filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})`}
         extra={
           <Button
             icon={<DownloadOutlined />}
             onClick={() => {
-              if (leads.length === 0) message.warning("No leads to export");
+              const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
+              if (toExport.length === 0) message.warning("No leads to export");
               else {
-                downloadCsv(leads, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
-                message.success(`Exported ${leads.length} leads`);
+                downloadCsv(toExport, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
+                message.success(`Exported ${toExport.length} leads`);
               }
             }}
             disabled={leads.length === 0}
@@ -441,14 +468,52 @@ export default function AgentCampaignDetailPage() {
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         bodyStyle={{ padding: "24px 28px" }}
       >
+        <Space direction="vertical" size="middle" style={{ width: "100%", marginBottom: 16 }}>
+          <Row gutter={12} wrap align="middle">
+            <Col>
+              <Typography.Text type="secondary" style={{ marginRight: 8 }}>Date range (created):</Typography.Text>
+            </Col>
+            <Col>
+              <DatePicker.RangePicker
+                value={dateRange}
+                onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+                allowClear
+                style={{ width: 260 }}
+              />
+            </Col>
+            <Col>
+              <Button
+                size="middle"
+                onClick={() => setDateRange(null)}
+                disabled={!dateRange?.[0] && !dateRange?.[1]}
+              >
+                Clear dates
+              </Button>
+            </Col>
+            <Col flex="auto" style={{ minWidth: 200 }}>
+              <Input.Search
+                placeholder="Search leads (Lead ID, name, company, email, phone)..."
+                allowClear
+                value={leadSearch}
+                onChange={(e) => setLeadSearch(e.target.value)}
+                style={{ width: "100%", maxWidth: 320 }}
+              />
+            </Col>
+          </Row>
+        </Space>
+        <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
+          {filteredLeads.length !== leads.length
+            ? `Showing ${filteredLeads.length} of ${leads.length} leads. Click a row to edit.`
+            : "Click a row to edit."}
+        </Typography.Text>
         <Table
           className="table-single-line"
           columns={leadColumns}
-          dataSource={leads}
+          dataSource={filteredLeads}
           rowKey="id"
           scroll={{ x: 2600 }}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
-          locale={{ emptyText: "No leads yet. Use 'Add Lead' to create one." }}
+          locale={{ emptyText: leadSearch || dateRange?.[0] || dateRange?.[1] ? "No leads match the filter." : "No leads yet. Use 'Add Lead' to create one." }}
           size="middle"
           onRow={(record) => ({
             onClick: () => openEditLeadDrawer(record as Lead),
@@ -460,13 +525,13 @@ export default function AgentCampaignDetailPage() {
       <Drawer
         title={drawerMode === "edit" ? "Edit Lead" : "Add Lead"}
         placement="right"
-        width={640}
+        width={LEAD_DRAWER_WIDTH}
         open={leadDrawerOpen}
         onClose={closeLeadDrawer}
         destroyOnClose
-        styles={{ body: { paddingBottom: 80 } }}
+        styles={{ body: LEAD_DRAWER_BODY_STYLE }}
         footer={
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Button onClick={closeLeadDrawer}>
               {drawerMode === "edit" ? "Cancel" : "Done"}
             </Button>
@@ -491,16 +556,16 @@ export default function AgentCampaignDetailPage() {
           </div>
         }
       >
-        <Typography.Paragraph type="secondary" style={{ marginBottom: 20, fontSize: 13 }}>
-          {drawerMode === "create"
-            ? "Add a new lead to this campaign. After saving, the form will reset so you can add another. Close when finished."
-            : "Update lead details. All fields are organized in collapsible sections."}
-        </Typography.Paragraph>
-        <LeadForm
+        <LeadDrawerContent
           form={form}
           mode={drawerMode}
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
+          introText={
+            drawerMode === "create"
+              ? "Add a new lead to this campaign. After saving, the form will reset so you can add another. Close when finished."
+              : undefined
+          }
         />
       </Drawer>
     </div>

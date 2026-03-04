@@ -46,6 +46,9 @@ export function leadToFormValues(lead: Record<string, unknown>): Record<string, 
     founded_years_link: lead.founded_years_link ?? undefined,
     contact_linkedin_url: lead.contact_linkedin_url ?? undefined,
     company_linkedin_url: lead.company_linkedin_url ?? undefined,
+    scored: lead.scored ? dayjs(lead.scored as string) : undefined,
+    appointment: lead.appointment ? dayjs(lead.appointment as string) : undefined,
+    lead_tagging: lead.lead_tagging ?? undefined,
     ra_comment: lead.ra_comment ?? undefined,
     special_comments: lead.special_comments ?? undefined,
     call_back: lead.call_back ?? undefined,
@@ -126,6 +129,15 @@ export function buildLeadPayload(values: Record<string, unknown>) {
     founded_years_link: values.founded_years_link ?? null,
     contact_linkedin_url: values.contact_linkedin_url ?? null,
     company_linkedin_url: values.company_linkedin_url ?? null,
+    scored:
+      values.scored != null && dayjs.isDayjs(values.scored)
+        ? (values.scored as dayjs.Dayjs).toISOString()
+        : null,
+    appointment:
+      values.appointment != null && dayjs.isDayjs(values.appointment)
+        ? (values.appointment as dayjs.Dayjs).toISOString()
+        : null,
+    lead_tagging: values.lead_tagging ?? null,
     ra_comment: values.ra_comment ?? null,
     special_comments: values.special_comments ?? null,
     call_back: values.call_back ?? null,
