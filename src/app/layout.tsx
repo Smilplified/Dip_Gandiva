@@ -8,7 +8,11 @@ const theme = {
   token: {
     colorPrimary: "#1677ff",
     borderRadius: 8,
-    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontSize: 14,
+    fontSizeHeading1: 24,
+    fontSizeHeading2: 18,
+    fontSizeSM: 12,
   },
   components: {
     Layout: {

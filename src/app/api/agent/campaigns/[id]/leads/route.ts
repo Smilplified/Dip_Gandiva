@@ -250,14 +250,67 @@ export async function POST(
       notes,
     } = body ?? {};
 
-    const derivedName =
-      [first_name, last_name].filter(Boolean).join(" ").trim() || name || null;
+    const normalizeString = (value: unknown): string | null =>
+      typeof value === "string" ? value.trim() || null : null;
 
-    if (!derivedName && !company_name && !email && !phone) {
+    const normalizedFirstName = normalizeString(first_name);
+    const normalizedLastName = normalizeString(last_name);
+    const normalizedName = normalizeString(name);
+    const normalizedCompanyName = normalizeString(company_name);
+    const normalizedEmail = normalizeString(email);
+    const normalizedDomain = normalizeString(domain);
+
+    const derivedName =
+      [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ").trim() ||
+      normalizedName ||
+      null;
+
+    if (!derivedName && !normalizedCompanyName && !normalizedEmail && !phone) {
       return NextResponse.json(
         { error: "At least one of name, company, email, or phone is required" },
         { status: 400 }
       );
+    }
+
+    // Duplicate lead check for Agent users based on
+    // first_name, last_name, email, company_name, and domain
+    if (
+      normalizedFirstName &&
+      normalizedLastName &&
+      normalizedEmail &&
+      normalizedCompanyName &&
+      normalizedDomain
+    ) {
+      const { data: duplicateLeads, error: duplicateError } = await supabase
+        .from("leads")
+        .select("id, lead_id")
+        .eq("organization_id", orgId)
+        .eq("first_name", normalizedFirstName)
+        .eq("last_name", normalizedLastName)
+        .eq("email", normalizedEmail)
+        .eq("company_name", normalizedCompanyName)
+        .eq("domain", normalizedDomain)
+        .limit(1);
+
+      if (duplicateError) {
+        return NextResponse.json(
+          { error: duplicateError.message },
+          { status: 500 }
+        );
+      }
+
+      if (duplicateLeads && duplicateLeads.length > 0) {
+        const existing = duplicateLeads[0] as { id: string; lead_id: string | null };
+        return NextResponse.json(
+          {
+            error: "Duplicate lead",
+            message:
+              "A lead with the same first name, last name, email, company name, and domain already exists.",
+            duplicate_lead_id: existing.lead_id ?? existing.id,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const leadStatus =
@@ -270,13 +323,13 @@ export async function POST(
         campaign_id: campaignId,
         assigned_agent_id: user.id,
         name: derivedName || null,
-        first_name: first_name || null,
-        last_name: last_name || null,
+        first_name: normalizedFirstName || null,
+        last_name: normalizedLastName || null,
         salutation: salutation || null,
-        company_name: company_name || null,
+        company_name: normalizedCompanyName || null,
         phone: phone || null,
-        email: email || null,
-        domain: domain || null,
+        email: normalizedEmail || null,
+        domain: normalizedDomain || null,
         direct_number: direct_number || null,
         company_number: company_number || null,
         phone_number_link: phone_number_link || null,

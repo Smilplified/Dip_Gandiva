@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,7 +16,7 @@ html, body {
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   box-sizing: border-box;
 }
 
@@ -31,6 +33,44 @@ html, body {
 /* Table: show all data in one line, no wrapping */
 .table-single-line .ant-table-cell {
   white-space: nowrap;
+}
+
+/* Typography scale for dashboard */
+@layer components {
+  .page-title {
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .table-header-text {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .body-text {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+
+  .small-text {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+}
+
+/* Ensure Ant Design table headers match guide */
+.ant-table-thead > tr > th {
+  font-size: 14px;
 }
 
 @layer base {
