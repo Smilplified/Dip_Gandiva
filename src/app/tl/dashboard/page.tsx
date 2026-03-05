@@ -48,8 +48,16 @@ export default function TeamLeaderDashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentCampaigns, setRecentCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
 
   const fetchData = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    setIsOffline(false);
     setLoading(true);
     try {
       const [statsRes, campaignsRes] = await Promise.all([
@@ -78,6 +86,28 @@ export default function TeamLeaderDashboardPage() {
     }
     fetchData();
   }, [isInitialized, hasRole, router, fetchData]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      fetchData();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
+    };
+  }, [fetchData]);
 
   if (!isInitialized) {
     return (
@@ -108,6 +138,24 @@ export default function TeamLeaderDashboardPage() {
           Here&apos;s your overview. Manage campaigns, team, and pipeline from the sidebar.
         </Typography.Text>
       </div>
+
+      {isOffline && (
+        <div style={{ marginBottom: 24 }}>
+          <Typography.Text type="danger" style={{ fontSize: 14 }}>
+            You appear to be offline. Check your internet connection. Data will reload
+            automatically once you are back online, or{" "}
+            <a
+              onClick={(e) => {
+                e.preventDefault();
+                fetchData();
+              }}
+            >
+              click here to retry now
+            </a>
+            .
+          </Typography.Text>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>

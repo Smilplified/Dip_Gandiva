@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
   Table,
@@ -40,28 +40,10 @@ type AgentCampaignRow = {
 };
 
 export default function AgentDashboardPage() {
-  const { profile } = useAuth();
+  const { profile, hasRole, isInitialized } = useAuth();
   const [campaigns, setCampaigns] = useState<AgentCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/agent/campaigns", { credentials: "include" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to load campaigns");
-        setCampaigns(data.campaigns ?? []);
-      } catch (err) {
-        message.error(
-          err instanceof Error ? err.message : "Failed to load assigned campaigns"
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const [isOffline, setIsOffline] = useState(false);
 
   const totals = useMemo(() => {
     const totalCampaigns = campaigns.length;
@@ -73,6 +55,69 @@ export default function AgentDashboardPage() {
       totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
     return { totalCampaigns, activeCampaigns, totalLeads, activeLeads, conversionPct };
   }, [campaigns]);
+
+  const fetchData = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    setIsOffline(false);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/agent/campaigns", { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load campaigns");
+      setCampaigns(data.campaigns ?? []);
+    } catch (err) {
+      message.error(
+        err instanceof Error ? err.message : "Failed to load assigned campaigns"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (!hasRole("agent")) return;
+    fetchData();
+  }, [isInitialized, hasRole, fetchData]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      fetchData();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
+    };
+  }, [fetchData]);
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!hasRole("agent")) {
+    return null;
+  }
 
   const statusColors: Record<string, string> = {
     draft: "default",
@@ -159,6 +204,19 @@ export default function AgentDashboardPage() {
           Here are the campaigns assigned to you and your lead progress.
         </Typography.Text>
       </div>
+
+      {isOffline && (
+        <div style={{ marginBottom: 24 }}>
+          <Typography.Text type="danger" style={{ fontSize: 14 }}>
+            You appear to be offline. Check your internet connection. Data will reload
+            automatically once you are back online, or{" "}
+            <Button type="link" onClick={fetchData} style={{ padding: 0 }}>
+              click here to retry now
+            </Button>
+            .
+          </Typography.Text>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>

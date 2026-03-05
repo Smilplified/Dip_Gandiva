@@ -27,8 +27,16 @@ export default function QADashboardPage() {
   const [campaigns, setCampaigns] = useState<CampaignWithLeads[]>([]);
   const [stats, setStats] = useState<QaStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
 
   const fetchData = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    setIsOffline(false);
     setLoading(true);
     try {
       const [dashboardRes, statsRes] = await Promise.all([
@@ -52,6 +60,28 @@ export default function QADashboardPage() {
     if (!hasRole("qa") && !hasRole("admin")) return;
     fetchData();
   }, [isInitialized, hasRole, fetchData]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      fetchData();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
+    };
+  }, [fetchData]);
 
   const pendingQaCount = campaigns.reduce(
     (sum, c) => sum + (c.leads?.filter((l) => !l.qa_status || l.qa_status.trim() === "").length ?? 0),
@@ -80,6 +110,24 @@ export default function QADashboardPage() {
           Review and edit leads across campaigns. Set QA status and reasons below.
         </Typography.Text>
       </div>
+
+      {isOffline && (
+        <div style={{ marginBottom: 24 }}>
+          <Typography.Text type="danger" style={{ fontSize: 14 }}>
+            You appear to be offline. Check your internet connection. Data will reload
+            automatically once you are back online, or{" "}
+            <a
+              onClick={(e) => {
+                e.preventDefault();
+                fetchData();
+              }}
+            >
+              click here to retry now
+            </a>
+            .
+          </Typography.Text>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: "center", padding: 48 }}>

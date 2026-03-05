@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -90,6 +90,65 @@ export default function AgentCampaignDetailPage() {
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
   const [leadTaggingFilter, setLeadTaggingFilter] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    if (!id) return;
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    setIsOffline(false);
+    setLoading(true);
+    try {
+      // Reuse TL campaign API for metadata (RLS ensures only assigned campaigns are visible)
+      const [campaignRes, leadsRes] = await Promise.all([
+        fetch(`/api/tl/campaigns/${id}`, { credentials: "include" }),
+        fetch(`/api/agent/campaigns/${id}/leads`, { credentials: "include" }),
+      ]);
+
+      const campaignJson = await campaignRes.json();
+      const leadsJson = await leadsRes.json();
+
+      if (!campaignRes.ok) throw new Error(campaignJson.error || "Failed to load campaign");
+      if (!leadsRes.ok) throw new Error(leadsJson.error || "Failed to load leads");
+
+      setCampaign({
+        id: campaignJson.campaign.id,
+        name: campaignJson.campaign.name,
+        description: campaignJson.campaign.description,
+        industry: campaignJson.campaign.industry,
+        geography: campaignJson.campaign.geography,
+        status: campaignJson.campaign.status,
+        start_date: campaignJson.campaign.start_date,
+        end_date: campaignJson.campaign.end_date,
+        lead_type: campaignJson.campaign.lead_type ?? null,
+        total_allocation: campaignJson.campaign.total_allocation ?? null,
+        post_qa: campaignJson.campaign.post_qa ?? null,
+        achieved: campaignJson.campaign.achieved ?? null,
+        pending_allocation: campaignJson.campaign.pending_allocation ?? null,
+        region: campaignJson.campaign.region ?? null,
+        additional_comments: campaignJson.campaign.additional_comments ?? null,
+        employee_size: campaignJson.campaign.employee_size ?? null,
+        abm: campaignJson.campaign.abm ?? null,
+        seniority: campaignJson.campaign.seniority ?? null,
+        job_function: campaignJson.campaign.job_function ?? null,
+        creatives_url: campaignJson.campaign.creatives_url ?? null,
+      });
+      setLeads(leadsJson.leads ?? []);
+      setFiles(campaignJson.files ?? []);
+    } catch (err) {
+      message.error(
+        err instanceof Error ? err.message : "Failed to load campaign details"
+      );
+      router.replace("/agent/dashboard");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, router]);
 
   useEffect(() => {
     if (!id) {
@@ -102,57 +161,30 @@ export default function AgentCampaignDetailPage() {
       return;
     }
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Reuse TL campaign API for metadata (RLS ensures only assigned campaigns are visible)
-        const [campaignRes, leadsRes] = await Promise.all([
-          fetch(`/api/tl/campaigns/${id}`, { credentials: "include" }),
-          fetch(`/api/agent/campaigns/${id}/leads`, { credentials: "include" }),
-        ]);
+    fetchData();
+  }, [id, isInitialized, hasRole, router, fetchData]);
 
-        const campaignJson = await campaignRes.json();
-        const leadsJson = await leadsRes.json();
-
-        if (!campaignRes.ok) throw new Error(campaignJson.error || "Failed to load campaign");
-        if (!leadsRes.ok) throw new Error(leadsJson.error || "Failed to load leads");
-
-        setCampaign({
-          id: campaignJson.campaign.id,
-          name: campaignJson.campaign.name,
-          description: campaignJson.campaign.description,
-          industry: campaignJson.campaign.industry,
-          geography: campaignJson.campaign.geography,
-          status: campaignJson.campaign.status,
-          start_date: campaignJson.campaign.start_date,
-          end_date: campaignJson.campaign.end_date,
-          lead_type: campaignJson.campaign.lead_type ?? null,
-          total_allocation: campaignJson.campaign.total_allocation ?? null,
-          post_qa: campaignJson.campaign.post_qa ?? null,
-          achieved: campaignJson.campaign.achieved ?? null,
-          pending_allocation: campaignJson.campaign.pending_allocation ?? null,
-          region: campaignJson.campaign.region ?? null,
-          additional_comments: campaignJson.campaign.additional_comments ?? null,
-          employee_size: campaignJson.campaign.employee_size ?? null,
-          abm: campaignJson.campaign.abm ?? null,
-          seniority: campaignJson.campaign.seniority ?? null,
-          job_function: campaignJson.campaign.job_function ?? null,
-          creatives_url: campaignJson.campaign.creatives_url ?? null,
-        });
-        setLeads(leadsJson.leads ?? []);
-        setFiles(campaignJson.files ?? []);
-      } catch (err) {
-        message.error(
-          err instanceof Error ? err.message : "Failed to load campaign details"
-        );
-        router.replace("/agent/dashboard");
-      } finally {
-        setLoading(false);
-      }
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      fetchData();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
     };
 
-    fetchData();
-  }, [id, isInitialized, hasRole, router]);
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
+    };
+  }, [fetchData]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {

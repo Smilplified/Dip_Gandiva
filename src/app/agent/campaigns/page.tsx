@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -47,9 +47,33 @@ export default function AgentCampaignsPage() {
   const { hasRole, isInitialized } = useAuth();
   const [campaigns, setCampaigns] = useState<AgentCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
+
+  const fetchData = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    setIsOffline(false);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/agent/campaigns", { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load campaigns");
+      setCampaigns(data.campaigns ?? []);
+    } catch (err) {
+      message.error(
+        err instanceof Error ? err.message : "Failed to load assigned campaigns"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -57,23 +81,30 @@ export default function AgentCampaignsPage() {
       router.replace("/login");
       return;
     }
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/agent/campaigns", { credentials: "include" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to load campaigns");
-        setCampaigns(data.campaigns ?? []);
-      } catch (err) {
-        message.error(
-          err instanceof Error ? err.message : "Failed to load assigned campaigns"
-        );
-      } finally {
-        setLoading(false);
+    fetchData();
+  }, [isInitialized, hasRole, router, fetchData]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      fetchData();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
       }
     };
-    fetchData();
-  }, [isInitialized, hasRole, router]);
+  }, [fetchData]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return campaigns;
@@ -201,6 +232,19 @@ export default function AgentCampaignsPage() {
             All campaigns assigned to you.
           </Typography.Text>
         </div>
+
+        {isOffline && (
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text type="danger" style={{ fontSize: 14 }}>
+              You appear to be offline. Check your internet connection. Data will reload
+              automatically once you are back online, or{" "}
+              <Button type="link" onClick={fetchData} style={{ padding: 0 }}>
+                click here to retry now
+              </Button>
+              .
+            </Typography.Text>
+          </div>
+        )}
 
         <Card
           bodyStyle={{ overflowX: "auto" }}
