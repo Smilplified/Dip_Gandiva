@@ -19,6 +19,7 @@ import {
   Space,
   DatePicker,
   Input,
+  Select,
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -34,6 +35,7 @@ import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
+import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
 
 type Campaign = {
   id: string;
@@ -87,6 +89,7 @@ export default function AgentCampaignDetailPage() {
   const [form] = Form.useForm();
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadTaggingFilter, setLeadTaggingFilter] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -163,13 +166,16 @@ export default function AgentCampaignDetailPage() {
           (l.phone ?? "").toLowerCase().includes(q) ||
           ([l.first_name, l.last_name].filter(Boolean).join(" ") ?? "").toLowerCase().includes(q);
       if (!matchesSearch) return false;
+      if (leadTaggingFilter != null && leadTaggingFilter !== "") {
+        if ((l.lead_tagging ?? "").trim() !== leadTaggingFilter) return false;
+      }
       if (!dateRange?.[0] || !dateRange?.[1]) return true;
       const leadDate = dayjs(l.created_at).startOf("day");
       const start = dateRange[0].startOf("day");
       const end = dateRange[1].endOf("day");
       return !leadDate.isBefore(start) && !leadDate.isAfter(end);
     });
-  }, [leads, leadSearch, dateRange]);
+  }, [leads, leadSearch, dateRange, leadTaggingFilter]);
 
   const openLeadDrawer = () => {
     setDrawerMode("create");
@@ -490,6 +496,19 @@ export default function AgentCampaignDetailPage() {
                 Clear dates
               </Button>
             </Col>
+            <Col>
+              <Typography.Text type="secondary" style={{ marginRight: 8 }}>Lead Tagging:</Typography.Text>
+            </Col>
+            <Col>
+              <Select
+                placeholder="All"
+                allowClear
+                style={{ width: 180 }}
+                value={leadTaggingFilter ?? undefined}
+                options={LEAD_TAGGING_OPTIONS}
+                onChange={(v) => setLeadTaggingFilter(v ?? null)}
+              />
+            </Col>
             <Col flex="auto" style={{ minWidth: 200 }}>
               <Input.Search
                 placeholder="Search leads (Lead ID, name, company, email, phone)..."
@@ -513,7 +532,7 @@ export default function AgentCampaignDetailPage() {
           rowKey="id"
           scroll={{ x: 2600 }}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
-          locale={{ emptyText: leadSearch || dateRange?.[0] || dateRange?.[1] ? "No leads match the filter." : "No leads yet. Use 'Add Lead' to create one." }}
+          locale={{ emptyText: leadSearch || dateRange?.[0] || dateRange?.[1] || leadTaggingFilter ? "No leads match the filter." : "No leads yet. Use 'Add Lead' to create one." }}
           size="middle"
           onRow={(record) => ({
             onClick: () => openEditLeadDrawer(record as Lead),

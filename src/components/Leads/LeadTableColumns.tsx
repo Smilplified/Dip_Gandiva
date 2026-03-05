@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Table, Tag, Button, message } from "antd";
+import { Table, Tag, Button, message, Select } from "antd";
 import type { TableProps } from "antd";
 import { EditOutlined, CopyOutlined } from "@ant-design/icons";
 import type { Lead } from "@/types/lead.types";
@@ -128,6 +128,44 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       dataIndex: "qa_status",
       key: "qa_status",
       width: 110,
+      fixed: "right" as const,
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+        <div style={{ padding: 8 }}>
+          <Select
+            allowClear
+            placeholder="Filter QA status"
+            style={{ width: 180, marginBottom: 8, display: "block" }}
+            value={(selectedKeys[0] as string | undefined) ?? undefined}
+            options={[
+              { value: "qualified", label: "Qualified" },
+              { value: "disqualified", label: "Disqualified" },
+              { value: "rectified", label: "Rectified" },
+            ]}
+            onChange={(value) => {
+              if (value) {
+                setSelectedKeys([value]);
+              } else {
+                setSelectedKeys([]);
+              }
+              confirm({ closeDropdown: false });
+            }}
+          />
+          {clearFilters && (
+            <Button
+              onClick={() => {
+                clearFilters();
+                confirm({ closeDropdown: false });
+              }}
+              size="small"
+              style={{ width: "100%" }}
+            >
+              Reset
+            </Button>
+          )}
+        </div>
+      ),
+      onFilter: (value, record) =>
+        (record.qa_status ?? "").toLowerCase() === String(value).toLowerCase(),
       render: (v: string | null | undefined) =>
         v ? (
           <Tag
@@ -135,7 +173,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
               v === "qualified" ? "green" : v === "disqualified" ? "red" : "blue"
             }
           >
-            {v}
+            {v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()}
           </Tag>
         ) : (
           "—"

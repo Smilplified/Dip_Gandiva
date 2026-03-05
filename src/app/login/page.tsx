@@ -190,7 +190,7 @@ function LoginContent() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="mt-1 w-full py-3 px-4 rounded-xl bg-slate-800 text-white font-semibold transition hover:bg-slate-700 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
+                className="mt-1 w-full py-3 px-4 rounded-xl bg-slate-800 text-white font-semibold transition hover:bg-slate-700 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
               >
                 {isLoading ? (
                   <span className="inline-flex items-center justify-center gap-2">

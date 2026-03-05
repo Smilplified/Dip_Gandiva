@@ -76,6 +76,7 @@ export async function GET(
       .from("leads")
       .select(LEADS_SELECT + ", disqualification_reasons, disqualification_reason, rectified_reason")
       .eq("campaign_id", campaignId)
+      .eq("lead_tagging", "Scored")
       .order("created_at", { ascending: false });
 
     if (leadsError && (leadsError.message?.includes("column") || leadsError.message?.includes("disqualification"))) {
@@ -84,6 +85,7 @@ export async function GET(
         .from("leads")
         .select("id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition, disqualification_reasons, disqualification_reason, rectified_reason")
         .eq("campaign_id", campaignId)
+        .eq("lead_tagging", "Scored")
         .order("created_at", { ascending: false });
       leadsData = fallback.data;
       leadsError = fallback.error;

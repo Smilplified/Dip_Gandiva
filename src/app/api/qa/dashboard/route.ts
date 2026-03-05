@@ -106,6 +106,7 @@ export async function GET() {
       .from("leads")
       .select(leadsSelectExtended + ", disqualification_reasons, disqualification_reason, rectified_reason")
       .in("campaign_id", campaignIds)
+      .eq("lead_tagging", "Scored")
       .order("created_at", { ascending: false });
 
     if (leadsError && (leadsError.message?.includes("column") || leadsError.message?.includes("disqualification"))) {
@@ -114,6 +115,7 @@ export async function GET() {
         .from("leads")
         .select(leadsSelectBase + ", disqualification_reasons, disqualification_reason, rectified_reason")
         .in("campaign_id", campaignIds)
+        .eq("lead_tagging", "Scored")
         .order("created_at", { ascending: false });
       leadsData = fallback.data;
       leadsError = fallback.error;
