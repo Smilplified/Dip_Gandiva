@@ -86,8 +86,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       try {
-        // Use getUser() - validates session with server, more reliable after redirect
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        // If we're clearly offline on first load, don't hang the UI – mark as initialized
+        if (typeof window !== "undefined" && typeof navigator !== "undefined" && !navigator.onLine) {
+          if (!mounted) return;
+          setState((s) => ({
+            ...s,
+            user: null,
+            profile: null,
+            roles: [],
+            isLoading: false,
+            isInitialized: true,
+          }));
+          return;
+        }
+
+        // Use getUser() - but guard with a timeout so we never hang indefinitely
+        const result = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<{ data: { user: User | null }; error: Error | null }>((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  data: { user: null },
+                  error: null,
+                }),
+              8000
+            )
+          ),
+        ]);
+
+        const { data: { user: authUser }, error: authError } = result;
         if (!mounted) return;
 
         if (authError || !authUser) {
@@ -145,11 +173,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // When the browser comes back online, proactively refresh the profile/session.
+    const handleOnline = () => {
+      if (!mounted) return;
+      void refreshProfile().catch((err) => {
+        console.error("Auth online refresh error:", err);
+      });
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+    }
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+      }
     };
-  }, [supabase, fetchProfileAndRoles]);
+  }, [supabase, fetchProfileAndRoles, refreshProfile]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {

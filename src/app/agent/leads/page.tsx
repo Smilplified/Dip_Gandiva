@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -30,25 +30,56 @@ export default function AgentMyLeadsPage() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const [isOffline, setIsOffline] = useState(false);
+
+  const fetchLeads = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    setIsOffline(false);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/agent/leads", { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load leads");
+      setLeads(data.leads ?? []);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to load leads");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("agent")) return;
-    const fetchLeads = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/agent/leads", { credentials: "include" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to load leads");
-        setLeads(data.leads ?? []);
-      } catch (err) {
-        message.error(err instanceof Error ? err.message : "Failed to load leads");
-      } finally {
-        setLoading(false);
+    fetchLeads();
+  }, [isInitialized, hasRole, fetchLeads]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      fetchLeads();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
       }
     };
-    fetchLeads();
-  }, [isInitialized, hasRole]);
+  }, [fetchLeads]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {
@@ -118,6 +149,19 @@ export default function AgentMyLeadsPage() {
             All leads assigned to you across campaigns.
           </Typography.Text>
         </div>
+
+        {isOffline && (
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text type="danger" style={{ fontSize: 14 }}>
+              You appear to be offline. Check your internet connection. Data will reload
+              automatically once you are back online, or{" "}
+              <Button type="link" onClick={fetchLeads} style={{ padding: 0 }}>
+                click here to retry now
+              </Button>
+              .
+            </Typography.Text>
+          </div>
+        )}
 
         <Card
           title={`My Leads (${filteredLeads.length}${filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})`}

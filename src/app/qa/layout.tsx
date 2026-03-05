@@ -21,17 +21,19 @@ export default function QARootLayout({
     }
   }, [isInitialized, isLoading, hasRole, router]);
 
-  if (!isInitialized || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!hasRole("qa") && !hasRole("admin")) {
-    return null;
-  }
-
-  return <QALayout>{children}</QALayout>;
+  return (
+    <QALayout>
+      {!isInitialized || isLoading ? (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Spin size="large" />
+        </div>
+      ) : !hasRole("qa") && !hasRole("admin") ? (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Spin size="large" tip="Redirecting..." />
+        </div>
+      ) : (
+        children
+      )}
+    </QALayout>
+  );
 }

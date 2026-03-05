@@ -58,8 +58,16 @@ export default function QACampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [isOffline, setIsOffline] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+
+    setIsOffline(false);
     setLoading(true);
     try {
       const res = await fetch("/api/qa/dashboard", { credentials: "include" });
@@ -78,6 +86,28 @@ export default function QACampaignsPage() {
     if (!hasRole("qa") && !hasRole("admin")) return;
     fetchDashboard();
   }, [isInitialized, hasRole, fetchDashboard]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      fetchDashboard();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      }
+    };
+  }, [fetchDashboard]);
 
   const filteredCampaigns = useCallback(() => {
     const q = search.trim().toLowerCase();
@@ -121,6 +151,24 @@ export default function QACampaignsPage() {
           Click a campaign to view details and leads.
         </Typography.Text>
       </div>
+
+      {isOffline && (
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text type="danger" style={{ fontSize: 14 }}>
+            You appear to be offline. Check your internet connection. Data will reload
+            automatically once you are back online, or{" "}
+            <a
+              onClick={(e) => {
+                e.preventDefault();
+                fetchDashboard();
+              }}
+            >
+              click here to retry now
+            </a>
+            .
+          </Typography.Text>
+        </div>
+      )}
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Input.Search

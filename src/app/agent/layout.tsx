@@ -21,18 +21,20 @@ export default function AgentRootLayout({
     }
   }, [isInitialized, hasRole, router]);
 
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!hasRole("agent")) {
-    return null;
-  }
-
-  return <AgentLayout>{children}</AgentLayout>;
+  return (
+    <AgentLayout>
+      {!isInitialized ? (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Spin size="large" />
+        </div>
+      ) : !hasRole("agent") ? (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Spin size="large" tip="Redirecting..." />
+        </div>
+      ) : (
+        children
+      )}
+    </AgentLayout>
+  );
 }
 

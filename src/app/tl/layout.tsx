@@ -21,17 +21,19 @@ export default function TLRootLayout({
     }
   }, [isInitialized, hasRole, router]);
 
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!hasRole("team_leader") && !hasRole("tl")) {
-    return null;
-  }
-
-  return <TLLayout>{children}</TLLayout>;
+  return (
+    <TLLayout>
+      {!isInitialized ? (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Spin size="large" />
+        </div>
+      ) : !hasRole("team_leader") && !hasRole("tl") ? (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <Spin size="large" tip="Redirecting..." />
+        </div>
+      ) : (
+        children
+      )}
+    </TLLayout>
+  );
 }
