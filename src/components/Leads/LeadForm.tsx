@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Form, Input, Select, DatePicker, Row, Col, Collapse, Typography, Button } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import React, { useState, useEffect, useRef } from "react";
+import { Form, Input, Select, DatePicker, Row, Col, Collapse, Typography, Button, Spin, message } from "antd";
+import { PlusOutlined, PlayCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import {
   STATUS_OPTIONS,
   QA_STATUS_OPTIONS,
@@ -29,12 +29,144 @@ export function LeadForm({
   canEditQaAudit = false,
 }: LeadFormProps) {
   const [showMoreCq, setShowMoreCq] = useState(false);
+  const [voiceRecordings, setVoiceRecordings] = useState<
+    { id: string; name: string; path: string; url: string | null }[]
+  >([]);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (lead && (lead.cq3 || lead.cq4 || lead.cq5)) {
       setShowMoreCq(true);
     }
   }, [lead]);
+
+  useEffect(() => {
+    const loadVoiceRecordings = async () => {
+      if (!lead?.id || mode !== "edit") {
+        setVoiceRecordings([]);
+        return;
+      }
+      setVoiceLoading(true);
+      try {
+        const res = await fetch(`/api/agent/leads/${lead.id}/voice-lock`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          if (json?.error) {
+            message.warning(`Voice Lock: ${json.error}`);
+          }
+          return;
+        }
+        const json = await res.json();
+        setVoiceRecordings(
+          (json?.recordings ?? []).map((r: any) => ({
+            id: r.id ?? r.path,
+            name: r.name,
+            path: r.path,
+            url: r.url ?? null,
+          })),
+        );
+      } catch (err) {
+        console.error("Failed to load voice recordings", err);
+      } finally {
+        setVoiceLoading(false);
+      }
+    };
+
+    loadVoiceRecordings();
+  }, [lead?.id, mode]);
+
+  const handleUploadVoice = async (file: File | null) => {
+    if (!lead?.id || mode !== "edit" || !file) {
+      message.error("Voice Lock upload is only available while editing an existing lead.");
+      return;
+    }
+    setVoiceUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/agent/leads/${lead.id}/voice-lock`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        message.error(json?.error || "Failed to upload recording");
+        return;
+      }
+      setVoiceRecordings(
+        (json?.recordings ?? []).map((r: any) => ({
+          id: r.id ?? r.path,
+          name: r.name,
+          path: r.path,
+          url: r.url ?? null,
+        })),
+      );
+      message.success("Recording uploaded");
+    } catch (err) {
+      console.error("Voice upload error", err);
+      message.error("Failed to upload recording");
+    } finally {
+      setVoiceUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleDeleteVoice = async (path: string) => {
+    if (!lead?.id || mode !== "edit" || !path) return;
+    try {
+      const res = await fetch(`/api/agent/leads/${lead.id}/voice-lock`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        message.error(json?.error || "Failed to delete recording");
+        return;
+      }
+      setVoiceRecordings(
+        (json?.recordings ?? []).map((r: any) => ({
+          id: r.id ?? r.path,
+          name: r.name,
+          path: r.path,
+          url: r.url ?? null,
+        })),
+      );
+      message.success("Recording deleted");
+    } catch (err) {
+      console.error("Voice delete error", err);
+      message.error("Failed to delete recording");
+    }
+  };
+
+  const firstName = Form.useWatch("first_name", form);
+  const lastName = Form.useWatch("last_name", form);
+  const email = Form.useWatch("email", form);
+  const companyName = Form.useWatch("company_name", form);
+  const domain = Form.useWatch("domain", form);
+
+  const hasIdentityFields =
+    typeof firstName === "string" &&
+    firstName.trim().length > 0 &&
+    typeof lastName === "string" &&
+    lastName.trim().length > 0 &&
+    typeof email === "string" &&
+    email.trim().length > 0 &&
+    typeof companyName === "string" &&
+    companyName.trim().length > 0 &&
+    typeof domain === "string" &&
+    domain.trim().length > 0;
+
+  const hasLeadId = !!lead?.id;
+  const canUseVoiceLock = hasLeadId && hasIdentityFields;
 
   const renderSection = (
     key: string,
@@ -187,6 +319,131 @@ export function LeadForm({
                   )}
                 </Col>
               </Row>
+            )}
+          </Collapse>
+          <Collapse defaultActiveKey={["voice-lock"]} expandIconPosition="end" style={{ marginTop: 16 }}>
+            {renderSection(
+              "voice-lock",
+              "Voice Lock",
+              "🎧",
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {!canUseVoiceLock ? (
+                  !hasLeadId ? (
+                    <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                      Voice Lock will be available after you create this lead and fill First Name, Last Name, Email Address, Company Name, and Domain.
+                    </Typography.Text>
+                  ) : (
+                    <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                      To use Voice Lock, please fill First Name, Last Name, Email Address, Company Name, and Domain for this lead.
+                    </Typography.Text>
+                  )
+                ) : (
+                  <>
+                    <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                      Upload up to 4 call recordings for this lead. Use the play and delete icons on each recording.
+                    </Typography.Text>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        if (file) {
+                          handleUploadVoice(file);
+                        }
+                      }}
+                    />
+                    <Row gutter={[12, 12]}>
+                      {voiceRecordings.map((rec) => (
+                        <Col key={rec.id} xs={24} sm={12}>
+                          <div
+                            style={{
+                              border: "1px solid #f0f0f0",
+                              borderRadius: 8,
+                              padding: 10,
+                              background: "#fafafa",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 8,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 8,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  minWidth: 0,
+                                }}
+                              >
+                                <PlayCircleOutlined style={{ color: "#1677ff" }} />
+                                <Typography.Text
+                                  style={{
+                                    fontSize: 13,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                    maxWidth: 160,
+                                  }}
+                                >
+                                  {rec.name}
+                                </Typography.Text>
+                              </span>
+                              <Button
+                                type="text"
+                                danger
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleDeleteVoice(rec.path)}
+                              />
+                            </div>
+                            {rec.url ? (
+                              <audio
+                                controls
+                                src={rec.url}
+                                style={{ width: "100%" }}
+                              />
+                            ) : (
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                Preview unavailable for this recording.
+                              </Typography.Text>
+                            )}
+                          </div>
+                        </Col>
+                      ))}
+                      {voiceRecordings.length < 4 && (
+                        <Col xs={24} sm={12}>
+                          <Button
+                            type="dashed"
+                            style={{ width: "100%", height: 80 }}
+                            icon={<PlusOutlined />}
+                            onClick={() => fileInputRef.current?.click()}
+                            loading={voiceUploading}
+                          >
+                            Add call recording
+                          </Button>
+                        </Col>
+                      )}
+                    </Row>
+                    {voiceLoading && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Spin size="small" />
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          Loading recordings...
+                        </Typography.Text>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </Collapse>
           {/* QA Audit & Status — bottom of Contact column */}

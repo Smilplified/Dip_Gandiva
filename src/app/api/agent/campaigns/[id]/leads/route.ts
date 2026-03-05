@@ -291,6 +291,7 @@ export async function POST(
         .from("leads")
         .select("id, lead_id")
         .eq("organization_id", orgId)
+        .eq("campaign_id", campaignId)
         .eq("first_name", normalizedFirstName)
         .eq("last_name", normalizedLastName)
         .eq("email", normalizedEmail)
