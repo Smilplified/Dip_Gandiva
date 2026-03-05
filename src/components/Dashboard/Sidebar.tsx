@@ -33,7 +33,7 @@ export default function Sidebar() {
   return (
     <Sider
       width={240}
-      theme="dark"
+      theme="light"
       breakpoint="lg"
       collapsedWidth="0"
       style={{
@@ -42,6 +42,8 @@ export default function Sidebar() {
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        background: "#ffffff",
+        borderRight: "1px solid rgba(0,0,0,0.06)",
       }}
     >
       <div
@@ -52,12 +54,13 @@ export default function Sidebar() {
           display: "flex",
           alignItems: "center",
           padding: "0 24px",
-          borderBottom: "1px solid rgba(255,255,255,0.1)",
+          borderBottom: "1px solid rgba(0,0,0,0.06)",
+          background: "#ffffff",
         }}
       >
         <span
           style={{
-            color: "#fff",
+            color: "#000",
             fontSize: 20,
             fontWeight: 700,
             letterSpacing: "-0.5px",
@@ -74,7 +77,7 @@ export default function Sidebar() {
         }}
       >
         <Menu
-          theme="dark"
+          theme="light"
           selectedKeys={[pathname || "/"]}
           mode="inline"
           items={menuItems.map((item) => ({
@@ -82,7 +85,7 @@ export default function Sidebar() {
             icon: item.icon,
             label: <Link href={item.href}>{item.label}</Link>,
           }))}
-          style={{ marginTop: 16, border: "none" }}
+          style={{ marginTop: 16, border: "none", background: "#ffffff" }}
         />
       </div>
     </Sider>

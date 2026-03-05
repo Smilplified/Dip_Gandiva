@@ -3,6 +3,7 @@
 import { Layout, Menu } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import { DollarOutlined, FundProjectionScreenOutlined, TeamOutlined } from "@ant-design/icons";
 
 const { Sider } = Layout;
@@ -19,7 +20,7 @@ export default function SalesSidebar() {
   return (
     <Sider
       width={240}
-      theme="dark"
+      theme="light"
       breakpoint="lg"
       collapsedWidth="0"
       style={{
@@ -28,6 +29,8 @@ export default function SalesSidebar() {
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        background: "#ffffff",
+        borderRight: "1px solid rgba(0,0,0,0.06)",
       }}
     >
       <div
@@ -38,19 +41,18 @@ export default function SalesSidebar() {
           display: "flex",
           alignItems: "center",
           padding: "0 24px",
-          borderBottom: "1px solid rgba(255,255,255,0.1)",
+          borderBottom: "1px solid rgba(0,0,0,0.06)",
+          background: "#ffffff",
         }}
       >
-        <span
-          style={{
-            color: "#fff",
-            fontSize: 20,
-            fontWeight: 700,
-            letterSpacing: "-0.5px",
-          }}
-        >
-          Sales
-        </span>
+        <Image
+          src="/projects/gandiva_logo.png"
+          alt="Gandiv CRM"
+          width={190}
+          height={48}
+          style={{ objectFit: "contain", maxWidth: "100%" }}
+          priority
+        />
       </div>
       <div
         style={{
@@ -60,7 +62,7 @@ export default function SalesSidebar() {
         }}
       >
         <Menu
-          theme="dark"
+          theme="light"
           selectedKeys={
             pathname?.startsWith("/sales/campaigns")
               ? ["/sales/campaigns"]
@@ -74,7 +76,7 @@ export default function SalesSidebar() {
             icon: item.icon,
             label: <Link href={item.href}>{item.label}</Link>,
           }))}
-          style={{ marginTop: 16, border: "none" }}
+          style={{ marginTop: 16, border: "none", background: "#ffffff" }}
         />
       </div>
     </Sider>
