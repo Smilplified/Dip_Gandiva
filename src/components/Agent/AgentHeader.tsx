@@ -17,12 +17,11 @@ export default function AgentHeader() {
   const { user, profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
 
-  const handleMenuClick = async ({ key }: { key: string }) => {
+  const handleMenuClick = ({ key }: { key: string }) => {
     if (key === "logout") {
       setSigningOut(true);
-      await signOut();
-      router.replace("/login");
-      setSigningOut(false);
+      signOut(); // Fire-and-forget; redirect immediately for instant UX
+      window.location.href = "/login";
     }
   };
 

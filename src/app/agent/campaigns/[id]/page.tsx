@@ -253,7 +253,12 @@ export default function AgentCampaignDetailPage() {
       const leadsJson = await leadsRes.json();
       if (leadsRes.ok) setLeads(leadsJson.leads ?? []);
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to create lead");
+      const isValidationError = err && typeof err === "object" && "errorFields" in err && Array.isArray((err as { errorFields?: unknown }).errorFields);
+      if (isValidationError) {
+        message.warning("Please fill all required fields");
+      } else {
+        message.error(err instanceof Error ? err.message : "Failed to create lead");
+      }
     } finally {
       setCreatingLead(false);
     }
@@ -283,7 +288,12 @@ export default function AgentCampaignDetailPage() {
       if (leadsRes.ok) setLeads(leadsJson.leads ?? []);
       closeLeadDrawer();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to update lead");
+      const isValidationError = err && typeof err === "object" && "errorFields" in err && Array.isArray((err as { errorFields?: unknown }).errorFields);
+      if (isValidationError) {
+        message.warning("Please fill all required fields");
+      } else {
+        message.error(err instanceof Error ? err.message : "Failed to update lead");
+      }
     } finally {
       setUpdatingLead(false);
     }
@@ -488,20 +498,25 @@ export default function AgentCampaignDetailPage() {
       <Card
         title={`My Leads (${filteredLeads.length}${filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})`}
         extra={
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={() => {
-              const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
-              if (toExport.length === 0) message.warning("No leads to export");
-              else {
-                downloadCsv(toExport, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
-                message.success(`Exported ${toExport.length} leads`);
-              }
-            }}
-            disabled={leads.length === 0}
-          >
-            Export
-          </Button>
+          <Space>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openLeadDrawer}>
+              Add Lead
+            </Button>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => {
+                const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
+                if (toExport.length === 0) message.warning("No leads to export");
+                else {
+                  downloadCsv(toExport, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
+                  message.success(`Exported ${toExport.length} leads`);
+                }
+              }}
+              disabled={leads.length === 0}
+            >
+              Export
+            </Button>
+          </Space>
         }
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         bodyStyle={{ padding: "24px 28px" }}

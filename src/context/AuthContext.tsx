@@ -15,6 +15,10 @@ export const ROLE_ROUTES: Record<string, string> = {
   qa: "/qa/dashboard",
 };
 
+export const AUTH_STORAGE_KEYS = {
+  lastRedirectPath: "gandiv:lastRedirectPath",
+} as const;
+
 export type UserRole = { id: string; name: string; role_name: string; description?: string | null; organization_id: string };
 export type UserProfile = Tables<"users">;
 
@@ -72,82 +76,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const refreshProfile = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    try {
+      // Try getSession first (no locks), fallback to getUser
+      const sessionResult = await supabase.auth.getSession();
+      const user = sessionResult.data.session?.user ?? null;
+      
+      if (!user) {
+        // Try getUser as fallback
+        const userResult = await supabase.auth.getUser();
+        const fallbackUser = userResult.data.user;
+        
+        if (!fallbackUser) {
+          setState((s) => ({ ...s, user: null, profile: null, roles: [], isLoading: false, isInitialized: true }));
+          return;
+        }
+        
+        const { profile, roles } = await fetchProfileAndRoles(fallbackUser.id);
+        setState((s) => ({ ...s, user: fallbackUser, profile, roles, isLoading: false, isInitialized: true }));
+        return;
+      }
+      
+      const { profile, roles } = await fetchProfileAndRoles(user.id);
+      setState((s) => ({ ...s, user, profile, roles, isLoading: false, isInitialized: true }));
+    } catch (err) {
+      console.error("Refresh profile error:", err);
       setState((s) => ({ ...s, user: null, profile: null, roles: [], isLoading: false, isInitialized: true }));
-      return;
     }
-    const { profile, roles } = await fetchProfileAndRoles(user.id);
-    setState((s) => ({ ...s, user, profile, roles, isLoading: false, isInitialized: true }));
   }, [supabase, fetchProfileAndRoles]);
 
   useEffect(() => {
     let mounted = true;
+    const userSetByListener = { current: false };
+
+    const markInitialized = (user: User | null, profile: UserProfile | null, roles: UserRole[]) => {
+      if (!mounted) return;
+      setState((s) => ({ ...s, user, profile, roles, isLoading: false, isInitialized: true }));
+    };
 
     const init = async () => {
       try {
-        // If we're clearly offline on first load, don't hang the UI – mark as initialized
         if (typeof window !== "undefined" && typeof navigator !== "undefined" && !navigator.onLine) {
-          if (!mounted) return;
-          setState((s) => ({
-            ...s,
-            user: null,
-            profile: null,
-            roles: [],
-            isLoading: false,
-            isInitialized: true,
-          }));
+          markInitialized(null, null, []);
           return;
         }
 
-        // Use getUser() - but guard with a timeout so we never hang indefinitely
-        const result = await Promise.race([
-          supabase.auth.getUser(),
-          new Promise<{ data: { user: User | null }; error: Error | null }>((resolve) =>
-            setTimeout(
-              () =>
-                resolve({
-                  data: { user: null },
-                  error: null,
-                }),
-              8000
-            )
-          ),
-        ]);
-
-        const { data: { user: authUser }, error: authError } = result;
+        const { data: { session } } = await supabase.auth.getSession();
         if (!mounted) return;
 
-        if (authError || !authUser) {
-          setState((s) => ({ ...s, user: null, profile: null, roles: [], isLoading: false, isInitialized: true }));
+        if (!session?.user) {
+          markInitialized(null, null, []);
           return;
         }
 
-        const { profile, roles } = await fetchProfileAndRoles(authUser.id);
+        const { profile, roles } = await fetchProfileAndRoles(session.user.id);
         if (!mounted) return;
-        setState((s) => ({
-          ...s,
-          user: authUser,
-          profile,
-          roles,
-          isLoading: false,
-          isInitialized: true,
-        }));
+        markInitialized(session.user, profile, roles);
       } catch (err) {
         console.error("Auth init error:", err);
         if (!mounted) return;
-        setState((s) => ({
-          ...s,
-          user: null,
-          profile: null,
-          roles: [],
-          isLoading: false,
-          isInitialized: true,
-        }));
+        if (!userSetByListener.current) {
+          markInitialized(null, null, []);
+        }
       }
     };
 
     init();
+
+    // Safety: if init hangs (e.g. Supabase slow), show login form after 5s so user isn't stuck
+    const timeout = setTimeout(() => {
+      if (!mounted) return;
+      setState((s) => {
+        if (s.isInitialized) return s;
+        return { ...s, user: null, profile: null, roles: [], isLoading: false, isInitialized: true };
+      });
+    }, 5000);
+
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
@@ -155,9 +158,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setState((s) => ({ ...s, user: null, profile: null, roles: [], isLoading: false, isInitialized: true }));
         return;
       }
-      // INITIAL_SESSION fires when client loads - can arrive before getUser() completes
+      // INITIAL_SESSION fires when client loads
       if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         if (session?.user) {
+          userSetByListener.current = true;
           try {
             const { profile, roles } = await fetchProfileAndRoles(session.user.id);
             if (!mounted) return;
@@ -187,6 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
@@ -202,10 +207,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email,
           password,
         });
+
         if (error) {
           setState((s) => ({ ...s, isLoading: false }));
           return { error: error as Error };
         }
+
         if (data.user) {
           const { profile, roles } = await fetchProfileAndRoles(data.user.id);
           setState((s) => ({
@@ -238,8 +245,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               break;
             }
           }
+          // Persist last successful redirect target for faster future logins
+          if (typeof window !== "undefined") {
+            try {
+              window.localStorage.setItem(AUTH_STORAGE_KEYS.lastRedirectPath, redirectPath);
+            } catch {
+              // Ignore storage failures
+            }
+          }
           return { error: null, redirectPath };
         }
+
         // No error and no user (unexpected but handle gracefully)
         setState((s) => ({ ...s, isLoading: false }));
         return { error: null };
@@ -252,8 +268,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [supabase, fetchProfileAndRoles]
   );
 
+  const clearClientStorage = () => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
+    } catch (err) {
+      console.warn("Failed to clear auth localStorage", err);
+    }
+  };
+
   const signOut = useCallback(async () => {
-    // Optimistic: clear state immediately for instant UI feedback
+    // Optimistic: clear state and local storage immediately for instant UI feedback
     setState((s) => ({
       ...s,
       user: null,
@@ -262,18 +287,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isInitialized: true,
       isLoading: false,
     }));
-    // Parallel cleanup: client session + server cookies; swallow errors
-    try {
-      await Promise.all([
-        supabase.auth.signOut(),
-        fetch("/api/auth/signout", {
+    clearClientStorage();
+
+    const performServerSignout = async () => {
+      try {
+        // Clear server-side cookies first, then Supabase client session
+        await fetch("/api/auth/signout", {
           method: "POST",
           credentials: "include",
-        }).catch(() => {}),
-      ]);
-    } catch (err) {
-      console.error("Auth signOut error:", err);
-    }
+        }).catch(() => {});
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error("Auth signOut error:", err);
+      }
+    };
+
+    // Run server/client signout in the background so UI can redirect instantly
+    void performServerSignout();
   }, [supabase]);
 
   const hasRole = useCallback(

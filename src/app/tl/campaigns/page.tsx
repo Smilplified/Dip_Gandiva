@@ -15,11 +15,10 @@ import {
   message,
   Spin,
   Typography,
+  Input,
+  Select,
 } from "antd";
 import {
-  FundProjectionScreenOutlined,
-  RiseOutlined,
-  TeamOutlined,
   CheckCircleOutlined,
   PercentageOutlined,
   PlusOutlined,
@@ -27,6 +26,7 @@ import {
   UserAddOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 
@@ -59,6 +59,8 @@ export default function TLCampaignsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -171,6 +173,13 @@ export default function TLCampaignsPage() {
       dataIndex: "status",
       key: "status",
       width: 100,
+      filters: [
+        { text: "Draft", value: "draft" },
+        { text: "Active", value: "active" },
+        { text: "Paused", value: "paused" },
+        { text: "Completed", value: "completed" },
+      ],
+      onFilter: (value: unknown, record: CampaignRow) => record.status === value,
       render: (val: string) => {
         const colors: Record<string, string> = {
           draft: "default",
@@ -237,6 +246,23 @@ export default function TLCampaignsPage() {
     },
   ];
 
+  const filteredCampaigns = campaigns.filter((c) => {
+    const matchesSearch =
+      !searchText ||
+      c.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+      c.industry?.toLowerCase().includes(searchText.toLowerCase()) ||
+      c.geography?.toLowerCase().includes(searchText.toLowerCase());
+    const matchesStatus = !statusFilter || c.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const statusOptions = [
+    { value: "draft", label: "Draft" },
+    { value: "active", label: "Active" },
+    { value: "paused", label: "Paused" },
+    { value: "completed", label: "Completed" },
+  ];
+
   return (
     <>
       <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
@@ -278,33 +304,6 @@ export default function TLCampaignsPage() {
       ) : (
         <>
           <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-            <Col xs={24} sm={12} lg={8}>
-              <Card>
-                <Statistic
-                  title="Total Campaigns"
-                  value={stats?.totalCampaigns ?? 0}
-                  prefix={<FundProjectionScreenOutlined />}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <Card>
-                <Statistic
-                  title="Active Campaigns"
-                  value={stats?.activeCampaigns ?? 0}
-                  prefix={<RiseOutlined />}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <Card>
-                <Statistic
-                  title="Total Leads"
-                  value={stats?.totalLeads ?? 0}
-                  prefix={<TeamOutlined />}
-                />
-              </Card>
-            </Col>
             <Col xs={24} sm={12} lg={12}>
               <Card>
                 <Statistic
@@ -326,11 +325,34 @@ export default function TLCampaignsPage() {
             </Col>
           </Row>
 
-          <Card title="All Campaigns" bodyStyle={{ overflowX: "auto" }}>
+          <Card
+            title="All Campaigns"
+            bodyStyle={{ overflowX: "auto" }}
+            extra={
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <Input
+                  placeholder="Search campaigns..."
+                  prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  allowClear
+                  style={{ width: 220 }}
+                />
+                <Select
+                  placeholder="Filter by status"
+                  allowClear
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={statusOptions}
+                  style={{ width: 160 }}
+                />
+              </div>
+            }
+          >
             <Table
               className="table-single-line"
               columns={columns}
-              dataSource={campaigns}
+              dataSource={filteredCampaigns}
               rowKey="id"
               scroll={{ x: 1150 }}
               pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} campaigns` }}

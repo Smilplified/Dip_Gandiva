@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Form, Input, Select, DatePicker, Row, Col, Collapse, Typography, Button, Spin, message } from "antd";
-import { PlusOutlined, PlayCircleOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined, PlayCircleOutlined, DeleteOutlined, UploadOutlined, FileOutlined } from "@ant-design/icons";
 import {
   STATUS_OPTIONS,
   QA_STATUS_OPTIONS,
@@ -35,6 +35,12 @@ export function LeadForm({
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceUploading, setVoiceUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [lhoFiles, setLhoFiles] = useState<
+    { id: string; name: string; path: string; url: string | null; size: number | null }[]
+  >([]);
+  const [lhoLoading, setLhoLoading] = useState(false);
+  const [lhoUploading, setLhoUploading] = useState(false);
+  const lhoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (lead && (lead.cq3 || lead.cq4 || lead.cq5)) {
@@ -78,6 +84,44 @@ export function LeadForm({
 
     loadVoiceRecordings();
   }, [lead?.id, mode]);
+
+  useEffect(() => {
+    const loadLhoFiles = async () => {
+      if (!lead?.id) {
+        setLhoFiles([]);
+        return;
+      }
+      setLhoLoading(true);
+      try {
+        const res = await fetch(`/api/agent/leads/${lead.id}/lho`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          if (json?.error) {
+            message.warning(`LHO: ${json.error}`);
+          }
+          return;
+        }
+        const json = await res.json();
+        setLhoFiles(
+          (json?.files ?? []).map((f: any) => ({
+            id: f.id ?? f.path,
+            name: f.name,
+            path: f.path,
+            url: f.url ?? null,
+            size: typeof f.size === "number" ? f.size : null,
+          })),
+        );
+      } catch (err) {
+        console.error("Failed to load LHO files", err);
+      } finally {
+        setLhoLoading(false);
+      }
+    };
+
+    loadLhoFiles();
+  }, [lead?.id]);
 
   const handleUploadVoice = async (file: File | null) => {
     if (!lead?.id || mode !== "edit" || !file) {
@@ -147,6 +191,76 @@ export function LeadForm({
     }
   };
 
+  const handleUploadLho = async (file: File | null) => {
+    if (!lead?.id || !file) {
+      message.error("LHO upload is only available for an existing lead.");
+      return;
+    }
+    setLhoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/agent/leads/${lead.id}/lho`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        message.error(json?.error || "Failed to upload LHO file");
+        return;
+      }
+      setLhoFiles(
+        (json?.files ?? []).map((f: any) => ({
+          id: f.id ?? f.path,
+          name: f.name,
+          path: f.path,
+          url: f.url ?? null,
+          size: typeof f.size === "number" ? f.size : null,
+        })),
+      );
+      message.success("LHO file uploaded");
+    } catch (err) {
+      console.error("LHO upload error", err);
+      message.error("Failed to upload LHO file");
+    } finally {
+      setLhoUploading(false);
+      if (lhoInputRef.current) {
+        lhoInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleDeleteLho = async (path: string) => {
+    if (!lead?.id || !path) return;
+    try {
+      const res = await fetch(`/api/agent/leads/${lead.id}/lho`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        message.error(json?.error || "Failed to delete LHO file");
+        return;
+      }
+      setLhoFiles(
+        (json?.files ?? []).map((f: any) => ({
+          id: f.id ?? f.path,
+          name: f.name,
+          path: f.path,
+          url: f.url ?? null,
+          size: typeof f.size === "number" ? f.size : null,
+        })),
+      );
+      message.success("LHO file deleted");
+    } catch (err) {
+      console.error("LHO delete error", err);
+      message.error("Failed to delete LHO file");
+    }
+  };
+
   const firstName = Form.useWatch("first_name", form);
   const lastName = Form.useWatch("last_name", form);
   const email = Form.useWatch("email", form);
@@ -203,17 +317,17 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="First Name" name="first_name">
+                  <Form.Item label="First Name" name="first_name" rules={[{ required: true, message: "Please enter First Name" }]}>
                     <Input placeholder="First name" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Last Name" name="last_name">
+                  <Form.Item label="Last Name" name="last_name" rules={[{ required: true, message: "Please enter Last Name" }]}>
                     <Input placeholder="Last name" />
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
-                  <Form.Item label="Email Address" name="email">
+                  <Form.Item label="Email Address" name="email" rules={[{ required: true, message: "Please enter Email Address" }, { type: "email" as const, message: "Please enter a valid email" }]}>
                     <Input placeholder="email@example.com" type="email" />
                   </Form.Item>
                 </Col>
@@ -576,12 +690,12 @@ export function LeadForm({
               "🏢",
               <Row gutter={16}>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Company Name" name="company_name">
+                  <Form.Item label="Company Name" name="company_name" rules={[{ required: true, message: "Please enter Company Name" }]}>
                     <Input placeholder="Company name" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Domain" name="domain">
+                  <Form.Item label="Domain" name="domain" rules={[{ required: true, message: "Please enter Domain" }]}>
                     <Input placeholder="example.com" />
                   </Form.Item>
                 </Col>
@@ -611,7 +725,7 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Country" name="country">
+                  <Form.Item label="Country" name="country" rules={[{ required: true, message: "Please enter Country" }]}>
                     <Input placeholder="Country" />
                   </Form.Item>
                 </Col>
@@ -701,7 +815,7 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Lead Tagging" name="lead_tagging">
+                  <Form.Item label="Lead Tagging" name="lead_tagging" rules={[{ required: true, message: "Please select Lead Tagging" }]}>
                     <Select placeholder="Select tag" options={LEAD_TAGGING_OPTIONS} allowClear />
                   </Form.Item>
                 </Col>
@@ -714,6 +828,124 @@ export function LeadForm({
                   <Form.Item label="Special Comments" name="special_comments">
                     <Input.TextArea rows={2} placeholder="Special Comments" />
                   </Form.Item>
+                </Col>
+                <Col xs={24}>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      paddingTop: 12,
+                      borderTop: "1px dashed #f0f0f0",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                    }}
+                  >
+                    <Typography.Text strong style={{ fontSize: 13 }}>
+                      📝 LHO (Lead Handover Sheet)
+                    </Typography.Text>
+                    {!lead?.id ? (
+                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                        LHO upload will be available after you create this lead.
+                      </Typography.Text>
+                    ) : (
+                      <>
+                        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                          Upload up to 4 handover documents (PDF, Word, Excel, images, etc.) linked to this lead.
+                        </Typography.Text>
+                        <input
+                          ref={lhoInputRef}
+                          type="file"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            if (file) {
+                              handleUploadLho(file);
+                            }
+                          }}
+                        />
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            {lhoFiles.map((f) => (
+                              <div
+                                key={f.id}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  padding: "6px 10px",
+                                  borderRadius: 6,
+                                  border: "1px solid #f0f0f0",
+                                  background: "#fafafa",
+                                  maxWidth: "100%",
+                                }}
+                              >
+                                <FileOutlined style={{ color: "#8c8c8c" }} />
+                                {f.url ? (
+                                  <a
+                                    href={f.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      fontSize: 13,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      maxWidth: 220,
+                                    }}
+                                  >
+                                    {f.name}
+                                  </a>
+                                ) : (
+                                  <Typography.Text
+                                    style={{
+                                      fontSize: 13,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                      maxWidth: 220,
+                                    }}
+                                  >
+                                    {f.name}
+                                  </Typography.Text>
+                                )}
+                                {typeof f.size === "number" && (
+                                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                                    {(f.size / 1024).toFixed(1)} KB
+                                  </Typography.Text>
+                                )}
+                                <Button
+                                  type="text"
+                                  danger
+                                  size="small"
+                                  icon={<DeleteOutlined />}
+                                  onClick={() => handleDeleteLho(f.path)}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          {lhoFiles.length < 4 && (
+                            <Button
+                              type="dashed"
+                              icon={<UploadOutlined />}
+                              onClick={() => lhoInputRef.current?.click()}
+                              loading={lhoUploading}
+                              style={{ alignSelf: "flex-start" }}
+                            >
+                              Upload LHO file
+                            </Button>
+                          )}
+                          {lhoLoading && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Spin size="small" />
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                Loading LHO files...
+                              </Typography.Text>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </Col>
               </Row>
             )}

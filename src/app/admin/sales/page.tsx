@@ -1,11 +1,15 @@
 "use client";
 
-import { Card, Row, Col, Statistic, Typography, Progress, Table, Tag } from "antd";
+import { Card, Row, Col, Typography, Table, Tag, Badge, Avatar, Checkbox, Empty } from "antd";
 import {
-  DollarOutlined,
-  ShoppingCartOutlined,
+  UserAddOutlined,
+  PhoneOutlined,
+  CheckCircleOutlined,
   TrophyOutlined,
-  RiseOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  ClockCircleOutlined,
+  MailOutlined,
 } from "@ant-design/icons";
 import {
   AreaChart,
@@ -15,275 +19,533 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
   BarChart,
   Bar,
-  Cell,
+  Legend,
 } from "recharts";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
-const salesStats = [
+const statsData = [
   {
-    title: "Total Revenue",
-    value: "$124,580",
-    change: "+12.5%",
-    icon: <DollarOutlined />,
-    color: "#1677ff",
+    title: "Total Leads",
+    value: "1,247",
+    change: "+12.3%",
+    trend: "up",
+    icon: <UserAddOutlined />,
+    color: "#1890ff",
+    bgColor: "#e6f4ff",
   },
   {
-    title: "Orders This Month",
-    value: "186",
-    change: "+24",
-    icon: <ShoppingCartOutlined />,
+    title: "Today's Leads",
+    value: "42",
+    change: "+8",
+    trend: "up",
+    icon: <PhoneOutlined />,
     color: "#52c41a",
+    bgColor: "#f6ffed",
   },
   {
-    title: "Quota Progress",
-    value: "78%",
-    change: "of $160k target",
+    title: "Follow-ups",
+    value: "87",
+    change: "18 pending",
+    trend: "neutral",
+    icon: <ClockCircleOutlined />,
+    color: "#faad14",
+    bgColor: "#fffbe6",
+  },
+  {
+    title: "Conversion",
+    value: "34.2%",
+    change: "+4.1%",
+    trend: "up",
     icon: <TrophyOutlined />,
     color: "#722ed1",
-  },
-  {
-    title: "Win Rate",
-    value: "34%",
-    change: "+2.1%",
-    icon: <RiseOutlined />,
-    color: "#fa8c16",
+    bgColor: "#f9f0ff",
   },
 ];
 
-const revenueData = [
-  { month: "Jan", revenue: 4200, orders: 42 },
-  { month: "Feb", revenue: 5800, orders: 58 },
-  { month: "Mar", revenue: 5100, orders: 51 },
-  { month: "Apr", revenue: 7200, orders: 72 },
-  { month: "May", revenue: 8900, orders: 89 },
-  { month: "Jun", revenue: 12400, orders: 124 },
+const leadTrendData = [
+  { date: "Mon", leads: 28, conversions: 9 },
+  { date: "Tue", leads: 35, conversions: 12 },
+  { date: "Wed", leads: 42, conversions: 15 },
+  { date: "Thu", leads: 38, conversions: 13 },
+  { date: "Fri", leads: 45, conversions: 18 },
+  { date: "Sat", leads: 32, conversions: 10 },
+  { date: "Sun", leads: 29, conversions: 8 },
 ];
 
-const topProductsData = [
-  { product: "Enterprise Plan", revenue: 45200, fill: "#1677ff" },
-  { product: "Professional Plan", revenue: 32100, fill: "#52c41a" },
-  { product: "Starter Plan", revenue: 18900, fill: "#722ed1" },
-  { product: "Add-ons", revenue: 12400, fill: "#fa8c16" },
-  { product: "Consulting", revenue: 15980, fill: "#13c2c2" },
+const leadSourceData = [
+  { name: "Website", value: 435, color: "#1890ff" },
+  { name: "Referral", value: 312, color: "#52c41a" },
+  { name: "Social Media", value: 245, color: "#722ed1" },
+  { name: "Email Campaign", value: 189, color: "#faad14" },
+  { name: "Others", value: 66, color: "#8c8c8c" },
 ];
 
-const topDealsData = [
-  { company: "Acme Corp", value: "$24,500", stage: "Proposal", rep: "Sarah" },
-  { company: "TechStart Inc", value: "$18,200", stage: "Negotiation", rep: "Mike" },
-  { company: "Global Solutions", value: "$42,000", stage: "Closed Won", rep: "Emma" },
-  { company: "Innovate Labs", value: "$15,800", stage: "Qualification", rep: "James" },
-  { company: "DataFlow Systems", value: "$31,200", stage: "Proposal", rep: "Lisa" },
+const pipelineData = [
+  { stage: "New", count: 342, value: 85500 },
+  { stage: "Contacted", count: 248, value: 124000 },
+  { stage: "Qualified", count: 189, value: 189000 },
+  { stage: "Proposal", count: 124, value: 248000 },
+  { stage: "Negotiation", count: 87, value: 217500 },
+  { stage: "Closed Won", count: 56, value: 336000 },
 ];
 
-const stageColors: Record<string, string> = {
-  Qualification: "blue",
-  Proposal: "cyan",
-  Negotiation: "orange",
-  "Closed Won": "green",
-  "Closed Lost": "red",
+const tasksData = [
+  { id: 1, task: "Follow up with Acme Corp", dueTime: "10:00 AM", priority: "high", completed: false },
+  { id: 2, task: "Send proposal to TechStart", dueTime: "11:30 AM", priority: "high", completed: false },
+  { id: 3, task: "Schedule demo for Global Inc", dueTime: "02:00 PM", priority: "medium", completed: false },
+  { id: 4, task: "Review contract terms", dueTime: "03:30 PM", priority: "medium", completed: true },
+  { id: 5, task: "Update CRM records", dueTime: "04:00 PM", priority: "low", completed: false },
+];
+
+const recentLeadsData = [
+  { 
+    id: 1, 
+    name: "John Anderson", 
+    company: "Acme Corporation", 
+    source: "Website", 
+    status: "New", 
+    value: "$12,500",
+    time: "2 mins ago"
+  },
+  { 
+    id: 2, 
+    name: "Sarah Williams", 
+    company: "TechStart Inc", 
+    source: "Referral", 
+    status: "Contacted", 
+    value: "$8,200",
+    time: "15 mins ago"
+  },
+  { 
+    id: 3, 
+    name: "Michael Chen", 
+    company: "Global Solutions", 
+    source: "Social Media", 
+    status: "Qualified", 
+    value: "$24,000",
+    time: "1 hour ago"
+  },
+  { 
+    id: 4, 
+    name: "Emma Davis", 
+    company: "Innovate Labs", 
+    source: "Email Campaign", 
+    status: "Proposal", 
+    value: "$15,800",
+    time: "2 hours ago"
+  },
+  { 
+    id: 5, 
+    name: "James Wilson", 
+    company: "DataFlow Systems", 
+    source: "Website", 
+    status: "New", 
+    value: "$31,200",
+    time: "3 hours ago"
+  },
+];
+
+const activityFeedData = [
+  { id: 1, user: "Sarah", action: "closed deal with", target: "Global Solutions", value: "$42,000", time: "5 mins ago", type: "success" },
+  { id: 2, user: "Mike", action: "sent proposal to", target: "TechStart Inc", value: "$18,200", time: "12 mins ago", type: "info" },
+  { id: 3, user: "Emma", action: "scheduled call with", target: "Acme Corp", value: "$24,500", time: "25 mins ago", type: "info" },
+  { id: 4, user: "James", action: "added new lead", target: "Innovate Labs", value: "$15,800", time: "45 mins ago", type: "default" },
+  { id: 5, user: "Lisa", action: "updated status for", target: "DataFlow Systems", value: "$31,200", time: "1 hour ago", type: "default" },
+];
+
+const statusColors: Record<string, string> = {
+  New: "blue",
+  Contacted: "cyan",
+  Qualified: "green",
+  Proposal: "orange",
+  Negotiation: "purple",
+  "Closed Won": "success",
 };
 
 export default function SalesDashboardPage() {
-  const columns = [
+  const leadsColumns = [
     {
-      title: "Company",
-      dataIndex: "company",
-      key: "company",
-      render: (text: string) => <Text strong>{text}</Text>,
+      title: "Lead",
+      key: "lead",
+      render: (record: typeof recentLeadsData[0]) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Avatar style={{ backgroundColor: "#1890ff" }}>{record.name[0]}</Avatar>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{record.name}</div>
+            <Text type="secondary" style={{ fontSize: 12 }}>{record.company}</Text>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Source",
+      dataIndex: "source",
+      key: "source",
+      render: (source: string) => (
+        <Text style={{ fontSize: 13 }}>{source}</Text>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (status: string) => (
+        <Tag color={statusColors[status] || "default"} style={{ fontSize: 12 }}>{status}</Tag>
+      ),
     },
     {
       title: "Value",
       dataIndex: "value",
       key: "value",
-      render: (text: string) => (
-        <Text style={{ color: "#52c41a", fontWeight: 600 }}>{text}</Text>
+      render: (value: string) => (
+        <Text strong style={{ color: "#52c41a", fontSize: 13 }}>{value}</Text>
       ),
     },
     {
-      title: "Stage",
-      dataIndex: "stage",
-      key: "stage",
-      render: (stage: string) => (
-        <Tag color={stageColors[stage] || "default"}>{stage}</Tag>
+      title: "Time",
+      dataIndex: "time",
+      key: "time",
+      render: (time: string) => (
+        <Text type="secondary" style={{ fontSize: 12 }}>{time}</Text>
       ),
-    },
-    {
-      title: "Rep",
-      dataIndex: "rep",
-      key: "rep",
     },
   ];
 
   return (
-    <>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Sales Dashboard</h1>
-        <p style={{ margin: "4px 0 0", color: "#8c8c8c", fontSize: 14 }}>
-          Track revenue, orders, and pipeline performance at a glance.
-        </p>
+    <div style={{ padding: "0 4px" }}>
+      <div style={{ marginBottom: 28 }}>
+        <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#1f1f1f" }}>
+          Sales Dashboard
+        </Title>
+        <Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 6 }}>
+          Track leads, conversions, and pipeline performance in real-time
+        </Text>
       </div>
 
-      <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-        {salesStats.map((stat, index) => (
-          <Col xs={24} sm={12} lg={6} key={index}>
+      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+        {statsData.map((stat, index) => (
+          <Col xs={24} sm={12} xl={6} key={index}>
             <Card
               bordered={false}
               style={{
-                borderRadius: 12,
-                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+                borderRadius: 16,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                border: "1px solid #f0f0f0",
+                transition: "all 0.3s ease",
+                cursor: "pointer",
+              }}
+              styles={{ body: { padding: "24px" } }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)";
+                e.currentTarget.style.transform = "translateY(0)";
               }}
             >
-              <Statistic
-                title={
-                  <Text type="secondary" style={{ fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
                     {stat.title}
                   </Text>
-                }
-                value={stat.value}
-                prefix={
-                  <span
-                    style={{
-                      marginRight: 8,
-                      color: stat.color,
-                      fontSize: 20,
-                    }}
-                  >
-                    {stat.icon}
-                  </span>
-                }
-              />
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  {stat.change}
-                </Text>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: "#1f1f1f", lineHeight: 1, marginBottom: 12 }}>
+                    {stat.value}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {stat.trend === "up" && <ArrowUpOutlined style={{ color: "#52c41a", fontSize: 12 }} />}
+                    {stat.trend === "down" && <ArrowDownOutlined style={{ color: "#ff4d4f", fontSize: 12 }} />}
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: stat.trend === "up" ? "#52c41a" : stat.trend === "down" ? "#ff4d4f" : "#8c8c8c",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {stat.change}
+                    </Text>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: stat.bgColor,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 22,
+                    color: stat.color,
+                  }}
+                >
+                  {stat.icon}
+                </div>
               </div>
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-        <Col xs={24} lg={16}>
+      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+        <Col xs={24} xl={8}>
           <Card
-            title={
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Text strong style={{ fontSize: 16 }}>Revenue Trend</Text>
-                <Text type="secondary" style={{ fontSize: 13 }}>Last 6 months</Text>
-              </div>
-            }
+            title={<Text strong style={{ fontSize: 16 }}>Lead Pipeline</Text>}
             bordered={false}
             style={{
-              borderRadius: 12,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              borderRadius: 16,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1px solid #f0f0f0",
+              height: "100%",
             }}
+            styles={{ body: { padding: "24px 24px 16px" } }}
           >
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={pipelineData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="stage" stroke="#8c8c8c" fontSize={11} />
+                <YAxis stroke="#8c8c8c" fontSize={11} />
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+                  formatter={(value: number, name: string) => [
+                    name === "count" ? value : `$${(value / 1000).toFixed(0)}k`,
+                    name === "count" ? "Leads" : "Value"
+                  ]}
+                />
+                <Bar dataKey="count" fill="#1890ff" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={8}>
+          <Card
+            title={<Text strong style={{ fontSize: 16 }}>Lead Trend</Text>}
+            bordered={false}
+            style={{
+              borderRadius: 16,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1px solid #f0f0f0",
+              height: "100%",
+            }}
+            styles={{ body: { padding: "24px 24px 16px" } }}
+          >
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={leadTrendData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <defs>
-                  <linearGradient id="colorSalesRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1677ff" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
+                  <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#1890ff" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorConversions" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#52c41a" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#52c41a" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" stroke="#8c8c8c" fontSize={12} />
-                <YAxis stroke="#8c8c8c" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                <XAxis dataKey="date" stroke="#8c8c8c" fontSize={11} />
+                <YAxis stroke="#8c8c8c" fontSize={11} />
                 <Tooltip
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
-                  contentStyle={{ borderRadius: 8 }}
+                  contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  type="monotone"
+                  dataKey="leads"
+                  stroke="#1890ff"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorLeads)"
+                  name="Leads"
                 />
                 <Area
                   type="monotone"
-                  dataKey="revenue"
-                  stroke="#1677ff"
+                  dataKey="conversions"
+                  stroke="#52c41a"
                   strokeWidth={2}
                   fillOpacity={1}
-                  fill="url(#colorSalesRevenue)"
+                  fill="url(#colorConversions)"
+                  name="Conversions"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
         </Col>
-        <Col xs={24} lg={8}>
+
+        <Col xs={24} xl={8}>
           <Card
-            title={<Text strong style={{ fontSize: 16 }}>Quota Progress</Text>}
+            title={<Text strong style={{ fontSize: 16 }}>Lead Source</Text>}
             bordered={false}
             style={{
-              borderRadius: 12,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              borderRadius: 16,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1px solid #f0f0f0",
+              height: "100%",
             }}
+            styles={{ body: { padding: "24px 24px 16px" } }}
           >
-            <div style={{ padding: "16px 0" }}>
-              <Progress
-                type="circle"
-                percent={78}
-                strokeColor="#1677ff"
-                format={(percent) => (
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{ fontSize: 24, fontWeight: 700 }}>{percent}%</span>
-                    <div style={{ fontSize: 12, color: "#8c8c8c" }}>of $160k</div>
-                  </div>
-                )}
-              />
-              <div style={{ marginTop: 16, textAlign: "center" }}>
-                <Text type="secondary">$124,580 / $160,000</Text>
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <Pie
+                  data={leadSourceData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={{ stroke: "#d9d9d9", strokeWidth: 1 }}
+                >
+                  {leadSourceData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+        <Col xs={24} xl={12}>
+          <Card
+            title={
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text strong style={{ fontSize: 16 }}>My Tasks</Text>
+                <Badge count={tasksData.filter(t => !t.completed).length} style={{ backgroundColor: "#1890ff" }} />
               </div>
+            }
+            bordered={false}
+            style={{
+              borderRadius: 16,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1px solid #f0f0f0",
+            }}
+            styles={{ body: { padding: "20px 24px" } }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {tasksData.map((task) => (
+                <div
+                  key={task.id}
+                  style={{
+                    padding: "14px 16px",
+                    backgroundColor: task.completed ? "#fafafa" : "#fff",
+                    border: "1px solid #f0f0f0",
+                    borderRadius: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <Checkbox checked={task.completed} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontSize: 14,
+                      fontWeight: 500,
+                      color: task.completed ? "#8c8c8c" : "#1f1f1f",
+                      textDecoration: task.completed ? "line-through" : "none",
+                    }}>
+                      {task.task}
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      <ClockCircleOutlined style={{ marginRight: 4 }} />
+                      {task.dueTime}
+                    </Text>
+                  </div>
+                  <Tag
+                    color={task.priority === "high" ? "red" : task.priority === "medium" ? "orange" : "default"}
+                    style={{ fontSize: 11, margin: 0 }}
+                  >
+                    {task.priority.toUpperCase()}
+                  </Tag>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={12}>
+          <Card
+            title={<Text strong style={{ fontSize: 16 }}>Activity Feed</Text>}
+            bordered={false}
+            style={{
+              borderRadius: 16,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1px solid #f0f0f0",
+            }}
+            styles={{ body: { padding: "20px 24px" } }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {activityFeedData.map((activity) => (
+                <div key={activity.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <Avatar
+                    size={36}
+                    style={{
+                      backgroundColor: activity.type === "success" ? "#52c41a" : "#1890ff",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {activity.user[0]}
+                  </Avatar>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, lineHeight: 1.6, color: "#1f1f1f" }}>
+                      <Text strong style={{ fontSize: 13 }}>{activity.user}</Text>{" "}
+                      <Text type="secondary" style={{ fontSize: 13 }}>{activity.action}</Text>{" "}
+                      <Text strong style={{ fontSize: 13 }}>{activity.target}</Text>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
+                      <Text strong style={{ fontSize: 12, color: "#52c41a" }}>{activity.value}</Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>{activity.time}</Text>
+                    </div>
+                  </div>
+                  {activity.type === "success" && (
+                    <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16, marginTop: 4 }} />
+                  )}
+                </div>
+              ))}
             </div>
           </Card>
         </Col>
       </Row>
 
-      <Row gutter={[24, 24]}>
-        <Col xs={24} lg={12}>
+      <Row gutter={[20, 20]}>
+        <Col xs={24}>
           <Card
-            title={<Text strong style={{ fontSize: 16 }}>Revenue by Product</Text>}
+            title={
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text strong style={{ fontSize: 16 }}>Recent Leads</Text>
+                <Text type="secondary" style={{ fontSize: 13 }}>Last 24 hours</Text>
+              </div>
+            }
             bordered={false}
             style={{
-              borderRadius: 12,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-            }}
-          >
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={topProductsData} layout="vertical" margin={{ left: 20, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                <XAxis type="number" stroke="#8c8c8c" fontSize={12} tickFormatter={(v) => `$${v / 1000}k`} />
-                <YAxis type="category" dataKey="product" stroke="#8c8c8c" fontSize={12} width={110} />
-                <Tooltip
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
-                  contentStyle={{ borderRadius: 8 }}
-                />
-                <Bar dataKey="revenue" radius={[0, 4, 4, 0]} barSize={20}>
-                  {topProductsData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card
-            title={<Text strong style={{ fontSize: 16 }}>Top Deals</Text>}
-            bordered={false}
-            style={{
-              borderRadius: 12,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              borderRadius: 16,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              border: "1px solid #f0f0f0",
             }}
           >
             <Table
-              className="table-single-line"
-              columns={columns}
-              dataSource={topDealsData}
-              pagination={{ pageSize: 5, showSizeChanger: false }}
+              columns={leadsColumns}
+              dataSource={recentLeadsData}
+              pagination={false}
+              rowKey="id"
               size="middle"
-              rowKey="company"
+              style={{ fontSize: 13 }}
             />
           </Card>
         </Col>
       </Row>
-    </>
+    </div>
   );
 }

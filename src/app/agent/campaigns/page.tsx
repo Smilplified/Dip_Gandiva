@@ -8,6 +8,7 @@ import {
   Tag,
   Button,
   Input,
+  Select,
   Spin,
   Typography,
   message,
@@ -49,6 +50,7 @@ export default function AgentCampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 
@@ -107,16 +109,22 @@ export default function AgentCampaignsPage() {
   }, [fetchData]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return campaigns;
-    const q = search.toLowerCase();
-    return campaigns.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.client_name ?? "").toLowerCase().includes(q) ||
-        (c.industry ?? "").toLowerCase().includes(q) ||
-        (c.region ?? "").toLowerCase().includes(q)
-    );
-  }, [campaigns, search]);
+    let result = campaigns;
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (c) =>
+          (c.name ?? "").toLowerCase().includes(q) ||
+          (c.client_name ?? "").toLowerCase().includes(q) ||
+          (c.industry ?? "").toLowerCase().includes(q) ||
+          (c.region ?? "").toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter) {
+      result = result.filter((c) => c.status === statusFilter);
+    }
+    return result;
+  }, [campaigns, search, statusFilter]);
 
   const columns = [
     {
@@ -249,14 +257,29 @@ export default function AgentCampaignsPage() {
         <Card
           bodyStyle={{ overflowX: "auto" }}
           extra={
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder="Search campaigns..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              allowClear
-              style={{ width: 240 }}
-            />
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <Input
+                prefix={<SearchOutlined />}
+                placeholder="Search campaigns..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                allowClear
+                style={{ width: 240 }}
+              />
+              <Select
+                placeholder="Filter by status"
+                allowClear
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: "draft", label: "Draft" },
+                  { value: "active", label: "Active" },
+                  { value: "paused", label: "Paused" },
+                  { value: "completed", label: "Completed" },
+                ]}
+                style={{ width: 160 }}
+              />
+            </div>
           }
         >
           <Table

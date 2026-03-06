@@ -4,17 +4,28 @@ import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase
 
 export const dynamic = "force-dynamic";
 
-// Reuse the existing Supabase bucket used for campaign files
-const VOICE_BUCKET = "campaign-files";
-const MAX_RECORDINGS_PER_LEAD = 4;
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-const ALLOWED_AUDIO_TYPES = [
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/webm",
-  "audio/ogg",
+// Store LHO (Lead Handover Sheet) files in the existing campaign-files bucket
+const LHO_BUCKET = "campaign-files";
+const MAX_LHO_FILES_PER_LEAD = 4;
+const MAX_LHO_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+// Allow common doc/image/archive formats (aligned with campaign files)
+const ALLOWED_LHO_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv",
+  "text/plain",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/zip",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/octet-stream",
 ];
 
 type LeadRecord = {
@@ -23,7 +34,7 @@ type LeadRecord = {
   organization_id: string;
 };
 
-type VoiceObject = {
+type LhoObject = {
   name: string;
   id: string;
   path: string;
@@ -48,6 +59,7 @@ async function getAuthContext() {
       ),
     };
   }
+
   const {
     data: { user },
     error: authError,
@@ -89,8 +101,7 @@ async function getLeadForUser(
 
   const l = lead as LeadRecord;
 
-  // Determine user roles to decide how strictly to enforce campaign assignment.
-  // Agents must be explicitly assigned; TL/QA/Admin/Sales can access any lead in their organization.
+  // Determine user roles: agents must be assigned; TL/QA/Admin/Sales can access any org lead.
   const { data: roleRows } = await supabase
     .from("user_roles")
     .select("roles(name)")
@@ -108,7 +119,6 @@ async function getLeadForUser(
     roleNames.includes("sales");
 
   if (isAgent && !isPrivileged) {
-    // For pure Agent users, require an active campaign assignment
     const { data: assignment } = await supabase
       .from("campaign_assignments")
       .select("id")
@@ -130,43 +140,38 @@ async function getLeadForUser(
   return { lead: l };
 }
 
-async function listVoiceObjects(
+async function listLhoObjects(
   storageClient: { storage: NonNullable<ReturnType<typeof getAdminClientSafe>>["storage"] },
   orgId: string,
   lead: LeadRecord
-): Promise<{ recordings: VoiceObject[]; error?: NextResponse }> {
-  const prefix = `${orgId}/${lead.campaign_id}/${lead.id}`;
+): Promise<{ files: LhoObject[]; error?: NextResponse }> {
+  const prefix = `${orgId}/${lead.campaign_id}/${lead.id}/lho`;
 
-  const { data: files, error: listError } = await storageClient.storage
-    .from(VOICE_BUCKET)
+  const { data: entries, error: listError } = await storageClient.storage
+    .from(LHO_BUCKET)
     .list(prefix, {
-      limit: 10,
+      limit: 20,
       sortBy: { column: "created_at", order: "desc" } as never,
     });
 
   if (listError) {
     return {
-      recordings: [],
+      files: [],
       error: NextResponse.json(
-        { error: listError.message ?? "Failed to list voice recordings" },
+        { error: listError.message ?? "Failed to list LHO files" },
         { status: 500 }
       ),
     };
   }
 
-  const entries = files ?? [];
-  const recordings: VoiceObject[] = [];
-
-  for (const f of entries) {
-    // Skip logical subfolders like the LHO directory so they don't appear as recordings
-    if (!f.name || f.name === "lho") continue;
-
+  const files: LhoObject[] = [];
+  for (const f of entries ?? []) {
     const objectPath = `${prefix}/${f.name}`;
     const { data: signed, error: urlError } = await storageClient.storage
-      .from(VOICE_BUCKET)
+      .from(LHO_BUCKET)
       .createSignedUrl(objectPath, 60 * 60);
 
-    recordings.push({
+    files.push({
       name: f.name,
       id: objectPath,
       path: objectPath,
@@ -176,7 +181,7 @@ async function listVoiceObjects(
     });
   }
 
-  return { recordings };
+  return { files };
 }
 
 export async function GET(
@@ -197,12 +202,12 @@ export async function GET(
     if ("error" in leadResult) return leadResult.error;
     const { lead } = leadResult;
 
-    const { recordings, error } = await listVoiceObjects(admin, orgId, lead);
+    const { files, error } = await listLhoObjects(admin, orgId, lead);
     if (error) return error;
 
-    return NextResponse.json({ recordings });
+    return NextResponse.json({ files });
   } catch (err) {
-    console.error("Voice Lock GET error:", err);
+    console.error("LHO GET error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -225,10 +230,10 @@ export async function POST(
     if ("error" in leadResult) return leadResult.error;
     const { lead } = leadResult;
 
-    const { recordings: existing } = await listVoiceObjects(admin, orgId, lead);
-    if (existing.length >= MAX_RECORDINGS_PER_LEAD) {
+    const { files: existing } = await listLhoObjects(admin, orgId, lead);
+    if (existing.length >= MAX_LHO_FILES_PER_LEAD) {
       return NextResponse.json(
-        { error: `Maximum of ${MAX_RECORDINGS_PER_LEAD} recordings reached for this lead` },
+        { error: `Maximum of ${MAX_LHO_FILES_PER_LEAD} LHO files reached for this lead` },
         { status: 400 }
       );
     }
@@ -246,28 +251,31 @@ export async function POST(
       return NextResponse.json({ error: "Invalid file" }, { status: 400 });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    if (file.size > MAX_LHO_FILE_SIZE) {
       return NextResponse.json(
-        { error: "File too large. Maximum size is 20MB." },
+        { error: "File too large. Maximum size is 50MB." },
         { status: 400 }
       );
     }
 
     const mime = file.type || "application/octet-stream";
-    const isAudio =
-      ALLOWED_AUDIO_TYPES.includes(mime) || mime.startsWith("audio/");
-    if (!isAudio) {
+    const allowed =
+      ALLOWED_LHO_TYPES.includes(mime) ||
+      mime.startsWith("image/") ||
+      mime.startsWith("application/") ||
+      mime.startsWith("text/");
+    if (!allowed) {
       return NextResponse.json(
-        { error: "Only audio files are allowed for Voice Lock" },
+        { error: "This file type is not allowed for LHO upload" },
         { status: 400 }
       );
     }
 
-    const safeName = sanitizeFileName(file.name || "recording");
-    const objectPath = `${orgId}/${lead.campaign_id}/${lead.id}/${crypto.randomUUID()}_${safeName}`;
+    const safeName = sanitizeFileName(file.name || "lho");
+    const objectPath = `${orgId}/${lead.campaign_id}/${lead.id}/lho/${crypto.randomUUID()}_${safeName}`;
 
     const { error: uploadError } = await admin.storage
-      .from(VOICE_BUCKET)
+      .from(LHO_BUCKET)
       .upload(objectPath, file, {
         contentType: mime,
         upsert: false,
@@ -275,17 +283,17 @@ export async function POST(
 
     if (uploadError) {
       return NextResponse.json(
-        { error: uploadError.message ?? "Failed to upload recording" },
+        { error: uploadError.message ?? "Failed to upload LHO file" },
         { status: 500 }
       );
     }
 
-    const { recordings, error } = await listVoiceObjects(admin, orgId, lead);
+    const { files, error } = await listLhoObjects(admin, orgId, lead);
     if (error) return error;
 
-    return NextResponse.json({ recordings });
+    return NextResponse.json({ files });
   } catch (err) {
-    console.error("Voice Lock POST error:", err);
+    console.error("LHO POST error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -312,31 +320,31 @@ export async function DELETE(
     const path = body?.path as string | undefined;
 
     if (!path || typeof path !== "string") {
-      return NextResponse.json({ error: "Recording path is required" }, { status: 400 });
+      return NextResponse.json({ error: "File path is required" }, { status: 400 });
     }
 
-    const expectedPrefix = `${orgId}/${lead.campaign_id}/${lead.id}/`;
+    const expectedPrefix = `${orgId}/${lead.campaign_id}/${lead.id}/lho/`;
     if (!path.startsWith(expectedPrefix)) {
-      return NextResponse.json({ error: "Invalid recording path" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid LHO file path" }, { status: 400 });
     }
 
     const { error: removeError } = await admin.storage
-      .from(VOICE_BUCKET)
+      .from(LHO_BUCKET)
       .remove([path]);
 
     if (removeError) {
       return NextResponse.json(
-        { error: removeError.message ?? "Failed to delete recording" },
+        { error: removeError.message ?? "Failed to delete LHO file" },
         { status: 500 }
       );
     }
 
-    const { recordings, error } = await listVoiceObjects(admin, orgId, lead);
+    const { files, error } = await listLhoObjects(admin, orgId, lead);
     if (error) return error;
 
-    return NextResponse.json({ recordings });
+    return NextResponse.json({ files });
   } catch (err) {
-    console.error("Voice Lock DELETE error:", err);
+    console.error("LHO DELETE error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

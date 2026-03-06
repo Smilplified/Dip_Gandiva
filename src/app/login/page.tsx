@@ -1,27 +1,59 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { AUTH_STORAGE_KEYS } from "@/context/AuthContext";
 import { MailOutlined, LockOutlined } from "@ant-design/icons";
 
+function getRedirectPath(redirect?: string): string {
+  if (redirect) return redirect;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = window.localStorage.getItem(AUTH_STORAGE_KEYS.lastRedirectPath);
+      if (stored) return stored;
+    } catch {
+      // ignore
+    }
+  }
+  return "/agent/dashboard";
+}
+
 function LoginContent() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? undefined;
-  const { signIn, isLoading, isInitialized, user, getDefaultRedirect } = useAuth();
+  const { isInitialized, user } = useAuth();
+  const fastRedirectDone = useRef(false);
 
+  const doRedirect = (path: string) => {
+    fastRedirectDone.current = true;
+    // Use hard navigation to guarantee we leave the login page and avoid stuck state
+    window.location.assign(path);
+  };
+
+  // Fast path: if session exists, redirect immediately without waiting for AuthContext profile/roles
   useEffect(() => {
-    if (!isInitialized) return;
-    if (user) {
-      const path = redirect || getDefaultRedirect();
-      router.replace(path);
-    }
-  }, [isInitialized, user, redirect, getDefaultRedirect, router]);
+    if (fastRedirectDone.current) return;
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        doRedirect(getRedirectPath(redirect));
+      }
+    });
+  }, [redirect]);
+
+  // Fallback: when AuthContext finishes init and user is set, redirect if fast path didn't run
+  useEffect(() => {
+    if (!isInitialized || !user || fastRedirectDone.current) return;
+    const path = redirect || "/";
+    doRedirect(path);
+  }, [isInitialized, user, redirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,15 +64,34 @@ function LoginContent() {
       return;
     }
 
-    const { error: signInError, redirectPath } = await signIn(email.trim(), password);
+    setSubmitting(true);
+    const timeoutMs = 15000;
 
-    if (signInError) {
-      setError(signInError.message || "Invalid email or password.");
-      return;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Sign-in timed out. Please check your connection and try again.")), timeoutMs);
+    });
+
+    try {
+      const supabase = createClient();
+      const signInPromise = supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      const { data, error: signInError } = await Promise.race([signInPromise, timeoutPromise]);
+
+      if (signInError || !data.user) {
+        setError(signInError?.message || "Invalid email or password.");
+        setSubmitting(false);
+        return;
+      }
+
+      const path = redirect || "/";
+      doRedirect(path);
+    } catch (err) {
+      setError((err as Error).message || "Something went wrong while signing in.");
+      setSubmitting(false);
     }
-
-    const path = redirect || redirectPath || getDefaultRedirect();
-    router.replace(path);
   };
 
   if (!isInitialized) {
@@ -158,7 +209,7 @@ function LoginContent() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@company.com"
                     className="w-full min-w-0 pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 outline-none transition disabled:opacity-50"
-                    disabled={isLoading}
+                    disabled={submitting}
                   />
                 </div>
               </div>
@@ -182,17 +233,17 @@ function LoginContent() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     className="w-full min-w-0 pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 outline-none transition disabled:opacity-50"
-                    disabled={isLoading}
+                    disabled={submitting}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={submitting}
                 className="mt-1 w-full py-3 px-4 rounded-xl bg-slate-800 text-white font-semibold transition hover:bg-slate-700 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
               >
-                {isLoading ? (
+                {submitting ? (
                   <span className="inline-flex items-center justify-center gap-2">
                     <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                     Signing in...

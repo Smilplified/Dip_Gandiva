@@ -58,7 +58,7 @@ export async function GET() {
     // Lead stats for this agent only
     const { data: leadsRes, error: leadsError } = await supabase
       .from("leads")
-      .select("campaign_id, status")
+      .select("campaign_id, status, qa_status")
       .in("campaign_id", campaignIds)
       .eq("assigned_agent_id", user.id);
 
@@ -68,17 +68,19 @@ export async function GET() {
 
     const leadsByCampaign: Record<
       string,
-      { total: number; active: number; won: number }
+      { total: number; active: number; won: number; qualified: number }
     > = {};
 
-    ((leadsRes ?? []) as { campaign_id: string; status: string }[]).forEach((l) => {
+    ((leadsRes ?? []) as { campaign_id: string; status: string; qa_status: string | null }[]).forEach((l) => {
       if (!leadsByCampaign[l.campaign_id]) {
-        leadsByCampaign[l.campaign_id] = { total: 0, active: 0, won: 0 };
+        leadsByCampaign[l.campaign_id] = { total: 0, active: 0, won: 0, qualified: 0 };
       }
       const bucket = leadsByCampaign[l.campaign_id];
       bucket.total += 1;
       if (["interested", "followup"].includes(l.status)) bucket.active += 1;
       if (l.status === "closed_won") bucket.won += 1;
+      const qa = String(l.qa_status ?? "").trim().toLowerCase();
+      if (qa === "qualified" || qa === "approved" || qa === "pass") bucket.qualified += 1;
     });
 
     type CampaignRow = { id: string; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; region: string | null; created_at: string };
@@ -87,6 +89,7 @@ export async function GET() {
       total_leads: leadsByCampaign[c.id]?.total ?? 0,
       active_leads: leadsByCampaign[c.id]?.active ?? 0,
       won_leads: leadsByCampaign[c.id]?.won ?? 0,
+      qualified_leads: leadsByCampaign[c.id]?.qualified ?? 0,
     }));
 
     return NextResponse.json({ campaigns: campaignsWithStats });

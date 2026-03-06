@@ -4,6 +4,7 @@ import React from "react";
 import { Table, Tag, Button, message, Select } from "antd";
 import type { TableProps } from "antd";
 import { EditOutlined, CopyOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
 import type { Lead } from "@/types/lead.types";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -200,6 +201,32 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       dataIndex: "created_at",
       key: "created_at",
       width: 140,
+      filters: [
+        { text: "Today", value: "today" },
+        { text: "Last 7 days", value: "last7" },
+        { text: "Last 30 days", value: "last30" },
+        { text: "This month", value: "month" },
+        { text: "This quarter", value: "quarter" },
+      ],
+      onFilter: (value, record) => {
+        const created = record.created_at ? dayjs(record.created_at) : null;
+        if (!created) return false;
+        const now = dayjs();
+        switch (value) {
+          case "today":
+            return created.isSame(now, "day");
+          case "last7":
+            return created.isAfter(now.subtract(7, "day"));
+          case "last30":
+            return created.isAfter(now.subtract(30, "day"));
+          case "month":
+            return created.isSame(now, "month");
+          case "quarter":
+            return created.year() === now.year() && Math.floor(created.month() / 3) === Math.floor(now.month() / 3);
+          default:
+            return true;
+        }
+      },
       render: (v: string) =>
         v
           ? new Date(v).toLocaleString(undefined, {

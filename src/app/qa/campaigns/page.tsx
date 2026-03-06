@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Input,
+  Select,
   Table,
   Tag,
   Typography,
@@ -58,6 +59,7 @@ export default function QACampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
@@ -110,16 +112,22 @@ export default function QACampaignsPage() {
   }, [fetchDashboard]);
 
   const filteredCampaigns = useCallback(() => {
+    let result = campaigns;
     const q = search.trim().toLowerCase();
-    if (!q) return campaigns;
-    return campaigns.filter(
-      (c) =>
-        (c.name ?? "").toLowerCase().includes(q) ||
-        (c.lead_type ?? "").toLowerCase().includes(q) ||
-        (c.industry ?? "").toLowerCase().includes(q) ||
-        (c.geography ?? "").toLowerCase().includes(q)
-    );
-  }, [campaigns, search]);
+    if (q) {
+      result = result.filter(
+        (c) =>
+          (c.name ?? "").toLowerCase().includes(q) ||
+          (c.lead_type ?? "").toLowerCase().includes(q) ||
+          (c.industry ?? "").toLowerCase().includes(q) ||
+          (c.geography ?? "").toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter) {
+      result = result.filter((c) => c.status === statusFilter);
+    }
+    return result;
+  }, [campaigns, search, statusFilter]);
 
   if (!isInitialized) {
     return (
@@ -177,6 +185,19 @@ export default function QACampaignsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: 360 }}
+        />
+        <Select
+          placeholder="Filter by status"
+          allowClear
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: "draft", label: "Draft" },
+            { value: "active", label: "Active" },
+            { value: "paused", label: "Paused" },
+            { value: "completed", label: "Completed" },
+          ]}
+          style={{ width: 160 }}
         />
         <Button icon={<ReloadOutlined />} onClick={fetchDashboard} loading={loading}>
           Refresh

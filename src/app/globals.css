@@ -81,6 +81,14 @@ td:has(.lead-phone-cell) a {
   display: none !important;
 }
 
+/* Pie charts: prevent labels from being cut off */
+.qa-status-pie-wrapper .recharts-wrapper,
+.qa-status-pie-wrapper .recharts-surface,
+.chart-pie-wrapper .recharts-wrapper,
+.chart-pie-wrapper .recharts-surface {
+  overflow: visible !important;
+}
+
 /* Lead ID column: keep copy icon visible (table cell must not clip it) */
 .ant-table-cell .lead-id-cell {
   max-width: 100%;
