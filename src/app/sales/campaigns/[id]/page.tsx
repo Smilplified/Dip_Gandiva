@@ -494,7 +494,9 @@ export default function SalesCampaignDetailPage() {
       <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 2 }}>
         {label}
       </Typography.Text>
-      <Typography.Text style={{ fontSize: 14 }}>{value ?? "—"}</Typography.Text>
+      <Typography.Text style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>
+        {value ?? "—"}
+      </Typography.Text>
     </div>
   );
 
@@ -670,7 +672,22 @@ export default function SalesCampaignDetailPage() {
                         <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
                         <div>
                           {campaign.creatives_url.map((url, i) => (
-                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 4 }}>
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={url}
+                              style={{
+                                display: "inline-block",
+                                marginBottom: 4,
+                                maxWidth: "100%",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                wordBreak: "break-all",
+                              }}
+                            >
                               {url}
                             </a>
                           ))}

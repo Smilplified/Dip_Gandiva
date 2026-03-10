@@ -59,6 +59,11 @@ function LoginContent() {
     e.preventDefault();
     setError(null);
 
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setError("You appear to be offline. Please check your internet connection and try again.");
+      return;
+    }
+
     if (!email.trim() || !password) {
       setError("Please enter email and password.");
       return;
