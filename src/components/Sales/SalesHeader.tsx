@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Layout, Avatar, Dropdown } from "antd";
 import { UserOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
@@ -12,8 +12,20 @@ export default function SalesHeader() {
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+  const [avatarBust, setAvatarBust] = useState<string>("");
+  useEffect(() => {
+    try {
+      setAvatarBust(sessionStorage.getItem("gandiv:avatar_updated") ?? "");
+    } catch {
+      /* ignore */
+    }
+  }, [profile]);
 
   const handleMenuClick = ({ key }: { key: string }) => {
+    if (key === "profile") {
+      router.push("/sales/profile");
+      return;
+    }
     if (key === "logout") {
       setSigningOut(true);
       signOut(); // Fire-and-forget; redirect immediately for instant UX
@@ -57,11 +69,16 @@ export default function SalesHeader() {
             opacity: signingOut ? 0.7 : 1,
           }}
         >
-          <Avatar
-            size={36}
-            icon={<UserOutlined />}
-            style={{ backgroundColor: "#1677ff", flexShrink: 0 }}
-          />
+            <Avatar
+              size={36}
+              src={
+                profile?.avatar_url
+                  ? `${profile.avatar_url}${avatarBust ? `?v=${avatarBust}` : ""}`
+                  : undefined
+              }
+              icon={<UserOutlined />}
+              style={{ backgroundColor: profile?.avatar_url ? "transparent" : "#1677ff", flexShrink: 0 }}
+            />
           <div style={{ textAlign: "left", lineHeight: 1.3 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>
               {signingOut ? "Signing out..." : (profile?.full_name || user?.email || "Sales")}

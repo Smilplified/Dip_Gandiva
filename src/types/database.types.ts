@@ -113,6 +113,11 @@ export type Database = {
           phone: string | null;
           reporting_manager_id: string | null;
           status: string;
+          agent_code: string | null;
+          date_of_birth: string | null;
+          avatar_url: string | null;
+          employee_id: string | null;
+          joining_date: string | null;
         };
         Insert: {
           created_at?: string;
@@ -126,6 +131,11 @@ export type Database = {
           phone?: string | null;
           reporting_manager_id?: string | null;
           status?: string;
+          agent_code?: string | null;
+          date_of_birth?: string | null;
+          avatar_url?: string | null;
+          employee_id?: string | null;
+          joining_date?: string | null;
         };
         Update: {
           created_at?: string;
@@ -139,6 +149,11 @@ export type Database = {
           phone?: string | null;
           reporting_manager_id?: string | null;
           status?: string;
+          agent_code?: string | null;
+          date_of_birth?: string | null;
+          avatar_url?: string | null;
+          employee_id?: string | null;
+          joining_date?: string | null;
         };
       };
       campaigns: {

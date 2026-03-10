@@ -1,0 +1,128 @@
+import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: profileRaw, error } = await supabase
+    .from("users")
+    .select(`
+      id, full_name, email, phone, employee_id, agent_code,
+      date_of_birth, avatar_url, joining_date, status, created_at,
+      reporting_manager_id, designation, department, employment_type
+    `)
+    .eq("id", user.id)
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const profile = profileRaw as {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+    employee_id: string | null;
+    agent_code: string | null;
+    date_of_birth: string | null;
+    avatar_url: string | null;
+    joining_date: string | null;
+    status: string;
+    created_at: string;
+    reporting_manager_id: string | null;
+    designation: string | null;
+    department: string | null;
+    employment_type: string | null;
+  } | null;
+
+  // Fetch roles
+  const { data: roleRows } = await supabase
+    .from("user_roles")
+    .select("role_id, roles(id, name)")
+    .eq("user_id", user.id);
+  const roles = (roleRows ?? [])
+    .map((r: { roles: { name: string } | null }) => r.roles?.name)
+    .filter(Boolean) as string[];
+
+  // Fetch manager name if reporting_manager_id exists
+  let managerName: string | null = null;
+  if (profile?.reporting_manager_id) {
+    const { data: manager } = await supabase
+      .from("users")
+      .select("full_name, email")
+      .eq("id", profile.reporting_manager_id)
+      .single();
+    const m = manager as { full_name: string | null; email: string | null } | null;
+    managerName = m?.full_name || m?.email || null;
+  }
+
+  // Assigned campaigns (for agents: campaign_assignments; for TL: campaigns where assigned_team_leader_id)
+  let assignedCampaigns: { id: string; name: string }[] = [];
+  const { data: assignments } = await supabase
+    .from("campaign_assignments")
+    .select("campaign_id")
+    .eq("agent_id", user.id)
+    .eq("is_active", true);
+  const assignmentsList = (assignments ?? []) as { campaign_id: string }[];
+  if (assignmentsList.length) {
+    const campaignIds = [...new Set(assignmentsList.map((a) => a.campaign_id))];
+    const { data: campaigns } = await supabase
+      .from("campaigns")
+      .select("id, name")
+      .in("id", campaignIds);
+    const campaignsList = (campaigns ?? []) as { id: string; name: string }[];
+    assignedCampaigns = campaignsList.map((c) => ({ id: c.id, name: c.name }));
+  } else {
+    const { data: tlCampaigns } = await supabase
+      .from("campaigns")
+      .select("id, name")
+      .eq("assigned_team_leader_id", user.id);
+    const tlList = (tlCampaigns ?? []) as { id: string; name: string }[];
+    assignedCampaigns = tlList.map((c) => ({ id: c.id, name: c.name }));
+  }
+
+  return NextResponse.json({
+    profile: {
+      ...profile,
+      roles,
+      manager_name: managerName,
+      assigned_campaigns: assignedCampaigns,
+      joining_date: profile?.joining_date ?? profile?.created_at,
+    },
+  });
+}
+
+export async function PATCH(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const updates: Record<string, unknown> = {};
+  if (body.phone !== undefined) updates.phone = body.phone;
+  if (body.date_of_birth !== undefined) updates.date_of_birth = body.date_of_birth || null;
+  if (body.employee_id !== undefined) updates.employee_id = body.employee_id || null;
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .update(updates as never)
+    .eq("id", user.id)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ profile: data });
+}

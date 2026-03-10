@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Layout, Avatar, Dropdown } from "antd";
 import { UserOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
@@ -12,8 +12,20 @@ export default function QAHeader() {
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+  const [avatarBust, setAvatarBust] = useState<string>("");
+  useEffect(() => {
+    try {
+      setAvatarBust(sessionStorage.getItem("gandiv:avatar_updated") ?? "");
+    } catch {
+      /* ignore */
+    }
+  }, [profile]);
 
   const handleMenuClick = ({ key }: { key: string }) => {
+    if (key === "profile") {
+      router.push("/qa/profile");
+      return;
+    }
     if (key === "logout") {
       setSigningOut(true);
       signOut(); // Fire-and-forget; redirect immediately for instant UX
@@ -59,8 +71,13 @@ export default function QAHeader() {
         >
           <Avatar
             size={36}
+            src={
+              profile?.avatar_url
+                ? `${profile.avatar_url}${avatarBust ? `?v=${avatarBust}` : ""}`
+                : undefined
+            }
             icon={<UserOutlined />}
-            style={{ backgroundColor: "#722ed1", flexShrink: 0 }}
+            style={{ backgroundColor: profile?.avatar_url ? "transparent" : "#722ed1", flexShrink: 0 }}
           />
           <div style={{ textAlign: "left", lineHeight: 1.3 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>
