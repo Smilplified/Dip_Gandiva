@@ -28,7 +28,7 @@ function LoginContent() {
   const [submitting, setSubmitting] = useState(false);
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? undefined;
-  const { isInitialized, user } = useAuth();
+  const { isInitialized, user, signIn } = useAuth();
   const fastRedirectDone = useRef(false);
 
   const doRedirect = (path: string) => {
@@ -40,19 +40,22 @@ function LoginContent() {
   // Fast path: if session exists, redirect immediately without waiting for AuthContext profile/roles
   useEffect(() => {
     if (fastRedirectDone.current) return;
-    const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        doRedirect(getRedirectPath(redirect));
-      }
-    });
+    try {
+      const supabase = createClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          doRedirect(getRedirectPath(redirect));
+        }
+      }).catch(() => {});
+    } catch {
+      // Supabase not configured or getSession failed; let AuthContext handle init
+    }
   }, [redirect]);
 
   // Fallback: when AuthContext finishes init and user is set, redirect if fast path didn't run
   useEffect(() => {
     if (!isInitialized || !user || fastRedirectDone.current) return;
-    const path = redirect || "/";
-    doRedirect(path);
+    doRedirect(getRedirectPath(redirect));
   }, [isInitialized, user, redirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,27 +74,24 @@ function LoginContent() {
 
     setSubmitting(true);
     const timeoutMs = 15000;
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Sign-in timed out. Please check your connection and try again.")), timeoutMs);
+    const timeoutResult = { error: new Error("Sign-in timed out. Please check your connection and try again.") as Error, redirectPath: undefined as string | undefined };
+    const timeoutPromise = new Promise<typeof timeoutResult>((resolve) => {
+      setTimeout(() => resolve(timeoutResult), timeoutMs);
     });
 
     try {
-      const supabase = createClient();
-      const signInPromise = supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      const result = await Promise.race([
+        signIn(email.trim(), password).then((r) => ({ error: r.error, redirectPath: r.redirectPath })),
+        timeoutPromise,
+      ]);
 
-      const { data, error: signInError } = await Promise.race([signInPromise, timeoutPromise]);
-
-      if (signInError || !data.user) {
-        setError(signInError?.message || "Invalid email or password.");
+      if (result.error) {
+        setError(result.error?.message || "Invalid email or password.");
         setSubmitting(false);
         return;
       }
 
-      const path = redirect || "/";
+      const path = result.redirectPath ?? getRedirectPath(redirect);
       doRedirect(path);
     } catch (err) {
       setError((err as Error).message || "Something went wrong while signing in.");

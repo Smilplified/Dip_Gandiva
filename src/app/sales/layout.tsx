@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import SalesLayout from "@/components/Sales/SalesLayout";
 import { useAuth } from "@/context/AuthContext";
-import { Spin } from "antd";
+import { Spin, Typography } from "antd";
 
 export default function SalesRootLayout({
   children,
@@ -23,14 +23,20 @@ export default function SalesRootLayout({
 
   if (!isInitialized || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
         <Spin size="large" />
+        <Typography.Text type="secondary">Loading...</Typography.Text>
       </div>
     );
   }
 
   if (!hasRole("sales") && !hasRole("admin")) {
-    return null;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
+        <Spin size="large" />
+        <Typography.Text type="secondary">Redirecting to login...</Typography.Text>
+      </div>
+    );
   }
 
   return <SalesLayout>{children}</SalesLayout>;

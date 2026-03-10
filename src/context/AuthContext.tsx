@@ -142,14 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init();
 
-    // Safety: if init hangs (e.g. Supabase slow), show login form after 5s so user isn't stuck
+    // Safety: if init hangs (e.g. Supabase slow in production), show login form after 15s so user isn't stuck
     const timeout = setTimeout(() => {
       if (!mounted) return;
       setState((s) => {
         if (s.isInitialized) return s;
         return { ...s, user: null, profile: null, roles: [], isLoading: false, isInitialized: true };
       });
-    }, 5000);
+    }, 15000);
 
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
