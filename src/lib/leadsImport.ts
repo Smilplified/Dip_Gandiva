@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 /**
  * Parse CSV file and return array of lead objects for bulk import.
  * Maps common column headers (case-insensitive) to lead fields.
@@ -81,6 +83,44 @@ export function parseLeadsCsv(csvText: string): Record<string, unknown>[] {
         row[key] = val;
       }
     }
+    if (Object.keys(row).length > 0) {
+      if (!row.name && (row.first_name || row.last_name)) {
+        row.name = [row.first_name, row.last_name].filter(Boolean).join(" ");
+      }
+      leads.push(row);
+    }
+  }
+  return leads;
+}
+
+/**
+ * Parse Excel file (.xlsx) and return array of lead objects for bulk import.
+ * Expects first row = headers (e.g. id, first_name, company_name, ...).
+ * Preserves "id" so re-upload can match and update existing leads.
+ */
+export function parseLeadsExcel(buffer: ArrayBuffer): Record<string, unknown>[] {
+  const wb = XLSX.read(buffer, { type: "array" });
+  const firstSheet = wb.SheetNames[0];
+  if (!firstSheet) return [];
+  const ws = wb.Sheets[firstSheet];
+  const aoa = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: "" });
+  if (aoa.length < 2) return [];
+  const headers = (aoa[0] ?? []).map((h) => String(h ?? "").trim().toLowerCase());
+  const colMap = headers.map((h) => HEADER_MAP[h] ?? h.replace(/\s+/g, "_"));
+  const leads: Record<string, unknown>[] = [];
+  for (let i = 1; i < aoa.length; i++) {
+    const values = aoa[i] ?? [];
+    const row: Record<string, unknown> = {};
+    for (let j = 0; j < colMap.length; j++) {
+      const key = colMap[j];
+      const val = values[j];
+      const str = val != null ? String(val).trim() : "";
+      if (key) {
+        if (str) row[key] = str;
+        else if (key === "id" && (val !== undefined && val !== null)) row[key] = String(val).trim();
+      }
+    }
+    if (row.id === "") delete row.id;
     if (Object.keys(row).length > 0) {
       if (!row.name && (row.first_name || row.last_name)) {
         row.name = [row.first_name, row.last_name].filter(Boolean).join(" ");

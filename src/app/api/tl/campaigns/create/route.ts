@@ -62,6 +62,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Campaign Name is required" }, { status: 400 });
     }
 
+    // Enforce unique campaign name per organization (case-insensitive)
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return NextResponse.json({ error: "Campaign Name is required" }, { status: 400 });
+    }
+
+    const { data: existingByName, error: existingNameError } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("organization_id", orgId)
+      .ilike("name", trimmedName)
+      .maybeSingle();
+
+    if (existingNameError) {
+      return NextResponse.json(
+        { error: "Failed to validate campaign name uniqueness" },
+        { status: 500 }
+      );
+    }
+
+    if (existingByName) {
+      return NextResponse.json(
+        { error: "A campaign with this name already exists. Please choose a different name." },
+        { status: 409 }
+      );
+    }
+
     let clientNameStr =
       client_name != null && typeof client_name === "string" ? client_name.trim() : "";
     let clientId: string | null = null;

@@ -23,7 +23,8 @@
     "react-image-crop": "^11.0.10",
     "recharts": "^2.13.3",
     "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",

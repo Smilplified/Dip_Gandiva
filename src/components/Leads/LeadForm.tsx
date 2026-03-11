@@ -301,7 +301,7 @@ export function LeadForm({
   );
 
   return (
-    <Form form={form} layout="vertical">
+    <Form form={form} layout="vertical" className="lead-form">
       {/* Contact Person Details | Company Information — side by side */}
       <Row gutter={24} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>

@@ -89,6 +89,11 @@ td:has(.lead-phone-cell) a {
   overflow: visible !important;
 }
 
+/* Edit Lead / Add Lead form: labels in grey */
+.lead-form .ant-form-item-label > label {
+  color: #8c8c8c !important;
+}
+
 /* Lead ID column: keep copy icon visible (table cell must not clip it) */
 .ant-table-cell .lead-id-cell {
   max-width: 100%;

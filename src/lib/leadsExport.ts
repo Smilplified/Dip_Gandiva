@@ -1,8 +1,9 @@
+import * as XLSX from "xlsx";
 import type { Lead } from "@/types/lead.types";
 
 /**
  * All lead fields in export order (matches database / Lead type).
- * Header = column name in CSV; key = property on Lead.
+ * Header = column name in CSV/Excel; key = property on Lead.
  */
 const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "id", header: "id" },
@@ -104,6 +105,53 @@ export function downloadCsv(leads: Lead[], filename?: string): void {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename ?? `leads-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Build array of arrays for Excel: first row = headers, then one row per lead.
+ * Same columns as CSV so re-upload matches by id and updates correctly.
+ */
+function leadsToSheetData(leads: Lead[]): unknown[][] {
+  const headers = CSV_COLUMNS.map((c) => c.header);
+  const rows = leads.map((lead) => {
+    const record = lead as Record<string, unknown>;
+    return CSV_COLUMNS.map((c) => {
+      const v = record[c.key];
+      if (v == null) return "";
+      return typeof v === "object" ? JSON.stringify(v) : v;
+    });
+  });
+  return [headers, ...rows];
+}
+
+/**
+ * Download leads as an Excel file (.xlsx). Same columns as CSV including id
+ * so that re-upload can match by id and update existing leads.
+ */
+export function downloadExcel(leads: Lead[], filename?: string): void {
+  const data = leadsToSheetData(leads);
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const colWidths = CSV_COLUMNS.map((_, i) => {
+    const maxLen = Math.max(
+      ...data.map((row) => String(row[i] ?? "").length),
+      (CSV_COLUMNS[i]?.header ?? "").length,
+      10
+    );
+    return { wch: Math.min(maxLen, 50) };
+  });
+  ws["!cols"] = colWidths;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Leads");
+  const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([out], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename ?? `leads-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }

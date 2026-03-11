@@ -38,8 +38,8 @@ import {
   InboxOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
-import { downloadCsv } from "@/lib/leadsExport";
-import { parseLeadsCsv } from "@/lib/leadsImport";
+import { downloadExcel } from "@/lib/leadsExport";
+import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
@@ -269,27 +269,52 @@ export default function CampaignDetailPage() {
       message.warning("No leads to export");
       return;
     }
-    downloadCsv(leads, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
+    downloadExcel(
+      leads,
+      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
     message.success(`Exported ${leads.length} leads`);
   };
 
   const handleUploadFile = (file: File) => {
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      message.error("Please upload a CSV file");
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith(".csv");
+    const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
+    if (!isCsv && !isExcel) {
+      message.error("Please upload a CSV or Excel (.xlsx) file");
       return false;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = (e.target?.result as string) ?? "";
-        const leads = parseLeadsCsv(text);
-        setParsedLeads(leads);
-        setUploadFile(file);
-      } catch {
-        message.error("Failed to parse CSV");
-      }
-    };
-    reader.readAsText(file);
+    if (isCsv) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = (e.target?.result as string) ?? "";
+          const leads = parseLeadsCsv(text);
+          setParsedLeads(leads);
+          setUploadFile(file);
+        } catch {
+          message.error("Failed to parse CSV");
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const buffer = e.target?.result as ArrayBuffer;
+          if (!buffer) {
+            message.error("Failed to read file");
+            return;
+          }
+          const leads = parseLeadsExcel(buffer);
+          setParsedLeads(leads);
+          setUploadFile(file);
+        } catch {
+          message.error("Failed to parse Excel file");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
     return false;
   };
 
@@ -374,7 +399,9 @@ export default function CampaignDetailPage() {
       <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 2 }}>
         {label}
       </Typography.Text>
-      <Typography.Text style={{ fontSize: 14 }}>{value ?? "—"}</Typography.Text>
+      <Typography.Text style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>
+        {value ?? "—"}
+      </Typography.Text>
     </div>
   );
 
@@ -481,7 +508,22 @@ export default function CampaignDetailPage() {
                         <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
                         <div>
                           {campaign.creatives_url.map((url, i) => (
-                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 4 }}>
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={url}
+                              style={{
+                                display: "inline-block",
+                                marginBottom: 4,
+                                maxWidth: "100%",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                wordBreak: "break-all",
+                              }}
+                            >
                               {url}
                             </a>
                           ))}
@@ -655,7 +697,7 @@ export default function CampaignDetailPage() {
       </Card>
 
       <Modal
-        title="Upload Leads (CSV)"
+        title="Upload Leads (CSV or Excel)"
         open={uploadModalOpen}
         onCancel={() => { setUploadModalOpen(false); setUploadFile(null); setParsedLeads([]); }}
         onOk={handleImport}
@@ -665,10 +707,10 @@ export default function CampaignDetailPage() {
         width={520}
       >
         <Typography.Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
-          Upload a CSV with columns: First Name, Last Name, Company, Email, Phone, Job Title, Industry, etc.
+          Upload a CSV or Excel (.xlsx) file. Include the <strong>id</strong> column to update existing leads; rows without id will be created as new.
         </Typography.Text>
         <Upload.Dragger
-          accept=".csv"
+          accept=".csv,.xlsx,.xls"
           multiple={false}
           beforeUpload={(file) => { handleUploadFile(file); return false; }}
           fileList={uploadFile ? [{ uid: "1", name: uploadFile.name, status: "done" }] : []}
@@ -678,8 +720,8 @@ export default function CampaignDetailPage() {
           <p className="ant-upload-drag-icon">
             <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
           </p>
-          <p className="ant-upload-text">Click or drag CSV file here</p>
-          <p className="ant-upload-hint">Supports First Name, Last Name, Company, Email, Phone, Job Title, Industry, City, State, Country</p>
+          <p className="ant-upload-text">Click or drag CSV or Excel file here</p>
+          <p className="ant-upload-hint">Export as Excel from this page, edit, then re-upload to update by id. Or use CSV with First Name, Last Name, Company, Email, Phone, etc.</p>
         </Upload.Dragger>
         {parsedLeads.length > 0 && (
           <Typography.Text style={{ display: "block", marginTop: 12, color: "#52c41a" }}>
