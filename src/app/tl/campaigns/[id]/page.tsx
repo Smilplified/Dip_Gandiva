@@ -44,6 +44,7 @@ import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
+import { ExpandableText } from "@/components/ExpandableText";
 
 type Campaign = {
   id: string;
@@ -504,9 +505,9 @@ export default function CampaignDetailPage() {
                     <DetailItem label="Seniority" value={campaign.seniority} />
                     <DetailItem label="Job Function" value={campaign.job_function} />
                     {campaign.creatives_url?.length ? (
-                      <div style={{ marginBottom: 8 }}>
+                      <div style={{ marginBottom: 8, minWidth: 0, overflow: "hidden" }}>
                         <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
-                        <div>
+                        <div style={{ minWidth: 0, overflow: "hidden" }}>
                           {campaign.creatives_url.map((url, i) => (
                             <a
                               key={i}
@@ -515,13 +516,13 @@ export default function CampaignDetailPage() {
                               rel="noopener noreferrer"
                               title={url}
                               style={{
-                                display: "inline-block",
+                                display: "block",
                                 marginBottom: 4,
-                                maxWidth: "100%",
+                                minWidth: 0,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                wordBreak: "break-all",
+                                color: "#1677ff",
                               }}
                             >
                               {url}
@@ -537,7 +538,7 @@ export default function CampaignDetailPage() {
             {campaign.additional_comments && (
               <>
                 <Divider style={{ margin: "16px 0" }} />
-                <DetailItem label="Additional Comments" value={campaign.additional_comments} />
+                <DetailItem label="Additional Comments" value={<ExpandableText text={campaign.additional_comments} />} />
               </>
             )}
           </Card>

@@ -39,6 +39,7 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { ExpandableText } from "@/components/ExpandableText";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -668,9 +669,9 @@ export default function SalesCampaignDetailPage() {
                     <DetailItem label="Seniority" value={campaign.seniority} />
                     <DetailItem label="Job Function" value={campaign.job_function} />
                     {campaign.creatives_url?.length ? (
-                      <div style={{ marginBottom: 8 }}>
+                      <div style={{ marginBottom: 8, minWidth: 0, overflow: "hidden" }}>
                         <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
-                        <div>
+                        <div style={{ minWidth: 0, overflow: "hidden" }}>
                           {campaign.creatives_url.map((url, i) => (
                             <a
                               key={i}
@@ -679,13 +680,13 @@ export default function SalesCampaignDetailPage() {
                               rel="noopener noreferrer"
                               title={url}
                               style={{
-                                display: "inline-block",
+                                display: "block",
                                 marginBottom: 4,
-                                maxWidth: "100%",
+                                minWidth: 0,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                wordBreak: "break-all",
+                                color: "#1677ff",
                               }}
                             >
                               {url}
@@ -701,7 +702,7 @@ export default function SalesCampaignDetailPage() {
             {campaign.additional_comments && (
               <>
                 <Divider style={{ margin: "16px 0" }} />
-                <DetailItem label="Additional Comments" value={campaign.additional_comments} />
+                <DetailItem label="Additional Comments" value={<ExpandableText text={campaign.additional_comments} />} />
               </>
             )}
           </Card>
