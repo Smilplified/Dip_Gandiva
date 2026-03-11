@@ -62,7 +62,7 @@ export function LeadForm({
         if (!res.ok) {
           const json = await res.json().catch(() => ({}));
           if (json?.error) {
-            message.warning(`Voice Lock: ${json.error}`);
+            message.warning(`Voice Log: ${json.error}`);
           }
           return;
         }
@@ -125,7 +125,7 @@ export function LeadForm({
 
   const handleUploadVoice = async (file: File | null) => {
     if (!lead?.id || mode !== "edit" || !file) {
-      message.error("Voice Lock upload is only available while editing an existing lead.");
+      message.error("Voice Log upload is only available while editing an existing lead.");
       return;
     }
     setVoiceUploading(true);
@@ -438,17 +438,17 @@ export function LeadForm({
           <Collapse defaultActiveKey={["voice-lock"]} expandIconPosition="end" style={{ marginTop: 16 }}>
             {renderSection(
               "voice-lock",
-              "Voice Lock",
+              "Voice Log",
               "🎧",
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {!canUseVoiceLock ? (
                   !hasLeadId ? (
                     <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                      Voice Lock will be available after you create this lead and fill First Name, Last Name, Email Address, Company Name, and Domain.
+                      Voice Log will be available after you create this lead and fill First Name, Last Name, Email Address, Company Name, and Domain.
                     </Typography.Text>
                   ) : (
                     <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                      To use Voice Lock, please fill First Name, Last Name, Email Address, Company Name, and Domain for this lead.
+                      To use Voice Log, please fill First Name, Last Name, Email Address, Company Name, and Domain for this lead.
                     </Typography.Text>
                   )
                 ) : (

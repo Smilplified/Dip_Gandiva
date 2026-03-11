@@ -13,6 +13,7 @@ export const ROLE_ROUTES: Record<string, string> = {
   tl: "/tl/dashboard", // alias
   sales: "/sales",
   qa: "/qa/dashboard",
+  mis: "/mis/dashboard",
 };
 
 export const AUTH_STORAGE_KEYS = {

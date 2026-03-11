@@ -395,14 +395,30 @@ export default function CampaignDetailPage() {
     onEdit: openEditLeadDrawer,
   });
 
-  const DetailItem = ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <div style={{ marginBottom: 12 }}>
-      <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 2 }}>
-        {label}
-      </Typography.Text>
-      <Typography.Text style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>
-        {value ?? "—"}
-      </Typography.Text>
+  const overviewRowStyle = {
+    display: "grid",
+    gridTemplateColumns: "160px 1fr",
+    gap: 16,
+    padding: "10px 0",
+    borderBottom: "1px solid #f0f0f0",
+    alignItems: "start",
+  } as const;
+  const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+  const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
+
+  const OverviewRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
+    if (value == null || value === "") return null;
+    return (
+      <div style={overviewRowStyle}>
+        <span style={overviewLabelStyle}>{label}</span>
+        <span style={overviewValueStyle}>{value}</span>
+      </div>
+    );
+  };
+  const OverviewRowOrEmpty = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div style={overviewRowStyle}>
+      <span style={overviewLabelStyle}>{label}</span>
+      <span style={overviewValueStyle}>{value ?? "—"}</span>
     </div>
   );
 
@@ -467,47 +483,44 @@ export default function CampaignDetailPage() {
             bodyStyle={{ padding: "24px 28px" }}
           >
             {(campaign.description || campaign.target_designation) && (
-              <>
-                {campaign.description && <DetailItem label="Description" value={campaign.description} />}
-                {campaign.target_designation && <DetailItem label="Target Designation" value={campaign.target_designation} />}
-                <Divider style={{ margin: "16px 0" }} />
-              </>
+              <div style={{ marginBottom: 20 }}>
+                {campaign.description && <OverviewRow label="Description" value={campaign.description} />}
+                {campaign.target_designation && <OverviewRow label="Target Designation" value={campaign.target_designation} />}
+              </div>
             )}
-            <Row gutter={24}>
-              <Col xs={24} sm={12}>
-                <DetailItem label="Lead Type" value={campaign.lead_type} />
-                <DetailItem label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
-                <DetailItem label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
-                <DetailItem label="Region" value={campaign.region} />
-                <DetailItem label="Assigned Team Leader" value={campaign.assigned_team_leader_name} />
-                <DetailItem label="Weekly Call" value={campaign.weekly_call} />
-                <DetailItem label="Weekly Report" value={campaign.weekly_report} />
-              </Col>
-              <Col xs={24} sm={12}>
-                <DetailItem label="Total Allocation" value={campaign.total_allocation} />
-                <DetailItem label="Post QA" value={campaign.post_qa} />
-                <DetailItem label="Achieved" value={campaign.achieved} />
-                <DetailItem label="Pending Allocation" value={campaign.pending_allocation} />
-                <DetailItem label="Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
-              </Col>
-            </Row>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
+              <div>
+                <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
+                <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
+                <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
+                <OverviewRowOrEmpty label="Region" value={campaign.region} />
+                <OverviewRowOrEmpty label="Assigned Team Leader" value={campaign.assigned_team_leader_name} />
+                <OverviewRowOrEmpty label="Weekly Call" value={campaign.weekly_call} />
+                <OverviewRowOrEmpty label="Weekly Report" value={campaign.weekly_report} />
+              </div>
+              <div>
+                <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
+                <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
+                <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
+                <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
+              </div>
+            </div>
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
-              <>
-                <Divider style={{ margin: "16px 0" }} />
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#595959", marginBottom: 12 }}>Targeting</div>
-                <Row gutter={24}>
-                  <Col xs={24} sm={12}>
-                    <DetailItem label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
-                    <DetailItem label="Industry" value={campaign.industry} />
-                    <DetailItem label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <DetailItem label="Seniority" value={campaign.seniority} />
-                    <DetailItem label="Job Function" value={campaign.job_function} />
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
+                  <div>
+                    <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
+                    <OverviewRowOrEmpty label="Industry" value={campaign.industry} />
+                    <OverviewRowOrEmpty label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
+                  </div>
+                  <div>
+                    <OverviewRowOrEmpty label="Seniority" value={campaign.seniority} />
+                    <OverviewRowOrEmpty label="Job Function" value={campaign.job_function} />
                     {campaign.creatives_url?.length ? (
-                      <div style={{ marginBottom: 8, minWidth: 0, overflow: "hidden" }}>
-                        <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
-                        <div style={{ minWidth: 0, overflow: "hidden" }}>
+                      <div style={overviewRowStyle}>
+                        <span style={overviewLabelStyle}>Creatives URL</span>
+                        <span style={{ ...overviewValueStyle, minWidth: 0, overflow: "hidden" }}>
                           {campaign.creatives_url.map((url, i) => (
                             <a
                               key={i}
@@ -528,19 +541,23 @@ export default function CampaignDetailPage() {
                               {url}
                             </a>
                           ))}
-                        </div>
+                        </span>
                       </div>
                     ) : null}
-                  </Col>
-                </Row>
-              </>
+                  </div>
+                </div>
+              </div>
             ) : null}
-            {campaign.additional_comments && (
-              <>
-                <Divider style={{ margin: "16px 0" }} />
-                <DetailItem label="Additional Comments" value={<ExpandableText text={campaign.additional_comments} />} />
-              </>
-            )}
+            {campaign.additional_comments ? (
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
+                <div style={overviewRowStyle}>
+                  <span style={overviewLabelStyle}>Additional Comments</span>
+                  <span style={overviewValueStyle}>
+                    <ExpandableText text={campaign.additional_comments} />
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </Card>
         </Col>
 

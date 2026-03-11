@@ -20,6 +20,8 @@ import {
   DatePicker,
   Input,
   Select,
+  Modal,
+  Upload,
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -28,15 +30,18 @@ import {
   PlusOutlined,
   FileOutlined,
   DownloadOutlined,
+  UploadOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
-import { downloadCsv } from "@/lib/leadsExport";
+import { downloadCsv, downloadAgentExcel } from "@/lib/leadsExport";
 import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
 import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
 import { ExpandableText } from "@/components/ExpandableText";
+import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
 
 type Campaign = {
   id: string;
@@ -92,6 +97,10 @@ export default function AgentCampaignDetailPage() {
   const [leadSearch, setLeadSearch] = useState("");
   const [leadTaggingFilter, setLeadTaggingFilter] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
+  const [importing, setImporting] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!id) return;
@@ -300,6 +309,85 @@ export default function AgentCampaignDetailPage() {
     }
   };
 
+  const handleUploadFile = (file: File) => {
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith(".csv");
+    const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls");
+    if (!isCsv && !isExcel) {
+      message.error("Please upload a CSV or Excel (.xlsx) file");
+      return false;
+    }
+    if (isCsv) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = (e.target?.result as string) ?? "";
+          const leads = parseLeadsCsv(text);
+          setParsedLeads(leads);
+          setUploadFile(file);
+        } catch {
+          message.error("Failed to parse CSV");
+        }
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const buffer = e.target?.result as ArrayBuffer;
+          if (!buffer) {
+            message.error("Failed to read file");
+            return;
+          }
+          const leads = parseLeadsExcel(buffer);
+          setParsedLeads(leads);
+          setUploadFile(file);
+        } catch {
+          message.error("Failed to parse Excel file");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    return false;
+  };
+
+  const handleImport = async () => {
+    if (!id || parsedLeads.length === 0) return;
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/agent/campaigns/${id}/leads/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ leads: parsedLeads }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+      const created = data.created ?? 0;
+      const total = data.total ?? created;
+      message.success(`Imported ${created} of ${total} leads`);
+      if (data.errors?.length) {
+        message.warning(
+          data.errors.slice(0, 3).join("; ") +
+            (data.errors.length > 3 ? "..." : "")
+        );
+      }
+      setUploadModalOpen(false);
+      setUploadFile(null);
+      setParsedLeads([]);
+
+      const leadsRes = await fetch(`/api/agent/campaigns/${id}/leads`, {
+        credentials: "include",
+      });
+      const leadsJson = await leadsRes.json();
+      if (leadsRes.ok) setLeads(leadsJson.leads ?? []);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (!isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -334,14 +422,30 @@ export default function AgentCampaignDetailPage() {
     onEdit: openEditLeadDrawer,
   });
 
-  const DetailItem = ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <div style={{ marginBottom: 12 }}>
-      <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 2 }}>
-        {label}
-      </Typography.Text>
-      <Typography.Text style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>
-        {value ?? "—"}
-      </Typography.Text>
+  const overviewRowStyle = {
+    display: "grid",
+    gridTemplateColumns: "160px 1fr",
+    gap: 16,
+    padding: "10px 0",
+    borderBottom: "1px solid #f0f0f0",
+    alignItems: "start",
+  } as const;
+  const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+  const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
+
+  const OverviewRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
+    if (value == null || value === "") return null;
+    return (
+      <div style={overviewRowStyle}>
+        <span style={overviewLabelStyle}>{label}</span>
+        <span style={overviewValueStyle}>{value}</span>
+      </div>
+    );
+  };
+  const OverviewRowOrEmpty = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div style={overviewRowStyle}>
+      <span style={overviewLabelStyle}>{label}</span>
+      <span style={overviewValueStyle}>{value ?? "—"}</span>
     </div>
   );
 
@@ -388,48 +492,53 @@ export default function AgentCampaignDetailPage() {
       <Row gutter={24}>
         <Col xs={24} lg={14}>
           <Card
-            title="Campaign Details"
+            title="Overview"
             style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
             bodyStyle={{ padding: "24px 28px" }}
           >
             {(campaign.description || campaign.additional_comments) && (
-              <>
-                {campaign.description && <DetailItem label="Description" value={campaign.description} />}
-                {campaign.additional_comments && <DetailItem label="Additional Comments" value={<ExpandableText text={campaign.additional_comments} />} />}
-                <Divider style={{ margin: "16px 0" }} />
-              </>
+              <div style={{ marginBottom: 20 }}>
+                {campaign.description && <OverviewRow label="Description" value={campaign.description} />}
+                {campaign.additional_comments && (
+                  <div style={overviewRowStyle}>
+                    <span style={overviewLabelStyle}>Additional Comments</span>
+                    <span style={overviewValueStyle}>
+                      <ExpandableText text={campaign.additional_comments} />
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
-            <Row gutter={24}>
-              <Col xs={24} sm={12}>
-                <DetailItem label="Lead Type" value={campaign.lead_type} />
-                <DetailItem label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
-                <DetailItem label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
-                <DetailItem label="Region" value={campaign.region} />
-                <DetailItem label="Total Allocation" value={campaign.total_allocation} />
-              </Col>
-              <Col xs={24} sm={12}>
-                <DetailItem label="Post QA" value={campaign.post_qa} />
-                <DetailItem label="Achieved" value={campaign.achieved} />
-                <DetailItem label="Pending Allocation" value={campaign.pending_allocation} />
-              </Col>
-            </Row>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
+              <div>
+                <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
+                <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
+                <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
+                <OverviewRowOrEmpty label="Region" value={campaign.region} />
+                <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
+              </div>
+              <div>
+                <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
+                <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
+                <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
+              </div>
+            </div>
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
-              <>
-                <Divider style={{ margin: "16px 0" }} />
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#595959", marginBottom: 12 }}>Targeting</div>
-                <Row gutter={24}>
-                  <Col xs={24} sm={12}>
-                    <DetailItem label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
-                    <DetailItem label="Industry" value={campaign.industry} />
-                    <DetailItem label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <DetailItem label="Seniority" value={campaign.seniority} />
-                    <DetailItem label="Job Function" value={campaign.job_function} />
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
+                  <div>
+                    <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
+                    <OverviewRowOrEmpty label="Industry" value={campaign.industry} />
+                    <OverviewRowOrEmpty label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
+                  </div>
+                  <div>
+                    <OverviewRowOrEmpty label="Seniority" value={campaign.seniority} />
+                    <OverviewRowOrEmpty label="Job Function" value={campaign.job_function} />
                     {campaign.creatives_url?.length ? (
-                      <div style={{ marginBottom: 8, minWidth: 0, overflow: "hidden" }}>
-                        <div style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 4 }}>Creatives URL</div>
-                        <div style={{ minWidth: 0, overflow: "hidden" }}>
+                      <div style={overviewRowStyle}>
+                        <span style={overviewLabelStyle}>Creatives URL</span>
+                        <span style={{ ...overviewValueStyle, minWidth: 0, overflow: "hidden" }}>
                           {campaign.creatives_url.map((url, i) => (
                             <a
                               key={i}
@@ -450,12 +559,12 @@ export default function AgentCampaignDetailPage() {
                               {url}
                             </a>
                           ))}
-                        </div>
+                        </span>
                       </div>
                     ) : null}
-                  </Col>
-                </Row>
-              </>
+                  </div>
+                </div>
+              </div>
             ) : null}
           </Card>
         </Col>
@@ -514,7 +623,9 @@ export default function AgentCampaignDetailPage() {
       </Row>
 
       <Card
-        title={`My Leads (${filteredLeads.length}${filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})`}
+        title={`My Leads (${filteredLeads.length}${
+          filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""
+        })`}
         extra={
           <Space>
             <Button type="primary" icon={<PlusOutlined />} onClick={openLeadDrawer}>
@@ -526,13 +637,28 @@ export default function AgentCampaignDetailPage() {
                 const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
                 if (toExport.length === 0) message.warning("No leads to export");
                 else {
-                  downloadCsv(toExport, `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.csv`);
+                  downloadCsv(
+                    toExport,
+                    `leads-${
+                      campaign?.name?.replace(/\s+/g, "-") ?? "export"
+                    }-${new Date().toISOString().slice(0, 10)}.csv`
+                  );
                   message.success(`Exported ${toExport.length} leads`);
                 }
               }}
               disabled={leads.length === 0}
             >
               Export
+            </Button>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => {
+                setUploadModalOpen(true);
+                setUploadFile(null);
+                setParsedLeads([]);
+              }}
+            >
+              Upload
             </Button>
           </Space>
         }
@@ -605,6 +731,88 @@ export default function AgentCampaignDetailPage() {
           })}
         />
       </Card>
+
+      <Modal
+        title="Upload Leads (CSV or Excel)"
+        open={uploadModalOpen}
+        onCancel={() => {
+          setUploadModalOpen(false);
+          setUploadFile(null);
+          setParsedLeads([]);
+        }}
+        onOk={handleImport}
+        okText={
+          parsedLeads.length > 0
+            ? `Import ${parsedLeads.length} leads`
+            : "Import"
+        }
+        okButtonProps={{ disabled: parsedLeads.length === 0, loading: importing }}
+        cancelButtonProps={{ disabled: importing }}
+        width={520}
+      >
+        <Typography.Paragraph type="secondary">
+          You can either{" "}
+          <Typography.Link
+            onClick={() => {
+              const toExport =
+                filteredLeads.length > 0 ? filteredLeads : leads;
+              downloadAgentExcel(
+                toExport,
+                `agent-leads-format-${
+                  campaign?.name?.replace(/\s+/g, "-") ?? "export"
+                }-${new Date().toISOString().slice(0, 10)}.xlsx`
+              );
+              if (toExport.length === 0) {
+                message.success("Downloaded blank Excel format template");
+              } else {
+                message.success(
+                  `Downloaded Excel format with ${toExport.length} leads`
+                );
+              }
+            }}
+          >
+            download the Excel format
+          </Typography.Link>{" "}
+          (Lead ID, QA fields, and Created By are hidden and managed by the
+          system) or upload your own CSV/Excel with matching columns.
+        </Typography.Paragraph>
+        <Upload.Dragger
+          accept=".csv,.xlsx,.xls"
+          multiple={false}
+          beforeUpload={(file) => {
+            handleUploadFile(file);
+            return false;
+          }}
+          fileList={
+            uploadFile
+              ? [{ uid: "1", name: uploadFile.name, status: "done" }]
+              : []
+          }
+          onRemove={() => {
+            setUploadFile(null);
+            setParsedLeads([]);
+          }}
+          maxCount={1}
+        >
+          <p className="ant-upload-drag-icon">
+            <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
+          </p>
+          <p className="ant-upload-text">
+            Click or drag CSV or Excel file here
+          </p>
+          <p className="ant-upload-hint">
+            Excel format hides Lead ID, QA fields, and Created By. These will be
+            generated and validated automatically after upload.
+          </p>
+        </Upload.Dragger>
+        {parsedLeads.length > 0 && (
+          <Typography.Text
+            style={{ display: "block", marginTop: 12, color: "#52c41a" }}
+          >
+            {parsedLeads.length} leads parsed and ready to import
+          </Typography.Text>
+        )}
+      </Modal>
 
       <Drawer
         title={drawerMode === "edit" ? "Edit Lead" : "Add Lead"}

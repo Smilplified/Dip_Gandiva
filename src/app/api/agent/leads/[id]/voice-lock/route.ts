@@ -202,7 +202,7 @@ export async function GET(
 
     return NextResponse.json({ recordings });
   } catch (err) {
-    console.error("Voice Lock GET error:", err);
+    console.error("Voice Log GET error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -258,7 +258,7 @@ export async function POST(
       ALLOWED_AUDIO_TYPES.includes(mime) || mime.startsWith("audio/");
     if (!isAudio) {
       return NextResponse.json(
-        { error: "Only audio files are allowed for Voice Lock" },
+        { error: "Only audio files are allowed for Voice Log" },
         { status: 400 }
       );
     }
@@ -285,7 +285,7 @@ export async function POST(
 
     return NextResponse.json({ recordings });
   } catch (err) {
-    console.error("Voice Lock POST error:", err);
+    console.error("Voice Log POST error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -336,7 +336,7 @@ export async function DELETE(
 
     return NextResponse.json({ recordings });
   } catch (err) {
-    console.error("Voice Lock DELETE error:", err);
+    console.error("Voice Log DELETE error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

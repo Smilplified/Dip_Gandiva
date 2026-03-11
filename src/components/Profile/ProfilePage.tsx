@@ -60,6 +60,7 @@ const roleDisplayMap: Record<string, string> = {
   sales: "Sales",
   agent: "Agent",
   qa: "QA",
+  mis: "MIS",
 };
 
 export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps) {

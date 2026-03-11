@@ -6,7 +6,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { AUTH_STORAGE_KEYS } from "@/context/AuthContext";
-import { MailOutlined, LockOutlined } from "@ant-design/icons";
+import { MailOutlined, LockOutlined, EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 
 function getRedirectPath(redirect?: string): string {
   if (redirect) return redirect;
@@ -24,6 +24,7 @@ function getRedirectPath(redirect?: string): string {
 function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const searchParams = useSearchParams();
@@ -166,17 +167,19 @@ function LoginContent() {
             />
           </div>
           <div className="md:hidden mb-6 text-center">
-            <h1 className="text-xl font-semibold text-slate-800">CRM Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-600">Sign in to your account</p>
+              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
+                Welcome back
+              </h1>
+            <p className="mt-1 text-sm text-slate-600">Sign in to continue to your workspace</p>
           </div>
 
           <div
             data-login-card
-            className="w-full rounded-2xl border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/60 sm:p-10"
+            className="w-full rounded-2xl border border-slate-200 bg-white p-7 shadow-lg shadow-slate-200/60 sm:p-10"
             style={{ boxSizing: "border-box" }}
           >
             <div className="mb-8 hidden md:block">
-              <h1 className="text-xl font-semibold text-slate-800 tracking-tight">
+              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
                 Sign in
               </h1>
               <p className="mt-1 text-sm text-slate-500">
@@ -213,7 +216,7 @@ function LoginContent() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@company.com"
-                    className="w-full min-w-0 pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 outline-none transition disabled:opacity-50"
+                    className="w-full min-w-0 pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200 outline-none transition disabled:opacity-50"
                     disabled={submitting}
                   />
                 </div>
@@ -232,14 +235,22 @@ function LoginContent() {
                   </span>
                   <input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full min-w-0 pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 outline-none transition disabled:opacity-50"
+                    className="w-full min-w-0 pl-10 pr-10 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200 outline-none transition disabled:opacity-50"
                     disabled={submitting}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                  </button>
                 </div>
               </div>
 

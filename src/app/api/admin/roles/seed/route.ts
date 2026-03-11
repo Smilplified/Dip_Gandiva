@@ -10,6 +10,7 @@ const DEFAULT_ROLES = [
   { name: "Agent", description: "Assigned to campaigns and leads" },
   { name: "Sales", description: "Sales team member" },
   { name: "QA", description: "Quality assurance team member" },
+  { name: "MIS", description: "Management Information System - reporting and data management" },
 ];
 
 export async function POST() {

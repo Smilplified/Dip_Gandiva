@@ -35,6 +35,18 @@ html, body {
   white-space: nowrap;
 }
 
+/* Table text columns: prevent overlap with ellipsis */
+.table-single-line .table-text-ellipsis {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table-single-line .table-actions-cell {
+  min-width: 0;
+}
+
 /* Typography scale for dashboard */
 @layer components {
   .page-title {
@@ -99,6 +111,14 @@ td:has(.lead-phone-cell) a {
   max-width: 100%;
 }
 .ant-table-cell .lead-id-copy-btn {
+  flex-shrink: 0;
+}
+
+/* Campaign ID column: keep copy icon visible */
+.ant-table-cell .campaign-id-cell {
+  max-width: 100%;
+}
+.ant-table-cell .campaign-id-cell .ant-btn {
   flex-shrink: 0;
 }
 

@@ -16,6 +16,8 @@ import {
   Spin,
   Typography,
   Popconfirm,
+  Input,
+  Select,
 } from "antd";
 import {
   FundProjectionScreenOutlined,
@@ -29,6 +31,8 @@ import {
   DeleteOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
+  SearchOutlined,
+  CopyOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 
@@ -67,6 +71,8 @@ export default function SalesCampaignsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -140,6 +146,35 @@ export default function SalesCampaignsPage() {
     return null;
   }
 
+  const filteredCampaigns = campaigns.filter((c) => {
+    const matchesSearch =
+      !searchText ||
+      (c.name?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (c.client_name?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (c.campaign_id?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (c.lead_type?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (c.industry?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (c.geography?.toLowerCase().includes(searchText.toLowerCase()));
+    const matchesStatus = !statusFilter || c.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const statusOptions = [
+    { value: "draft", label: "Draft" },
+    { value: "active", label: "Active" },
+    { value: "paused", label: "Paused" },
+    { value: "completed", label: "Completed" },
+  ];
+
+  const textCell = (v: string | null, fallback = "—") => {
+    const t = (v ?? "").trim() || fallback;
+    return (
+      <Tooltip title={t}>
+        <span className="table-text-ellipsis">{t}</span>
+      </Tooltip>
+    );
+  };
+
   const columns = [
     {
       title: "Sr. No.",
@@ -152,17 +187,45 @@ export default function SalesCampaignsPage() {
       title: "Campaign ID",
       dataIndex: "campaign_id",
       key: "campaign_id",
-      width: 200,
-      ellipsis: true,
-      render: (v: string) => (
-        <Tooltip title={v || "—"}>
-          <span style={{ fontFamily: "monospace", fontSize: 12, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {v || "—"}
+      width: 240,
+      fixed: "left" as const,
+      render: (val: string | undefined, r: CampaignRow) => {
+        const id = (val ?? r?.campaign_id ?? "").toString().trim();
+        const copy = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          if (!id) return;
+          navigator.clipboard.writeText(id).then(
+            () => message.success("Campaign ID copied"),
+            () => message.error("Failed to copy")
+          );
+        };
+        return (
+          <span className="campaign-id-cell" style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, width: "100%" }}>
+            <span style={{ fontFamily: "monospace", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: "1 1 0" }}>
+              {id || "—"}
+            </span>
+            <Tooltip title={id ? "Copy Campaign ID" : "No ID to copy"}>
+              <Button
+                type="text"
+                size="small"
+                icon={<CopyOutlined />}
+                onClick={copy}
+                disabled={!id}
+                style={{ flexShrink: 0, padding: "2px 6px" }}
+              />
+            </Tooltip>
           </span>
-        </Tooltip>
-      ),
+        );
+      },
     },
-    { title: "Client Name", dataIndex: "client_name", key: "client_name", width: 130, ellipsis: true, render: (v: string | null) => v || "—" },
+    {
+      title: "Client Name",
+      dataIndex: "client_name",
+      key: "client_name",
+      width: 130,
+      ellipsis: true,
+      render: (v: string | null) => textCell(v),
+    },
     {
       title: "Campaign Name",
       dataIndex: "name",
@@ -170,19 +233,45 @@ export default function SalesCampaignsPage() {
       width: 160,
       ellipsis: true,
       render: (val: string, r: CampaignRow) => (
-        <Link href={`/sales/campaigns/${r.id}`} style={{ fontWeight: 600 }}>
-          {val}
-        </Link>
+        <Tooltip title={val || "—"}>
+          <span className="table-text-ellipsis">
+            <Link href={`/sales/campaigns/${r.id}`} style={{ fontWeight: 600 }}>
+              {val}
+            </Link>
+          </span>
+        </Tooltip>
       ),
     },
-    { title: "Lead Type", dataIndex: "lead_type", key: "lead_type", width: 100, render: (v: string | null) => v || "—" },
-    { title: "Industry", dataIndex: "industry", key: "industry", width: 110, ellipsis: true, render: (v: string | null) => v || "—" },
-    { title: "Geography", dataIndex: "geography", key: "geography", width: 110, ellipsis: true, render: (v: string | null) => v || "—" },
+    {
+      title: "Lead Type",
+      dataIndex: "lead_type",
+      key: "lead_type",
+      width: 120,
+      ellipsis: true,
+      render: (v: string | null) => textCell(v),
+    },
+    {
+      title: "Industry",
+      dataIndex: "industry",
+      key: "industry",
+      width: 120,
+      ellipsis: true,
+      render: (v: string | null) => textCell(v),
+    },
+    {
+      title: "Geography",
+      dataIndex: "geography",
+      key: "geography",
+      width: 120,
+      ellipsis: true,
+      render: (v: string | null) => textCell(v),
+    },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 90,
+      width: 100,
+      ellipsis: true,
       render: (val: string) => {
         const colors: Record<string, string> = {
           draft: "default",
@@ -190,11 +279,23 @@ export default function SalesCampaignsPage() {
           paused: "orange",
           completed: "blue",
         };
-        return <Tag color={colors[val] ?? "default"}>{val}</Tag>;
+        const label = val ? val.charAt(0).toUpperCase() + val.slice(1).toLowerCase() : val;
+        return (
+          <span className="table-text-ellipsis">
+            <Tag color={colors[val] ?? "default"}>{label}</Tag>
+          </span>
+        );
       },
     },
     { title: "Total Leads", dataIndex: "total_leads", key: "total_leads", width: 100 },
-    { title: "Team Leader", dataIndex: "assigned_team_leader_name", key: "assigned_team_leader_name", width: 130, ellipsis: true, render: (v: string | null) => v || "—" },
+    {
+      title: "Team Leader",
+      dataIndex: "assigned_team_leader_name",
+      key: "assigned_team_leader_name",
+      width: 130,
+      ellipsis: true,
+      render: (v: string | null) => textCell(v),
+    },
     {
       title: "Start Date",
       dataIndex: "start_date",
@@ -220,9 +321,9 @@ export default function SalesCampaignsPage() {
       title: "Region",
       dataIndex: "region",
       key: "region",
-      width: 110,
+      width: 120,
       ellipsis: true,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null) => textCell(v),
     },
     {
       title: "Created",
@@ -235,8 +336,9 @@ export default function SalesCampaignsPage() {
       title: "Actions",
       key: "actions",
       width: 200,
+      fixed: "right" as const,
       render: (_: unknown, r: CampaignRow) => (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="table-actions-cell" style={{ display: "flex", gap: 8, flexWrap: "nowrap" }}>
           <Tooltip title="View">
             <Button
               type="text"
@@ -359,15 +461,39 @@ export default function SalesCampaignsPage() {
             </Col>
           </Row>
 
-          <Card title="All Campaigns" bodyStyle={{ overflowX: "auto" }}>
+          <Card
+            title="All Campaigns"
+            bodyStyle={{ overflowX: "auto" }}
+            extra={
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <Input
+                  placeholder="Search campaigns..."
+                  prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  allowClear
+                  style={{ width: 220 }}
+                />
+                <Select
+                  placeholder="Filter by status"
+                  allowClear
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={statusOptions}
+                  style={{ width: 160 }}
+                />
+              </div>
+            }
+          >
             <Table
               className="table-single-line"
               columns={columns}
-              dataSource={campaigns}
+              dataSource={filteredCampaigns}
               rowKey="id"
-              scroll={{ x: 1900 }}
+              scroll={{ x: 1920 }}
               pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} campaigns` }}
-              locale={{ emptyText: "No campaigns yet. Create your first campaign." }}
+              locale={{ emptyText: searchText || statusFilter ? "No campaigns match the filter." : "No campaigns yet. Create your first campaign." }}
+              tableLayout="fixed"
             />
           </Card>
         </>
