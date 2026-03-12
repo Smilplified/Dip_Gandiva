@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { ConfigProvider } from "antd";
 import { AuthProvider } from "@/context/AuthContext";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const theme = {
@@ -38,7 +39,9 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <AntdRegistry>
           <ConfigProvider theme={theme}>
+            <Providers>
             <AuthProvider>{children}</AuthProvider>
+          </Providers>
           </ConfigProvider>
         </AntdRegistry>
       </body>
