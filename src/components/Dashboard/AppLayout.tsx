@@ -22,6 +22,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          marginLeft: 92,
         }}
       >
         <DashboardHeader />

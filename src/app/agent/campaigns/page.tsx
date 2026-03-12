@@ -2,17 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Card,
-  Table,
-  Tag,
-  Button,
-  Input,
-  Select,
-  Spin,
-  Typography,
-  message,
-} from "antd";
+import { Table, Tag, Button, Input, Select, Spin, Typography, message } from "antd";
 import {
   EyeOutlined,
   SearchOutlined,
@@ -190,7 +180,7 @@ export default function AgentCampaignsPage() {
         v ? new Date(v).toLocaleDateString() : "—",
     },
     {
-      title: "My Leads",
+      title: "Leads",
       dataIndex: "total_leads",
       key: "total_leads",
       width: 100,
@@ -230,81 +220,92 @@ export default function AgentCampaignsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div style={{ marginBottom: 24 }}>
-          <Typography.Title level={3} style={{ margin: 0 }}>
-            My Campaigns
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            All campaigns assigned to you.
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div style={{ marginBottom: 24 }}>
+        <Typography.Title level={3} style={{ margin: 0 }}>
+          Campaigns
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          All campaigns assigned to you.
+        </Typography.Text>
+      </div>
+
+      {isOffline && (
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text type="danger" style={{ fontSize: 14 }}>
+            You appear to be offline. Check your internet connection. Data will
+            reload automatically once you are back online, or{" "}
+            <Button type="link" onClick={fetchData} style={{ padding: 0 }}>
+              click here to retry now
+            </Button>
+            .
           </Typography.Text>
         </div>
+      )}
 
-        {isOffline && (
-          <div style={{ marginBottom: 16 }}>
-            <Typography.Text type="danger" style={{ fontSize: 14 }}>
-              You appear to be offline. Check your internet connection. Data will reload
-              automatically once you are back online, or{" "}
-              <Button type="link" onClick={fetchData} style={{ padding: 0 }}>
-                click here to retry now
-              </Button>
-              .
-            </Typography.Text>
-          </div>
-        )}
-
-        <Card
-          bodyStyle={{ overflowX: "auto" }}
-          extra={
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <Input
-                prefix={<SearchOutlined />}
-                placeholder="Search campaigns..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                allowClear
-                style={{ width: 240 }}
-              />
-              <Select
-                placeholder="Filter by status"
-                allowClear
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={[
-                  { value: "draft", label: "Draft" },
-                  { value: "active", label: "Active" },
-                  { value: "paused", label: "Paused" },
-                  { value: "completed", label: "Completed" },
-                ]}
-                style={{ width: 160 }}
-              />
-            </div>
-          }
-        >
-          <Table
-            className="table-single-line"
-            columns={columns}
-            dataSource={filtered}
-            rowKey="id"
-            loading={loading}
-            scroll={{ x: 1100 }}
-            pagination={{
-              current: page,
-              pageSize,
-              showSizeChanger: true,
-              showTotal: (t) => `Total ${t} campaigns`,
-              onChange: (p, ps) => {
-                setPage(p);
-                setPageSize(ps);
-              },
-            }}
-            locale={{
-              emptyText: "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
-            }}
+      <div
+        style={{
+          marginBottom: 16,
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 220, maxWidth: 320 }}>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Search campaigns..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            allowClear
           />
-        </Card>
+        </div>
+        <Select
+          placeholder="Filter by status"
+          allowClear
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: "draft", label: "Draft" },
+            { value: "active", label: "Active" },
+            { value: "paused", label: "Paused" },
+            { value: "completed", label: "Completed" },
+          ]}
+          style={{ width: 180 }}
+        />
       </div>
+
+      <Table
+        className="table-single-line"
+        columns={columns}
+        dataSource={filtered}
+        rowKey="id"
+        loading={loading}
+        scroll={{ x: 1100 }}
+        pagination={{
+          current: page,
+          pageSize,
+          showSizeChanger: true,
+          showTotal: (t) => `Total ${t} campaigns`,
+          onChange: (p, ps) => {
+            setPage(p);
+            setPageSize(ps);
+          },
+        }}
+        locale={{
+          emptyText:
+            "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
+        }}
+      />
     </div>
   );
 }

@@ -43,8 +43,8 @@ export default function SalesHeader() {
   return (
     <Header
       style={{
-        height: 64,
-        minHeight: 64,
+        height: 70,
+        minHeight: 70,
         padding: "0 24px",
         background: "#fff",
         display: "flex",

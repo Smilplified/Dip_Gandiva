@@ -22,6 +22,7 @@ export default function TLLayout({ children }: TLLayoutProps) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          marginLeft: 92,
         }}
       >
         <TLHeader />

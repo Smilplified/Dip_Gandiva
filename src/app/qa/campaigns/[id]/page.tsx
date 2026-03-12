@@ -364,7 +364,7 @@ export default function QACampaignDetailPage() {
   });
 
   return (
-    <div style={{ margin: "0 auto", maxWidth: 1400, padding: "0 24px 32px" }}>
+    <div style={{ width: "100%", padding: "0 24px 32px" }}>
       <div style={{ marginBottom: 20 }}>
         <Link
           href="/qa/campaigns"

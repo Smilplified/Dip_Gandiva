@@ -22,6 +22,7 @@ export default function QALayout({ children }: QALayoutProps) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          marginLeft: 92,
         }}
       >
         <QAHeader />

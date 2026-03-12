@@ -193,7 +193,7 @@ export default function AgentDashboardPage() {
       bgColor: "#f6ffed",
     },
     {
-      title: "My Leads",
+      title: "Leads",
       value: String(totals.totalLeads),
       change: `${totals.activeLeads} active`,
       trend: "neutral" as const,
@@ -489,7 +489,7 @@ export default function AgentDashboardPage() {
                     { title: "Status", dataIndex: "status", key: "status", width: 100, render: (v: string) => <Tag color={statusColors[v] ?? "default"}>{v ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() : v}</Tag> },
                     { title: "Start Date", dataIndex: "start_date", key: "start_date", width: 110, render: (v: string | null) => v ? new Date(v).toLocaleDateString() : "—" },
                     { title: "End Date", dataIndex: "end_date", key: "end_date", width: 110, render: (v: string | null) => v ? new Date(v).toLocaleDateString() : "—" },
-                    { title: "My Leads", dataIndex: "total_leads", key: "total_leads", width: 100 },
+                    { title: "Leads", dataIndex: "total_leads", key: "total_leads", width: 100 },
                     { title: "Active", dataIndex: "active_leads", key: "active_leads", width: 90 },
                     {
                       title: "",

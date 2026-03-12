@@ -143,7 +143,7 @@ export default function AgentMyLeadsPage() {
             <ArrowLeftOutlined /> Back to Dashboard
           </Link>
           <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
-            My Leads
+            Leads
           </Typography.Title>
           <Typography.Text type="secondary">
             All leads assigned to you across campaigns.
@@ -164,7 +164,7 @@ export default function AgentMyLeadsPage() {
         )}
 
         <Card
-          title={`My Leads (${filteredLeads.length}${filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})`}
+          title={`Leads (${filteredLeads.length}${filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})`}
           extra={
             <Button
               icon={<DownloadOutlined />}

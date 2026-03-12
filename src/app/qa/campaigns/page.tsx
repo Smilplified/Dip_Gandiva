@@ -150,7 +150,7 @@ export default function QACampaignsPage() {
   };
 
   return (
-    <div style={{ margin: "0 auto", maxWidth: 1400, padding: "0 24px 32px" }}>
+    <div style={{ width: "100%", padding: "0 24px 32px" }}>
       <div style={{ marginBottom: 24 }}>
         <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
           Campaigns

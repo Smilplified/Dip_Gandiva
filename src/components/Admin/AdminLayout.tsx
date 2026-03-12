@@ -22,6 +22,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          marginLeft: 92,
         }}
       >
         <AdminHeader />

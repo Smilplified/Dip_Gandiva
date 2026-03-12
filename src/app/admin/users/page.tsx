@@ -344,7 +344,7 @@ export default function AdminUsersPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
           <div>
             <Typography.Title level={4} style={{ margin: 0 }}>
-              User Management
+              Users
             </Typography.Title>
             <Typography.Text type="secondary">
               Manage users in {profile?.organization_id ? "your organization" : "organization"}

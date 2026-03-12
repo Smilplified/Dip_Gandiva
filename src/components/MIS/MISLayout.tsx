@@ -22,6 +22,7 @@ export default function MISLayout({ children }: MISLayoutProps) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          marginLeft: 92,
         }}
       >
         <MISHeader />

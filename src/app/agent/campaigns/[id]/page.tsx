@@ -22,6 +22,7 @@ import {
   Select,
   Modal,
   Upload,
+  Dropdown,
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -388,6 +389,23 @@ export default function AgentCampaignDetailPage() {
     }
   };
 
+  const handleDownloadAgentFormat = () => {
+    const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
+    downloadAgentExcel(
+      toExport,
+      `agent-leads-format-${
+        campaign?.name?.replace(/\s+/g, "-") ?? "export"
+      }-${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
+    if (toExport.length === 0) {
+      message.success("Downloaded blank Excel format template");
+    } else {
+      message.success(
+        `Downloaded Excel format with ${toExport.length} leads`
+      );
+    }
+  };
+
   if (!isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -623,7 +641,7 @@ export default function AgentCampaignDetailPage() {
       </Row>
 
       <Card
-        title={`My Leads (${filteredLeads.length}${
+        title={`Leads (${filteredLeads.length}${
           filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""
         })`}
         extra={
@@ -650,16 +668,33 @@ export default function AgentCampaignDetailPage() {
             >
               Export
             </Button>
-            <Button
-              icon={<UploadOutlined />}
-              onClick={() => {
-                setUploadModalOpen(true);
-                setUploadFile(null);
-                setParsedLeads([]);
+            <Dropdown
+              trigger={["hover"]}
+              menu={{
+                items: [
+                  {
+                    key: "download-format",
+                    label: "Download Excel format",
+                  },
+                ],
+                onClick: ({ key }) => {
+                  if (key === "download-format") {
+                    handleDownloadAgentFormat();
+                  }
+                },
               }}
             >
-              Upload
-            </Button>
+              <Button
+                icon={<UploadOutlined />}
+                onClick={() => {
+                  setUploadModalOpen(true);
+                  setUploadFile(null);
+                  setParsedLeads([]);
+                }}
+              >
+                Upload
+              </Button>
+            </Dropdown>
           </Space>
         }
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}

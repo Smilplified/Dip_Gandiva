@@ -1,6 +1,6 @@
 "use client";
 
-import { Layout, Menu } from "antd";
+import { Layout, Tooltip } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
@@ -17,7 +17,7 @@ const { Sider } = Layout;
 const tlMenuItems = [
   { key: "/tl/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/tl/dashboard" },
   { key: "/tl/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/tl/campaigns" },
-  { key: "/tl/users", icon: <UserOutlined />, label: "User Management", href: "/tl/users" },
+  { key: "/tl/users", icon: <UserOutlined />, label: "Users", href: "/tl/users" },
   { key: "/tl/team", icon: <TeamOutlined />, label: "Team", href: "/tl/team" },
   { key: "/tl/pipeline", icon: <FilterOutlined />, label: "Pipeline", href: "/tl/pipeline" },
 ];
@@ -25,65 +25,120 @@ const tlMenuItems = [
 export default function TLSidebar() {
   const pathname = usePathname();
 
+  const selectedKey =
+    pathname?.startsWith("/tl/campaigns")
+      ? "/tl/campaigns"
+      : pathname?.startsWith("/tl/users")
+      ? "/tl/users"
+      : pathname?.startsWith("/tl/team")
+      ? "/tl/team"
+      : pathname?.startsWith("/tl/pipeline")
+      ? "/tl/pipeline"
+      : "/tl/dashboard";
+
   return (
     <Sider
-      width={240}
+      width={92}
       theme="light"
-      breakpoint="lg"
-      collapsedWidth="0"
       style={{
-        minHeight: "100vh",
-        height: "100vh",
-        overflow: "hidden",
+        position: "fixed",
+        insetInlineStart: 0,
+        top: 0,
+        bottom: 0,
+        zIndex: 100,
         display: "flex",
         flexDirection: "column",
+        alignItems: "center",
+        padding: "16px 0",
         background: "#ffffff",
         borderRight: "1px solid rgba(0,0,0,0.06)",
       }}
     >
       <div
         style={{
-          height: 64,
-          minHeight: 64,
-          flexShrink: 0,
+          height: 52,
           display: "flex",
           alignItems: "center",
-          padding: "0 24px",
-          borderBottom: "1px solid rgba(0,0,0,0.06)",
-          background: "#ffffff",
+          justifyContent: "center",
+          marginBottom: 8,
         }}
       >
         <Image
-          src="/projects/gandiva_logo.png"
-          alt="Gandiv CRM"
-          width={190}
-          height={48}
-          style={{ objectFit: "contain", maxWidth: "100%" }}
+          src="/projects/sidebar_logo.png"
+          alt="Gandiv"
+          width={50}
+          height={50}
+          style={{ objectFit: "contain" }}
           priority
         />
       </div>
       <div
         style={{
           flex: 1,
-          overflowY: "auto",
-          overflowX: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          paddingTop: 16,
+          gap: 20,
         }}
       >
-        <Menu
-          theme="light"
-          selectedKeys={[
-            pathname?.startsWith("/tl/campaigns") ? "/tl/campaigns" :
-            pathname?.startsWith("/tl/users") ? "/tl/users" :
-            (pathname || "/tl/dashboard"),
-          ]}
-          mode="inline"
-          items={tlMenuItems.map((item) => ({
-            key: item.key,
-            icon: item.icon,
-            label: <Link href={item.href}>{item.label}</Link>,
-          }))}
-          style={{ marginTop: 16, border: "none", background: "#ffffff" }}
-        />
+        {tlMenuItems.map((item) => {
+          const active = selectedKey === item.key;
+          return (
+            <Tooltip key={item.key} title={item.label} placement="right">
+              <Link
+                href={item.href}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  width: 64,
+                  padding: "6px 4px",
+                  borderRadius: 14,
+                  textDecoration: "none",
+                  background: active ? "#eff6ff" : "transparent",
+                  transition: "all 0.18s ease",
+                  cursor: "pointer",
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "999px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: active ? "#1677ff" : "#f3f4f6",
+                    color: active ? "#ffffff" : "#4b5563",
+                    boxShadow: active
+                      ? "0 6px 14px rgba(22,119,255,0.28)"
+                      : "none",
+                    fontSize: 20,
+                  }}
+                >
+                  {item.icon}
+                </div>
+                <span
+                  style={{
+                    fontSize: 11,
+                    lineHeight: 1.1,
+                    color: active ? "#0f172a" : "#6b7280",
+                    fontWeight: active ? 600 : 500,
+                    textAlign: "center",
+                    maxWidth: "100%",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            </Tooltip>
+          );
+        })}
       </div>
     </Sider>
   );

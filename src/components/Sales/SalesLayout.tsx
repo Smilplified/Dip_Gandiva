@@ -22,6 +22,7 @@ export default function SalesLayout({ children }: SalesLayoutProps) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          marginLeft: 92,
         }}
       >
         <SalesHeader />

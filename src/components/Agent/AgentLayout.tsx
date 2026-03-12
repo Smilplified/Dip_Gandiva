@@ -22,6 +22,7 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          marginLeft: 92,
         }}
       >
         <AgentHeader />
