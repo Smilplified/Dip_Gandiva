@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 export type QaStats = {
   totalCampaigns: number;
@@ -13,7 +14,8 @@ export type QaStats = {
 export type CampaignWithLeads = {
   id: string;
   name?: string;
-  leads: { qa_status: string | null }[];
+  status?: string | null;
+  leads: { qa_status: string | null; status?: string | null }[];
 };
 
 async function fetchQADashboard(): Promise<{ campaigns: CampaignWithLeads[] }> {
@@ -23,11 +25,39 @@ async function fetchQADashboard(): Promise<{ campaigns: CampaignWithLeads[] }> {
   return data;
 }
 
-async function fetchTLStats(): Promise<QaStats> {
-  const res = await fetch("/api/tl/campaigns/stats", { credentials: "include" });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to load stats");
-  return data;
+function buildStats(campaigns: CampaignWithLeads[]): QaStats {
+  const totalCampaigns = campaigns.length;
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status === "active").length;
+  const totalLeads = campaigns.reduce(
+    (sum, campaign) => sum + (campaign.leads?.length ?? 0),
+    0
+  );
+  const totalInterested = campaigns.reduce(
+    (sum, campaign) =>
+      sum +
+      (campaign.leads?.filter((lead) => {
+        const status = String(lead.status ?? "").trim().toLowerCase();
+        return ["interested", "followup", "closed_won"].includes(status);
+      }).length ?? 0),
+    0
+  );
+  const reviewedLeads = campaigns.reduce(
+    (sum, campaign) =>
+      sum +
+      (campaign.leads?.filter((lead) => {
+        const qaStatus = String(lead.qa_status ?? "").trim().toLowerCase();
+        return qaStatus.length > 0;
+      }).length ?? 0),
+    0
+  );
+
+  return {
+    totalCampaigns,
+    activeCampaigns,
+    totalLeads,
+    totalInterested,
+    conversionPct: totalLeads > 0 ? Math.round((reviewedLeads / totalLeads) * 100) : 0,
+  };
 }
 
 export function useQADashboard(enabled: boolean) {
@@ -38,22 +68,27 @@ export function useQADashboard(enabled: boolean) {
     staleTime: 60 * 1000,
   });
 
-  const statsQuery = useQuery({
-    queryKey: ["qa", "dashboard", "stats"],
-    queryFn: fetchTLStats,
-    enabled,
-    staleTime: 60 * 1000,
-  });
+  const statsData = useMemo(
+    () => buildStats(dashboardQuery.data?.campaigns ?? []),
+    [dashboardQuery.data?.campaigns]
+  );
 
   return {
     dashboard: dashboardQuery,
-    stats: statsQuery,
-    isLoading: dashboardQuery.isLoading || statsQuery.isLoading,
-    isFetching: dashboardQuery.isFetching || statsQuery.isFetching,
-    error: dashboardQuery.error ?? statsQuery.error,
+    stats: {
+      data: statsData,
+      isLoading: dashboardQuery.isLoading,
+      isFetching: dashboardQuery.isFetching,
+      isSuccess: dashboardQuery.isSuccess,
+      isError: dashboardQuery.isError,
+      error: dashboardQuery.error,
+      refetch: dashboardQuery.refetch,
+    },
+    isLoading: dashboardQuery.isLoading,
+    isFetching: dashboardQuery.isFetching,
+    error: dashboardQuery.error,
     refetch: () => {
       dashboardQuery.refetch();
-      statsQuery.refetch();
     },
   };
 }

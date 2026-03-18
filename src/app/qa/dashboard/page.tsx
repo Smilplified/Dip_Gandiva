@@ -37,6 +37,7 @@ import {
   QAReviewTrendChart,
   QACampaignReviewChart,
 } from "@/components/Dashboard/QADashboardCharts";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 const { Text, Title } = Typography;
 
@@ -71,10 +72,11 @@ const activityFeedData = [
 ];
 
 export default function QADashboardPage() {
-  const { hasRole, isInitialized, profile } = useAuth();
+  const { profile } = useAuth();
+  const { status } = useRoleGuard(["qa", "admin"]);
   const [isOffline, setIsOffline] = useState(false);
 
-  const enabled = Boolean(isInitialized && (hasRole("qa") || hasRole("admin")));
+  const enabled = status === "authorized";
   const { dashboard, stats, refetch } = useQADashboard(enabled);
 
   useEffect(() => {
@@ -213,7 +215,7 @@ export default function QADashboardPage() {
     [campaigns]
   );
 
-  if (!isInitialized) {
+  if (status === "loading") {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="animate-pulse rounded-lg bg-slate-200 h-8 w-48" />
@@ -221,8 +223,12 @@ export default function QADashboardPage() {
     );
   }
 
-  if (!hasRole("qa") && !hasRole("admin")) {
-    return null;
+  if (status === "redirecting") {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="animate-pulse rounded-lg bg-slate-200 h-8 w-48" />
+      </div>
+    );
   }
 
   const statsReady = Boolean(statsData);

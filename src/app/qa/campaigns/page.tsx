@@ -16,7 +16,7 @@ import {
   message,
 } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
-import { useAuth } from "@/context/AuthContext";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 
 type Campaign = {
   id: string;
@@ -55,7 +55,7 @@ type Campaign = {
 
 export default function QACampaignsPage() {
   const router = useRouter();
-  const { hasRole, isInitialized } = useAuth();
+  const { status } = useRoleGuard(["qa", "admin"]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -84,10 +84,9 @@ export default function QACampaignsPage() {
   }, []);
 
   useEffect(() => {
-    if (!isInitialized) return;
-    if (!hasRole("qa") && !hasRole("admin")) return;
+    if (status !== "authorized") return;
     fetchDashboard();
-  }, [isInitialized, hasRole, fetchDashboard]);
+  }, [fetchDashboard, status]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -129,7 +128,7 @@ export default function QACampaignsPage() {
     return result;
   }, [campaigns, search, statusFilter]);
 
-  if (!isInitialized) {
+  if (status === "loading") {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <Spin size="large" />
@@ -137,8 +136,12 @@ export default function QACampaignsPage() {
     );
   }
 
-  if (!hasRole("qa") && !hasRole("admin")) {
-    return null;
+  if (status === "redirecting") {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
   }
 
   const list = filteredCampaigns();
