@@ -50,6 +50,30 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function normalizeRoleName(roleName: string | null | undefined) {
+  return roleName?.toLowerCase().replace(/\s+/g, "_") ?? "";
+}
+
+function toUserRoles(roleRows: { role_id: string; roles: { name: string } | null }[]): UserRole[] {
+  return roleRows
+    .filter((r) => r.roles?.name)
+    .map((r) => ({
+      id: r.role_id,
+      name: r.roles!.name,
+      role_name: r.roles!.name,
+      description: null,
+    }));
+}
+
+function getRedirectPathForRoles(roles: UserRole[]) {
+  for (const role of roles) {
+    const name = normalizeRoleName(role.role_name);
+    const path = ROLE_ROUTES[name] ?? ROLE_ROUTES[role.role_name?.toLowerCase() ?? ""];
+    if (path) return path;
+  }
+  return "/agent/dashboard";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -60,6 +84,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const supabase = createClient();
+
+  const fetchProfileAndRolesFromApi = useCallback(async () => {
+    const response = await fetch("/api/profile", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Profile API returned ${response.status}`);
+    }
+
+    const data = await response.json() as {
+      profile?: (UserProfile & { roles?: string[] }) | null;
+    };
+
+    const profile = (data.profile ?? null) as UserProfile | null;
+    const roles = (data.profile?.roles ?? [])
+      .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
+      .map((name) => ({
+        id: name,
+        name,
+        role_name: name,
+        description: null,
+      }));
+
+    return { profile, roles };
+  }, []);
 
   const fetchProfileAndRoles = useCallback(async (userId: string) => {
     const [profileRes, rolesRes] = await Promise.all([
@@ -75,17 +128,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const profile = profileRes.error ? null : profileRes.data;
     const roleRows = (rolesRes.data ?? []) as { role_id: string; roles: { name: string } | null }[];
-    const roles: UserRole[] = roleRows
-      .filter((r) => r.roles?.name)
-      .map((r) => ({
-        id: r.role_id,
-        name: r.roles!.name,
-        role_name: r.roles!.name,
-        description: null,
-      }));
+    const roles = toUserRoles(roleRows);
+
+    if (rolesRes.error) {
+      console.warn("Direct role fetch failed, falling back to profile API:", rolesRes.error.message);
+    }
+
+    // In production, some users can authenticate successfully but the browser-side
+    // role join can still return empty because of RLS/permission differences.
+    // Fallback to the server profile API so role-based layouts still resolve.
+    if (rolesRes.error || roles.length === 0) {
+      try {
+        const apiData = await fetchProfileAndRolesFromApi();
+        if (apiData.roles.length > 0 || apiData.profile) {
+          return apiData;
+        }
+      } catch (err) {
+        console.warn("Profile API fallback failed:", err);
+      }
+    }
 
     return { profile, roles };
-  }, [supabase]);
+  }, [fetchProfileAndRolesFromApi, supabase]);
 
   const refreshProfile = useCallback(async () => {
     try {
@@ -131,18 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           markInitialized(null, null, []);
           return;
         }
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (!session?.user) {
-          markInitialized(null, null, []);
-          return;
-        }
-
-        const { profile, roles } = await fetchProfileAndRoles(session.user.id);
-        if (!mounted) return;
-        markInitialized(session.user, profile, roles);
+        await refreshProfile();
       } catch (err) {
         console.error("Auth init error:", err);
         if (!mounted) return;
@@ -246,17 +299,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   typeof navigator !== "undefined" ? navigator.userAgent : null,
               } as never)
           ).catch(() => {});
-          let redirectPath = "/agent/dashboard";
-          for (const role of roles) {
-            const name = role.role_name?.toLowerCase().replace(/\s+/g, "_");
-            const path =
-              ROLE_ROUTES[name] ??
-              ROLE_ROUTES[role.role_name?.toLowerCase() ?? ""];
-            if (path) {
-              redirectPath = path;
-              break;
-            }
-          }
+          const redirectPath = getRedirectPathForRoles(roles);
           // Persist last successful redirect target for faster future logins
           if (typeof window !== "undefined") {
             try {
@@ -320,9 +363,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasRole = useCallback(
     (roleName: string) => {
-      const normalized = roleName.toLowerCase().replace(/\s+/g, "_");
+      const normalized = normalizeRoleName(roleName);
       return state.roles.some((r) => {
-        const rNormalized = r.role_name?.toLowerCase().replace(/\s+/g, "_");
+        const rNormalized = normalizeRoleName(r.role_name);
         return rNormalized === normalized || r.role_name?.toLowerCase() === roleName.toLowerCase();
       });
     },
@@ -330,12 +373,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getDefaultRedirect = useCallback(() => {
-    for (const role of state.roles) {
-      const name = role.role_name?.toLowerCase().replace(/\s+/g, "_");
-      const path = ROLE_ROUTES[name] ?? ROLE_ROUTES[role.role_name?.toLowerCase() ?? ""];
-      if (path) return path;
-    }
-    return "/agent/dashboard"; // fallback
+    return getRedirectPathForRoles(state.roles);
   }, [state.roles]);
 
   const value: AuthContextValue = {
