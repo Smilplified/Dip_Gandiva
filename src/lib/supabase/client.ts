@@ -27,6 +27,12 @@ export function createClient() {
 
   // Use default cookie-based storage so middleware can read session on redirect.
   // Do NOT pass storage: localStorage - that breaks SSR/middleware auth.
-  client = createBrowserClient<Database>(supabaseUrl, supabaseKey);
+  client = createBrowserClient<Database>(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
   return client;
 }

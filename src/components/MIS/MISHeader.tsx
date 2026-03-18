@@ -34,8 +34,9 @@ export default function MISHeader() {
     }
     if (key === "logout") {
       setSigningOut(true);
-      signOut();
-      window.location.href = "/login";
+      void signOut().catch(() => {
+        setSigningOut(false);
+      });
     }
   };
 

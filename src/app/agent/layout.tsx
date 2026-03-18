@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import AgentLayout from "@/components/Agent/AgentLayout";
-import { useAuth } from "@/context/AuthContext";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { Spin } from "antd";
 
 export default function AgentRootLayout({
@@ -11,23 +9,15 @@ export default function AgentRootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const { hasRole, isInitialized } = useAuth();
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    if (!hasRole("agent")) {
-      router.replace("/login");
-    }
-  }, [isInitialized, hasRole, router]);
+  const { status } = useRoleGuard(["agent"]);
 
   return (
     <AgentLayout>
-      {!isInitialized ? (
+      {status === "loading" ? (
         <div className="min-h-[60vh] flex items-center justify-center">
           <Spin size="large" />
         </div>
-      ) : !hasRole("agent") ? (
+      ) : status === "redirecting" ? (
         <div className="min-h-[60vh] flex items-center justify-center">
           <Spin size="large" tip="Redirecting..." />
         </div>

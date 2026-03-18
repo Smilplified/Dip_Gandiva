@@ -6,20 +6,31 @@ export const dynamic = "force-dynamic";
 
 export async function POST() {
   const supabase = await createClient();
-  
-  // Sign out from Supabase
-  await supabase.auth.signOut();
-  
-  // Explicitly clear all Supabase auth cookies
+
+  try {
+    await supabase.auth.signOut();
+  } catch (err) {
+    console.error("Server signOut failed:", err);
+  }
+
   const cookieStore = await cookies();
-  const allCookies = cookieStore.getAll();
-  
-  // Clear all Supabase auth-related cookies
-  allCookies.forEach((cookie) => {
-    if (cookie.name.includes('sb-') || cookie.name.includes('supabase')) {
-      cookieStore.delete(cookie.name);
+  const response = NextResponse.json(
+    { success: true },
+    {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
     }
-  });
-  
-  return NextResponse.json({ success: true });
+  );
+
+  for (const cookie of cookieStore.getAll()) {
+    if (cookie.name.includes("sb-") || cookie.name.includes("supabase")) {
+      response.cookies.set(cookie.name, "", {
+        path: "/",
+        maxAge: 0,
+      });
+    }
+  }
+
+  return response;
 }

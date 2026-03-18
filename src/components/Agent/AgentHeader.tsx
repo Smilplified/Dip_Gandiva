@@ -32,8 +32,9 @@ export default function AgentHeader() {
     }
     if (key === "logout") {
       setSigningOut(true);
-      signOut(); // Fire-and-forget; redirect immediately for instant UX
-      window.location.href = "/login";
+      void signOut().catch(() => {
+        setSigningOut(false);
+      });
     }
   };
 

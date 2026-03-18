@@ -1,24 +1,23 @@
 "use client";
 
-import { Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { AUTH_STORAGE_KEYS } from "@/context/AuthContext";
+import { AUTH_STORAGE_KEYS, resolvePostLoginRedirect } from "@/lib/auth/config";
+import { authDebug } from "@/lib/auth/debug";
 import { MailOutlined, LockOutlined, EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 
-function getRedirectPath(redirect?: string): string {
-  if (redirect) return redirect;
-  if (typeof window !== "undefined") {
-    try {
-      const stored = window.localStorage.getItem(AUTH_STORAGE_KEYS.lastRedirectPath);
-      if (stored) return stored;
-    } catch {
-      // ignore
-    }
+function getStoredRedirectPath() {
+  if (typeof window === "undefined") {
+    return null;
   }
-  return "/agent/dashboard";
+
+  try {
+    return window.localStorage.getItem(AUTH_STORAGE_KEYS.lastRedirectPath);
+  } catch {
+    return null;
+  }
 }
 
 function LoginContent() {
@@ -29,35 +28,29 @@ function LoginContent() {
   const [submitting, setSubmitting] = useState(false);
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? undefined;
-  const { isInitialized, user, signIn } = useAuth();
-  const fastRedirectDone = useRef(false);
+  const { isInitialized, user, roles, getDefaultRedirect, signIn } = useAuth();
+  const redirectDone = useRef(false);
+
+  const getResolvedRedirectPath = useCallback(
+    () =>
+      resolvePostLoginRedirect({
+        requestedPath: redirect,
+        storedPath: getStoredRedirectPath(),
+        roleNames: roles.map((role) => role.role_name),
+      }) || getDefaultRedirect(),
+    [getDefaultRedirect, redirect, roles]
+  );
 
   const doRedirect = (path: string) => {
-    fastRedirectDone.current = true;
-    // Use hard navigation to guarantee we leave the login page and avoid stuck state
+    redirectDone.current = true;
+    authDebug("login", "redirecting after auth", { path });
     window.location.assign(path);
   };
 
-  // Fast path: if session exists, redirect immediately without waiting for AuthContext profile/roles
   useEffect(() => {
-    if (fastRedirectDone.current) return;
-    try {
-      const supabase = createClient();
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          doRedirect(getRedirectPath(redirect));
-        }
-      }).catch(() => {});
-    } catch {
-      // Supabase not configured or getSession failed; let AuthContext handle init
-    }
-  }, [redirect]);
-
-  // Fallback: when AuthContext finishes init and user is set, redirect if fast path didn't run
-  useEffect(() => {
-    if (!isInitialized || !user || fastRedirectDone.current) return;
-    doRedirect(getRedirectPath(redirect));
-  }, [isInitialized, user, redirect]);
+    if (!isInitialized || !user || redirectDone.current) return;
+    doRedirect(getResolvedRedirectPath());
+  }, [getResolvedRedirectPath, isInitialized, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +75,10 @@ function LoginContent() {
 
     try {
       const result = await Promise.race([
-        signIn(email.trim(), password).then((r) => ({ error: r.error, redirectPath: r.redirectPath })),
+        signIn(email.trim(), password, redirect).then((r) => ({
+          error: r.error,
+          redirectPath: r.redirectPath,
+        })),
         timeoutPromise,
       ]);
 
@@ -92,7 +88,7 @@ function LoginContent() {
         return;
       }
 
-      const path = result.redirectPath ?? getRedirectPath(redirect);
+      const path = result.redirectPath ?? getResolvedRedirectPath();
       doRedirect(path);
     } catch (err) {
       setError((err as Error).message || "Something went wrong while signing in.");

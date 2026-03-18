@@ -22,8 +22,9 @@ export default function DashboardHeader() {
   const handleMenuClick = ({ key }: { key: string }) => {
     if (key === "logout") {
       setSigningOut(true);
-      signOut(); // Fire-and-forget; redirect immediately for instant UX
-      window.location.href = "/login";
+      void signOut().catch(() => {
+        setSigningOut(false);
+      });
     }
   };
 

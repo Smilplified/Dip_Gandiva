@@ -1,20 +1,28 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { authDebug } from "@/lib/auth/debug";
+import { buildLoginRedirectPath } from "@/lib/auth/config";
 
 export default function HomePage() {
-  const { isInitialized, user, getDefaultRedirect } = useAuth();
+  const router = useRouter();
+  const { isInitialized, isLoading, user, getDefaultRedirect } = useAuth();
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || isLoading) return;
     if (!user) {
-      window.location.href = "/login";
+      const loginPath = buildLoginRedirectPath("/");
+      authDebug("home", "redirect anonymous user", { loginPath });
+      router.replace(loginPath);
       return;
     }
+
     const path = getDefaultRedirect();
-    window.location.href = path;
-  }, [isInitialized, user, getDefaultRedirect]);
+    authDebug("home", "redirect authenticated user", { path });
+    router.replace(path);
+  }, [getDefaultRedirect, isInitialized, isLoading, router, user]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">

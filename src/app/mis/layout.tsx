@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import MISLayout from "@/components/MIS/MISLayout";
-import { useAuth } from "@/context/AuthContext";
+import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { Spin } from "antd";
 
 export default function MISRootLayout({
@@ -11,23 +9,15 @@ export default function MISRootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const { hasRole, isInitialized, isLoading } = useAuth();
-
-  useEffect(() => {
-    if (!isInitialized || isLoading) return;
-    if (!hasRole("mis") && !hasRole("admin")) {
-      router.replace("/login");
-    }
-  }, [isInitialized, isLoading, hasRole, router]);
+  const { status } = useRoleGuard(["mis", "admin"]);
 
   return (
     <MISLayout>
-      {!isInitialized || isLoading ? (
+      {status === "loading" ? (
         <div className="min-h-[60vh] flex items-center justify-center">
           <Spin size="large" />
         </div>
-      ) : !hasRole("mis") && !hasRole("admin") ? (
+      ) : status === "redirecting" ? (
         <div className="min-h-[60vh] flex items-center justify-center">
           <Spin size="large" tip="Redirecting..." />
         </div>
