@@ -14,18 +14,21 @@ import {
   ScheduleOutlined,
   BarChartOutlined,
   SettingOutlined,
+  DashboardOutlined,
 } from "@ant-design/icons";
+import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
 
-const menuItems = [
-  { key: "/sales", icon: <DollarOutlined />, label: "Dashboard", href: "/sales" },
+type MenuItem = { key: string; icon: React.ReactNode; label: string; href: string };
+
+const commonMenuItems: MenuItem[] = [
   { key: "/sales/clients", icon: <TeamOutlined />, label: "Clients", href: "/sales/clients" },
   { key: "/sales/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/sales/campaigns" },
   { key: "/sales/leads", icon: <UserOutlined />, label: "Leads", href: "/sales/leads" },
   { key: "/sales/contacts", icon: <TeamOutlined />, label: "Contacts", href: "/sales/contacts" },
   { key: "/sales/accounts", icon: <ApartmentOutlined />, label: "Accounts", href: "/sales/accounts" },
-  { key: "/sales/deals", icon: <ProjectOutlined />, label: "Deals ", href: "/sales/deals" },
+  { key: "/sales/deals", icon: <ProjectOutlined />, label: "Deals", href: "/sales/deals" },
   { key: "/sales/activities", icon: <ScheduleOutlined />, label: "Activities", href: "/sales/activities" },
   { key: "/sales/tasks", icon: <ScheduleOutlined />, label: "Follow-ups", href: "/sales/tasks" },
   { key: "/sales/reports", icon: <BarChartOutlined />, label: "Reports", href: "/sales/reports" },
@@ -34,17 +37,21 @@ const menuItems = [
 
 export default function SalesSidebar() {
   const pathname = usePathname();
+  const { hasRole } = useAuth();
+
+  const isSalesManager = hasRole("sales_manager") || hasRole("admin");
+  const dashboardItem: MenuItem = isSalesManager
+    ? { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales/dashboard" }
+    : { key: "/sales", icon: <DollarOutlined />, label: "Dashboard", href: "/sales" };
+
+  const menuItems: MenuItem[] = [dashboardItem, ...commonMenuItems];
 
   const selectedKey = (() => {
-    if (!pathname) return "/sales";
-    // Prefer the most specific (longest) matching prefix, so /sales/leads wins over /sales
+    if (!pathname) return dashboardItem.key;
     const match = menuItems
-      .filter(
-        (item) =>
-          pathname === item.key || pathname.startsWith(item.key + "/")
-      )
+      .filter((item) => pathname === item.key || pathname.startsWith(item.key + "/"))
       .sort((a, b) => b.key.length - a.key.length)[0];
-    return match?.key ?? "/sales";
+    return match?.key ?? dashboardItem.key;
   })();
 
   return (
@@ -131,9 +138,7 @@ export default function SalesSidebar() {
                     justifyContent: "center",
                     background: active ? "#1677ff" : "#f3f4f6",
                     color: active ? "#ffffff" : "#4b5563",
-                    boxShadow: active
-                      ? "0 6px 14px rgba(22,119,255,0.28)"
-                      : "none",
+                    boxShadow: active ? "0 6px 14px rgba(22,119,255,0.28)" : "none",
                     fontSize: 20,
                   }}
                 >

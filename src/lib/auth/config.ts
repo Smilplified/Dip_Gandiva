@@ -19,7 +19,7 @@ export const ROLE_DEFAULT_REDIRECT: Record<string, string> = {
   agent: "/agent/dashboard",
   team_leader: "/tl/dashboard",
   tl: "/tl/dashboard",
-  sales_manager: "/sales",
+  sales_manager: "/sales/dashboard",
   sales: "/sales",
   qa: "/qa/dashboard",
   mis: "/mis/dashboard",

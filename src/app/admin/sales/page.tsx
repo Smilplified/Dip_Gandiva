@@ -12,9 +12,7 @@ export default function AdminSalesPage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    const canViewSalesAdmin =
-      hasRole("admin") || hasRole("sales_manager");
-    if (!canViewSalesAdmin) {
+    if (!hasRole("admin")) {
       router.replace("/login");
     }
   }, [isInitialized, hasRole, router]);
@@ -27,13 +25,9 @@ export default function AdminSalesPage() {
     );
   }
 
-  const canViewSalesAdmin =
-    hasRole("admin") || hasRole("sales_manager");
-
-  if (!canViewSalesAdmin) {
+  if (!hasRole("admin")) {
     return null;
   }
 
   return <SalesDashboard />;
 }
-

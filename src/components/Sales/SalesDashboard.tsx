@@ -28,45 +28,6 @@ import {
 
 const { Text, Title } = Typography;
 
-const statsData = [
-  {
-    title: "Total Leads",
-    value: "1,247",
-    change: "+12.3%",
-    trend: "up",
-    icon: <UserAddOutlined />,
-    color: "#1890ff",
-    bgColor: "#e6f4ff",
-  },
-  {
-    title: "Today's Leads",
-    value: "42",
-    change: "+8",
-    trend: "up",
-    icon: <PhoneOutlined />,
-    color: "#52c41a",
-    bgColor: "#f6ffed",
-  },
-  {
-    title: "Follow-ups",
-    value: "87",
-    change: "18 pending",
-    trend: "neutral",
-    icon: <ClockCircleOutlined />,
-    color: "#faad14",
-    bgColor: "#fffbe6",
-  },
-  {
-    title: "Conversion",
-    value: "34.2%",
-    change: "+4.1%",
-    trend: "up",
-    icon: <TrophyOutlined />,
-    color: "#722ed1",
-    bgColor: "#f9f0ff",
-  },
-];
-
 const leadTrendData = [
   { date: "Mon", leads: 28, conversions: 9 },
   { date: "Tue", leads: 35, conversions: 12 },
@@ -168,6 +129,45 @@ const statusColors: Record<string, string> = {
 };
 
 export default function SalesDashboard() {
+  const statsData = [
+    {
+      title: "Total Leads",
+      value: "1,247",
+      change: "+12.3%",
+      trend: "up",
+      icon: <UserAddOutlined />,
+      color: "#1890ff",
+      bgColor: "#e6f4ff",
+    },
+    {
+      title: "Today's Leads",
+      value: "42",
+      change: "+8",
+      trend: "up",
+      icon: <PhoneOutlined />,
+      color: "#52c41a",
+      bgColor: "#f6ffed",
+    },
+    {
+      title: "Follow-ups",
+      value: "87",
+      change: "18 pending",
+      trend: "neutral",
+      icon: <ClockCircleOutlined />,
+      color: "#faad14",
+      bgColor: "#fffbe6",
+    },
+    {
+      title: "Conversion",
+      value: "34.2%",
+      change: "+4.1%",
+      trend: "up",
+      icon: <TrophyOutlined />,
+      color: "#722ed1",
+      bgColor: "#f9f0ff",
+    },
+  ];
+
   const leadsColumns = [
     {
       title: "Lead",
