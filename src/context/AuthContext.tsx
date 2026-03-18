@@ -11,6 +11,7 @@ export const ROLE_ROUTES: Record<string, string> = {
   agent: "/agent/dashboard",
   team_leader: "/tl/dashboard",
   tl: "/tl/dashboard", // alias
+  sales_manager: "/sales",
   sales: "/sales",
   qa: "/qa/dashboard",
   mis: "/mis/dashboard",

@@ -8,7 +8,8 @@ const DEFAULT_ROLES = [
   { name: "Admin", description: "Full access to organization settings and Users" },
   { name: "Team Leader", description: "Manage campaigns and agents within the team" },
   { name: "Agent", description: "Assigned to campaigns and leads" },
-  { name: "Sales", description: "Sales team member" },
+  { name: "Sales Manager", description: "Sales manager – can view entire sales team performance" },
+  { name: "Sales", description: "Sales team member – can view only their own performance" },
   { name: "QA", description: "Quality assurance team member" },
   { name: "MIS", description: "Management Information System - reporting and data management" },
 ];

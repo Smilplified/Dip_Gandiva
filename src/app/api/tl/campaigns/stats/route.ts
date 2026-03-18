@@ -30,12 +30,20 @@ export async function GET() {
         .eq("organization_id", orgId),
       supabase
         .from("leads")
-        .select("id, status")
+        .select("id, status, campaign_id, created_at")
         .eq("organization_id", orgId),
     ]);
 
-    const campaigns = (campaignsRes.data ?? []) as { id: string; status: string }[];
-    const leads = (leadsRes.data ?? []) as { id: string; status: string }[];
+    type CampaignRow = { id: string; status: string };
+    type LeadRow = {
+      id: string;
+      status: string;
+      campaign_id: string | null;
+      created_at: string;
+    };
+
+    const campaigns = (campaignsRes.data ?? []) as CampaignRow[];
+    const leads = (leadsRes.data ?? []) as LeadRow[];
 
     const totalCampaigns = campaigns.length;
     const activeCampaigns = campaigns.filter((c) => c.status === "active").length;
@@ -46,12 +54,64 @@ export async function GET() {
     const closedWon = leads.filter((l) => l.status === "closed_won").length;
     const conversionPct = totalLeads > 0 ? Math.round((closedWon / totalLeads) * 100) : 0;
 
+    // Build last 7 days lead trend for active campaigns (day-wise)
+    const today = new Date();
+    const dayBuckets: { key: string; label: string }[] = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const d = new Date(today);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      const label = d.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+      });
+      dayBuckets.push({ key, label });
+    }
+
+    const campaignById: Record<string, CampaignRow> = {};
+    campaigns.forEach((c) => {
+      campaignById[c.id] = c;
+    });
+
+    const trendMap: Record<
+      string,
+      { date: string; leads: number; campaignIds: Set<string> }
+    > = {};
+    dayBuckets.forEach(({ key, label }) => {
+      trendMap[key] = { date: label, leads: 0, campaignIds: new Set<string>() };
+    });
+
+    leads.forEach((l) => {
+      const createdKey = l.created_at?.slice(0, 10);
+      if (!createdKey || !(createdKey in trendMap)) return;
+
+      const campaignId = l.campaign_id ?? "";
+      if (!campaignId) return;
+      const campaign = campaignById[campaignId];
+      if (!campaign || campaign.status !== "active") return;
+
+      const bucket = trendMap[createdKey];
+      bucket.leads += 1;
+      bucket.campaignIds.add(campaignId);
+    });
+
+    const leadTrend = dayBuckets.map(({ key }) => {
+      const bucket = trendMap[key];
+      return {
+        date: bucket.date,
+        leads: bucket.leads,
+        campaigns: bucket.campaignIds.size,
+      };
+    });
+
     return NextResponse.json({
       totalCampaigns,
       activeCampaigns,
       totalLeads,
       totalInterested,
       conversionPct,
+      leadTrend,
     });
   } catch (err) {
     console.error("Fetch campaign stats error:", err);

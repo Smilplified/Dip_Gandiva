@@ -8,6 +8,7 @@ export type TLStats = {
   totalLeads: number;
   totalInterested: number;
   conversionPct: number;
+  leadTrend?: { date: string; leads: number; campaigns: number }[];
 };
 
 export type TLCampaignRow = {
@@ -16,6 +17,7 @@ export type TLCampaignRow = {
   status: string;
   total_leads: number;
   total_agents: number;
+  qualified_leads: number;
 };
 
 async function fetchTLStats(): Promise<TLStats> {

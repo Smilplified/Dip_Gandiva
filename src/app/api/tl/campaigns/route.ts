@@ -65,9 +65,9 @@ export async function GET() {
       campaignIds.length > 0
         ? supabase
             .from("leads")
-            .select("campaign_id, status")
+            .select("campaign_id, qa_status")
             .in("campaign_id", campaignIds)
-        : { data: [] as { campaign_id: string; status: string }[] },
+        : { data: [] as { campaign_id: string; qa_status: string | null }[] },
       campaignIds.length > 0
         ? supabase
             .from("campaign_assignments")
@@ -77,12 +77,17 @@ export async function GET() {
         : { data: [] as { campaign_id: string }[] },
     ]);
 
-    const leadsByCampaign: Record<string, { total: number; interested: number }> = {};
+    const leadsByCampaign: Record<string, { total: number; qualified: number }> = {};
     (leadsRes.data ?? []).forEach((l) => {
-      if (!leadsByCampaign[l.campaign_id]) leadsByCampaign[l.campaign_id] = { total: 0, interested: 0 };
+      if (!leadsByCampaign[l.campaign_id]) {
+        leadsByCampaign[l.campaign_id] = { total: 0, qualified: 0 };
+      }
       leadsByCampaign[l.campaign_id].total += 1;
-      if (l.status === "interested" || l.status === "followup" || l.status === "closed_won")
-        leadsByCampaign[l.campaign_id].interested += 1;
+
+      const qa = String(l.qa_status ?? "").trim().toLowerCase();
+      if (qa === "qualified") {
+        leadsByCampaign[l.campaign_id].qualified += 1;
+      }
     });
 
     const agentsByCampaign: Record<string, number> = {};
@@ -97,11 +102,13 @@ export async function GET() {
         : c.created_by
           ? userNames[c.created_by] || null
           : null;
+      const leadCounts = leadsByCampaign[c.id];
       return {
         ...c,
         assigned_team_leader_name: tlName,
-        total_leads: leadsByCampaign[c.id]?.total ?? 0,
+        total_leads: leadCounts?.total ?? 0,
         total_agents: agentsByCampaign[c.id] ?? 0,
+        qualified_leads: leadCounts?.qualified ?? 0,
       };
     });
 

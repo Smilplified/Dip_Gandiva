@@ -18,7 +18,7 @@ import {
 const { Sider } = Layout;
 
 const menuItems = [
-  { key: "/", icon: <DashboardOutlined />, label: "Dashboard", href: "/" },
+  { key: "/sales", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales" },
   { key: "/contacts", icon: <TeamOutlined />, label: "Contacts", href: "/contacts" },
   { key: "/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/campaigns" },
   { key: "/deals", icon: <ProjectOutlined />, label: "Deals", href: "/deals" },
@@ -64,8 +64,8 @@ export default function Sidebar() {
         <Image
           src="/projects/sidebar_logo.png"
           alt="Gandiv"
-          width={50}
-          height={50}
+          width={60}
+          height={60}
           style={{ objectFit: "contain" }}
           priority
         />

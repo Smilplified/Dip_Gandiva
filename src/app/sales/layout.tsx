@@ -16,7 +16,7 @@ export default function SalesRootLayout({
 
   useEffect(() => {
     if (!isInitialized || isLoading) return;
-    if (!hasRole("sales") && !hasRole("admin")) {
+    if (!hasRole("sales") && !hasRole("sales_manager") && !hasRole("admin")) {
       router.replace("/login");
     }
   }, [isInitialized, isLoading, hasRole, router]);
@@ -30,7 +30,7 @@ export default function SalesRootLayout({
     );
   }
 
-  if (!hasRole("sales") && !hasRole("admin")) {
+  if (!hasRole("sales") && !hasRole("sales_manager") && !hasRole("admin")) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
         <Spin size="large" />

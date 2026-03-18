@@ -27,27 +27,41 @@ const cardStyle = {
   cursor: "pointer" as const,
 };
 
-const leadTrendSample = [
-  { date: "Mon", leads: 28, conversions: 9 },
-  { date: "Tue", leads: 35, conversions: 12 },
-  { date: "Wed", leads: 42, conversions: 15 },
-  { date: "Thu", leads: 38, conversions: 13 },
-  { date: "Fri", leads: 45, conversions: 18 },
-  { date: "Sat", leads: 32, conversions: 10 },
-  { date: "Sun", leads: 29, conversions: 8 },
+type TLLeadTrendPoint = {
+  date: string;
+  leads: number;
+  campaigns: number;
+};
+
+const leadTrendSample: TLLeadTrendPoint[] = [
+  { date: "Mon", leads: 28, campaigns: 3 },
+  { date: "Tue", leads: 35, campaigns: 4 },
+  { date: "Wed", leads: 42, campaigns: 4 },
+  { date: "Thu", leads: 38, campaigns: 5 },
+  { date: "Fri", leads: 45, campaigns: 6 },
+  { date: "Sat", leads: 32, campaigns: 4 },
+  { date: "Sun", leads: 29, campaigns: 3 },
 ];
 
-const campaignPerformanceSample = [
-  { name: "Campaign A", leads: 142, converted: 48 },
-  { name: "Campaign B", leads: 98, converted: 32 },
-  { name: "Campaign C", leads: 76, converted: 28 },
-  { name: "Campaign D", leads: 65, converted: 18 },
-  { name: "Campaign E", leads: 54, converted: 15 },
+type CampaignPerformancePoint = {
+  name: string;
+  leads: number;
+  qualified: number;
+};
+
+const campaignPerformanceSample: CampaignPerformancePoint[] = [
+  { name: "Campaign A", leads: 142, qualified: 48 },
+  { name: "Campaign B", leads: 98, qualified: 32 },
+  { name: "Campaign C", leads: 76, qualified: 28 },
+  { name: "Campaign D", leads: 65, qualified: 18 },
+  { name: "Campaign E", leads: 54, qualified: 15 },
 ];
 
 type PieSlice = { name: string; value: number; color: string };
 
-export function TLLeadTrendChart() {
+export function TLLeadTrendChart({ data }: { data?: TLLeadTrendPoint[] }) {
+  const chartData = data && data.length > 0 ? data : leadTrendSample;
+
   return (
     <Card
       title={<Text strong style={{ fontSize: 16 }}>Lead Trend</Text>}
@@ -56,7 +70,7 @@ export function TLLeadTrendChart() {
       styles={{ body: { padding: "24px 24px 16px" } }}
     >
       <ResponsiveContainer width="100%" height={320}>
-        <AreaChart data={leadTrendSample} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+        <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
           <defs>
             <linearGradient id="colorTLLeads" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
@@ -72,15 +86,33 @@ export function TLLeadTrendChart() {
           <YAxis stroke="#8c8c8c" fontSize={11} />
           <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
           <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-          <Area type="monotone" dataKey="leads" stroke="#1890ff" strokeWidth={2} fillOpacity={1} fill="url(#colorTLLeads)" name="Leads" />
-          <Area type="monotone" dataKey="conversions" stroke="#52c41a" strokeWidth={2} fillOpacity={1} fill="url(#colorTLConv)" name="Conversions" />
+          <Area
+            type="monotone"
+            dataKey="leads"
+            stroke="#1890ff"
+            strokeWidth={2}
+            fillOpacity={1}
+            fill="url(#colorTLLeads)"
+            name="Leads"
+          />
+          <Area
+            type="monotone"
+            dataKey="campaigns"
+            stroke="#52c41a"
+            strokeWidth={2}
+            fillOpacity={1}
+            fill="url(#colorTLConv)"
+            name="Campaigns"
+          />
         </AreaChart>
       </ResponsiveContainer>
     </Card>
   );
 }
 
-export function TLCampaignPerformanceChart() {
+export function TLCampaignPerformanceChart({ data }: { data?: CampaignPerformancePoint[] }) {
+  const chartData = data && data.length > 0 ? data : campaignPerformanceSample;
+
   return (
     <Card
       title={<Text strong style={{ fontSize: 16 }}>Campaign Performance</Text>}
@@ -89,14 +121,14 @@ export function TLCampaignPerformanceChart() {
       styles={{ body: { padding: "24px 24px 16px" } }}
     >
       <ResponsiveContainer width="100%" height={320}>
-        <BarChart data={campaignPerformanceSample} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+        <BarChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
           <XAxis dataKey="name" stroke="#8c8c8c" fontSize={11} />
           <YAxis stroke="#8c8c8c" fontSize={11} />
           <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
           <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="leads" fill="#1890ff" radius={[8, 8, 0, 0]} name="Leads" />
-          <Bar dataKey="converted" fill="#52c41a" radius={[8, 8, 0, 0]} name="Converted" />
+          <Bar dataKey="qualified" fill="#52c41a" radius={[8, 8, 0, 0]} name="Qualified" />
         </BarChart>
       </ResponsiveContainer>
     </Card>

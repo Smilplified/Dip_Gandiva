@@ -8,7 +8,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
   "/admin": ["admin"],
   "/agent": ["agent"],
   "/tl": ["team_leader", "tl"],
-  "/sales": ["sales", "admin"],
+  "/sales": ["sales", "sales_manager", "admin"],
   "/qa": ["qa", "admin"],
 };
 
@@ -18,6 +18,7 @@ const ROLE_DASHBOARD: Record<string, string> = {
   agent: "/agent/dashboard",
   team_leader: "/tl/dashboard",
   tl: "/tl/dashboard",
+  sales_manager: "/sales",
   sales: "/sales",
   qa: "/qa/dashboard",
 };

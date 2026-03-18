@@ -4,24 +4,48 @@ import { Layout, Tooltip } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { DollarOutlined, FundProjectionScreenOutlined, TeamOutlined } from "@ant-design/icons";
+import {
+  DollarOutlined,
+  FundProjectionScreenOutlined,
+  TeamOutlined,
+  UserOutlined,
+  ApartmentOutlined,
+  ProjectOutlined,
+  ScheduleOutlined,
+  BarChartOutlined,
+  SettingOutlined,
+} from "@ant-design/icons";
 
 const { Sider } = Layout;
 
 const menuItems = [
-  { key: "/sales", icon: <DollarOutlined />, label: "Sales", href: "/sales" },
+  { key: "/sales", icon: <DollarOutlined />, label: "Dashboard", href: "/sales" },
   { key: "/sales/clients", icon: <TeamOutlined />, label: "Clients", href: "/sales/clients" },
   { key: "/sales/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/sales/campaigns" },
+  { key: "/sales/leads", icon: <UserOutlined />, label: "Leads", href: "/sales/leads" },
+  { key: "/sales/contacts", icon: <TeamOutlined />, label: "Contacts", href: "/sales/contacts" },
+  { key: "/sales/accounts", icon: <ApartmentOutlined />, label: "Accounts", href: "/sales/accounts" },
+  { key: "/sales/deals", icon: <ProjectOutlined />, label: "Deals ", href: "/sales/deals" },
+  { key: "/sales/activities", icon: <ScheduleOutlined />, label: "Activities", href: "/sales/activities" },
+  { key: "/sales/tasks", icon: <ScheduleOutlined />, label: "Follow-ups", href: "/sales/tasks" },
+  { key: "/sales/reports", icon: <BarChartOutlined />, label: "Reports", href: "/sales/reports" },
+  { key: "/sales/settings", icon: <SettingOutlined />, label: "Settings", href: "/sales/settings" },
 ];
 
 export default function SalesSidebar() {
   const pathname = usePathname();
 
-  const selectedKey = pathname?.startsWith("/sales/campaigns")
-    ? "/sales/campaigns"
-    : pathname?.startsWith("/sales/clients")
-    ? "/sales/clients"
-    : "/sales";
+  const selectedKey = (() => {
+    if (!pathname) return "/sales";
+    // Prefer the most specific (longest) matching prefix, so /sales/leads wins over /sales
+    const match = menuItems
+      .filter(
+        (item) =>
+          pathname === item.key || pathname.startsWith(item.key + "/")
+      )
+      .sort((a, b) => b.key.length - a.key.length)[0];
+    return match?.key ?? "/sales";
+  })();
 
   return (
     <Sider
@@ -39,6 +63,7 @@ export default function SalesSidebar() {
         padding: "16px 0",
         background: "#ffffff",
         borderRight: "1px solid rgba(0,0,0,0.06)",
+        overflow: "hidden",
       }}
     >
       <div
@@ -68,6 +93,11 @@ export default function SalesSidebar() {
           justifyContent: "flex-start",
           paddingTop: 16,
           gap: 20,
+          paddingBottom: 16,
+          overflowY: "auto",
+          overflowX: "hidden",
+          maxHeight: "calc(100vh - 52px - 32px)",
+          scrollbarWidth: "thin",
         }}
       >
         {menuItems.map((item) => {

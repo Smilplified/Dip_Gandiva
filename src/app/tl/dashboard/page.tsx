@@ -162,6 +162,24 @@ export default function TeamLeaderDashboardPage() {
     return list.slice(0, 5);
   }, [campaigns.data?.campaigns]);
 
+  const campaignPerformanceData = useMemo(() => {
+    const list = campaigns.data?.campaigns ?? [];
+    if (list.length === 0) return [];
+
+    return [...list]
+      .sort((a, b) => (b.total_leads ?? 0) - (a.total_leads ?? 0))
+      .slice(0, 5)
+      .map((c) => {
+        const shortName =
+          c.name.length > 16 ? `${c.name.slice(0, 15)}…` : c.name;
+        return {
+          name: shortName,
+          leads: c.total_leads ?? 0,
+          qualified: c.qualified_leads ?? 0,
+        };
+      });
+  }, [campaigns.data?.campaigns]);
+
   const campaignStatusPie = useMemo(() => {
     const s = statsData;
     const total = s?.totalCampaigns ?? 0;
@@ -259,10 +277,10 @@ export default function TeamLeaderDashboardPage() {
 
       <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
         <Col xs={24} xl={8}>
-          <TLLeadTrendChart />
+          <TLLeadTrendChart data={statsData?.leadTrend ?? []} />
         </Col>
         <Col xs={24} xl={8}>
-          <TLCampaignPerformanceChart />
+          <TLCampaignPerformanceChart data={campaignPerformanceData} />
         </Col>
         <Col xs={24} xl={8}>
           <TLCampaignStatusPieChart data={campaignStatusPie} />
