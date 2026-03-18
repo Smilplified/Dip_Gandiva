@@ -196,15 +196,7 @@ export default function AgentDashboardPage() {
     return result;
   }, [campaignList, searchText, statusFilter]);
 
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-pulse rounded-lg bg-slate-200 h-8 w-48" />
-      </div>
-    );
-  }
-
-  if (!hasRole("agent")) {
+  if (!isInitialized || !hasRole("agent")) {
     return null;
   }
 

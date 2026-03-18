@@ -114,6 +114,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const syncRequestRef = useRef(0);
 
+  // Tracks the currently authenticated user's ID so event handlers can detect
+  // whether an incoming auth event is for the same user (background token refresh /
+  // cross-tab session sync) vs. a genuine new sign-in that requires a full re-sync.
+  const currentUserIdRef = useRef<string | null>(null);
+
   const fetchProfileAndRolesFromApi = useCallback(async () => {
     const response = await fetch("/api/profile", {
       method: "GET",
@@ -202,13 +207,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       options?: { silent?: boolean }
     ) => {
       const requestId = ++syncRequestRef.current;
-      // silent=true keeps the existing UI visible during background refreshes
-      // (e.g. coming back online) so the dashboard doesn't flash a loading spinner.
+
+      // silent=true: keeps the existing UI visible during background refreshes so the
+      // dashboard never flashes a loading spinner (e.g. online-recovery, USER_UPDATED).
       if (!options?.silent) {
         setState((current) => ({ ...current, isLoading: true }));
       }
+
       authDebug("provider", `sync start: ${source}`, {
         requestId,
+        silent: Boolean(options?.silent),
         preferredUserId: preferred?.user?.id ?? preferred?.session?.user?.id ?? null,
       });
 
@@ -227,6 +235,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return null;
           }
 
+          currentUserIdRef.current = null;
           setState({
             user: null,
             session: null,
@@ -244,6 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return null;
         }
 
+        currentUserIdRef.current = user.id;
         setState({
           user,
           session,
@@ -270,21 +280,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           requestId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setState({
-          user: null,
-          session: null,
-          profile: null,
-          roles: [],
-          isLoading: false,
-          isInitialized: true,
+
+        // If already authenticated, preserve the existing session on transient errors
+        // (e.g. network flap). Clearing state here would log the user out on any
+        // temporary connectivity issue — which is unacceptable for a CRM dashboard.
+        setState((current) => {
+          if (current.isInitialized && current.user !== null) {
+            authDebug("provider", `sync error - preserving existing session: ${source}`, { requestId });
+            return { ...current, isLoading: false };
+          }
+          // Initial load failed — no session to preserve.
+          currentUserIdRef.current = null;
+          return {
+            user: null,
+            session: null,
+            profile: null,
+            roles: [],
+            isLoading: false,
+            isInitialized: true,
+          };
         });
-        return { user: null, session: null, profile: null, roles: [] as UserRole[] };
+
+        return null;
       }
     },
     [fetchProfileAndRoles, resolveSessionUser]
   );
 
   const refreshProfile = useCallback(async () => {
+    // Always silent — the user is already viewing the dashboard, no spinner needed.
     await syncAuthState("manual-refresh", undefined, { silent: true });
   }, [syncAuthState]);
 
@@ -347,9 +371,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authDebug("provider", `auth event: ${event}`, {
         hasSession: Boolean(session),
         userId: session?.user?.id ?? null,
+        currentUserId: currentUserIdRef.current,
       });
 
       if (event === "SIGNED_OUT") {
+        currentUserIdRef.current = null;
         setState({
           user: null,
           session: null,
@@ -362,13 +388,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (event === "INITIAL_SESSION") {
+        // Handled by init() above — skip to avoid a duplicate full sync on mount.
         return;
       }
 
       if (event === "TOKEN_REFRESHED") {
-        // Token refresh only updates the JWT — user identity and roles are unchanged.
-        // Update the session silently in state to avoid triggering a loading spinner
-        // (which previously caused the dashboard to flash "Loading..." on every tab switch).
+        // A token refresh only rotates the JWT — the user's identity and roles are
+        // unchanged. Patch the session silently so the dashboard never flashes a
+        // loading spinner when the browser refreshes the token (e.g. on tab switch).
+        authDebug("provider", "TOKEN_REFRESHED - silent session update", {
+          userId: session?.user?.id,
+        });
         setState((current) =>
           current.isInitialized
             ? { ...current, session, user: session?.user ?? current.user }
@@ -377,17 +407,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+      if (event === "SIGNED_IN") {
+        // If the same user is already authenticated (cross-tab token sync, bfcache
+        // page restore, or Supabase SDK re-emitting SIGNED_IN after TOKEN_REFRESHED),
+        // just patch the session silently — no loading spinner, no DB round-trip.
+        if (session?.user?.id && session.user.id === currentUserIdRef.current) {
+          authDebug("provider", "SIGNED_IN - same user, silent session update", {
+            userId: session.user.id,
+          });
+          setState((current) => ({
+            ...current,
+            session,
+            user: session.user ?? current.user,
+          }));
+          return;
+        }
+
+        // Different user or first sign-in — full sync with loading state.
+        authDebug("provider", "SIGNED_IN - new user, full sync", {
+          userId: session?.user?.id,
+        });
         await syncAuthState(`event:${event}`, {
           session,
           user: session?.user ?? null,
         });
+        return;
+      }
+
+      if (event === "USER_UPDATED") {
+        // User metadata changed. If it's the same user, re-fetch profile silently
+        // (no loading spinner). If somehow a different user, do a full sync.
+        const isSameUser = session?.user?.id === currentUserIdRef.current;
+        authDebug("provider", `USER_UPDATED - ${isSameUser ? "silent" : "full"} sync`, {
+          userId: session?.user?.id,
+        });
+        await syncAuthState(
+          `event:${event}`,
+          { session, user: session?.user ?? null },
+          { silent: isSameUser }
+        );
       }
     });
 
     // When the browser comes back online, proactively refresh the profile/session.
+    // Use silent mode so the dashboard stays visible during the background re-sync.
     const handleOnline = () => {
       if (!mounted) return;
+      authDebug("provider", "network online - silent background refresh");
       void refreshProfile().catch((err) => {
         console.error("Auth online refresh error:", err);
       });
@@ -500,6 +566,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Auth signOut error:", err);
     }
 
+    currentUserIdRef.current = null;
     setState({
       user: null,
       session: null,

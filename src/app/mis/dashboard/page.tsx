@@ -120,6 +120,10 @@ export default function MISDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
 
+  // Stable boolean — avoids re-triggering fetchData when the `hasRole` function
+  // reference is replaced (which happens on any roles state update, even silent ones).
+  const isMisAuthorized = isInitialized && (hasRole("mis") || hasRole("admin"));
+
   const fetchData = useCallback(async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       setIsOffline(true);
@@ -143,10 +147,9 @@ export default function MISDashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!isInitialized) return;
-    if (!hasRole("mis")) return;
+    if (!isMisAuthorized) return;
     fetchData();
-  }, [isInitialized, hasRole, fetchData]);
+  }, [isMisAuthorized, fetchData]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -282,15 +285,7 @@ export default function MISDashboardPage() {
     }
   };
 
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!hasRole("mis")) {
+  if (!isMisAuthorized) {
     return null;
   }
 

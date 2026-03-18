@@ -85,13 +85,7 @@ export default function TeamLeaderDashboardPage() {
   const enabled = Boolean(isInitialized && (hasRole("team_leader") || hasRole("tl")));
   const { stats, campaigns, refetch } = useTLDashboard(enabled);
 
-  useEffect(() => {
-    if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) {
-      router.replace("/login");
-      return;
-    }
-  }, [isInitialized, hasRole, router]);
+  // Auth guard is handled by the layout (useRoleGuard). No redirect needed here.
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -192,15 +186,7 @@ export default function TeamLeaderDashboardPage() {
     ].filter((d) => d.value > 0);
   }, [statsData]);
 
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-pulse rounded-lg bg-slate-200 h-8 w-48" />
-      </div>
-    );
-  }
-
-  if (!hasRole("team_leader") && !hasRole("tl")) {
+  if (!isInitialized || (!hasRole("team_leader") && !hasRole("tl"))) {
     return null;
   }
 

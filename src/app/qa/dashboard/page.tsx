@@ -215,20 +215,8 @@ export default function QADashboardPage() {
     [campaigns]
   );
 
-  if (status === "loading") {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-pulse rounded-lg bg-slate-200 h-8 w-48" />
-      </div>
-    );
-  }
-
-  if (status === "redirecting") {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-pulse rounded-lg bg-slate-200 h-8 w-48" />
-      </div>
-    );
+  if (status !== "authorized") {
+    return null;
   }
 
   const statsReady = Boolean(statsData);

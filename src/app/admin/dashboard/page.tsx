@@ -30,45 +30,6 @@ import {
 
 const { Text, Title } = Typography;
 
-const statsData = [
-  {
-    title: "Total Users",
-    value: "248",
-    change: "+18 this month",
-    trend: "up",
-    icon: <UserOutlined />,
-    color: "#1890ff",
-    bgColor: "#e6f4ff",
-  },
-  {
-    title: "Active Roles",
-    value: "6",
-    change: "All assigned",
-    trend: "neutral",
-    icon: <SafetyCertificateOutlined />,
-    color: "#52c41a",
-    bgColor: "#f6ffed",
-  },
-  {
-    title: "Total Revenue",
-    value: "$284.5k",
-    change: "+12.5%",
-    trend: "up",
-    icon: <DollarOutlined />,
-    color: "#722ed1",
-    bgColor: "#f9f0ff",
-  },
-  {
-    title: "Conversion",
-    value: "34%",
-    change: "+2.1%",
-    trend: "up",
-    icon: <RiseOutlined />,
-    color: "#faad14",
-    bgColor: "#fffbe6",
-  },
-];
-
 const userGrowthData = [
   { month: "Jan", users: 180, logins: 420 },
   { month: "Feb", users: 195, logins: 485 },
@@ -133,6 +94,45 @@ const statCardHover = (e: React.MouseEvent<HTMLDivElement>, enter: boolean) => {
 };
 
 export default function AdminDashboardPage() {
+  const statsData = [
+    {
+      title: "Total Users",
+      value: "248",
+      change: "+18 this month",
+      trend: "up",
+      icon: <UserOutlined />,
+      color: "#1890ff",
+      bgColor: "#e6f4ff",
+    },
+    {
+      title: "Active Roles",
+      value: "6",
+      change: "All assigned",
+      trend: "neutral",
+      icon: <SafetyCertificateOutlined />,
+      color: "#52c41a",
+      bgColor: "#f6ffed",
+    },
+    {
+      title: "Total Revenue",
+      value: "$284.5k",
+      change: "+12.5%",
+      trend: "up",
+      icon: <DollarOutlined />,
+      color: "#722ed1",
+      bgColor: "#f9f0ff",
+    },
+    {
+      title: "Conversion",
+      value: "34%",
+      change: "+2.1%",
+      trend: "up",
+      icon: <RiseOutlined />,
+      color: "#faad14",
+      bgColor: "#fffbe6",
+    },
+  ];
+
   const userColumns = [
     {
       title: "User",

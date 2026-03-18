@@ -11,23 +11,24 @@ export default function SalesRootLayout({
 }) {
   const { status } = useRoleGuard(["sales", "sales_manager", "admin"]);
 
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
-        <Spin size="large" />
-        <Typography.Text type="secondary">Loading...</Typography.Text>
-      </div>
-    );
-  }
-
-  if (status === "redirecting") {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
-        <Spin size="large" />
-        <Typography.Text type="secondary">Redirecting to dashboard...</Typography.Text>
-      </div>
-    );
-  }
-
-  return <SalesLayout>{children}</SalesLayout>;
+  // Keep SalesLayout (sidebar + header) always mounted — same pattern as every other
+  // role layout — so a background loading state never unmounts and remounts the shell.
+  // Only the content area shows a spinner while auth is resolving.
+  return (
+    <SalesLayout>
+      {status === "loading" ? (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+          <Spin size="large" />
+          <Typography.Text type="secondary">Loading...</Typography.Text>
+        </div>
+      ) : status === "redirecting" ? (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
+          <Spin size="large" />
+          <Typography.Text type="secondary">Redirecting...</Typography.Text>
+        </div>
+      ) : (
+        children
+      )}
+    </SalesLayout>
+  );
 }
