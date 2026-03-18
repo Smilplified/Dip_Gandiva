@@ -21,7 +21,15 @@ export const AUTH_STORAGE_KEYS = {
   lastRedirectPath: "gandiv:lastRedirectPath",
 } as const;
 
-export type UserRole = { id: string; name: string; role_name: string; description?: string | null; organization_id: string };
+export type UserRole = {
+  id: string;
+  name: string;
+  role_name: string;
+  description?: string | null;
+  // Optional because some deployments may not allow selecting organization_id
+  // on the joined `roles` relation (RLS/column permissions).
+  organization_id?: string | null;
+};
 export type UserProfile = Tables<"users">;
 
 interface AuthState {
@@ -58,20 +66,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       supabase.from("users").select("*").eq("id", userId).single(),
       supabase
         .from("user_roles")
-        .select("role_id, roles(id, name, description, organization_id)")
+        // Keep this selection minimal and aligned with `middleware.ts`:
+        // only fetch the role name to avoid RLS/column-permission issues
+        // in production that can lead to an empty `roles` array.
+        .select("role_id, roles(name)")
         .eq("user_id", userId),
     ]);
 
     const profile = profileRes.error ? null : profileRes.data;
-    const roleRows = (rolesRes.data ?? []) as { roles: { id: string; name: string; description: string | null; organization_id: string } | null }[];
+    const roleRows = (rolesRes.data ?? []) as { role_id: string; roles: { name: string } | null }[];
     const roles: UserRole[] = roleRows
       .filter((r) => r.roles?.name)
       .map((r) => ({
-        id: r.roles!.id,
+        id: r.role_id,
         name: r.roles!.name,
         role_name: r.roles!.name,
-        description: r.roles!.description,
-        organization_id: r.roles!.organization_id,
+        description: null,
       }));
 
     return { profile, roles };
