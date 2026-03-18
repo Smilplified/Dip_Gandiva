@@ -68,6 +68,8 @@ type Stats = {
 export default function SalesCampaignsPage() {
   const router = useRouter();
   const { hasRole, isInitialized } = useAuth();
+  const hasSalesAccess =
+    hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
   const [stats, setStats] = useState<Stats | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,12 +96,12 @@ export default function SalesCampaignsPage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("sales") && !hasRole("admin")) {
+    if (!hasSalesAccess) {
       router.replace("/login");
       return;
     }
     fetchData();
-  }, [isInitialized, hasRole, router, fetchData]);
+  }, [isInitialized, hasSalesAccess, router, fetchData]);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
@@ -142,7 +144,7 @@ export default function SalesCampaignsPage() {
     );
   }
 
-  if (!hasRole("sales") && !hasRole("admin")) {
+  if (!hasSalesAccess) {
     return null;
   }
 

@@ -9,14 +9,16 @@ import { Spin } from "antd";
 export default function SalesProfilePage() {
   const router = useRouter();
   const { hasRole, isInitialized } = useAuth();
+  const hasSalesAccess =
+    hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("sales")) {
+    if (!hasSalesAccess) {
       router.replace("/login");
       return;
     }
-  }, [isInitialized, hasRole, router]);
+  }, [isInitialized, hasSalesAccess, router]);
 
   if (!isInitialized) {
     return (
@@ -26,7 +28,7 @@ export default function SalesProfilePage() {
     );
   }
 
-  if (!hasRole("sales")) {
+  if (!hasSalesAccess) {
     return null;
   }
 

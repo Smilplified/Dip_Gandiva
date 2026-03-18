@@ -41,6 +41,8 @@ export default function SalesCreateCampaignPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { hasRole, isInitialized } = useAuth();
+  const hasSalesAccess =
+    hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
   const [loading, setLoading] = useState(false);
   const [leadTypeOptions, setLeadTypeOptions] = useState(DEFAULT_LEAD_TYPES);
   const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
@@ -50,18 +52,18 @@ export default function SalesCreateCampaignPage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("sales") && !hasRole("admin")) return;
+    if (!hasSalesAccess) return;
     fetch("/api/sales/clients", { credentials: "include" })
       .then((res) => res.json())
       .then((data) => {
         if (data.clients) setClients(data.clients);
       })
       .catch(() => {});
-  }, [isInitialized, hasRole]);
+  }, [isInitialized, hasSalesAccess]);
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("sales") && !hasRole("admin")) return;
+    if (!hasSalesAccess) return;
     fetch("/api/tl/team-leaders", { credentials: "include" })
       .then((res) => res.json())
       .then((data) => {
@@ -72,15 +74,15 @@ export default function SalesCreateCampaignPage() {
         setTeamLeaders(data.team_leaders ?? []);
       })
       .catch(() => message.warning("Could not load Team Leaders"));
-  }, [isInitialized, hasRole]);
+  }, [isInitialized, hasSalesAccess]);
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("sales") && !hasRole("admin")) {
+    if (!hasSalesAccess) {
       router.replace("/login");
       return;
     }
-  }, [isInitialized, hasRole, router]);
+  }, [isInitialized, hasSalesAccess, router]);
 
   const clientNameFromUrl = searchParams?.get("client_name");
   useEffect(() => {

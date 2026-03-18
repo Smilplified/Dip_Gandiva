@@ -125,6 +125,8 @@ export default function SalesCampaignDetailPage() {
   const searchParams = useSearchParams();
   const id = params?.id as string | undefined;
   const { hasRole, isInitialized } = useAuth();
+  const hasSalesAccess =
+    hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [files, setFiles] = useState<CampaignFile[]>([]);
@@ -147,7 +149,7 @@ export default function SalesCampaignDetailPage() {
   const [form] = Form.useForm();
 
   useEffect(() => {
-    if (id && (hasRole("sales") || hasRole("admin"))) {
+    if (id && hasSalesAccess) {
       fetch("/api/tl/team-leaders", { credentials: "include" })
         .then((res) => res.json())
         .then((data) => {
@@ -156,7 +158,7 @@ export default function SalesCampaignDetailPage() {
         })
         .catch(() => {});
     }
-  }, [id, hasRole]);
+  }, [id, hasSalesAccess]);
 
   const fetchCampaign = useCallback(async (campaignId: string) => {
     setLoading(true);
@@ -181,12 +183,12 @@ export default function SalesCampaignDetailPage() {
       return;
     }
     if (!isInitialized) return;
-    if (!hasRole("sales") && !hasRole("admin")) {
+    if (!hasSalesAccess) {
       router.replace("/login");
       return;
     }
     fetchCampaign(id);
-  }, [id, isInitialized, hasRole, router, fetchCampaign]);
+  }, [id, isInitialized, hasSalesAccess, router, fetchCampaign]);
 
   useEffect(() => {
     if (searchParams.get("edit") === "1" && campaign) {

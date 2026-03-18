@@ -47,6 +47,8 @@ type ClientRow = {
 export default function SalesClientsPage() {
   const router = useRouter();
   const { hasRole, isInitialized } = useAuth();
+  const hasSalesAccess =
+    hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -68,12 +70,12 @@ export default function SalesClientsPage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("sales") && !hasRole("admin")) {
+    if (!hasSalesAccess) {
       router.replace("/login");
       return;
     }
     fetchData();
-  }, [isInitialized, hasRole, router, fetchData]);
+  }, [isInitialized, hasSalesAccess, router, fetchData]);
 
   const handleAddSuccess = () => {
     setDrawerOpen(false);
@@ -94,7 +96,7 @@ export default function SalesClientsPage() {
     );
   }
 
-  if (!hasRole("sales") && !hasRole("admin")) {
+  if (!hasSalesAccess) {
     return null;
   }
 
