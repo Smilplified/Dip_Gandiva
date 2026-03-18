@@ -198,10 +198,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       preferred?: {
         session?: Session | null;
         user?: User | null;
-      }
+      },
+      options?: { silent?: boolean }
     ) => {
       const requestId = ++syncRequestRef.current;
-      setState((current) => ({ ...current, isLoading: true }));
+      // silent=true keeps the existing UI visible during background refreshes
+      // (e.g. coming back online) so the dashboard doesn't flash a loading spinner.
+      if (!options?.silent) {
+        setState((current) => ({ ...current, isLoading: true }));
+      }
       authDebug("provider", `sync start: ${source}`, {
         requestId,
         preferredUserId: preferred?.user?.id ?? preferred?.session?.user?.id ?? null,
@@ -280,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const refreshProfile = useCallback(async () => {
-    await syncAuthState("manual-refresh");
+    await syncAuthState("manual-refresh", undefined, { silent: true });
   }, [syncAuthState]);
 
   const waitForSessionConfirmation = useCallback(
@@ -360,7 +365,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+      if (event === "TOKEN_REFRESHED") {
+        // Token refresh only updates the JWT — user identity and roles are unchanged.
+        // Update the session silently in state to avoid triggering a loading spinner
+        // (which previously caused the dashboard to flash "Loading..." on every tab switch).
+        setState((current) =>
+          current.isInitialized
+            ? { ...current, session, user: session?.user ?? current.user }
+            : current
+        );
+        return;
+      }
+
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
         await syncAuthState(`event:${event}`, {
           session,
           user: session?.user ?? null,
