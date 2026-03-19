@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateCampaignId } from "@/lib/campaigns";
+import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -203,6 +204,21 @@ export async function POST(request: Request) {
     }
 
     const row = campaign as { id: string; campaign_id: string } | null;
+
+    // Notify the assigned TL (if different from creator)
+    if (assigned_team_leader_id && assigned_team_leader_id !== user.id && row?.id) {
+      void createNotification({
+        title: "New Campaign Assigned",
+        message: `Campaign "${name.trim()}" has been created and assigned to you.`,
+        type: "campaign",
+        sender_id: user.id,
+        receiver_id: assigned_team_leader_id,
+        reference_type: "campaign",
+        reference_id: row.id,
+        organization_id: orgId,
+      });
+    }
+
     return NextResponse.json({
       campaign_id: row?.id,
       campaign_display_id: row?.campaign_id,

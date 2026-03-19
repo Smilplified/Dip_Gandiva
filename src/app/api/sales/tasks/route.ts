@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -217,7 +218,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ id: (data as { id: string }).id, success: true }, { status: 201 });
+    const taskId = (data as { id: string }).id;
+
+    // Notify assignee only when a manager/admin assigns a task to someone else
+    if (isManagerOrAdmin && assignee !== user!.id) {
+      void createNotification({
+        title: "New Task Assigned",
+        message: `You have been assigned a task: "${title.trim()}"`,
+        type: "task",
+        sender_id: user!.id,
+        receiver_id: assignee,
+        reference_type: "task",
+        reference_id: taskId,
+        organization_id: orgId,
+      });
+    }
+
+    return NextResponse.json({ id: taskId, success: true }, { status: 201 });
   } catch (err) {
     console.error("Tasks POST error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

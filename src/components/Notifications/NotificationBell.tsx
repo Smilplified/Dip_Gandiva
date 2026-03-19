@@ -1,0 +1,548 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Badge,
+  Drawer,
+  Button,
+  List,
+  Typography,
+  Space,
+  Empty,
+  Spin,
+  Divider,
+  notification as antNotification,
+} from "antd";
+import {
+  BellOutlined,
+  CheckOutlined,
+  RocketOutlined,
+  TeamOutlined,
+  FileTextOutlined,
+  UserAddOutlined,
+  BulbOutlined,
+} from "@ant-design/icons";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+
+const { Text } = Typography;
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type NotificationType = "campaign" | "task" | "lead" | "followup" | "system";
+export type NotificationReferenceType = "campaign" | "lead" | "task" | "deal";
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  sender_id: string | null;
+  reference_type: NotificationReferenceType | null;
+  reference_id: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function groupByDate(notifications: AppNotification[]): Record<string, AppNotification[]> {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = todayStart - 86_400_000;
+
+  const groups: Record<string, AppNotification[]> = {};
+
+  for (const n of notifications) {
+    const t = new Date(n.created_at).getTime();
+    const label =
+      t >= todayStart ? "Today"
+      : t >= yesterdayStart ? "Yesterday"
+      : "Earlier";
+
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(n);
+  }
+
+  return groups;
+}
+
+function notifIcon(type: NotificationType) {
+  const style = { fontSize: 16 };
+  switch (type) {
+    case "campaign":  return <RocketOutlined   style={{ ...style, color: "#1677ff" }} />;
+    case "task":      return <FileTextOutlined  style={{ ...style, color: "#fa8c16" }} />;
+    case "lead":      return <UserAddOutlined   style={{ ...style, color: "#52c41a" }} />;
+    case "followup":  return <TeamOutlined      style={{ ...style, color: "#722ed1" }} />;
+    default:          return <BulbOutlined      style={{ ...style, color: "#8c8c8c" }} />;
+  }
+}
+
+function resolveNavPath(
+  referenceType: NotificationReferenceType | null,
+  referenceId: string | null
+): string | null {
+  if (!referenceType || !referenceId) return null;
+  switch (referenceType) {
+    case "campaign": return `/tl/campaigns`;
+    case "lead":     return `/sales/leads`;
+    case "task":     return `/sales/tasks`;
+    case "deal":     return `/sales/deals`;
+    default:         return null;
+  }
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function NotificationBell() {
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const PAGE_SIZE = 20;
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
+
+  const fetchNotifications = useCallback(
+    async (reset = false) => {
+      if (!user) return;
+      const currentOffset = reset ? 0 : offset;
+      if (reset) setLoading(true);
+      else setLoadingMore(true);
+
+      try {
+        const res = await fetch(
+          `/api/notifications?limit=${PAGE_SIZE}&offset=${currentOffset}`
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const incoming: AppNotification[] = json.notifications ?? [];
+
+        setNotifications((prev) =>
+          reset ? incoming : [...prev, ...incoming]
+        );
+        setUnreadCount(json.unread_count ?? 0);
+        setHasMore(incoming.length === PAGE_SIZE);
+        setOffset(currentOffset + incoming.length);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [user, offset]
+  );
+
+  // ── Initial load + unread count polling ───────────────────────────────────
+
+  useEffect(() => {
+    if (!user) return;
+    void fetchNotifications(true);
+
+    // Poll unread count every 60 s as a fallback
+    const timer = setInterval(() => {
+      fetch("/api/notifications?limit=1&offset=0")
+        .then((r) => r.json())
+        .then((j) => setUnreadCount(j.unread_count ?? 0))
+        .catch(() => {});
+    }, 60_000);
+
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // ── Supabase Realtime subscription ────────────────────────────────────────
+
+  useEffect(() => {
+    if (!user) return;
+
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newNotif = payload.new as AppNotification;
+
+          // Prepend to list
+          setNotifications((prev) => [newNotif, ...prev]);
+          setUnreadCount((c) => c + 1);
+
+          // Toast popup
+          antNotification.open({
+            message: newNotif.title,
+            description: newNotif.message,
+            icon: notifIcon(newNotif.type),
+            placement: "topRight",
+            duration: 5,
+            style: { borderLeft: "4px solid #1677ff", cursor: "pointer" },
+            onClick: () => {
+              setOpen(true);
+            },
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as AppNotification;
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === updated.id ? { ...n, is_read: updated.is_read } : n))
+          );
+        }
+      )
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  const markAsRead = useCallback(
+    async (notif: AppNotification) => {
+      if (notif.is_read) return;
+
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+
+      await fetch(`/api/notifications/${notif.id}`, { method: "PATCH" }).catch(
+        () => {}
+      );
+    },
+    []
+  );
+
+  const handleNotifClick = useCallback(
+    async (notif: AppNotification) => {
+      await markAsRead(notif);
+      const path = resolveNavPath(notif.reference_type, notif.reference_id);
+      if (path) {
+        setOpen(false);
+        router.push(path);
+      }
+    },
+    [markAsRead, router]
+  );
+
+  const handleMarkAllRead = useCallback(async () => {
+    setMarkingAll(true);
+    try {
+      await fetch("/api/notifications/read-all", { method: "POST" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } finally {
+      setMarkingAll(false);
+    }
+  }, []);
+
+  const handleLoadMore = useCallback(() => {
+    void fetchNotifications(false);
+  }, [fetchNotifications]);
+
+  // ── Open drawer ───────────────────────────────────────────────────────────
+
+  const handleOpen = useCallback(() => {
+    setOpen(true);
+    void fetchNotifications(true);
+  }, [fetchNotifications]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const grouped = groupByDate(notifications);
+  const dateOrder = ["Today", "Yesterday", "Earlier"];
+
+  return (
+    <>
+      {/* Bell button */}
+      <button
+        onClick={handleOpen}
+        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "4px 8px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 8,
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) =>
+          ((e.currentTarget as HTMLButtonElement).style.background = "#f5f5f5")
+        }
+        onMouseLeave={(e) =>
+          ((e.currentTarget as HTMLButtonElement).style.background = "none")
+        }
+      >
+        <Badge
+          count={unreadCount}
+          size="small"
+          offset={[2, -2]}
+          overflowCount={99}
+          style={{ fontSize: 10 }}
+        >
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: 32,
+              width: 32,
+            }}
+          >
+            <BellOutlined style={{ fontSize: 18, color: "#595959" }} />
+          </span>
+        </Badge>
+      </button>
+
+      {/* Drawer */}
+      <Drawer
+        title={
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Space>
+              <BellOutlined />
+              <span style={{ fontWeight: 600 }}>Notifications</span>
+              {unreadCount > 0 && (
+                <Badge
+                  count={unreadCount}
+                  style={{ backgroundColor: "#1677ff" }}
+                />
+              )}
+            </Space>
+            {unreadCount > 0 && (
+              <Button
+                type="link"
+                size="small"
+                icon={<CheckOutlined />}
+                loading={markingAll}
+                onClick={handleMarkAllRead}
+                style={{ padding: 0, fontSize: 12 }}
+              >
+                Mark all read
+              </Button>
+            )}
+          </div>
+        }
+        placement="right"
+        open={open}
+        onClose={() => setOpen(false)}
+        width={420}
+        styles={{
+          body: { padding: 0, overflowY: "auto" },
+          header: { borderBottom: "1px solid #f0f0f0", padding: "16px 20px" },
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: 200,
+            }}
+          >
+            <Spin />
+          </div>
+        ) : notifications.length === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="No notifications yet"
+            style={{ paddingTop: 60 }}
+          />
+        ) : (
+          <>
+            {dateOrder.map(
+              (label) =>
+                grouped[label] && (
+                  <div key={label}>
+                    <div
+                      style={{
+                        padding: "10px 20px 4px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#8c8c8c",
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        background: "#fafafa",
+                        borderBottom: "1px solid #f0f0f0",
+                      }}
+                    >
+                      {label}
+                    </div>
+                    <List
+                      dataSource={grouped[label]}
+                      renderItem={(notif) => (
+                        <List.Item
+                          key={notif.id}
+                          onClick={() => void handleNotifClick(notif)}
+                          style={{
+                            padding: "14px 20px",
+                            cursor: "pointer",
+                            background: notif.is_read ? "#fff" : "#e6f4ff",
+                            borderBottom: "1px solid #f0f0f0",
+                            transition: "background 0.15s",
+                            alignItems: "flex-start",
+                            gap: 12,
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background =
+                              notif.is_read ? "#fafafa" : "#d6ecff";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background =
+                              notif.is_read ? "#fff" : "#e6f4ff";
+                          }}
+                        >
+                          {/* Icon */}
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              background: notif.is_read ? "#f5f5f5" : "#bae0ff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                              marginTop: 2,
+                            }}
+                          >
+                            {notifIcon(notif.type)}
+                          </div>
+
+                          {/* Content */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                gap: 8,
+                              }}
+                            >
+                              <Text
+                                strong={!notif.is_read}
+                                style={{
+                                  fontSize: 13,
+                                  lineHeight: 1.4,
+                                  color: "#262626",
+                                  flex: 1,
+                                }}
+                              >
+                                {notif.title}
+                              </Text>
+                              {!notif.is_read && (
+                                <span
+                                  style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: "50%",
+                                    background: "#1677ff",
+                                    flexShrink: 0,
+                                    marginTop: 4,
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: "#595959",
+                                display: "block",
+                                marginTop: 3,
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              {notif.message}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: "#bfbfbf",
+                                display: "block",
+                                marginTop: 5,
+                              }}
+                            >
+                              {timeAgo(notif.created_at)}
+                            </Text>
+                          </div>
+                        </List.Item>
+                      )}
+                    />
+                  </div>
+                )
+            )}
+
+            {hasMore && (
+              <div style={{ padding: "16px", textAlign: "center" }}>
+                <Button
+                  type="link"
+                  loading={loadingMore}
+                  onClick={handleLoadMore}
+                  size="small"
+                >
+                  Load more
+                </Button>
+              </div>
+            )}
+
+            {!hasMore && notifications.length > 0 && (
+              <Divider style={{ margin: "12px 0", fontSize: 11, color: "#bfbfbf" }}>
+                All caught up
+              </Divider>
+            )}
+          </>
+        )}
+      </Drawer>
+    </>
+  );
+}

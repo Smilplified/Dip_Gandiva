@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Layout, Avatar, Dropdown } from "antd";
 import { UserOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import NotificationBell from "@/components/Notifications/NotificationBell";
 
 const { Header } = Layout;
 
@@ -54,8 +55,10 @@ export default function QAHeader() {
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         flexShrink: 0,
         zIndex: 99,
+        gap: 8,
       }}
     >
+      <NotificationBell />
       <Dropdown
         menu={{ items: userMenuItems, onClick: handleMenuClick }}
         placement="bottomRight"

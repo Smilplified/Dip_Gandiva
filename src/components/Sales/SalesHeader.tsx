@@ -6,6 +6,7 @@ import { Layout, Avatar, Dropdown } from "antd";
 import { UserOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import GlobalSearch from "./GlobalSearch";
+import NotificationBell from "@/components/Notifications/NotificationBell";
 
 const { Header } = Layout;
 
@@ -71,6 +72,8 @@ export default function SalesHeader() {
     >
       <GlobalSearch />
 
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <NotificationBell />
       <Dropdown
         menu={{ items: userMenuItems, onClick: handleMenuClick }}
         placement="bottomRight"
@@ -105,6 +108,7 @@ export default function SalesHeader() {
           </div>
         </div>
       </Dropdown>
+      </div>
     </Header>
   );
 }

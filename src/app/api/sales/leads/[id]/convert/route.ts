@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -229,6 +230,51 @@ export async function POST(
 
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+
+    // Notify the campaign's assigned TL about the conversion
+    const campaignId = (lead.campaign_id as string | null) ?? null;
+    if (campaignId) {
+      const { data: campRow } = await admin
+        .from("campaigns")
+        .select("assigned_team_leader_id")
+        .eq("id", campaignId)
+        .maybeSingle();
+      const tlId = (campRow as { assigned_team_leader_id: string | null } | null)
+        ?.assigned_team_leader_id;
+      if (tlId && tlId !== user!.id) {
+        void createNotification({
+          title: "Lead Converted",
+          message: `Lead "${resolvedContactName}" from ${resolvedCompanyName} has been converted to a contact${dealId ? " with a new deal" : ""}.`,
+          type: "lead",
+          sender_id: user!.id,
+          receiver_id: tlId,
+          reference_type: "lead",
+          reference_id: params.id,
+          organization_id: orgId,
+        });
+      }
+    }
+
+    // Also notify the user's reporting manager if one exists
+    const { data: senderProfile } = await admin
+      .from("users")
+      .select("reporting_manager_id")
+      .eq("id", user!.id)
+      .maybeSingle();
+    const managerId = (senderProfile as { reporting_manager_id: string | null } | null)
+      ?.reporting_manager_id;
+    if (managerId && managerId !== user!.id) {
+      void createNotification({
+        title: "Lead Converted",
+        message: `${resolvedContactName} (${resolvedCompanyName}) has been successfully converted.`,
+        type: "lead",
+        sender_id: user!.id,
+        receiver_id: managerId,
+        reference_type: "lead",
+        reference_id: params.id,
+        organization_id: orgId,
+      });
     }
 
     return NextResponse.json({

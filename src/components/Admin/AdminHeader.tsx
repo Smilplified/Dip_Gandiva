@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Layout, Input, Badge, Avatar, Dropdown } from "antd";
+import { Layout, Input, Avatar, Dropdown } from "antd";
 import {
   SearchOutlined,
-  BellOutlined,
   UserOutlined,
   LogoutOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import NotificationBell from "@/components/Notifications/NotificationBell";
 
 const { Header } = Layout;
 
@@ -77,21 +77,7 @@ export default function AdminHeader() {
           flexShrink: 0,
         }}
       >
-        <div style={{ padding: "4px 8px", display: "flex", alignItems: "center" }}>
-          <Badge count={0} size="small" offset={[0, 4]}>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 32,
-                width: 32,
-              }}
-            >
-              <BellOutlined style={{ fontSize: 18, color: "#595959" }} />
-            </span>
-          </Badge>
-        </div>
+        <NotificationBell />
         <Dropdown
           menu={{ items: userMenuItems, onClick: handleMenuClick }}
           placement="bottomRight"

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createNotifications } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,28 @@ export async function POST(
       if (insertError) {
         return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
+
+      // Fetch campaign name for the notification message
+      const { data: campMeta } = await supabase
+        .from("campaigns")
+        .select("name, organization_id")
+        .eq("id", campaignId)
+        .single();
+      const campName = (campMeta as { name: string; organization_id: string } | null)?.name ?? "a campaign";
+      const campOrgId = (campMeta as { name: string; organization_id: string } | null)?.organization_id ?? orgId;
+
+      void createNotifications(
+        toInsert.map((a) => ({
+          title: "Campaign Assigned",
+          message: `You have been assigned to campaign "${campName}". Check your dashboard for leads.`,
+          type: "campaign" as const,
+          sender_id: user.id,
+          receiver_id: a.agent_id,
+          reference_type: "campaign" as const,
+          reference_id: campaignId,
+          organization_id: campOrgId,
+        }))
+      );
     }
 
     return NextResponse.json({ success: true });
