@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +27,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
+
     const { searchParams } = new URL(request.url);
     const withCampaigns = searchParams.get("withCampaigns") === "1";
 
-    const { data: clients, error: clientsError } = await supabase
+    const { data: clients, error: clientsError } = await admin
       .from("clients")
       .select("id, company_name, company_website, industry_type, company_size, year_established, company_address, city, state, country, contact_person, contact_full_name, contact_designation, contact_work_email, contact_mobile, contact_linkedin, created_at")
       .eq("organization_id", orgId)
@@ -45,7 +51,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ clients: list });
     }
 
-    const { data: campaigns } = await supabase
+    const { data: campaigns } = await admin
       .from("campaigns")
       .select("id, campaign_id, name, status, client_id, start_date")
       .eq("organization_id", orgId)
@@ -185,7 +191,12 @@ export async function POST(request: Request) {
       expected_start_date: date(body.expected_start_date),
     };
 
-    const { data: client, error: insertError } = await supabase
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
+
+    const { data: client, error: insertError } = await admin
       .from("clients")
       .insert(payload as never)
       .select("id, company_name, created_at")
