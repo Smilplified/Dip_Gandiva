@@ -9,6 +9,7 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import NotificationBell from "@/components/Notifications/NotificationBell";
+import GlobalSearch from "@/components/shared/GlobalSearch";
 
 const { Header } = Layout;
 
@@ -61,7 +62,7 @@ export default function MISHeader() {
         overflow: "visible",
       }}
     >
-      <div />
+      <GlobalSearch />
 
       <div
         style={{

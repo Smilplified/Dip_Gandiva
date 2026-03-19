@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Layout, Input, Avatar, Dropdown } from "antd";
+import { Layout, Avatar, Dropdown } from "antd";
 import {
-  SearchOutlined,
   UserOutlined,
   LogoutOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import NotificationBell from "@/components/Notifications/NotificationBell";
+import GlobalSearch from "@/components/shared/GlobalSearch";
 
 const { Header } = Layout;
 
@@ -63,12 +63,7 @@ export default function AdminHeader() {
         overflow: "visible",
       }}
     >
-      <Input
-        placeholder="Search users, roles..."
-        prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-        allowClear
-        style={{ maxWidth: 400, borderRadius: 8 }}
-      />
+      <GlobalSearch />
       <div
         style={{
           display: "flex",

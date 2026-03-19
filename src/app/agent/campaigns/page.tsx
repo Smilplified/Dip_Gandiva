@@ -135,12 +135,6 @@ export default function AgentCampaignsPage() {
       ),
     },
     {
-      title: "Client",
-      dataIndex: "client_name",
-      key: "client_name",
-      render: (v: string | null) => v || "—",
-    },
-    {
       title: "Industry",
       dataIndex: "industry",
       key: "industry",

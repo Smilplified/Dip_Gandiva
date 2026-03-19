@@ -10,6 +10,7 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import NotificationBell from "@/components/Notifications/NotificationBell";
+import GlobalSearch from "@/components/shared/GlobalSearch";
 
 const { Header } = Layout;
 
@@ -55,13 +56,16 @@ export default function AgentHeader() {
         background: "#fff",
         display: "flex",
         alignItems: "center",
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         flexShrink: 0,
         zIndex: 99,
-        gap: 8,
+        gap: 16,
+        overflow: "visible",
       }}
     >
+      <GlobalSearch />
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <NotificationBell />
       <Dropdown
         menu={{ items: userMenuItems, onClick: handleMenuClick }}
@@ -99,6 +103,7 @@ export default function AgentHeader() {
           </div>
         </div>
       </Dropdown>
+      </div>
     </Header>
   );
 }
