@@ -9,7 +9,7 @@ export default function MISCampaignsPage() {
     <div style={{ padding: "0 4px" }}>
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1f1f1f" }}>
-          Campaign Management
+            Campaigns
         </Title>
         <Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 6 }}>
           Manage campaign data structure and master configuration.

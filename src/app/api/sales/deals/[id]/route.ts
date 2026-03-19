@@ -52,22 +52,43 @@ export async function PATCH(
 
     const body = await request.json();
     const {
+      deal_name,
       stage,
       value,
       expected_close_date,
       owner_id,
+      pipeline,
+      deal_type,
+      priority,
+      line_items,
+      contact_id,
+      account_id,
     }: {
+      deal_name?: string | null;
       stage?: string | null;
       value?: number | null;
       expected_close_date?: string | null;
       owner_id?: string | null;
+      pipeline?: string | null;
+      deal_type?: string | null;
+      priority?: string | null;
+      line_items?: any[] | null;
+      contact_id?: string | null;
+      account_id?: string | null;
     } = body ?? {};
 
     const updatePayload: Record<string, unknown> = {};
+    if (deal_name !== undefined && deal_name?.trim()) updatePayload.deal_name = deal_name.trim();
     if (stage !== undefined) updatePayload.stage = stage;
     if (value !== undefined) updatePayload.value = value;
     if (expected_close_date !== undefined) updatePayload.expected_close_date = expected_close_date;
     if (owner_id !== undefined) updatePayload.owner_id = owner_id;
+    if (pipeline !== undefined) updatePayload.pipeline = pipeline;
+    if (deal_type !== undefined) updatePayload.deal_type = deal_type;
+    if (priority !== undefined) updatePayload.priority = priority;
+    if (line_items !== undefined) updatePayload.line_items = line_items;
+    if (contact_id !== undefined) updatePayload.contact_id = contact_id;
+    if (account_id !== undefined) updatePayload.account_id = account_id;
 
     if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -103,6 +124,41 @@ export async function PATCH(
     return NextResponse.json({ id: params.id, success: true });
   } catch (err) {
     console.error("Sales deals PATCH error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const ctx = await getUserAndRoles();
+    if ("error" in ctx) return ctx.error;
+    const { user, roleNames } = ctx;
+
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
+
+    const isManagerOrAdmin =
+      roleNames.includes("sales_manager") || roleNames.includes("admin");
+
+    let query = admin.from("deals").delete().eq("id", params.id);
+
+    if (!isManagerOrAdmin) {
+      query = admin.from("deals").delete().eq("id", params.id).eq("owner_id", user!.id);
+    }
+
+    const { error } = await query;
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ id: params.id, deleted: true });
+  } catch (err) {
+    console.error("Sales deals DELETE error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

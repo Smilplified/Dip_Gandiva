@@ -49,7 +49,7 @@ export async function GET() {
 
     let query = admin
       .from("deals")
-      .select("id, deal_name, account_id, contact_id, value, stage, owner_id, expected_close_date, created_at")
+      .select("id, deal_name, account_id, contact_id, value, stage, pipeline, deal_type, priority, line_items, owner_id, expected_close_date, created_at")
       .order("created_at", { ascending: false });
 
     const isManagerOrAdmin =
@@ -112,6 +112,10 @@ export async function GET() {
       contact_name: d.contact_id ? contactNames[d.contact_id as string] ?? "—" : null,
       value: (d.value as number | null) ?? null,
       stage: d.stage as string,
+      pipeline: (d.pipeline as string | null) ?? "Client Acquisition pipeline",
+      deal_type: (d.deal_type as string | null) ?? null,
+      priority: (d.priority as string | null) ?? null,
+      line_items: (d.line_items as any[] | null) ?? null,
       owner_id: (d.owner_id as string | null) ?? null,
       owner_name: d.owner_id ? ownerNames[d.owner_id as string] ?? "—" : null,
       expected_close_date: (d.expected_close_date as string | null) ?? null,
@@ -143,6 +147,10 @@ export async function POST(request: Request) {
       contact_id,
       value,
       stage,
+      pipeline,
+      deal_type,
+      priority,
+      line_items,
       owner_id,
       expected_close_date,
     }: {
@@ -151,6 +159,10 @@ export async function POST(request: Request) {
       contact_id?: string | null;
       value?: number | null;
       stage?: string | null;
+      pipeline?: string | null;
+      deal_type?: string | null;
+      priority?: string | null;
+      line_items?: any[] | null;
       owner_id?: string | null;
       expected_close_date?: string | null;
     } = body ?? {};
@@ -164,7 +176,11 @@ export async function POST(request: Request) {
       account_id: account_id ?? null,
       contact_id: contact_id ?? null,
       value: value ?? null,
-      stage: stage ?? "qualification",
+      stage: stage ?? "introductory_meeting",
+      pipeline: pipeline ?? "Client Acquisition pipeline",
+      deal_type: deal_type ?? null,
+      priority: priority ?? null,
+      line_items: line_items ?? null,
       owner_id: owner_id ?? user!.id,
       expected_close_date: expected_close_date ?? null,
     };
@@ -172,7 +188,7 @@ export async function POST(request: Request) {
     const { data, error } = await admin
       .from("deals")
       .insert(insertPayload as never)
-      .select("id, deal_name, account_id, contact_id, value, stage, owner_id, expected_close_date, created_at")
+      .select("id, deal_name, account_id, contact_id, value, stage, pipeline, deal_type, priority, line_items, owner_id, expected_close_date, created_at")
       .single();
 
     if (error) {
