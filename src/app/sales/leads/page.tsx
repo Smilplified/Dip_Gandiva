@@ -30,7 +30,10 @@ import {
   UserSwitchOutlined,
   SwapOutlined,
   SearchOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
+import { ConvertLeadModal } from "@/components/Sales/ConvertLeadModal";
+import type { LeadForConversion } from "@/components/Sales/ConvertLeadModal";
 
 type LeadRow = {
   id: string;
@@ -99,6 +102,9 @@ type LeadRow = {
   updated_at?: string | null;
   // Tags
   tags?: string[] | null;
+  // Conversion
+  converted?: boolean | null;
+  converted_at?: string | null;
 };
 
 type AgentOption = {
@@ -340,11 +346,25 @@ const LEAD_STATUS_OPTIONS = [
   { value: "closed_lost", label: "Lost" },     // mapped to DB status "closed_lost"
 ];
 
+const LEAD_SCORE_OPTIONS = [
+  { value: 1, label: "Not Interested" },
+  { value: 2, label: "Voicemail" },
+  { value: 3, label: "Call Dropped" },
+  { value: 4, label: "Invalid Number" },
+  { value: 5, label: "Number Not Reachable" },
+  { value: 6, label: "Call Back" },
+  { value: 7, label: "Dead Contact" },
+  { value: 8, label: "Gatekeeper Declined" },
+  { value: 9, label: "Follow-up Scheduled" },
+  { value: 10, label: "Do Not Call" },
+];
+
 const STATUS_COLORS: Record<string, string> = {
   new: "blue",
   contacted: "gold",
   interested: "green",
   closed_lost: "red",
+  converted: "purple",
 };
 
 const { Title, Text } = Typography;
@@ -364,11 +384,30 @@ export default function SalesLeadsPage() {
 
   const [editingLead, setEditingLead] = useState<LeadRow | null>(null);
   const [assigningLead, setAssigningLead] = useState<LeadRow | null>(null);
-  const [convertingLead, setConvertingLead] = useState<LeadRow | null>(null);
+  const [convertingLead, setConvertingLead] = useState<LeadForConversion | null>(null);
   const [leadDrawerOpen, setLeadDrawerOpen] = useState(false);
 
   const [form] = Form.useForm();
   const [assignForm] = Form.useForm();
+  const watchedFirstName = Form.useWatch("first_name", form);
+  const watchedLastName = Form.useWatch("last_name", form);
+  const watchedCompany = Form.useWatch("company", form);
+  const watchedWebsite = Form.useWatch("website", form);
+  const watchedCountry = Form.useWatch("country", form);
+  const watchedEmail = Form.useWatch("email", form);
+  const watchedLeadScore = Form.useWatch("lead_score", form);
+
+  const hasText = (value: unknown) =>
+    typeof value === "string" && value.trim().length > 0;
+
+  const canSaveAndContinue =
+    hasText(watchedFirstName) &&
+    hasText(watchedLastName) &&
+    hasText(watchedCompany) &&
+    hasText(watchedWebsite) &&
+    hasText(watchedCountry) &&
+    hasText(watchedEmail) &&
+    typeof watchedLeadScore === "number";
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -492,7 +531,7 @@ export default function SalesLeadsPage() {
     setLeadDrawerOpen(true);
   };
 
-  const handleSubmitLead = async () => {
+  const handleSubmitLead = async (keepOpen = false) => {
     try {
       const values = await form.validateFields();
       const composedLeadName =
@@ -581,13 +620,17 @@ export default function SalesLeadsPage() {
       }
 
       setEditingLead(null);
-      setLeadDrawerOpen(false);
       form.resetFields();
-      // Clear filters so the newly created/updated lead is always visible
-      setSearch("");
-      setStatusFilter([]);
-      setOwnerFilter(undefined);
       fetchData();
+
+      if (keepOpen) {
+        setLeadDrawerOpen(true);
+      } else {
+        setLeadDrawerOpen(false);
+        setSearch("");
+        setStatusFilter([]);
+        setOwnerFilter(undefined);
+      }
     } catch (err) {
       if (err instanceof Error && err.message) {
         message.error(err.message);
@@ -628,28 +671,15 @@ export default function SalesLeadsPage() {
     }
   };
 
-  const handleConvert = async (lead: LeadRow) => {
-    setConvertingLead(lead);
-    try {
-      const res = await fetch(`/api/sales/leads/${lead.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ convert_to_contact: true }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to convert lead");
-      }
-      message.success("Lead converted to contact & account");
-      setConvertingLead(null);
-      fetchData();
-    } catch (err) {
-      setConvertingLead(null);
-      if (err instanceof Error && err.message) {
-        message.error(err.message);
-      }
-    }
+  const handleOpenConvert = (lead: LeadRow) => {
+    setConvertingLead({
+      id: lead.id,
+      lead_name: lead.lead_name,
+      company: lead.company,
+      email: lead.email,
+      phone: lead.phone,
+      status: lead.status,
+    });
   };
 
   const filteredLeads = useMemo(() => {
@@ -742,14 +772,25 @@ export default function SalesLeadsPage() {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 130,
-      filters: LEAD_STATUS_OPTIONS.map((o) => ({ text: o.label, value: o.value })),
-      onFilter: (value, record) =>
-        record.status === String(value),
-      render: (v: string) => (
-        <Tag color={STATUS_COLORS[v] ?? "default"}>
-          {LEAD_STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v}
-        </Tag>
+      width: 140,
+      filters: [
+        ...LEAD_STATUS_OPTIONS.map((o) => ({ text: o.label, value: o.value })),
+        { text: "Converted", value: "converted" },
+      ],
+      onFilter: (value, record) => record.status === String(value),
+      render: (v: string, record: LeadRow) => (
+        <Space size={4} direction="vertical" style={{ gap: 2 }}>
+          <Tag color={STATUS_COLORS[v] ?? "default"} style={{ margin: 0 }}>
+            {v === "converted"
+              ? "Converted"
+              : LEAD_STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v}
+          </Tag>
+          {record.converted && record.converted_at && (
+            <span style={{ fontSize: 11, color: "#8c8c8c" }}>
+              {new Date(record.converted_at).toLocaleDateString()}
+            </span>
+          )}
+        </Space>
       ),
     },
     {
@@ -790,14 +831,21 @@ export default function SalesLeadsPage() {
               onClick={() => handleAssign(record)}
             />
           </Tooltip>
-          <Tooltip title="Convert to contact + account">
-            <Button
-              type="text"
-              size="small"
-              icon={<SwapOutlined />}
-              onClick={() => handleConvert(record)}
-            />
-          </Tooltip>
+          {!record.converted && (
+            <Tooltip title="Convert to Account + Contact + Deal">
+              <Button
+                type="text"
+                size="small"
+                icon={<SwapOutlined />}
+                onClick={() => handleOpenConvert(record)}
+              />
+            </Tooltip>
+          )}
+          {record.converted && (
+            <Tooltip title="Already converted">
+              <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />
+            </Tooltip>
+          )}
         </Space>
       ),
     },
@@ -942,7 +990,7 @@ export default function SalesLeadsPage() {
       <Drawer
         title={editingLead ? "Edit Lead" : "New Lead"}
         placement="right"
-        width={520}
+        width={980}
         open={leadDrawerOpen}
         onClose={() => {
           setLeadDrawerOpen(false);
@@ -961,7 +1009,11 @@ export default function SalesLeadsPage() {
             >
               Cancel
             </Button>
-            <Button type="primary" onClick={handleSubmitLead}>
+            <Button
+              type="primary"
+              onClick={() => handleSubmitLead(false)}
+              disabled={!editingLead && !canSaveAndContinue}
+            >
               {editingLead ? "Save changes" : "Create lead"}
             </Button>
           </Space>
@@ -974,240 +1026,335 @@ export default function SalesLeadsPage() {
             status: "new",
           }}
         >
-          <Title level={5} style={{ marginTop: 0 }}>
-            Basic Lead Information
-          </Title>
-          <Row gutter={12}>
-            {editingLead && (
-              <Col span={24}>
-                <Form.Item label="Lead ID">
-                  <Input value={editingLead.id.slice(0, 8)} disabled />
-                </Form.Item>
-              </Col>
-            )}
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="status" label="Lead Status">
-                <Select options={LEAD_STATUS_OPTIONS} />
+          <Row gutter={20} style={{ marginBottom: 8 }}>
+            <Col xs={24} lg={12}>
+              <Title level={5} style={{ marginTop: 0 }}>
+                Basic Lead Information
+              </Title>
+              <Row gutter={12}>
+                {editingLead && (
+                  <Col span={24}>
+                    <Form.Item label="Lead ID">
+                      <Input value={editingLead.id.slice(0, 8)} disabled />
+                    </Form.Item>
+                  </Col>
+                )}
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="status" label="Lead Status">
+                    <Select options={LEAD_STATUS_OPTIONS} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="lead_source" label="Lead Source">
+                    <Input placeholder="Website, Campaign, Referral, etc." />
+                  </Form.Item>
+                </Col>
+              </Row>
+              {editingLead && (
+                <Row gutter={12}>
+                  <Col span={24}>
+                    <Form.Item label="Lead Owner / Sales Agent">
+                      <Select
+                        allowClear
+                        placeholder="Select owner"
+                        options={agents.map((a) => ({
+                          value: a.id,
+                          label: a.name,
+                        }))}
+                        disabled
+                      />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              )}
+              <Row gutter={12}>
+                {editingLead && (
+                  <Col span={12}>
+                    <Form.Item label="Lead Created Date">
+                      <DatePicker style={{ width: "100%" }} disabled />
+                    </Form.Item>
+                  </Col>
+                )}
+              </Row>
+              <Form.Item
+                name="lead_score"
+                label="Lead Score"
+                rules={[{ required: true, message: "Lead Score is required" }]}
+              >
+                <Select
+                  allowClear
+                  placeholder="Select lead score"
+                  options={LEAD_SCORE_OPTIONS}
+                />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="lead_source" label="Lead Source">
-                <Input placeholder="Website, Campaign, Referral, etc." />
-              </Form.Item>
-            </Col>
-          </Row>
-          {editingLead && (
-            <Row gutter={12}>
-              <Col span={24}>
-                <Form.Item label="Lead Owner / Sales Agent">
-                  <Select
-                    allowClear
-                    placeholder="Select owner"
-                    options={agents.map((a) => ({
-                      value: a.id,
-                      label: a.name,
-                    }))}
-                    disabled
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          )}
-          <Row gutter={12}>
-            {editingLead && (
-              <Col span={12}>
-                <Form.Item label="Lead Created Date">
-                  <DatePicker style={{ width: "100%" }} disabled />
-                </Form.Item>
-              </Col>
-            )}
-          </Row>
-          <Form.Item name="lead_score" label="Lead Score">
-            <InputNumber min={0} max={100} style={{ width: "100%" }} />
-          </Form.Item>
 
-          <Title level={5} style={{ marginTop: 24 }}>
-            Contact Person Details
-          </Title>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="first_name" label="First Name">
+              <Title level={5} style={{ marginTop: 24 }}>
+                Contact Person Details
+              </Title>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item
+                    name="first_name"
+                    label="First Name"
+                    rules={[{ required: true, message: "First Name is required" }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="last_name"
+                    label="Last Name"
+                    rules={[{ required: true, message: "Last Name is required" }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="job_title" label="Job Title / Designation">
                 <Input />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="last_name" label="Last Name">
+              <Form.Item
+                name="email"
+                label="Email Address"
+                rules={[
+                  { required: true, message: "Email Address is required" },
+                  { type: "email", message: "Please enter a valid email" },
+                ]}
+              >
+                <Input type="email" placeholder="name@company.com" />
+              </Form.Item>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="phone" label="Mobile Number">
+                    <Input placeholder="+1 (555) 000-0000" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="alt_phone" label="Alternate Phone Number">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="linkedin" label="LinkedIn Profile">
+                <Input placeholder="https://linkedin.com/in/..." />
+              </Form.Item>
+              <Form.Item name="department" label="Department">
                 <Input />
               </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="job_title" label="Job Title / Designation">
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="Email Address">
-            <Input type="email" placeholder="name@company.com" />
-          </Form.Item>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="phone" label="Mobile Number">
-                <Input placeholder="+1 (555) 000-0000" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="alt_phone" label="Alternate Phone Number">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="linkedin" label="LinkedIn Profile">
-            <Input placeholder="https://linkedin.com/in/..." />
-          </Form.Item>
-          <Form.Item name="department" label="Department">
-            <Input />
-          </Form.Item>
 
-          <Title level={5} style={{ marginTop: 24 }}>
-            Company Information
-          </Title>
-          <Form.Item name="company" label="Company Name">
-            <Input />
-          </Form.Item>
-          <Form.Item name="website" label="Company Website">
-            <Input placeholder="https://company.com" />
-          </Form.Item>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="industry" label="Industry">
-                <Input />
+              <Title level={5} style={{ marginTop: 24 }}>
+                Address Details
+              </Title>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item
+                    name="country"
+                    label="Country"
+                    rules={[{ required: true, message: "Country is required" }]}
+                  >
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="state" label="State">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="city" label="City">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="zip" label="Zip / Postal Code">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="address" label="Full Address">
+                <Input.TextArea rows={2} />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="company_size" label="Company Size (Employees)">
+            <Col xs={24} lg={12}>
+              <Title level={5} style={{ marginTop: 0 }}>
+                Company Information
+              </Title>
+              <Form.Item
+                name="company"
+                label="Company Name"
+                rules={[{ required: true, message: "Company Name is required" }]}
+              >
                 <Input />
               </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="annual_revenue" label="Annual Revenue">
+              <Form.Item
+                name="website"
+                label="Company Website"
+                rules={[{ required: true, message: "Company Website is required" }]}
+              >
+                <Input placeholder="https://company.com" />
+              </Form.Item>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="industry" label="Industry">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="company_size" label="Company Size (Employees)">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="annual_revenue" label="Annual Revenue">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="business_type" label="Business Type">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="gst_number" label="GST Number">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="pan_number" label="PAN Number">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Title level={5} style={{ marginTop: 24 }}>
+                Sales Qualification
+              </Title>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="budget" label="Budget">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="decision_maker" label="Decision Maker (Yes/No)">
+                    <Select
+                      options={[
+                        { value: "yes", label: "Yes" },
+                        { value: "no", label: "No" },
+                      ]}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="purchase_timeline" label="Purchase Timeline">
                 <Input />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="business_type" label="Business Type">
+              <Form.Item name="current_solution" label="Current Solution / Vendor">
                 <Input />
               </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="gst_number" label="GST Number">
-                <Input />
+              <Form.Item name="pain_points" label="Pain Points">
+                <Input.TextArea rows={2} />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="pan_number" label="PAN Number">
-                <Input />
+              <Form.Item name="requirements" label="Requirements / Notes">
+                <Input.TextArea rows={3} />
               </Form.Item>
             </Col>
           </Row>
 
-          <Title level={5} style={{ marginTop: 24 }}>
-            Address Details
-          </Title>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="country" label="Country">
+          <Row gutter={20} style={{ marginBottom: 8 }}>
+            <Col xs={24} lg={12}>
+              <Title level={5} style={{ marginTop: 24 }}>
+                Lead Source & Tracking
+              </Title>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="source_type" label="Source Type">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="source_campaign" label="Source Campaign">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="utm_source" label="UTM Source">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="utm_medium" label="UTM Medium">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="utm_campaign" label="UTM Campaign">
                 <Input />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="state" label="State">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="city" label="City">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="zip" label="Zip / Postal Code">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="address" label="Full Address">
-            <Input.TextArea rows={2} />
-          </Form.Item>
 
-          <Title level={5} style={{ marginTop: 24 }}>
-            Sales Qualification
-          </Title>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="budget" label="Budget">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="decision_maker" label="Decision Maker (Yes/No)">
+              <Title level={5} style={{ marginTop: 24 }}>
+                Activity & Tracking
+              </Title>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="last_contacted" label="Last Contacted Date">
+                    <DatePicker style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="next_followup" label="Next Follow-up Date">
+                    <DatePicker style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="followup_type" label="Follow-up Type">
                 <Select
                   options={[
-                    { value: "yes", label: "Yes" },
-                    { value: "no", label: "No" },
+                    { value: "call", label: "Call" },
+                    { value: "email", label: "Email" },
+                    { value: "meeting", label: "Meeting" },
                   ]}
                 />
               </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="purchase_timeline" label="Purchase Timeline">
-            <Input />
-          </Form.Item>
-          <Form.Item name="current_solution" label="Current Solution / Vendor">
-            <Input />
-          </Form.Item>
-          <Form.Item name="pain_points" label="Pain Points">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="requirements" label="Requirements / Notes">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-
-          <Title level={5} style={{ marginTop: 24 }}>
-            Lead Source & Tracking
-          </Title>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="source_type" label="Source Type">
-                <Input />
+              <Form.Item name="interaction_notes" label="Interaction Notes">
+                <Input.TextArea rows={3} />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="source_campaign" label="Source Campaign">
-                <Input />
+            <Col xs={24} lg={12}>
+              <Title level={5} style={{ marginTop: 24 }}>
+                Qualification & Disqualification
+              </Title>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="qualification_status" label="Lead Qualification Status">
+                    <Input />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="qa_status" label="QA Status">
+                    <Input />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="disqualification_reason" label="Disqualification Reason">
+                <Input.TextArea rows={2} />
               </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="utm_source" label="UTM Source">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="utm_medium" label="UTM Medium">
-                <Input />
+              <Form.Item name="rectified_reason" label="Rectified Reason">
+                <Input.TextArea rows={2} />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="utm_campaign" label="UTM Campaign">
-            <Input />
-          </Form.Item>
 
           <Title level={5} style={{ marginTop: 24 }}>
             Sales Pipeline
@@ -1238,56 +1385,6 @@ export default function SalesLeadsPage() {
           </Row>
           <Form.Item name="product_interest" label="Product Interest">
             <Input />
-          </Form.Item>
-
-          <Title level={5} style={{ marginTop: 24 }}>
-            Activity & Tracking
-          </Title>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="last_contacted" label="Last Contacted Date">
-                <DatePicker style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="next_followup" label="Next Follow-up Date">
-                <DatePicker style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="followup_type" label="Follow-up Type">
-            <Select
-              options={[
-                { value: "call", label: "Call" },
-                { value: "email", label: "Email" },
-                { value: "meeting", label: "Meeting" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="interaction_notes" label="Interaction Notes">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-
-          <Title level={5} style={{ marginTop: 24 }}>
-            Qualification & Disqualification
-          </Title>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="qualification_status" label="Lead Qualification Status">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="qa_status" label="QA Status">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="disqualification_reason" label="Disqualification Reason">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="rectified_reason" label="Rectified Reason">
-            <Input.TextArea rows={2} />
           </Form.Item>
 
           {editingLead && (
@@ -1328,6 +1425,19 @@ export default function SalesLeadsPage() {
               placeholder="Add tags like: high-priority, partner, etc."
             />
           </Form.Item>
+
+          {!editingLead && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
+              <Button
+                type="default"
+                onClick={() => handleSubmitLead(true)}
+                style={{ fontWeight: 500 }}
+                disabled={!canSaveAndContinue}
+              >
+                Save &amp; Continue
+              </Button>
+            </div>
+          )}
         </Form>
       </Drawer>
 
@@ -1359,6 +1469,16 @@ export default function SalesLeadsPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <ConvertLeadModal
+        lead={convertingLead}
+        open={convertingLead !== null}
+        onClose={() => setConvertingLead(null)}
+        onConverted={() => {
+          message.success("Lead converted to Account + Contact successfully!");
+          fetchData();
+        }}
+      />
     </div>
   );
 }

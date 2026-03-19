@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Layout, Avatar, Dropdown } from "antd";
 import { UserOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import GlobalSearch from "./GlobalSearch";
 
 const { Header } = Layout;
 
@@ -61,12 +62,15 @@ export default function SalesHeader() {
         background: "#fff",
         display: "flex",
         alignItems: "center",
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
         boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         flexShrink: 0,
         zIndex: 99,
+        gap: 16,
       }}
     >
+      <GlobalSearch />
+
       <Dropdown
         menu={{ items: userMenuItems, onClick: handleMenuClick }}
         placement="bottomRight"

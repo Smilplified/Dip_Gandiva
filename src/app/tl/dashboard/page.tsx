@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -195,14 +196,7 @@ export default function TeamLeaderDashboardPage() {
 
   return (
     <div style={{ padding: "0 4px" }}>
-      <div style={{ marginBottom: 28 }}>
-        <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#1f1f1f" }}>
-          Team Leader Dashboard
-        </Title>
-        <Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 6 }}>
-          Welcome back, {profile?.full_name || "Team Leader"}. Manage campaigns, team, and pipeline.
-        </Text>
-      </div>
+      <DashboardGreeting />
 
       {isOffline && (
         <div style={{ marginBottom: 24 }}>

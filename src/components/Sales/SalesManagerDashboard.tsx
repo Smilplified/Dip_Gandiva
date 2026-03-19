@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Card, Row, Col, Typography, Table, Tag, Avatar, Progress } from "antd";
+import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import {
   TeamOutlined,
   TrophyOutlined,
@@ -190,14 +191,7 @@ export default function SalesManagerDashboard() {
 
   return (
     <div style={{ padding: "0 4px" }}>
-      <div style={{ marginBottom: 28 }}>
-        <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#1f1f1f" }}>
-          Sales Manager Dashboard
-        </Title>
-        <Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 6 }}>
-          Welcome back, {profile?.full_name || "Sales Manager"}. Monitor team performance and pipeline health.
-        </Text>
-      </div>
+      <DashboardGreeting />
 
       <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
         {statsCards.map((stat, index) => (

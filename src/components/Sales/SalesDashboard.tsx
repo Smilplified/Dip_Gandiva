@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, Row, Col, Typography, Table, Tag, Badge, Avatar, Checkbox } from "antd";
+import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import {
   UserAddOutlined,
   PhoneOutlined,
@@ -224,14 +225,7 @@ export default function SalesDashboard() {
 
   return (
     <div style={{ padding: "0 4px" }}>
-      <div style={{ marginBottom: 28 }}>
-        <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#1f1f1f" }}>
-          Sales Dashboard
-        </Title>
-        <Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 6 }}>
-          Track leads, conversions, and pipeline performance in real-time
-        </Text>
-      </div>
+      <DashboardGreeting />
 
       <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
         {statsData.map((stat, index) => (

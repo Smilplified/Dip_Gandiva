@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import {
   Card,
   Row,
@@ -224,14 +225,7 @@ export default function QADashboardPage() {
 
   return (
     <div style={{ padding: "0 4px", maxWidth: 1600, margin: "0 auto" }}>
-      <div style={{ marginBottom: 28 }}>
-        <Title level={2} style={{ margin: 0, fontSize: 28, fontWeight: 700, color: "#1f1f1f" }}>
-          QA Dashboard
-        </Title>
-        <Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 6 }}>
-          Welcome back, {profile?.full_name || "QA"}. Review and edit leads across campaigns.
-        </Text>
-      </div>
+      <DashboardGreeting />
 
       {isOffline && (
         <div style={{ marginBottom: 24 }}>
