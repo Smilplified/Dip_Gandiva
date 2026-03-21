@@ -96,7 +96,12 @@ export async function POST(
       deal_stage?: string | null;
     } = body ?? {};
 
-    const resolvedCompanyName = (company_name || (lead.company as string) || "").trim();
+    const resolvedCompanyName = (
+      company_name ||
+      (lead.company_name as string) ||
+      (lead.company as string) ||
+      ""
+    ).trim();
     const resolvedContactName = (contact_name || (lead.lead_name as string) || "").trim();
 
     if (!resolvedCompanyName) {
@@ -106,35 +111,42 @@ export async function POST(
       return NextResponse.json({ error: "Contact name is required for conversion" }, { status: 400 });
     }
 
-    // ── 3. Find or create Account ────────────────────────────────────────────
+    // ── 3. Find or create Account (reuse lead-linked account when present) ───
     let accountId: string;
-    const { data: existingAccount } = await admin
-      .from("accounts")
-      .select("id")
-      .ilike("company_name", resolvedCompanyName)
-      .limit(1)
-      .maybeSingle() as { data: { id: string } | null };
-
-    if (existingAccount?.id) {
-      accountId = existingAccount.id;
+    let accountCreatedNew = false;
+    const linkedAccountId = lead.account_id as string | null | undefined;
+    if (linkedAccountId) {
+      accountId = linkedAccountId;
     } else {
-      const { data: newAccount, error: accErr } = await admin
+      const { data: existingAccount } = await admin
         .from("accounts")
-        .insert({
-          company_name: resolvedCompanyName,
-          industry: (lead.industry as string | null) ?? null,
-          website: (lead.website as string | null) ?? null,
-          phone: (lead.phone as string | null) ?? null,
-          address: (lead.address as string | null) ?? null,
-          owner_id: user!.id,
-        } as never)
         .select("id")
-        .single();
+        .ilike("company_name", resolvedCompanyName)
+        .limit(1)
+        .maybeSingle() as { data: { id: string } | null };
 
-      if (accErr || !newAccount) {
-        return NextResponse.json({ error: accErr?.message ?? "Failed to create account" }, { status: 500 });
+      if (existingAccount?.id) {
+        accountId = existingAccount.id;
+      } else {
+        const { data: newAccount, error: accErr } = await admin
+          .from("accounts")
+          .insert({
+            company_name: resolvedCompanyName,
+            industry: (lead.industry as string | null) ?? null,
+            website: (lead.website as string | null) ?? null,
+            phone: (lead.phone as string | null) ?? null,
+            address: (lead.address as string | null) ?? null,
+            owner_id: user!.id,
+          } as never)
+          .select("id")
+          .single();
+
+        if (accErr || !newAccount) {
+          return NextResponse.json({ error: accErr?.message ?? "Failed to create account" }, { status: 500 });
+        }
+        accountId = (newAccount as { id: string }).id;
+        accountCreatedNew = true;
       }
-      accountId = (newAccount as { id: string }).id;
     }
 
     // ── 4. Duplicate contact check ───────────────────────────────────────────
@@ -181,7 +193,10 @@ export async function POST(
         zip: (lead.zip as string | null) ?? null,
         address: (lead.address as string | null) ?? null,
         lead_source: (lead.lead_source as string | null) ?? null,
-        lead_score: (lead.lead_score as number | null) ?? null,
+        lead_score:
+          typeof lead.lead_score === "number"
+            ? lead.lead_score
+            : null,
         status: "active",
       } as never)
       .select("id")
@@ -282,7 +297,7 @@ export async function POST(
       account_id: accountId,
       contact_id: contactId,
       deal_id: dealId,
-      account_created: !existingAccount?.id,
+      account_created: accountCreatedNew,
     });
   } catch (err) {
     console.error("Lead convert POST error:", err);

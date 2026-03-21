@@ -1,70 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import {
+  ensureAccountForLeadRecord,
+  syncLeadFollowupTask,
+} from "@/lib/sales/leadAccountFollowup";
+import { SALES_LEADS_SELECT } from "@/lib/sales/salesLeadSelect";
+import { shapeSalesLeadForApi } from "@/lib/sales/shapeSalesLead";
+import { insertLeadActivity } from "@/lib/sales/leadTimeline";
 
 export const dynamic = "force-dynamic";
-
-// sales_leads is a dedicated table for Sales UI,
-// keeping CRM leads logic separate from agent/QA flows.
-const SALES_LEADS_SELECT =
-  [
-    "id",
-    "organization_id",
-    "lead_name",
-    "first_name",
-    "last_name",
-    "company_name",
-    "email",
-    "phone",
-    "alt_phone",
-    "job_title",
-    "linkedin",
-    "department",
-    "website",
-    "industry",
-    "company_size",
-    "annual_revenue",
-    "business_type",
-    "gst_number",
-    "pan_number",
-    "country",
-    "state",
-    "city",
-    "zip",
-    "address",
-    "budget",
-    "decision_maker",
-    "purchase_timeline",
-    "current_solution",
-    "pain_points",
-    "requirements",
-    "lead_source",
-    "source_type",
-    "source_campaign",
-    "utm_source",
-    "utm_medium",
-    "utm_campaign",
-    "deal_stage",
-    "deal_value",
-    "probability",
-    "expected_close_date",
-    "product_interest",
-    "last_contacted",
-    "next_followup",
-    "followup_type",
-    "interaction_notes",
-    "qualification_status",
-    "qa_status",
-    "disqualification_reason",
-    "rectified_reason",
-    "status",
-    "lead_score",
-    "assigned_agent_id",
-    "created_by",
-    "created_at",
-    "updated_at",
-    "tags",
-  ].join(", ");
 
 async function getUserAndOrg() {
   const supabase = await createClient();
@@ -162,6 +107,20 @@ export async function GET() {
       );
     }
 
+    const accountIds = Array.from(
+      new Set(leads.map((l: any) => l.account_id).filter(Boolean) as string[])
+    );
+    const accountCompanyNames: Record<string, string> = {};
+    if (accountIds.length > 0) {
+      const { data: accs } = await admin
+        .from("accounts")
+        .select("id, company_name")
+        .in("id", accountIds);
+      ((accs ?? []) as { id: string; company_name: string | null }[]).forEach((a) => {
+        accountCompanyNames[a.id] = a.company_name ?? "—";
+      });
+    }
+
     const { data: agentUsers } = await admin
       .from("users")
       .select("id, full_name, email, department")
@@ -174,83 +133,9 @@ export async function GET() {
         department: (u.department as string | null) ?? null,
       })) ?? [];
 
-    const shapedLeads = leads.map((l: any) => {
-      const primaryName =
-        l.lead_name ||
-        [l.first_name, l.last_name]
-          .filter((p: string | null) => p && String(p).trim())
-          .join(" ")
-          .trim() ||
-        null;
-      return {
-        id: l.id,
-        // Identity
-        lead_name: primaryName,
-        first_name: l.first_name ?? null,
-        last_name: l.last_name ?? null,
-        // Contact & company
-        company: l.company_name ?? null,
-        email: l.email,
-        phone: l.phone,
-        alt_phone: l.alt_phone ?? null,
-        job_title: l.job_title ?? null,
-        linkedin: l.linkedin ?? null,
-        department: l.department ?? null,
-        website: l.website ?? null,
-        industry: l.industry ?? null,
-        company_size: l.company_size ?? null,
-        annual_revenue: l.annual_revenue ?? null,
-        business_type: l.business_type ?? null,
-        gst_number: l.gst_number ?? null,
-        pan_number: l.pan_number ?? null,
-        // Address
-        country: l.country ?? null,
-        state: l.state ?? null,
-        city: l.city ?? null,
-        zip: l.zip ?? null,
-        address: l.address ?? null,
-        // Qualification
-        budget: l.budget ?? null,
-        decision_maker: l.decision_maker ?? null,
-        purchase_timeline: l.purchase_timeline ?? null,
-        current_solution: l.current_solution ?? null,
-        pain_points: l.pain_points ?? null,
-        requirements: l.requirements ?? null,
-        // Source & tracking
-        lead_source: l.lead_source,
-        source_type: l.source_type ?? null,
-        source_campaign: l.source_campaign ?? null,
-        utm_source: l.utm_source ?? null,
-        utm_medium: l.utm_medium ?? null,
-        utm_campaign: l.utm_campaign ?? null,
-        // Pipeline
-        status: l.status,
-        lead_score: l.lead_score ?? null,
-        deal_stage: l.deal_stage ?? null,
-        deal_value: l.deal_value ?? null,
-        probability: l.probability ?? null,
-        expected_close_date: l.expected_close_date ?? null,
-        product_interest: l.product_interest ?? null,
-        // Activity
-        last_contacted: l.last_contacted ?? null,
-        next_followup: l.next_followup ?? null,
-        followup_type: l.followup_type ?? null,
-        interaction_notes: l.interaction_notes ?? null,
-        // Qualification & QA
-        qualification_status: l.qualification_status ?? null,
-        qa_status: l.qa_status ?? null,
-        disqualification_reason: l.disqualification_reason ?? null,
-        rectified_reason: l.rectified_reason ?? null,
-        // Ownership & audit
-        assigned_to_id: l.assigned_agent_id,
-        assigned_to_name: l.assigned_agent_id ? userNames[l.assigned_agent_id] ?? "—" : null,
-        created_at: l.created_at,
-        created_by_name: l.created_by ? userNames[l.created_by] ?? null : null,
-        updated_at: l.updated_at ?? null,
-        // Tags
-        tags: l.tags ?? null,
-      };
-    });
+    const shapedLeads = leads.map((l: any) =>
+      shapeSalesLeadForApi(l as Record<string, unknown>, userNames, accountCompanyNames)
+    );
 
     return NextResponse.json({ leads: shapedLeads, agents });
   } catch (err) {
@@ -333,6 +218,30 @@ export async function POST(request: Request) {
         .trim() ||
       null;
 
+    const assignedAgentId = (assigned_to_id as string | undefined) ?? user!.id;
+
+    let accountId: string | null = null;
+    try {
+      accountId = await ensureAccountForLeadRecord(
+        admin,
+        orgId,
+        assignedAgentId,
+        company as string | undefined,
+        {
+          industry: industry as string | null,
+          website: website as string | null,
+          phone: phone as string | null,
+          address: address as string | null,
+        }
+      );
+    } catch (accErr) {
+      console.error("[sales/leads POST] ensureAccountForLeadRecord:", accErr);
+      return NextResponse.json(
+        { error: accErr instanceof Error ? accErr.message : "Failed to resolve account" },
+        { status: 500 }
+      );
+    }
+
     const insertPayload = {
       organization_id: orgId,
       lead_name: composedLeadName,
@@ -386,8 +295,13 @@ export async function POST(request: Request) {
       rectified_reason: (rectified_reason as string | null) ?? null,
       status: (status as string | null) ?? "new",
       lead_score:
-        typeof lead_score === "number" ? (lead_score as number) : null,
-      assigned_agent_id: assigned_to_id ?? user!.id,
+        typeof lead_score === "string" && String(lead_score).trim()
+          ? String(lead_score).trim()
+          : typeof lead_score === "number"
+            ? String(lead_score)
+            : null,
+      assigned_agent_id: assignedAgentId,
+      account_id: accountId,
       created_by: user!.id,
       tags: (tags as string[]) ?? [],
     };
@@ -401,6 +315,25 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    const row = data as Record<string, unknown>;
+    await syncLeadFollowupTask(admin, orgId, {
+      leadId: row.id as string,
+      leadName: String(composedLeadName ?? ""),
+      companyName: (row.company_name as string | null) ?? null,
+      followupType: (followup_type as string | null) ?? null,
+      nextFollowupIso: (next_followup as string | null) ?? null,
+      assignedAgentId,
+      previousTaskId: null,
+      actorUserId: user!.id,
+    });
+
+    await insertLeadActivity(admin, {
+      activity_type: "system",
+      related_to_id: row.id as string,
+      notes: "This lead was created from the CRM.",
+      owner_id: user!.id,
+    });
 
     return NextResponse.json({ lead: data }, { status: 201 });
   } catch (err) {

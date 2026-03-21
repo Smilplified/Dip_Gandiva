@@ -1,8 +1,25 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import {
+  ensureAccountForLeadRecord,
+  syncLeadFollowupTask,
+} from "@/lib/sales/leadAccountFollowup";
+import { fetchSalesLeadIfAccessible } from "@/lib/sales/canAccessSalesLead";
+import { shapeSalesLeadForApi } from "@/lib/sales/shapeSalesLead";
+import { insertLeadActivity } from "@/lib/sales/leadTimeline";
 
 export const dynamic = "force-dynamic";
+
+const LIFECYCLE_LABELS: Record<string, string> = {
+  lead: "Lead",
+  marketing_qualified_lead: "Marketing Qualified Lead",
+  sales_qualified_lead: "Sales Qualified Lead",
+  opportunity: "Opportunity",
+  customer: "Customer",
+  evangelist: "Evangelist",
+  other: "Other",
+};
 
 async function getUserAndOrg() {
   const supabase = await createClient();
@@ -45,6 +62,67 @@ async function getUserAndOrg() {
   return { user, orgId, roleNames };
 }
 
+export async function GET(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const ctx = await getUserAndOrg();
+    if ("error" in ctx) return ctx.error;
+    const { user, orgId, roleNames } = ctx;
+
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
+
+    const isManagerOrAdmin =
+      roleNames.includes("sales_manager") || roleNames.includes("admin");
+
+    const lead = await fetchSalesLeadIfAccessible(admin, orgId, params.id, {
+      userId: user.id,
+      isManagerOrAdmin,
+    });
+    if (!lead) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
+    const userIds = new Set<string>();
+    if (lead.assigned_agent_id) userIds.add(lead.assigned_agent_id as string);
+    if (lead.created_by) userIds.add(lead.created_by as string);
+    const userNames: Record<string, string> = {};
+    if (userIds.size > 0) {
+      const { data: users } = await admin
+        .from("users")
+        .select("id, full_name, email")
+        .in("id", [...userIds]);
+      ((users ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach(
+        (u) => {
+          userNames[u.id] = u.full_name || u.email || "Unknown";
+        }
+      );
+    }
+
+    const accountCompanyNames: Record<string, string> = {};
+    if (lead.account_id) {
+      const { data: acc } = await admin
+        .from("accounts")
+        .select("id, company_name")
+        .eq("id", lead.account_id as string)
+        .maybeSingle();
+      const a = acc as { id: string; company_name: string | null } | null;
+      if (a) accountCompanyNames[a.id] = a.company_name ?? "—";
+    }
+
+    return NextResponse.json({
+      lead: shapeSalesLeadForApi(lead, userNames, accountCompanyNames),
+    });
+  } catch (err) {
+    console.error("Sales leads GET [id] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
@@ -52,12 +130,20 @@ export async function PATCH(
   try {
     const ctx = await getUserAndOrg();
     if ("error" in ctx) return ctx.error;
-    const { orgId } = ctx;
+    const { user, orgId } = ctx;
 
     const admin = getAdminClientSafe();
     if (!admin) {
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
     }
+
+    const { data: selfRow } = await admin
+      .from("users")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .maybeSingle();
+    const selfProfile = selfRow as { full_name: string | null; email: string | null } | null;
+    const meName = selfProfile?.full_name || selfProfile?.email || "User";
 
     const body = await request.json();
     const {
@@ -173,13 +259,31 @@ export async function PATCH(
     if (disqualification_reason !== undefined) updatePayload.disqualification_reason = disqualification_reason;
     if (rectified_reason !== undefined) updatePayload.rectified_reason = rectified_reason;
     if (status !== undefined) updatePayload.status = status;
-    if (lead_score !== undefined) updatePayload.lead_score = lead_score;
+    if (lead_score !== undefined) {
+      updatePayload.lead_score =
+        typeof lead_score === "string" && String(lead_score).trim()
+          ? String(lead_score).trim()
+          : typeof lead_score === "number"
+            ? String(lead_score)
+            : null;
+    }
     if (assigned_to_id !== undefined) updatePayload.assigned_agent_id = assigned_to_id;
     if (tags !== undefined) updatePayload.tags = tags;
 
     if (convert_to_contact) {
       updatePayload.status = "interested";
     }
+
+    const { data: beforeRow } = await admin
+      .from("sales_leads")
+      .select("status, lead_score, lead_name")
+      .eq("id", params.id)
+      .eq("organization_id", orgId)
+      .maybeSingle();
+
+    const before = beforeRow as
+      | { status: string; lead_score: string | null; lead_name: string | null }
+      | null;
 
     const { data, error }: { data: { id: string } | null; error: { message: string } | null } =
       await admin
@@ -192,6 +296,77 @@ export async function PATCH(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const { data: leadRow, error: fetchErr } = await admin
+      .from("sales_leads")
+      .select("*")
+      .eq("id", params.id)
+      .eq("organization_id", orgId)
+      .single();
+
+    if (!fetchErr && leadRow) {
+      const lead = leadRow as Record<string, unknown>;
+      const assignedAgentId = (lead.assigned_agent_id as string) ?? user.id;
+
+      try {
+        const accountId = await ensureAccountForLeadRecord(
+          admin,
+          orgId,
+          assignedAgentId,
+          lead.company_name as string | undefined,
+          {
+            industry: lead.industry as string | null,
+            website: lead.website as string | null,
+            phone: lead.phone as string | null,
+            address: lead.address as string | null,
+          }
+        );
+        if (accountId !== lead.account_id) {
+          await admin
+            .from("sales_leads")
+            .update({ account_id: accountId } as never)
+            .eq("id", params.id)
+            .eq("organization_id", orgId);
+        }
+      } catch (accErr) {
+        console.error("[PATCH sales/leads] ensureAccountForLeadRecord:", accErr);
+      }
+
+      await syncLeadFollowupTask(admin, orgId, {
+        leadId: params.id,
+        leadName: String(lead.lead_name ?? ""),
+        companyName: (lead.company_name as string) ?? null,
+        followupType: (lead.followup_type as string) ?? null,
+        nextFollowupIso: (lead.next_followup as string) ?? null,
+        assignedAgentId,
+        previousTaskId: (lead.followup_task_id as string) ?? null,
+        actorUserId: user.id,
+      });
+
+      if (before) {
+        if (status !== undefined && before.status !== lead.status) {
+          await insertLeadActivity(admin, {
+            activity_type: "lifecycle_change",
+            related_to_id: params.id,
+            notes: `${meName} updated lead status from "${before.status}" to "${lead.status}".`,
+            owner_id: user.id,
+          });
+        }
+        if (
+          lead_score !== undefined &&
+          String(before.lead_score ?? "") !== String(lead.lead_score ?? "")
+        ) {
+          const fromL = LIFECYCLE_LABELS[String(before.lead_score ?? "")] ?? before.lead_score ?? "—";
+          const toL = LIFECYCLE_LABELS[String(lead.lead_score ?? "")] ?? lead.lead_score ?? "—";
+          await insertLeadActivity(admin, {
+            activity_type: "lifecycle_change",
+            related_to_id: params.id,
+            notes: `${meName} updated the lifecycle stage for this lead from ${fromL} to ${toL}.`,
+            owner_id: user.id,
+          });
+        }
+      }
     }
 
     return NextResponse.json({ id: data?.id ?? params.id, success: true });

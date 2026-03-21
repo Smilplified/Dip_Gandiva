@@ -181,7 +181,15 @@ export async function POST(request: Request) {
       activity_date,
       owner_id,
     }: {
-      activity_type?: "call" | "meeting" | "email" | "demo";
+      activity_type?:
+        | "call"
+        | "meeting"
+        | "email"
+        | "demo"
+        | "note"
+        | "lifecycle_change"
+        | "system"
+        | "task";
       related_to_type?: "lead" | "contact" | "deal";
       related_to_id?: string;
       notes?: string | null;

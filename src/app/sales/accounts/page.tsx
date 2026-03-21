@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import dayjs from "dayjs";
 import quarterOfYear from "dayjs/plugin/quarterOfYear";
 import {
@@ -265,6 +267,9 @@ function rangeForCreatedDate(key: DateRangeKey, now = dayjs()): [dayjs.Dayjs, da
 const { Title, Text } = Typography;
 
 export default function SalesAccountsPage() {
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("highlight");
+
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -363,7 +368,14 @@ export default function SalesAccountsPage() {
       key: "company_name",
       width: 220,
       ellipsis: true,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null, record: AccountRow) =>
+        v ? (
+          <Link href={`/sales/accounts/${record.id}`} style={{ fontWeight: 600, color: "#1677ff" }}>
+            {v}
+          </Link>
+        ) : (
+          "—"
+        ),
     },
     {
       title: "Industry",
@@ -559,6 +571,13 @@ export default function SalesAccountsPage() {
         </Row>
       </Card>
 
+      <style>{`
+        .sales-account-row-highlight td {
+          background: #e6f4ff !important;
+          box-shadow: inset 3px 0 0 0 #1677ff;
+        }
+      `}</style>
+
       <Card
         bodyStyle={{ padding: 0 }}
         style={{
@@ -572,6 +591,9 @@ export default function SalesAccountsPage() {
           dataSource={filteredAccounts}
           loading={loading}
           rowKey="id"
+          rowClassName={(record) =>
+            highlightId && record.id === highlightId ? "sales-account-row-highlight" : ""
+          }
           pagination={{
             pageSize: 10,
             showSizeChanger: true,

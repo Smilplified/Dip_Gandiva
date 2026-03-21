@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { resolveDealAssociate } from "@/lib/sales/resolveDealAssociate";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,12 @@ async function getUserAndRoles() {
   return { user, roleNames };
 }
 
+async function getOrgIdForUser(userId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("users").select("organization_id").eq("id", userId).single();
+  return (data as { organization_id: string | null } | null)?.organization_id ?? null;
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
@@ -62,6 +69,8 @@ export async function PATCH(
       priority,
       line_items,
       contact_id,
+      sales_lead_id,
+      deal_associate,
       account_id,
     }: {
       deal_name?: string | null;
@@ -74,6 +83,8 @@ export async function PATCH(
       priority?: string | null;
       line_items?: any[] | null;
       contact_id?: string | null;
+      sales_lead_id?: string | null;
+      deal_associate?: string | null;
       account_id?: string | null;
     } = body ?? {};
 
@@ -87,8 +98,30 @@ export async function PATCH(
     if (deal_type !== undefined) updatePayload.deal_type = deal_type;
     if (priority !== undefined) updatePayload.priority = priority;
     if (line_items !== undefined) updatePayload.line_items = line_items;
-    if (contact_id !== undefined) updatePayload.contact_id = contact_id;
     if (account_id !== undefined) updatePayload.account_id = account_id;
+
+    if (deal_associate !== undefined) {
+      const orgId = await getOrgIdForUser(user!.id);
+      if (!orgId) {
+        return NextResponse.json({ error: "No organization" }, { status: 400 });
+      }
+      if (deal_associate === null || deal_associate === "") {
+        updatePayload.contact_id = null;
+        updatePayload.sales_lead_id = null;
+      } else {
+        try {
+          const r = await resolveDealAssociate(admin, orgId, String(deal_associate));
+          updatePayload.contact_id = r.contact_id;
+          updatePayload.sales_lead_id = r.sales_lead_id;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Invalid contact / lead";
+          return NextResponse.json({ error: msg }, { status: 400 });
+        }
+      }
+    } else {
+      if (contact_id !== undefined) updatePayload.contact_id = contact_id;
+      if (sales_lead_id !== undefined) updatePayload.sales_lead_id = sales_lead_id;
+    }
 
     if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });

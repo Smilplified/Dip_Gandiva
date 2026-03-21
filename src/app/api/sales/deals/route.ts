@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { resolveDealAssociate } from "@/lib/sales/resolveDealAssociate";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,12 @@ async function getUserAndRoles() {
   return { user, roleNames };
 }
 
+async function getOrgIdForUser(userId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("users").select("organization_id").eq("id", userId).single();
+  return (data as { organization_id: string | null } | null)?.organization_id ?? null;
+}
+
 export async function GET() {
   try {
     const ctx = await getUserAndRoles();
@@ -49,7 +56,9 @@ export async function GET() {
 
     let query = admin
       .from("deals")
-      .select("id, deal_name, account_id, contact_id, value, stage, pipeline, deal_type, priority, line_items, owner_id, expected_close_date, created_at")
+      .select(
+        "id, deal_name, account_id, contact_id, sales_lead_id, value, stage, pipeline, deal_type, priority, line_items, owner_id, expected_close_date, created_at"
+      )
       .order("created_at", { ascending: false });
 
     const isManagerOrAdmin =
@@ -68,6 +77,7 @@ export async function GET() {
 
     const accountIds = Array.from(new Set(deals.map((d) => d.account_id).filter(Boolean))) as string[];
     const contactIds = Array.from(new Set(deals.map((d) => d.contact_id).filter(Boolean))) as string[];
+    const leadIds = Array.from(new Set(deals.map((d) => d.sales_lead_id).filter(Boolean))) as string[];
     const ownerIds = Array.from(new Set(deals.map((d) => d.owner_id).filter(Boolean))) as string[];
 
     let accountNames: Record<string, string> = {};
@@ -92,6 +102,16 @@ export async function GET() {
       });
     }
 
+    let leadNames: Record<string, string> = {};
+    if (leadIds.length > 0) {
+      const { data: sl } = await admin.from("sales_leads").select("id, lead_name, email").in("id", leadIds);
+      ((sl ?? []) as { id: string; lead_name: string | null; email: string | null }[]).forEach((l) => {
+        const n = (l.lead_name ?? "").trim() || "Lead";
+        const e = (l.email ?? "").trim();
+        leadNames[l.id] = e ? `${n} · ${e}` : n;
+      });
+    }
+
     let ownerNames: Record<string, string> = {};
     if (ownerIds.length > 0) {
       const { data: users } = await admin
@@ -109,7 +129,12 @@ export async function GET() {
       account_id: (d.account_id as string | null) ?? null,
       account_name: d.account_id ? accountNames[d.account_id as string] ?? "—" : null,
       contact_id: (d.contact_id as string | null) ?? null,
-      contact_name: d.contact_id ? contactNames[d.contact_id as string] ?? "—" : null,
+      sales_lead_id: (d.sales_lead_id as string | null) ?? null,
+      contact_name: d.contact_id
+        ? contactNames[d.contact_id as string] ?? "—"
+        : d.sales_lead_id
+          ? leadNames[d.sales_lead_id as string] ?? "—"
+          : null,
       value: (d.value as number | null) ?? null,
       stage: d.stage as string,
       pipeline: (d.pipeline as string | null) ?? "Client Acquisition pipeline",
@@ -144,7 +169,9 @@ export async function POST(request: Request) {
     const {
       deal_name,
       account_id,
-      contact_id,
+      contact_id: bodyContactId,
+      sales_lead_id: bodySalesLeadId,
+      deal_associate,
       value,
       stage,
       pipeline,
@@ -157,6 +184,8 @@ export async function POST(request: Request) {
       deal_name?: string;
       account_id?: string | null;
       contact_id?: string | null;
+      sales_lead_id?: string | null;
+      deal_associate?: string | null;
       value?: number | null;
       stage?: string | null;
       pipeline?: string | null;
@@ -171,10 +200,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Deal name is required" }, { status: 400 });
     }
 
+    const orgId = await getOrgIdForUser(user!.id);
+    if (!orgId) {
+      return NextResponse.json({ error: "No organization" }, { status: 400 });
+    }
+
+    let contact_id: string | null = bodyContactId ?? null;
+    let sales_lead_id: string | null = bodySalesLeadId ?? null;
+
+    if (deal_associate !== undefined) {
+      const raw = deal_associate;
+      if (raw === null || raw === "") {
+        contact_id = null;
+        sales_lead_id = null;
+      } else {
+        try {
+          const r = await resolveDealAssociate(admin, orgId, String(raw));
+          contact_id = r.contact_id;
+          sales_lead_id = r.sales_lead_id;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Invalid contact / lead";
+          return NextResponse.json({ error: msg }, { status: 400 });
+        }
+      }
+    }
+
     const insertPayload = {
       deal_name: deal_name.trim(),
       account_id: account_id ?? null,
-      contact_id: contact_id ?? null,
+      contact_id,
+      sales_lead_id,
       value: value ?? null,
       stage: stage ?? "introductory_meeting",
       pipeline: pipeline ?? "Client Acquisition pipeline",
@@ -188,7 +243,9 @@ export async function POST(request: Request) {
     const { data, error } = await admin
       .from("deals")
       .insert(insertPayload as never)
-      .select("id, deal_name, account_id, contact_id, value, stage, pipeline, deal_type, priority, line_items, owner_id, expected_close_date, created_at")
+      .select(
+        "id, deal_name, account_id, contact_id, sales_lead_id, value, stage, pipeline, deal_type, priority, line_items, owner_id, expected_close_date, created_at"
+      )
       .single();
 
     if (error) {

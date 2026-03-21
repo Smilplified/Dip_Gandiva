@@ -104,13 +104,17 @@ function isOverdue(task: TaskRow): boolean {
 
 function getDueDateDisplay(task: TaskRow): { label: string; color: string } {
   if (!task.due_date) return { label: "No due date", color: "#d1d5db" };
-  if (task.status === "completed") return { label: dayjs(task.due_date).format("DD MMM YYYY"), color: "#9ca3af" };
-  if (isOverdue(task)) return { label: "Overdue · " + dayjs(task.due_date).format("DD MMM"), color: "#b91c1c" };
-  const daysLeft = dayjs(task.due_date).diff(dayjs(), "day");
-  if (daysLeft === 0) return { label: "Today", color: "#f59e0b" };
-  if (daysLeft === 1) return { label: "Tomorrow", color: "#f59e0b" };
-  if (daysLeft <= 3)  return { label: `In ${daysLeft} days`, color: "#ea580c" };
-  return { label: dayjs(task.due_date).format("DD MMM YYYY"), color: "#374151" };
+  const d = dayjs(task.due_date);
+  if (task.status === "completed") {
+    return { label: d.format("DD MMM YYYY, h:mm A"), color: "#9ca3af" };
+  }
+  if (isOverdue(task)) {
+    return { label: `Overdue · ${d.format("DD MMM, h:mm A")} · ${d.fromNow()}`, color: "#b91c1c" };
+  }
+  return {
+    label: `${d.format("DD MMM YYYY, h:mm A")} · ${d.fromNow()}`,
+    color: "#374151",
+  };
 }
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────

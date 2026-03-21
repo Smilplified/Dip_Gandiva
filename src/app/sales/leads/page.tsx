@@ -3,37 +3,28 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import dayjs from "dayjs";
 import quarterOfYear from "dayjs/plugin/quarterOfYear";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Button,
   Card,
   Col,
-  Drawer,
-  Form,
   Input,
   Row,
   Select,
   Space,
   Table,
   Tag,
-  Tooltip,
   Typography,
   DatePicker,
-  InputNumber,
-  Modal,
   message,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   PlusOutlined,
-  EditOutlined,
-  UserSwitchOutlined,
-  SwapOutlined,
   SearchOutlined,
-  CheckCircleOutlined,
 } from "@ant-design/icons";
-import { ConvertLeadModal } from "@/components/Sales/ConvertLeadModal";
-import type { LeadForConversion } from "@/components/Sales/ConvertLeadModal";
+import { LEAD_STATUS_OPTIONS } from "@/constants/salesLeadForm";
 
 type LeadRow = {
   id: string;
@@ -49,6 +40,8 @@ type LeadRow = {
   department: string | null;
   // Company
   company: string | null;
+  account_id?: string | null;
+  account_company_name?: string | null;
   website: string | null;
   industry: string | null;
   company_size: string | null;
@@ -77,7 +70,7 @@ type LeadRow = {
   utm_medium: string | null;
   utm_campaign: string | null;
   // Pipeline
-  lead_score: number | null;
+  lead_score: string | number | null;
   deal_stage: string | null;
   deal_value: string | null;
   probability: number | null;
@@ -337,30 +330,15 @@ function rangeForCreatedDate(key: DateRangeKey, now = dayjs()): [dayjs.Dayjs, da
   }
 }
 
-// Values must match allowed DB status values on leads.status
-// Labels are user-friendly names for the UI.
-const LEAD_STATUS_OPTIONS = [
-  { value: "new", label: "New" },
-  { value: "contacted", label: "Contacted" },
-  { value: "interested", label: "Qualified" }, // mapped to DB status "interested"
-  { value: "closed_lost", label: "Lost" },     // mapped to DB status "closed_lost"
-];
-
-const LEAD_SCORE_OPTIONS = [
-  { value: 1, label: "Not Interested" },
-  { value: 2, label: "Voicemail" },
-  { value: 3, label: "Call Dropped" },
-  { value: 4, label: "Invalid Number" },
-  { value: 5, label: "Number Not Reachable" },
-  { value: 6, label: "Call Back" },
-  { value: 7, label: "Dead Contact" },
-  { value: 8, label: "Gatekeeper Declined" },
-  { value: 9, label: "Follow-up Scheduled" },
-  { value: 10, label: "Do Not Call" },
-];
-
 const STATUS_COLORS: Record<string, string> = {
   new: "blue",
+  open: "cyan",
+  in_progress: "processing",
+  open_deal: "purple",
+  unqualified: "red",
+  attempted_to_contact: "orange",
+  connected: "green",
+  bad_timing: "default",
   contacted: "gold",
   interested: "green",
   closed_lost: "red",
@@ -382,32 +360,6 @@ export default function SalesLeadsPage() {
   const [lastActivityRange, setLastActivityRange] = useState<[any, any] | null>(null);
   const [lastActivityByLeadId, setLastActivityByLeadId] = useState<Record<string, string>>({});
 
-  const [editingLead, setEditingLead] = useState<LeadRow | null>(null);
-  const [assigningLead, setAssigningLead] = useState<LeadRow | null>(null);
-  const [convertingLead, setConvertingLead] = useState<LeadForConversion | null>(null);
-  const [leadDrawerOpen, setLeadDrawerOpen] = useState(false);
-
-  const [form] = Form.useForm();
-  const [assignForm] = Form.useForm();
-  const watchedFirstName = Form.useWatch("first_name", form);
-  const watchedLastName = Form.useWatch("last_name", form);
-  const watchedCompany = Form.useWatch("company", form);
-  const watchedWebsite = Form.useWatch("website", form);
-  const watchedCountry = Form.useWatch("country", form);
-  const watchedEmail = Form.useWatch("email", form);
-  const watchedLeadScore = Form.useWatch("lead_score", form);
-
-  const hasText = (value: unknown) =>
-    typeof value === "string" && value.trim().length > 0;
-
-  const canSaveAndContinue =
-    hasText(watchedFirstName) &&
-    hasText(watchedLastName) &&
-    hasText(watchedCompany) &&
-    hasText(watchedWebsite) &&
-    hasText(watchedCountry) &&
-    hasText(watchedEmail) &&
-    typeof watchedLeadScore === "number";
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -445,242 +397,6 @@ export default function SalesLeadsPage() {
     fetchData();
   }, [fetchData]);
 
-  const openCreateDrawer = () => {
-    setEditingLead(null);
-    form.resetFields();
-    setLeadDrawerOpen(true);
-  };
-
-  const handleEdit = (lead: LeadRow) => {
-    setEditingLead(lead);
-    const fullName = lead.lead_name ?? "";
-    const [firstName, ...lastParts] = fullName.trim().split(" ");
-    const lastName = lastParts.join(" ");
-    form.setFieldsValue({
-      // Basic identity
-      lead_name: lead.lead_name ?? "",
-      first_name: firstName || "",
-      last_name: lastName || "",
-      // Contact
-      company: lead.company ?? "",
-      email: lead.email ?? "",
-      phone: lead.phone ?? "",
-      alt_phone: lead.alt_phone ?? "",
-      job_title: lead.job_title ?? "",
-      linkedin: lead.linkedin ?? "",
-      department: lead.department ?? "",
-      // Lead meta
-      lead_source: lead.lead_source ?? "",
-      status: lead.status,
-      lead_score: lead.lead_score ?? undefined,
-      // Company
-      website: lead.website ?? "",
-      industry: lead.industry ?? "",
-      company_size: lead.company_size ?? "",
-      annual_revenue: lead.annual_revenue ?? "",
-      business_type: lead.business_type ?? "",
-      gst_number: lead.gst_number ?? "",
-      pan_number: lead.pan_number ?? "",
-      // Address
-      country: lead.country ?? "",
-      state: lead.state ?? "",
-      city: lead.city ?? "",
-      zip: lead.zip ?? "",
-      address: lead.address ?? "",
-      // Qualification
-      budget: lead.budget ?? "",
-      decision_maker: lead.decision_maker ?? "",
-      purchase_timeline: lead.purchase_timeline ?? "",
-      current_solution: lead.current_solution ?? "",
-      pain_points: lead.pain_points ?? "",
-      requirements: lead.requirements ?? "",
-      // Source details
-      source_type: lead.source_type ?? "",
-      source_campaign: lead.source_campaign ?? "",
-      utm_source: lead.utm_source ?? "",
-      utm_medium: lead.utm_medium ?? "",
-      utm_campaign: lead.utm_campaign ?? "",
-      // Pipeline
-      deal_stage: lead.deal_stage ?? "",
-      deal_value: lead.deal_value ?? "",
-      probability: lead.probability ?? undefined,
-      expected_close_date: lead.expected_close_date
-        ? dayjs(lead.expected_close_date)
-        : null,
-      product_interest: lead.product_interest ?? "",
-      // Activity
-      last_contacted: lead.last_contacted ? dayjs(lead.last_contacted) : null,
-      next_followup: lead.next_followup ? dayjs(lead.next_followup) : null,
-      followup_type: lead.followup_type ?? "",
-      interaction_notes: lead.interaction_notes ?? "",
-      // Qualification & QA
-      qualification_status: lead.qualification_status ?? "",
-      qa_status: lead.qa_status ?? "",
-      disqualification_reason: lead.disqualification_reason ?? "",
-      rectified_reason: lead.rectified_reason ?? "",
-      // Owner / audit
-      assigned_owner: lead.assigned_to_id ?? undefined,
-      created_by: lead.created_by_name ?? "",
-      updated_by: "",
-      created_at: lead.created_at ? dayjs(lead.created_at) : null,
-      updated_at: lead.updated_at ? dayjs(lead.updated_at) : null,
-      lead_created_at: lead.created_at ? dayjs(lead.created_at) : null,
-      // Tags
-      tags: lead.tags ?? [],
-    });
-    setLeadDrawerOpen(true);
-  };
-
-  const handleSubmitLead = async (keepOpen = false) => {
-    try {
-      const values = await form.validateFields();
-      const composedLeadName =
-        values.lead_name ||
-        [values.first_name, values.last_name].filter((p: string) => p && p.trim()).join(" ").trim() ||
-        null;
-      const payload = {
-        lead_name: composedLeadName,
-        first_name: values.first_name || null,
-        last_name: values.last_name || null,
-        company: values.company || null,
-        email: values.email || null,
-        phone: values.phone || null,
-        alt_phone: values.alt_phone || null,
-        job_title: values.job_title || null,
-        linkedin: values.linkedin || null,
-        department: values.department || null,
-        lead_source: values.lead_source || null,
-        status: values.status || "new",
-        lead_score:
-          typeof values.lead_score === "number" ? values.lead_score : null,
-        website: values.website || null,
-        industry: values.industry || null,
-        company_size: values.company_size || null,
-        annual_revenue: values.annual_revenue || null,
-        business_type: values.business_type || null,
-        gst_number: values.gst_number || null,
-        pan_number: values.pan_number || null,
-        country: values.country || null,
-        state: values.state || null,
-        city: values.city || null,
-        zip: values.zip || null,
-        address: values.address || null,
-        budget: values.budget || null,
-        decision_maker: values.decision_maker || null,
-        purchase_timeline: values.purchase_timeline || null,
-        current_solution: values.current_solution || null,
-        pain_points: values.pain_points || null,
-        requirements: values.requirements || null,
-        source_type: values.source_type || null,
-        source_campaign: values.source_campaign || null,
-        utm_source: values.utm_source || null,
-        utm_medium: values.utm_medium || null,
-        utm_campaign: values.utm_campaign || null,
-        deal_stage: values.deal_stage || null,
-        deal_value: values.deal_value || null,
-        probability:
-          typeof values.probability === "number" ? values.probability : null,
-        expected_close_date: values.expected_close_date || null,
-        product_interest: values.product_interest || null,
-        last_contacted: values.last_contacted || null,
-        next_followup: values.next_followup || null,
-        followup_type: values.followup_type || null,
-        interaction_notes: values.interaction_notes || null,
-        qualification_status: values.qualification_status || null,
-        qa_status: values.qa_status || null,
-        disqualification_reason: values.disqualification_reason || null,
-        rectified_reason: values.rectified_reason || null,
-        tags: values.tags || [],
-      };
-
-      if (!editingLead) {
-        const res = await fetch("/api/sales/leads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(payload),
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error || "Failed to create lead");
-        }
-        message.success("Lead created");
-      } else {
-        const res = await fetch(`/api/sales/leads/${editingLead.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(payload),
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error || "Failed to update lead");
-        }
-        message.success("Lead updated");
-      }
-
-      setEditingLead(null);
-      form.resetFields();
-      fetchData();
-
-      if (keepOpen) {
-        setLeadDrawerOpen(true);
-      } else {
-        setLeadDrawerOpen(false);
-        setSearch("");
-        setStatusFilter([]);
-        setOwnerFilter(undefined);
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message) {
-        message.error(err.message);
-      }
-    }
-  };
-
-  const handleAssign = (lead: LeadRow) => {
-    setAssigningLead(lead);
-    assignForm.setFieldsValue({
-      assigned_to_id: lead.assigned_to_id ?? undefined,
-    });
-  };
-
-  const handleSubmitAssign = async () => {
-    try {
-      const values = await assignForm.validateFields();
-      const res = await fetch(`/api/sales/leads/${assigningLead?.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          assigned_to_id: values.assigned_to_id || null,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to assign lead");
-      }
-      message.success("Lead assignment updated");
-      setAssigningLead(null);
-      assignForm.resetFields();
-      fetchData();
-    } catch (err) {
-      if (err instanceof Error && err.message) {
-        message.error(err.message);
-      }
-    }
-  };
-
-  const handleOpenConvert = (lead: LeadRow) => {
-    setConvertingLead({
-      id: lead.id,
-      lead_name: lead.lead_name,
-      company: lead.company,
-      email: lead.email,
-      phone: lead.phone,
-      status: lead.status,
-    });
-  };
 
   const filteredLeads = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -725,6 +441,7 @@ export default function SalesLeadsPage() {
 
   const rowSelection = {
     preserveSelectedRowKeys: true,
+    columnWidth: 48,
   } as const;
 
   const columns: ColumnsType<LeadRow> = [
@@ -734,7 +451,14 @@ export default function SalesLeadsPage() {
       key: "lead_name",
       width: 160,
       ellipsis: true,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null, record: LeadRow) =>
+        v ? (
+          <Link href={`/sales/leads/${record.id}`} style={{ fontWeight: 600, color: "#1677ff" }}>
+            {v}
+          </Link>
+        ) : (
+          "—"
+        ),
     },
     {
       title: "Company",
@@ -742,7 +466,20 @@ export default function SalesLeadsPage() {
       key: "company",
       width: 160,
       ellipsis: true,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null, record: LeadRow) => {
+        if (!v) return "—";
+        if (record.account_id) {
+          return (
+            <Link
+              href={`/sales/accounts?highlight=${record.account_id}`}
+              style={{ fontWeight: 500 }}
+            >
+              {v}
+            </Link>
+          );
+        }
+        return v;
+      },
     },
     {
       title: "Email",
@@ -756,14 +493,6 @@ export default function SalesLeadsPage() {
       title: "Phone",
       dataIndex: "phone",
       key: "phone",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
-    {
-      title: "Lead Source",
-      dataIndex: "lead_source",
-      key: "lead_source",
       width: 140,
       ellipsis: true,
       render: (v: string | null) => v || "—",
@@ -794,60 +523,12 @@ export default function SalesLeadsPage() {
       ),
     },
     {
-      title: "Assigned To",
+      title: "Lead Owner",
       dataIndex: "assigned_to_name",
       key: "assigned_to_name",
       width: 180,
       ellipsis: true,
       render: (v: string | null) => v || "Unassigned",
-    },
-    {
-      title: "Created At",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 160,
-      render: (v: string) => new Date(v).toLocaleDateString(),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      fixed: "right" as const,
-      width: 210,
-      render: (_: unknown, record: LeadRow) => (
-        <Space size="small">
-          <Tooltip title="Edit lead">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title="Assign to sales agent">
-            <Button
-              type="text"
-              size="small"
-              icon={<UserSwitchOutlined />}
-              onClick={() => handleAssign(record)}
-            />
-          </Tooltip>
-          {!record.converted && (
-            <Tooltip title="Convert to Account + Contact + Deal">
-              <Button
-                type="text"
-                size="small"
-                icon={<SwapOutlined />}
-                onClick={() => handleOpenConvert(record)}
-              />
-            </Tooltip>
-          )}
-          {record.converted && (
-            <Tooltip title="Already converted">
-              <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />
-            </Tooltip>
-          )}
-        </Space>
-      ),
     },
   ];
 
@@ -871,11 +552,7 @@ export default function SalesLeadsPage() {
             Manage and qualify leads before converting them into contacts and accounts.
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={openCreateDrawer}
-        >
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push("/sales/leads/new")}>
           New Lead
         </Button>
       </div>
@@ -909,7 +586,10 @@ export default function SalesLeadsPage() {
               style={{ width: "100%" }}
               value={statusFilter}
               onChange={(v) => setStatusFilter((v as string[]) ?? [])}
-              options={LEAD_STATUS_OPTIONS}
+              options={[
+                ...LEAD_STATUS_OPTIONS,
+                { value: "converted", label: "Converted" },
+              ]}
             />
           </Col>
           <Col xs={12} sm={6} lg={7}>
@@ -971,13 +651,24 @@ export default function SalesLeadsPage() {
           boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
         }}
       >
+        <style>{`
+          .leads-table .ant-table-selection-column .ant-checkbox-inner {
+            width: 18px;
+            height: 18px;
+          }
+          .leads-table .ant-table-selection-column .ant-checkbox-inner::after {
+            width: 6px;
+            height: 10px;
+          }
+        `}</style>
         <Table
+          className="leads-table"
           rowSelection={rowSelection}
           columns={columns}
           dataSource={filteredLeads}
           loading={loading}
           rowKey="id"
-          scroll={{ x: 1200, y: 480 }}
+          scroll={{ x: 900, y: 480 }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -987,499 +678,6 @@ export default function SalesLeadsPage() {
         />
       </Card>
 
-      <Drawer
-        title={editingLead ? "Edit Lead" : "New Lead"}
-        placement="right"
-        width={980}
-        open={leadDrawerOpen}
-        onClose={() => {
-          setLeadDrawerOpen(false);
-          setEditingLead(null);
-          form.resetFields();
-        }}
-        destroyOnClose
-        extra={
-          <Space>
-            <Button
-              onClick={() => {
-                setLeadDrawerOpen(false);
-                setEditingLead(null);
-                form.resetFields();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="primary"
-              onClick={() => handleSubmitLead(false)}
-              disabled={!editingLead && !canSaveAndContinue}
-            >
-              {editingLead ? "Save changes" : "Create lead"}
-            </Button>
-          </Space>
-        }
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            status: "new",
-          }}
-        >
-          <Row gutter={20} style={{ marginBottom: 8 }}>
-            <Col xs={24} lg={12}>
-              <Title level={5} style={{ marginTop: 0 }}>
-                Basic Lead Information
-              </Title>
-              <Row gutter={12}>
-                {editingLead && (
-                  <Col span={24}>
-                    <Form.Item label="Lead ID">
-                      <Input value={editingLead.id.slice(0, 8)} disabled />
-                    </Form.Item>
-                  </Col>
-                )}
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="status" label="Lead Status">
-                    <Select options={LEAD_STATUS_OPTIONS} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="lead_source" label="Lead Source">
-                    <Input placeholder="Website, Campaign, Referral, etc." />
-                  </Form.Item>
-                </Col>
-              </Row>
-              {editingLead && (
-                <Row gutter={12}>
-                  <Col span={24}>
-                    <Form.Item label="Lead Owner / Sales Agent">
-                      <Select
-                        allowClear
-                        placeholder="Select owner"
-                        options={agents.map((a) => ({
-                          value: a.id,
-                          label: a.name,
-                        }))}
-                        disabled
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              )}
-              <Row gutter={12}>
-                {editingLead && (
-                  <Col span={12}>
-                    <Form.Item label="Lead Created Date">
-                      <DatePicker style={{ width: "100%" }} disabled />
-                    </Form.Item>
-                  </Col>
-                )}
-              </Row>
-              <Form.Item
-                name="lead_score"
-                label="Lead Score"
-                rules={[{ required: true, message: "Lead Score is required" }]}
-              >
-                <Select
-                  allowClear
-                  placeholder="Select lead score"
-                  options={LEAD_SCORE_OPTIONS}
-                />
-              </Form.Item>
-
-              <Title level={5} style={{ marginTop: 24 }}>
-                Contact Person Details
-              </Title>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item
-                    name="first_name"
-                    label="First Name"
-                    rules={[{ required: true, message: "First Name is required" }]}
-                  >
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="last_name"
-                    label="Last Name"
-                    rules={[{ required: true, message: "Last Name is required" }]}
-                  >
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="job_title" label="Job Title / Designation">
-                <Input />
-              </Form.Item>
-              <Form.Item
-                name="email"
-                label="Email Address"
-                rules={[
-                  { required: true, message: "Email Address is required" },
-                  { type: "email", message: "Please enter a valid email" },
-                ]}
-              >
-                <Input type="email" placeholder="name@company.com" />
-              </Form.Item>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="phone" label="Mobile Number">
-                    <Input placeholder="+1 (555) 000-0000" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="alt_phone" label="Alternate Phone Number">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="linkedin" label="LinkedIn Profile">
-                <Input placeholder="https://linkedin.com/in/..." />
-              </Form.Item>
-              <Form.Item name="department" label="Department">
-                <Input />
-              </Form.Item>
-
-              <Title level={5} style={{ marginTop: 24 }}>
-                Address Details
-              </Title>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item
-                    name="country"
-                    label="Country"
-                    rules={[{ required: true, message: "Country is required" }]}
-                  >
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="state" label="State">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="city" label="City">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="zip" label="Zip / Postal Code">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="address" label="Full Address">
-                <Input.TextArea rows={2} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Title level={5} style={{ marginTop: 0 }}>
-                Company Information
-              </Title>
-              <Form.Item
-                name="company"
-                label="Company Name"
-                rules={[{ required: true, message: "Company Name is required" }]}
-              >
-                <Input />
-              </Form.Item>
-              <Form.Item
-                name="website"
-                label="Company Website"
-                rules={[{ required: true, message: "Company Website is required" }]}
-              >
-                <Input placeholder="https://company.com" />
-              </Form.Item>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="industry" label="Industry">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="company_size" label="Company Size (Employees)">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="annual_revenue" label="Annual Revenue">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="business_type" label="Business Type">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="gst_number" label="GST Number">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="pan_number" label="PAN Number">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Title level={5} style={{ marginTop: 24 }}>
-                Sales Qualification
-              </Title>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="budget" label="Budget">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="decision_maker" label="Decision Maker (Yes/No)">
-                    <Select
-                      options={[
-                        { value: "yes", label: "Yes" },
-                        { value: "no", label: "No" },
-                      ]}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="purchase_timeline" label="Purchase Timeline">
-                <Input />
-              </Form.Item>
-              <Form.Item name="current_solution" label="Current Solution / Vendor">
-                <Input />
-              </Form.Item>
-              <Form.Item name="pain_points" label="Pain Points">
-                <Input.TextArea rows={2} />
-              </Form.Item>
-              <Form.Item name="requirements" label="Requirements / Notes">
-                <Input.TextArea rows={3} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={20} style={{ marginBottom: 8 }}>
-            <Col xs={24} lg={12}>
-              <Title level={5} style={{ marginTop: 24 }}>
-                Lead Source & Tracking
-              </Title>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="source_type" label="Source Type">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="source_campaign" label="Source Campaign">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="utm_source" label="UTM Source">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="utm_medium" label="UTM Medium">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="utm_campaign" label="UTM Campaign">
-                <Input />
-              </Form.Item>
-
-              <Title level={5} style={{ marginTop: 24 }}>
-                Activity & Tracking
-              </Title>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="last_contacted" label="Last Contacted Date">
-                    <DatePicker style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="next_followup" label="Next Follow-up Date">
-                    <DatePicker style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="followup_type" label="Follow-up Type">
-                <Select
-                  options={[
-                    { value: "call", label: "Call" },
-                    { value: "email", label: "Email" },
-                    { value: "meeting", label: "Meeting" },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item name="interaction_notes" label="Interaction Notes">
-                <Input.TextArea rows={3} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Title level={5} style={{ marginTop: 24 }}>
-                Qualification & Disqualification
-              </Title>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="qualification_status" label="Lead Qualification Status">
-                    <Input />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="qa_status" label="QA Status">
-                    <Input />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="disqualification_reason" label="Disqualification Reason">
-                <Input.TextArea rows={2} />
-              </Form.Item>
-              <Form.Item name="rectified_reason" label="Rectified Reason">
-                <Input.TextArea rows={2} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Title level={5} style={{ marginTop: 24 }}>
-            Sales Pipeline
-          </Title>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="deal_stage" label="Deal Stage">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="deal_value" label="Deal Value">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="probability" label="Probability (%)">
-                <InputNumber min={0} max={100} style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="expected_close_date" label="Expected Close Date">
-                <DatePicker style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="product_interest" label="Product Interest">
-            <Input />
-          </Form.Item>
-
-          {editingLead && (
-            <>
-              <Title level={5} style={{ marginTop: 24 }}>
-                Internal CRM Fields
-              </Title>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="created_by" label="Created By">
-                    <Input disabled />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="updated_by" label="Updated By">
-                    <Input disabled />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="created_at" label="Created At">
-                    <DatePicker style={{ width: "100%" }} disabled />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="updated_at" label="Updated At">
-                    <DatePicker style={{ width: "100%" }} disabled />
-                  </Form.Item>
-                </Col>
-              </Row>
-            </>
-          )}
-          <Form.Item name="tags" label="Tags / Labels">
-            <Select
-              mode="tags"
-              tokenSeparators={[","]}
-              placeholder="Add tags like: high-priority, partner, etc."
-            />
-          </Form.Item>
-
-          {!editingLead && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
-              <Button
-                type="default"
-                onClick={() => handleSubmitLead(true)}
-                style={{ fontWeight: 500 }}
-                disabled={!canSaveAndContinue}
-              >
-                Save &amp; Continue
-              </Button>
-            </div>
-          )}
-        </Form>
-      </Drawer>
-
-      <Modal
-        title="Assign Lead to Sales Agent"
-        open={assigningLead !== null}
-        onCancel={() => {
-          setAssigningLead(null);
-          assignForm.resetFields();
-        }}
-        onOk={handleSubmitAssign}
-        okText="Update assignment"
-        destroyOnClose
-      >
-        <Form form={assignForm} layout="vertical">
-          <Form.Item
-            name="assigned_to_id"
-            label="Sales Agent"
-            rules={[{ required: false }]}
-          >
-            <Select
-              allowClear
-              placeholder="Select sales agent"
-              options={agents.map((a) => ({
-                value: a.id,
-                label: a.name,
-              }))}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <ConvertLeadModal
-        lead={convertingLead}
-        open={convertingLead !== null}
-        onClose={() => setConvertingLead(null)}
-        onConverted={() => {
-          message.success("Lead converted to Account + Contact successfully!");
-          fetchData();
-        }}
-      />
     </div>
   );
 }
-
