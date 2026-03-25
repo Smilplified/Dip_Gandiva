@@ -1,6 +1,7 @@
 "use client";
 
-import { Card, Row, Col, Typography, Table, Tag, Badge, Avatar, Checkbox } from "antd";
+import { useEffect, useState } from "react";
+import { Card, Row, Col, Typography, Table, Tag, Badge, Avatar, Checkbox, Spin } from "antd";
 import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import {
   UserAddOutlined,
@@ -121,48 +122,112 @@ const activityFeedData = [
 ];
 
 const statusColors: Record<string, string> = {
+  // Matches `LEAD_STATUS_OPTIONS` labels (from salesLeadForm)
   New: "blue",
-  Contacted: "cyan",
-  Qualified: "green",
-  Proposal: "orange",
-  Negotiation: "purple",
-  "Closed Won": "success",
+  Open: "cyan",
+  "In progress": "green",
+  "Open deal": "purple",
+  Unqualified: "red",
+  "Attempted to contact": "orange",
+  Connected: "success",
+  "Bad timing": "default",
 };
 
 export default function SalesDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [dashboard, setDashboard] = useState<null | {
+    stats: {
+      totalLeads: { value: string; change: string; trend: "up" | "down" | "neutral" };
+      todaysLeads: { value: string; change: string; trend: "up" | "down" | "neutral" };
+      followUps: { value: string; change: string; trend: "up" | "down" | "neutral" };
+      conversion: { value: string; change: string; trend: "up" | "down" | "neutral" };
+    };
+    pipelineData: typeof pipelineData;
+    leadTrendData: typeof leadTrendData;
+    leadSourceData: typeof leadSourceData;
+    tasksData: typeof tasksData;
+    activityFeedData: typeof activityFeedData;
+    recentLeadsData: typeof recentLeadsData;
+  }>(null);
+
+  // Important: initialize with empty arrays so we never render demo datasets.
+  const [pipelineDataLive, setPipelineDataLive] = useState<typeof pipelineData>([]);
+  const [leadTrendDataLive, setLeadTrendDataLive] = useState<typeof leadTrendData>([]);
+  const [leadSourceDataLive, setLeadSourceDataLive] = useState<typeof leadSourceData>([]);
+  const [tasksDataLive, setTasksDataLive] = useState<typeof tasksData>([]);
+  const [activityFeedDataLive, setActivityFeedDataLive] = useState<typeof activityFeedData>([]);
+  const [recentLeadsDataLive, setRecentLeadsDataLive] = useState<typeof recentLeadsData>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/sales/dashboard", { credentials: "include" });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j.error || "Failed to load dashboard");
+
+        setDashboard(j);
+        setPipelineDataLive(j.pipelineData ?? []);
+        setLeadTrendDataLive(j.leadTrendData ?? []);
+        setLeadSourceDataLive(j.leadSourceData ?? []);
+        setTasksDataLive(j.tasksData ?? []);
+        setActivityFeedDataLive(j.activityFeedData ?? []);
+        setRecentLeadsDataLive(j.recentLeadsData ?? []);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(e);
+        setPipelineDataLive([]);
+        setLeadTrendDataLive([]);
+        setLeadSourceDataLive([]);
+        setTasksDataLive([]);
+        setActivityFeedDataLive([]);
+        setRecentLeadsDataLive([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
   const statsData = [
     {
       title: "Total Leads",
-      value: "1,247",
-      change: "+12.3%",
-      trend: "up",
+      value: dashboard?.stats.totalLeads.value ?? "—",
+      change: dashboard?.stats.totalLeads.change ?? "—",
+      trend: dashboard?.stats.totalLeads.trend ?? "neutral",
       icon: <UserAddOutlined />,
       color: "#1890ff",
       bgColor: "#e6f4ff",
     },
     {
       title: "Today's Leads",
-      value: "42",
-      change: "+8",
-      trend: "up",
+      value: dashboard?.stats.todaysLeads.value ?? "—",
+      change: dashboard?.stats.todaysLeads.change ?? "—",
+      trend: dashboard?.stats.todaysLeads.trend ?? "neutral",
       icon: <PhoneOutlined />,
       color: "#52c41a",
       bgColor: "#f6ffed",
     },
     {
       title: "Follow-ups",
-      value: "87",
-      change: "18 pending",
-      trend: "neutral",
+      value: dashboard?.stats.followUps.value ?? "—",
+      change: dashboard?.stats.followUps.change ?? "—",
+      trend: dashboard?.stats.followUps.trend ?? "neutral",
       icon: <ClockCircleOutlined />,
       color: "#faad14",
       bgColor: "#fffbe6",
     },
     {
       title: "Conversion",
-      value: "34.2%",
-      change: "+4.1%",
-      trend: "up",
+      value: dashboard?.stats.conversion.value ?? "—",
+      change: dashboard?.stats.conversion.change ?? "—",
+      trend: dashboard?.stats.conversion.trend ?? "neutral",
       icon: <TrophyOutlined />,
       color: "#722ed1",
       bgColor: "#f9f0ff",
@@ -311,7 +376,7 @@ export default function SalesDashboard() {
             styles={{ body: { padding: "24px 24px 16px" } }}
           >
             <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={pipelineData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+              <BarChart data={pipelineDataLive} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                 <XAxis dataKey="stage" stroke="#8c8c8c" fontSize={11} />
                 <YAxis stroke="#8c8c8c" fontSize={11} />
@@ -345,7 +410,7 @@ export default function SalesDashboard() {
             styles={{ body: { padding: "24px 24px 16px" } }}
           >
             <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={leadTrendData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+              <AreaChart data={leadTrendDataLive} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <defs>
                   <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
@@ -405,7 +470,7 @@ export default function SalesDashboard() {
             <ResponsiveContainer width="100%" height={320}>
               <PieChart>
                 <Pie
-                  data={leadSourceData}
+                  data={leadSourceDataLive}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -415,7 +480,7 @@ export default function SalesDashboard() {
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={{ stroke: "#d9d9d9", strokeWidth: 1 }}
                 >
-                  {leadSourceData.map((entry, index) => (
+                  {leadSourceDataLive.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -439,7 +504,7 @@ export default function SalesDashboard() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Text strong style={{ fontSize: 16 }}>My Tasks</Text>
                 <Badge
-                  count={tasksData.filter((t) => !t.completed).length}
+                  count={tasksDataLive.filter((t) => !t.completed).length}
                   style={{ backgroundColor: "#1890ff" }}
                 />
               </div>
@@ -453,7 +518,7 @@ export default function SalesDashboard() {
             styles={{ body: { padding: "20px 24px" } }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {tasksData.map((task) => (
+              {tasksDataLive.map((task) => (
                 <div
                   key={task.id}
                   style={{
@@ -514,7 +579,7 @@ export default function SalesDashboard() {
             styles={{ body: { padding: "20px 24px" } }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {activityFeedData.map((activity) => (
+              {activityFeedDataLive.map((activity) => (
                 <div key={activity.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                   <Avatar
                     size={36}
@@ -564,7 +629,7 @@ export default function SalesDashboard() {
           >
             <Table
               columns={leadsColumns}
-              dataSource={recentLeadsData}
+              dataSource={recentLeadsDataLive}
               pagination={false}
               rowKey="id"
               size="middle"

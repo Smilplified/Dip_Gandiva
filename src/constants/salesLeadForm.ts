@@ -1,3 +1,4 @@
+// These values must match the `sales_leads_status_check` constraint in Postgres.
 export const LEAD_STATUS_OPTIONS = [
   { value: "new", label: "New" },
   { value: "open", label: "Open" },

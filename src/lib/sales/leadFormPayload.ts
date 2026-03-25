@@ -29,7 +29,11 @@ export function buildSalesLeadPayload(values: Record<string, unknown>) {
     linkedin: values.linkedin || null,
     department: values.department || null,
     lead_source: values.lead_source || null,
-    status: values.status || "new",
+    // Don't force a status default; DB has its own defaults + CHECK constraints.
+    status:
+      typeof values.status === "string" && values.status.trim().length > 0
+        ? values.status.trim()
+        : undefined,
     lead_score:
       typeof values.lead_score === "string" && values.lead_score.trim()
         ? values.lead_score.trim()

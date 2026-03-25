@@ -107,7 +107,7 @@ export default function NewLeadPage() {
         }
         title="Lead details"
       >
-        <Form form={form} layout="vertical" initialValues={{ status: "new", lead_score: "lead" }}>
+        <Form form={form} layout="vertical" initialValues={{ lead_score: "lead" }}>
           <LeadFormFields mode="create" agents={agents} />
         </Form>
       </Card>

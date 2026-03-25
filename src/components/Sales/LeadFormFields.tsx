@@ -48,44 +48,40 @@ export function LeadFormFields({ mode, leadId, agents, ownerEditable }: Props) {
                 <Input placeholder="Website, Campaign, Referral, etc." />
               </Form.Item>
             </Col>
-            {isEdit && (
-
-              <Col span={12}>
-                <Form.Item name="assigned_to_id" label="Lead owner / Sales agent">
-                  <Select
-                    allowClear
-                    placeholder="Select owner"
-                    disabled={!ownerEditable}
-                    options={agents.map((a) => ({
-                      value: a.id,
-                      label: a.name,
-                    }))}
-                  />
-                </Form.Item>
-              </Col>
-
-            )}
+            <Col span={12}>
+              <Form.Item name="assigned_to_id" label="Lead owner / Sales agent">
+                <Select
+                  allowClear
+                  placeholder="Select owner"
+                  disabled={isEdit && !ownerEditable}
+                  options={agents.map((a) => ({
+                    value: a.id,
+                    label: a.name,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
           </Row>
 
 
-          {isEdit && (
-            <Row gutter={12}>
+          <Row gutter={12}>
+            {isEdit && (
               <Col span={12}>
                 <Form.Item name="created_at" label="Lead created date">
                   <DatePicker style={{ width: "100%" }} disabled />
                 </Form.Item>
               </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="lead_score"
-                  label="Lifecycle stage"
-                  rules={[{ required: true, message: "Lifecycle stage is required" }]}
-                >
-                  <Select allowClear placeholder="Select lifecycle stage" options={[...LIFECYCLE_STAGE_OPTIONS]} />
-                </Form.Item>
-              </Col>
-            </Row>
-          )}
+            )}
+            <Col span={12}>
+              <Form.Item
+                name="lead_score"
+                label="Lifecycle stage"
+                rules={isEdit ? [{ required: true, message: "Lifecycle stage is required" }] : []}
+              >
+                <Select allowClear placeholder="Select lifecycle stage" options={[...LIFECYCLE_STAGE_OPTIONS]} />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Row gutter={12}>
             <Col span={12}>

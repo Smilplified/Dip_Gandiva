@@ -145,6 +145,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let debugStatus: unknown = null;
   try {
     const ctx = await getUserAndOrg();
     if ("error" in ctx) return ctx.error;
@@ -156,6 +157,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    debugStatus = (body as Record<string, unknown> | null)?.status;
     const {
       lead_name,
       first_name,
@@ -242,7 +244,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const insertPayload = {
+    const insertPayload: Record<string, unknown> = {
       organization_id: orgId,
       lead_name: composedLeadName,
       first_name: first_name ?? null,
@@ -293,7 +295,6 @@ export async function POST(request: Request) {
       disqualification_reason:
         (disqualification_reason as string | null) ?? null,
       rectified_reason: (rectified_reason as string | null) ?? null,
-      status: (status as string | null) ?? "new",
       lead_score:
         typeof lead_score === "string" && String(lead_score).trim()
           ? String(lead_score).trim()
@@ -313,6 +314,12 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      if (String(error?.message ?? "").includes("sales_leads_status_check")) {
+        console.error("[sales/leads POST] status_check violation", {
+          statusSent: debugStatus,
+          statusInserted: (insertPayload as any)?.status,
+        });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -337,6 +344,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ lead: data }, { status: 201 });
   } catch (err) {
+    if (String((err as any)?.message ?? err).includes("sales_leads_status_check")) {
+      console.error("[sales/leads POST] status_check violation (catch)", {
+        statusSent: debugStatus,
+      });
+    }
     console.error("Sales leads POST error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

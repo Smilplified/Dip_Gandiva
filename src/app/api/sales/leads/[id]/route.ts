@@ -258,7 +258,10 @@ export async function PATCH(
     if (qa_status !== undefined) updatePayload.qa_status = qa_status;
     if (disqualification_reason !== undefined) updatePayload.disqualification_reason = disqualification_reason;
     if (rectified_reason !== undefined) updatePayload.rectified_reason = rectified_reason;
-    if (status !== undefined) updatePayload.status = status;
+    // Only include status if it's a non-empty string that will pass the DB CHECK constraint.
+    if (typeof status === "string" && status.trim().length > 0) {
+      updatePayload.status = status.trim();
+    }
     if (lead_score !== undefined) {
       updatePayload.lead_score =
         typeof lead_score === "string" && String(lead_score).trim()
@@ -271,7 +274,9 @@ export async function PATCH(
     if (tags !== undefined) updatePayload.tags = tags;
 
     if (convert_to_contact) {
-      updatePayload.status = "interested";
+      updatePayload.converted = true;
+      updatePayload.converted_at = new Date().toISOString();
+      updatePayload.status = "open_deal";
     }
 
     const { data: beforeRow } = await admin
