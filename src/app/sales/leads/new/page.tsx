@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Button, Card, Form, Space, Typography, message } from "antd";
+import { Affix, Button, Card, Form, Space, Typography, message } from "antd";
 import { LeadFormFields } from "@/components/Sales/LeadFormFields";
 import { buildSalesLeadPayload } from "@/lib/sales/leadFormPayload";
 
@@ -24,7 +24,8 @@ export default function NewLeadPage() {
   const watchedWebsite = Form.useWatch("website", form);
   const watchedCountry = Form.useWatch("country", form);
   const watchedEmail = Form.useWatch("email", form);
-  const watchedLifecycleStage = Form.useWatch("lead_score", form);
+  // lead_score is set as an initial value, but the create form may not render its picker.
+  // Don't block the CTA on it.
 
   const hasText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
   const canSaveAndContinue =
@@ -33,9 +34,7 @@ export default function NewLeadPage() {
     hasText(watchedCompany) &&
     hasText(watchedWebsite) &&
     hasText(watchedCountry) &&
-    hasText(watchedEmail) &&
-    typeof watchedLifecycleStage === "string" &&
-    watchedLifecycleStage.trim().length > 0;
+    hasText(watchedEmail);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -82,7 +81,7 @@ export default function NewLeadPage() {
   };
 
   return (
-    <div style={{ padding: "16px 12px 48px", maxWidth: 1100, margin: "0 auto" }}>
+    <div style={{ padding: "16px 12px 120px", maxWidth: 1100, margin: "0 auto" }}>
       <Space style={{ marginBottom: 20 }} wrap>
         <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => router.push("/sales/leads")}>
           Leads
@@ -110,16 +109,36 @@ export default function NewLeadPage() {
       >
         <Form form={form} layout="vertical" initialValues={{ status: "new", lead_score: "lead" }}>
           <LeadFormFields mode="create" agents={agents} />
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-            <Button type="default" loading={loading} disabled={!canSaveAndContinue} onClick={() => void submit(true)}>
-              Save &amp; add another
-            </Button>
-          </div>
         </Form>
       </Card>
       <div style={{ marginTop: 16 }}>
         <Link href="/sales/leads">Back to list</Link>
       </div>
+
+      {/* Bottom pinned action (affixed to the viewport) */}
+      <Affix offsetBottom={16}>
+        <div
+          style={{
+            zIndex: 2000,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: "10px 12px",
+            background: "rgba(255,255,255,0.92)",
+            borderTop: "1px solid #e8eaed",
+            boxShadow: "0 -2px 10px rgba(0,0,0,0.06)",
+          }}
+        >
+          <Button
+            type="default"
+            loading={loading}
+            disabled={!canSaveAndContinue}
+            onClick={() => void submit(true)}
+          >
+            Save &amp; add another
+          </Button>
+        </div>
+      </Affix>
     </div>
   );
 }

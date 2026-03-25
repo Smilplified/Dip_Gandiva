@@ -40,11 +40,18 @@ export default function SalesSidebar() {
   const { hasRole } = useAuth();
 
   const isSalesManager = hasRole("sales_manager") || hasRole("admin");
+  const isSalesOnly = hasRole("sales") && !isSalesManager;
   const dashboardItem: MenuItem = isSalesManager
     ? { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales/dashboard" }
     : { key: "/sales", icon: <DollarOutlined />, label: "Dashboard", href: "/sales" };
 
-  const menuItems: MenuItem[] = [dashboardItem, ...commonMenuItems];
+  const menuItems: MenuItem[] = [
+    dashboardItem,
+    ...commonMenuItems.filter((item) => {
+      if (!isSalesOnly) return true;
+      return item.key !== "/sales/clients" && item.key !== "/sales/campaigns";
+    }),
+  ];
 
   const selectedKey = (() => {
     if (!pathname) return dashboardItem.key;
