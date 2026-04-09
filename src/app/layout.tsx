@@ -27,6 +27,11 @@ const theme = {
 export const metadata: Metadata = {
   title: "CRM Dashboard | Professional Pipeline Management",
   description: "Clean and professional CRM dashboard",
+  icons: {
+    icon: "/projects/sidebar_logo.png",
+    shortcut: "/projects/sidebar_logo.png",
+    apple: "/projects/sidebar_logo.png",
+  },
 };
 
 export default function RootLayout({
