@@ -23,13 +23,13 @@ import {
   CheckCircleOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import type { Tables } from "@/types/database.types";
 
 type UserRow = Tables<"users"> & {
   roles: { name: string }[];
 };
+type ClientOption = { id: string; name: string };
 
 export default function AdminUsersPage() {
   const router = useRouter();
@@ -45,8 +45,9 @@ export default function AdminUsersPage() {
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
-
-  const supabase = createClient();
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [createSelectedRoleName, setCreateSelectedRoleName] = useState<string>("");
+  const [editSelectedRoleName, setEditSelectedRoleName] = useState<string>("");
 
   // Redirect if not admin
   useEffect(() => {
@@ -77,11 +78,23 @@ export default function AdminUsersPage() {
     }
   }, []);
 
+  const fetchClients = useCallback(async () => {
+    try {
+      const res = await fetch("/api/clients", { credentials: "include" });
+      const data = (await res.json()) as { clients?: ClientOption[]; error?: string };
+      if (!res.ok) throw new Error(data.error || "Failed to load clients");
+      setClients(data.clients ?? []);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to load clients");
+    }
+  }, []);
+
   useEffect(() => {
     if (isInitialized && hasRole("admin")) {
       fetchUsersAndRoles();
+      fetchClients();
     }
-  }, [isInitialized, hasRole, fetchUsersAndRoles]);
+  }, [isInitialized, hasRole, fetchUsersAndRoles, fetchClients]);
 
   const handleCreateUser = async () => {
     try {
@@ -97,6 +110,10 @@ export default function AdminUsersPage() {
           password: values.password,
           full_name: values.full_name,
           role_id: values.role_id || null,
+          client_id:
+            createSelectedRoleName === "client_viewer"
+              ? (values.client_id || null)
+              : null,
           department: values.department || null,
           designation: values.designation || null,
         }),
@@ -121,10 +138,15 @@ export default function AdminUsersPage() {
 
   const handleEditUser = (record: UserRow) => {
     setSelectedUser(record);
+    const currentRoleName = record.roles?.[0]?.name || "";
+    const currentRoleId = roles.find((r) => r.name === currentRoleName)?.id;
+    setEditSelectedRoleName(currentRoleName.toLowerCase().replace(/\s+/g, "_"));
     editForm.setFieldsValue({
       full_name: record.full_name,
       department: record.department,
       designation: record.designation,
+      role_id: currentRoleId,
+      client_id: record.client_id ?? undefined,
     });
     setEditModalOpen(true);
   };
@@ -135,17 +157,23 @@ export default function AdminUsersPage() {
       const values = await editForm.validateFields();
       setSubmitting(true);
 
-      const { error: updateError } = await supabase
-        .from("users")
-        // @ts-expect-error - Supabase client infers 'never' when Database schema structure differs from expected
-        .update({
-          full_name: values.full_name,
+      const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          full_name: values.full_name || null,
           department: values.department || null,
           designation: values.designation || null,
-        })
-        .eq("id", selectedUser.id);
-
-      if (updateError) throw updateError;
+          role_id: values.role_id || null,
+          client_id:
+            editSelectedRoleName === "client_viewer"
+              ? (values.client_id || null)
+              : null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to update user");
 
       message.success("User updated successfully");
       setEditModalOpen(false);
@@ -353,7 +381,11 @@ export default function AdminUsersPage() {
           <Button
             type="primary"
             icon={<UserAddOutlined />}
-            onClick={() => setCreateModalOpen(true)}
+            onClick={() => {
+              setCreateSelectedRoleName("");
+              createForm.resetFields();
+              setCreateModalOpen(true);
+            }}
           >
             Create User
           </Button>
@@ -394,6 +426,7 @@ export default function AdminUsersPage() {
         open={createModalOpen}
         onCancel={() => {
           setCreateModalOpen(false);
+          setCreateSelectedRoleName("");
           createForm.resetFields();
         }}
         onOk={handleCreateUser}
@@ -432,6 +465,14 @@ export default function AdminUsersPage() {
               allowClear
               showSearch
               optionFilterProp="label"
+              onChange={(roleId) => {
+                const role = roles.find((r) => r.id === roleId);
+                const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
+                setCreateSelectedRoleName(normalized);
+                if (normalized !== "client_viewer") {
+                  createForm.setFieldValue("client_id", undefined);
+                }
+              }}
               options={[...roles]
                 .sort((a, b) => {
                   const order = ["admin", "Agent", "Team Leader", "HR"];
@@ -440,6 +481,20 @@ export default function AdminUsersPage() {
                 .map((r) => ({ label: r.name, value: r.id }))}
             />
           </Form.Item>
+          {createSelectedRoleName === "client_viewer" && (
+            <Form.Item
+              name="client_id"
+              label="Select Client"
+              rules={[{ required: true, message: "Client selection is required for client users" }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Search and select client"
+                options={clients.map((c) => ({ label: c.name, value: c.id }))}
+              />
+            </Form.Item>
+          )}
           <Form.Item name="department" label="Department">
             <Input placeholder="Sales, Marketing, etc." />
           </Form.Item>
@@ -454,6 +509,7 @@ export default function AdminUsersPage() {
         open={editModalOpen}
         onCancel={() => {
           setEditModalOpen(false);
+          setEditSelectedRoleName("");
           setSelectedUser(null);
           editForm.resetFields();
         }}
@@ -477,6 +533,37 @@ export default function AdminUsersPage() {
             <Form.Item name="designation" label="Designation">
               <Input placeholder="e.g. Sales Representative" />
             </Form.Item>
+            <Form.Item name="role_id" label="Role">
+              <Select
+                placeholder="Select role"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                onChange={(roleId) => {
+                  const role = roles.find((r) => r.id === roleId);
+                  const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
+                  setEditSelectedRoleName(normalized);
+                  if (normalized !== "client_viewer") {
+                    editForm.setFieldValue("client_id", undefined);
+                  }
+                }}
+                options={roles.map((r) => ({ label: r.name, value: r.id }))}
+              />
+            </Form.Item>
+            {editSelectedRoleName === "client_viewer" && (
+              <Form.Item
+                name="client_id"
+                label="Select Client"
+                rules={[{ required: true, message: "Client selection is required for client users" }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Search and select client"
+                  options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                />
+              </Form.Item>
+            )}
           </Form>
         )}
       </Modal>

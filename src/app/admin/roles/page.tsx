@@ -268,7 +268,7 @@ export default function AdminRolesPage() {
               Roles
             </Typography.Title>
             <Typography.Text type="secondary">
-              Manage organization roles. Default set includes Admin, Team Leader, Agent, Sales, and QA.
+              Manage organization roles. Default set includes Admin, Team Leader, Agent, Sales, QA, and Campaign Command Center roles (client_viewer, internal_operator, internal_admin).
             </Typography.Text>
           </div>
           <Space>

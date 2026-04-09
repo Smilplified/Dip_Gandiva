@@ -14,6 +14,7 @@ import {
   CustomerServiceOutlined,
   SendOutlined,
 } from "@ant-design/icons";
+import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
 
@@ -30,9 +31,21 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { hasRole } = useAuth();
+
+  const isCommandCenterUser =
+    hasRole("internal_operator") || hasRole("internal_admin") || hasRole("client_viewer");
+
+  const visibleMenuItems = isCommandCenterUser
+    ? [
+        { key: "/dashboard/overview", icon: <DashboardOutlined />, label: "Overview", href: "/dashboard/overview" },
+        { key: "/dashboard/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/dashboard/campaigns" },
+        { key: "/dashboard/leads", icon: <TeamOutlined />, label: "Leads", href: "/dashboard/leads" },
+      ]
+    : menuItems;
 
   const selectedKey =
-    menuItems.find((item) => pathname?.startsWith(item.key))?.key || "/";
+    visibleMenuItems.find((item) => pathname?.startsWith(item.key))?.key || "/";
 
   return (
     <Sider
@@ -81,7 +94,7 @@ export default function Sidebar() {
           gap: 20,
         }}
       >
-        {menuItems.map((item) => {
+        {visibleMenuItems.map((item) => {
           const active = selectedKey === item.key;
           return (
             <Tooltip key={item.key} title={item.label} placement="right">

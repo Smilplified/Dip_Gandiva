@@ -118,6 +118,7 @@ export type Database = {
           avatar_url: string | null;
           employee_id: string | null;
           joining_date: string | null;
+          client_id: string | null;
         };
         Insert: {
           created_at?: string;
@@ -136,6 +137,7 @@ export type Database = {
           avatar_url?: string | null;
           employee_id?: string | null;
           joining_date?: string | null;
+          client_id?: string | null;
         };
         Update: {
           created_at?: string;
@@ -154,6 +156,7 @@ export type Database = {
           avatar_url?: string | null;
           employee_id?: string | null;
           joining_date?: string | null;
+          client_id?: string | null;
         };
       };
       campaigns: {
@@ -439,6 +442,10 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          risk_flags: Json | null;
+          consent_status: "pending" | "verified" | "missing" | "disputed" | null;
+          channel: "email" | "telemarketing" | null;
+          rep_id: string | null;
         };
         Insert: {
           id?: string;
@@ -456,6 +463,10 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          risk_flags?: Json | null;
+          consent_status?: "pending" | "verified" | "missing" | "disputed" | null;
+          channel?: "email" | "telemarketing" | null;
+          rep_id?: string | null;
         };
         Update: {
           id?: string;
@@ -473,6 +484,245 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          risk_flags?: Json | null;
+          consent_status?: "pending" | "verified" | "missing" | "disputed" | null;
+          channel?: "email" | "telemarketing" | null;
+          rep_id?: string | null;
+        };
+      };
+      campaign_metrics: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          sponsor_name: string | null;
+          total_leads_allocated: number | null;
+          total_campaign_spend: number | null;
+          total_leads_delivered: number | null;
+          daily_reporting: Json | null;
+          channel_split: Json | null;
+          deficit_leads: number | null;
+          lead_increment: number | null;
+          lead_replace: number | null;
+          total_leads: number | null;
+          qa_pending_count: number | null;
+          qualified_count: number | null;
+          registered_count: number | null;
+          attended_count: number | null;
+          disqualified_count: number | null;
+          no_show_count: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          sponsor_name?: string | null;
+          total_leads_allocated?: number | null;
+          total_campaign_spend?: number | null;
+          total_leads_delivered?: number | null;
+          daily_reporting?: Json | null;
+          channel_split?: Json | null;
+          deficit_leads?: number | null;
+          lead_increment?: number | null;
+          lead_replace?: number | null;
+          total_leads?: number | null;
+          qa_pending_count?: number | null;
+          qualified_count?: number | null;
+          registered_count?: number | null;
+          attended_count?: number | null;
+          disqualified_count?: number | null;
+          no_show_count?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          sponsor_name?: string | null;
+          total_leads_allocated?: number | null;
+          total_campaign_spend?: number | null;
+          total_leads_delivered?: number | null;
+          daily_reporting?: Json | null;
+          channel_split?: Json | null;
+          deficit_leads?: number | null;
+          lead_increment?: number | null;
+          lead_replace?: number | null;
+          total_leads?: number | null;
+          qa_pending_count?: number | null;
+          qualified_count?: number | null;
+          registered_count?: number | null;
+          attended_count?: number | null;
+          disqualified_count?: number | null;
+          no_show_count?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      campaign_metrics_history: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          date: string;
+          total_leads_delivered: number | null;
+          channel_split: Json | null;
+          deficit_leads: number | null;
+          lead_increment: number | null;
+          lead_replace: number | null;
+          total_campaign_spend: number | null;
+          updated_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          date?: string;
+          total_leads_delivered?: number | null;
+          channel_split?: Json | null;
+          deficit_leads?: number | null;
+          lead_increment?: number | null;
+          lead_replace?: number | null;
+          total_campaign_spend?: number | null;
+          updated_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          date?: string;
+          total_leads_delivered?: number | null;
+          channel_split?: Json | null;
+          deficit_leads?: number | null;
+          lead_increment?: number | null;
+          lead_replace?: number | null;
+          total_campaign_spend?: number | null;
+          updated_by?: string | null;
+          created_at?: string;
+        };
+      };
+      lead_history: {
+        Row: {
+          id: string;
+          lead_id: string;
+          changed_by: string | null;
+          change_type: string;
+          old_value: Json | null;
+          new_value: Json | null;
+          reason: string | null;
+          ip_address: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          changed_by?: string | null;
+          change_type: string;
+          old_value?: Json | null;
+          new_value?: Json | null;
+          reason?: string | null;
+          ip_address?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string;
+          changed_by?: string | null;
+          change_type?: string;
+          old_value?: Json | null;
+          new_value?: Json | null;
+          reason?: string | null;
+          ip_address?: string | null;
+          created_at?: string;
+        };
+      };
+      consent_records: {
+        Row: {
+          id: string;
+          lead_id: string;
+          campaign_id: string;
+          consent_given_at: string | null;
+          consent_method: string | null;
+          ip_address: string | null;
+          recording_url: string | null;
+          consent_text: string | null;
+          sha256_hash: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          campaign_id: string;
+          consent_given_at?: string | null;
+          consent_method?: string | null;
+          ip_address?: string | null;
+          recording_url?: string | null;
+          consent_text?: string | null;
+          sha256_hash?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          lead_id?: string;
+          campaign_id?: string;
+          consent_given_at?: string | null;
+          consent_method?: string | null;
+          ip_address?: string | null;
+          recording_url?: string | null;
+          consent_text?: string | null;
+          sha256_hash?: string | null;
+          created_at?: string;
+        };
+      };
+      alerts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          campaign_id: string | null;
+          lead_id: string | null;
+          alert_type: string;
+          severity: "low" | "medium" | "high" | "critical";
+          title: string;
+          message: string | null;
+          metadata: Json | null;
+          is_resolved: boolean;
+          resolved_by: string | null;
+          resolved_at: string | null;
+          resolution_note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          campaign_id?: string | null;
+          lead_id?: string | null;
+          alert_type: string;
+          severity?: "low" | "medium" | "high" | "critical";
+          title: string;
+          message?: string | null;
+          metadata?: Json | null;
+          is_resolved?: boolean;
+          resolved_by?: string | null;
+          resolved_at?: string | null;
+          resolution_note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          campaign_id?: string | null;
+          lead_id?: string | null;
+          alert_type?: string;
+          severity?: "low" | "medium" | "high" | "critical";
+          title?: string;
+          message?: string | null;
+          metadata?: Json | null;
+          is_resolved?: boolean;
+          resolved_by?: string | null;
+          resolved_at?: string | null;
+          resolution_note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
         };
       };
     };

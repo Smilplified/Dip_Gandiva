@@ -57,11 +57,14 @@ export async function PATCH(
     }
 
     const body = await _request.json();
-    const { status } = body;
-
-    if (!status || !["active", "inactive"].includes(status)) {
-      return NextResponse.json({ error: "Valid status (active/inactive) required" }, { status: 400 });
-    }
+    const { status } = body as {
+      status?: string;
+      full_name?: string | null;
+      department?: string | null;
+      designation?: string | null;
+      role_id?: string | null;
+      client_id?: string | null;
+    };
 
     const admin = getAdminClientSafe();
     if (!admin) {
@@ -84,20 +87,77 @@ export async function PATCH(
       return NextResponse.json({ error: "Cannot update user from another organization" }, { status: 403 });
     }
 
+    if (status && !["active", "inactive"].includes(status)) {
+      return NextResponse.json({ error: "Valid status (active/inactive) required" }, { status: 400 });
+    }
+
     if (id === adminUser?.id && status === "inactive") {
       return NextResponse.json({ error: "You cannot deactivate your own account" }, { status: 400 });
     }
 
-    const { error: updateError } = await admin
-      .from("users")
-      .update({ status } as never)
-      .eq("id", id);
+    const userUpdate: Record<string, unknown> = {};
+    if (typeof status === "string") userUpdate.status = status;
+    if ("full_name" in body) userUpdate.full_name = body.full_name?.trim() || null;
+    if ("department" in body) userUpdate.department = body.department?.trim() || null;
+    if ("designation" in body) userUpdate.designation = body.designation?.trim() || null;
 
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    let roleNameNormalized = "";
+    if (body.role_id && typeof body.role_id === "string") {
+      const { data: roleRow } = await admin
+        .from("roles")
+        .select("name")
+        .eq("id", body.role_id)
+        .single();
+      roleNameNormalized = ((roleRow as { name?: string } | null)?.name ?? "")
+        .toLowerCase()
+        .replace(/\s+/g, "_");
     }
 
-    return NextResponse.json({ success: true, status });
+    if (body.role_id && roleNameNormalized === "client_viewer" && !body.client_id) {
+      return NextResponse.json(
+        { error: "Client selection is required for client users" },
+        { status: 400 }
+      );
+    }
+
+    if ("client_id" in body || body.role_id) {
+      userUpdate.client_id =
+        roleNameNormalized === "client_viewer"
+          ? (body.client_id ?? null)
+          : null;
+    }
+
+    if (Object.keys(userUpdate).length > 0) {
+      const { error: updateError } = await admin
+        .from("users")
+        .update(userUpdate as never)
+        .eq("id", id);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+    }
+
+    if (body.role_id && typeof body.role_id === "string") {
+      const { data: existingRoles } = await admin
+        .from("user_roles")
+        .select("role_id")
+        .eq("user_id", id);
+
+      const roleIds = (existingRoles ?? []).map((r: { role_id: string }) => r.role_id);
+      if (!roleIds.includes(body.role_id)) {
+        if (roleIds.length > 0) {
+          await admin.from("user_roles").delete().eq("user_id", id);
+        }
+        const { error: addRoleErr } = await admin
+          .from("user_roles")
+          .insert({ user_id: id, role_id: body.role_id } as never);
+        if (addRoleErr) {
+          return NextResponse.json({ error: addRoleErr.message }, { status: 500 });
+        }
+      }
+    }
+    return NextResponse.json({ success: true, status: status ?? null });
   } catch (err) {
     console.error("Update user status error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

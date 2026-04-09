@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, password, full_name, role_id, department, designation } = body;
+    const { email, password, full_name, role_id, department, designation, client_id } = body;
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -48,6 +48,26 @@ export async function POST(request: Request) {
     const admin = getAdminClientSafe();
     if (!admin) {
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
+
+    // Resolve role name for validation rules
+    let roleNameNormalized = "";
+    if (role_id && typeof role_id === "string") {
+      const { data: selectedRole } = await supabase
+        .from("roles")
+        .select("name")
+        .eq("id", role_id)
+        .single();
+      roleNameNormalized = ((selectedRole as { name?: string } | null)?.name ?? "")
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+    }
+
+    if (roleNameNormalized === "client_viewer" && !client_id) {
+      return NextResponse.json(
+        { error: "Client selection is required for client users" },
+        { status: 400 }
+      );
     }
 
     // Create user with email and password - no invite email
@@ -93,6 +113,10 @@ export async function POST(request: Request) {
         full_name: full_name?.trim() || null,
         department: department?.trim() || null,
         designation: designation?.trim() || null,
+        client_id:
+          roleNameNormalized === "client_viewer"
+            ? (typeof client_id === "string" ? client_id : null)
+            : null,
       } as never)
       .eq("id", createdUserId);
 

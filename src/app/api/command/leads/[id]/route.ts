@@ -1,0 +1,37 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { hasCommandRole } from "@/lib/command/rules-engine";
+import { getRoleNames, getProfile } from "@/lib/command/db";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const userRoles = await getRoleNames(supabase, user.id);
+  if (!hasCommandRole(userRoles) && !userRoles.includes("client_viewer")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const profile = await getProfile(supabase, user.id);
+
+  let query = supabase
+    .from("leads")
+    .select("*, campaigns(id, name, campaign_id, status, client_id)")
+    .eq("id", id);
+
+  if (userRoles.includes("client_viewer")) {
+    query = query.eq("campaigns.client_id", profile?.client_id ?? "__no_client__");
+  }
+
+  const { data: lead, error } = await query.single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+
+  return NextResponse.json({ lead });
+}

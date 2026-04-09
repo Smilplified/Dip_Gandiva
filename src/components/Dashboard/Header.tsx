@@ -16,8 +16,21 @@ const { Header } = Layout;
 
 export default function DashboardHeader() {
   const router = useRouter();
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, roles, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
+
+  const roleNames = roles.map((r) => r.role_name?.toLowerCase() ?? "");
+  const roleLabel = roleNames.includes("internal_admin")
+    ? "Internal Admin"
+    : roleNames.includes("internal_operator")
+      ? "Internal Operator"
+      : roleNames.includes("client_viewer")
+        ? "Client Viewer"
+        : roleNames.includes("admin")
+          ? "Admin"
+          : roleNames.length > 0
+            ? roles[0]?.role_name ?? "User"
+            : "User";
 
   const handleMenuClick = ({ key }: { key: string }) => {
     if (key === "logout") {
@@ -90,7 +103,7 @@ export default function DashboardHeader() {
                 {signingOut ? "Signing out..." : (profile?.full_name || user?.email || "User")}
               </div>
               <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-                {signingOut ? "Signing out..." : "Admin"}
+                {signingOut ? "Signing out..." : roleLabel}
               </div>
             </div>
           </div>

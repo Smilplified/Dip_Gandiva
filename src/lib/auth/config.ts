@@ -14,6 +14,14 @@ export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
   "/mis": ["mis", "admin"],
 };
 
+export const COMMAND_CENTER_ROLES = [
+  "client_viewer",
+  "internal_operator",
+  "internal_admin",
+] as const;
+
+export type CommandCenterRole = (typeof COMMAND_CENTER_ROLES)[number];
+
 export const ROLE_DEFAULT_REDIRECT: Record<string, string> = {
   admin: "/admin/dashboard",
   agent: "/agent/dashboard",
@@ -23,6 +31,9 @@ export const ROLE_DEFAULT_REDIRECT: Record<string, string> = {
   sales: "/sales",
   qa: "/qa/dashboard",
   mis: "/mis/dashboard",
+  client_viewer: "/dashboard/campaigns",
+  internal_operator: "/dashboard/campaigns",
+  internal_admin: "/dashboard/campaigns",
 };
 
 export function normalizeRoleName(roleName: string | null | undefined) {
@@ -78,7 +89,11 @@ export function canAccessPath(pathname: string, roleNames: Array<string | null |
     return false;
   }
 
-  if (pathname === "/" || pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+  if (
+    pathname === "/" ||
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/")
+  ) {
     return true;
   }
 

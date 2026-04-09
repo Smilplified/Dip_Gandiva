@@ -137,7 +137,7 @@ export async function middleware(request: NextRequest) {
     const roleNames = await getUserRoleNames(supabase, user.id);
     response = getResponse();
 
-    if (pathname === "/" || pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+    if (pathname === "/" || pathname === "/dashboard") {
       const redirectPath = getDefaultRedirectPath(roleNames);
       authDebug("middleware", "redirect root/dashboard to role default", {
         userId: user.id,
