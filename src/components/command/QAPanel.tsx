@@ -89,7 +89,7 @@ function formatUtcMinute(iso: string): string {
 function QaMetricStatistic(props: {
   label: ReactNode;
   hint: string;
-  value: ReactNode;
+  value: string | number;
   suffix?: string;
   labelNoWrap?: boolean;
 }) {

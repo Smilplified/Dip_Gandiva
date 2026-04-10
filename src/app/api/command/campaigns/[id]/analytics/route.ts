@@ -39,6 +39,12 @@ function normalizeLeadChannel(ch: string | null): "email" | "telemarketing" {
   return "email";
 }
 
+interface LeadHistoryQualifyRow {
+  lead_id: string;
+  new_value: unknown;
+  created_at: string;
+}
+
 /** First `status_change` row where new status is `qualified` (ingestion → qualification). */
 async function fetchFirstQualifiedTimestamps(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -49,20 +55,24 @@ async function fetchFirstQualifiedTimestamps(
   const chunkSize = 400;
   for (let i = 0; i < leadIds.length; i += chunkSize) {
     const slice = leadIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from("lead_history")
       .select("lead_id, new_value, created_at")
       .in("lead_id", slice)
       .eq("change_type", "status_change")
       .order("created_at", { ascending: true })
-      .limit(10000);
+      .limit(10000)) as {
+      data: LeadHistoryQualifyRow[] | null;
+      error: { message: string } | null;
+    };
     if (error) throw new Error(error.message);
-    for (const row of data ?? []) {
-      const lid = row.lead_id as string;
+    const rows = data ?? [];
+    for (const row of rows) {
+      const lid = row.lead_id;
       if (map.has(lid)) continue;
       const nv = row.new_value as { status?: string } | null;
       const st = nv?.status ? String(nv.status).toLowerCase() : "";
-      if (st === "qualified") map.set(lid, row.created_at as string);
+      if (st === "qualified") map.set(lid, row.created_at);
     }
   }
   return map;

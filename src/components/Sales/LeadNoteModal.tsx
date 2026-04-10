@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BoldOutlined,
   ClearOutlined,
@@ -101,7 +101,7 @@ export function LeadNoteModal({
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const bodyVal = Form.useWatch("body", form) ?? "";
   const createTask = Form.useWatch("createTask", form) ?? false;
-  const followOpts = useMemo(() => followUpOptions(), [open]);
+  const followOpts = followUpOptions();
 
   useEffect(() => {
     if (!open) {

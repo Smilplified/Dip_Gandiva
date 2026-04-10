@@ -5,6 +5,16 @@ import { getProfile, getRoleNames } from "@/lib/command/db";
 
 export const dynamic = "force-dynamic";
 
+type CampaignAssignmentAgentRow = { agent_id: string };
+type LeadAssignedAgentRow = { assigned_agent_id: string | null };
+type UserRepRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  agent_code: string | null;
+  employee_id: string | null;
+};
+
 /** Agents assigned to the campaign (for Leads tab Rep filter). */
 export async function GET(
   _req: NextRequest,
@@ -33,24 +43,29 @@ export async function GET(
     return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
   }
 
-  const { data: assignments, error: asgErr } = await supabase
+  const { data: assignments, error: asgErr } = (await supabase
     .from("campaign_assignments")
     .select("agent_id")
     .eq("campaign_id", campaignId)
-    .eq("is_active", true);
+    .eq("is_active", true)) as {
+    data: CampaignAssignmentAgentRow[] | null;
+    error: { message: string } | null;
+  };
 
   if (asgErr) {
     return NextResponse.json({ error: asgErr.message }, { status: 500 });
   }
 
-  let agentIds = [...new Set((assignments ?? []).map((a) => a.agent_id as string))];
+  let agentIds = [...new Set((assignments ?? []).map((a) => a.agent_id))];
 
   if (agentIds.length === 0) {
-    const { data: leadAgents } = await supabase
+    const { data: leadAgents } = (await supabase
       .from("leads")
       .select("assigned_agent_id")
       .eq("campaign_id", campaignId)
-      .not("assigned_agent_id", "is", null);
+      .not("assigned_agent_id", "is", null)) as {
+      data: LeadAssignedAgentRow[] | null;
+    };
     agentIds = [
       ...new Set(
         (leadAgents ?? [])
@@ -64,19 +79,22 @@ export async function GET(
     return NextResponse.json({ reps: [] as { id: string; label: string; rep_id: string | null }[] });
   }
 
-  const { data: users, error: uErr } = await supabase
+  const { data: users, error: uErr } = (await supabase
     .from("users")
     .select("id, full_name, email, agent_code, employee_id")
-    .in("id", agentIds);
+    .in("id", agentIds)) as {
+    data: UserRepRow[] | null;
+    error: { message: string } | null;
+  };
 
   if (uErr) {
     return NextResponse.json({ error: uErr.message }, { status: 500 });
   }
 
   const reps = (users ?? []).map((u) => {
-    const id = u.id as string;
-    const name = (u.full_name as string | null)?.trim() || (u.email as string | null)?.trim() || id;
-    const code = (u.agent_code as string | null)?.trim() || (u.employee_id as string | null)?.trim();
+    const id = u.id;
+    const name = u.full_name?.trim() || u.email?.trim() || id;
+    const code = u.agent_code?.trim() || u.employee_id?.trim();
     const label = code ? `${name} (${code})` : name;
     return { id, label, rep_id: code ?? null };
   });

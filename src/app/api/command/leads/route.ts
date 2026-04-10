@@ -20,6 +20,29 @@ export const dynamic = "force-dynamic";
 type Sb = SupabaseClient<Database>;
 type LeadsQ = ReturnType<Sb["from"]>;
 
+type LeadIdOnlyRow = { id: string };
+type ConsentRecordRow = {
+  lead_id: string;
+  consent_method: string | null;
+  created_at: string;
+};
+type LeadRiskRow = { id: string; risk_flags: unknown };
+type LeadHistoryListRow = {
+  lead_id: string;
+  change_type: string;
+  new_value: unknown;
+  old_value: unknown;
+  reason: unknown;
+  created_at: string;
+};
+type UserAttachRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  agent_code: string | null;
+  employee_id: string | null;
+};
+
 function parseList(sp: URLSearchParams, key: string): string[] {
   const raw = sp.get(key);
   if (!raw) return [];
@@ -58,24 +81,30 @@ async function filterLeadIdsByConsentTypes(
   organizationId: string,
   types: string[]
 ): Promise<string[]> {
-  const { data: leads, error: le } = await supabase
+  const { data: leads, error: le } = (await supabase
     .from("leads")
     .select("id")
     .eq("campaign_id", campaignId)
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)) as {
+    data: LeadIdOnlyRow[] | null;
+    error: { message: string } | null;
+  };
   if (le) throw new Error(le.message);
-  const allIds = (leads ?? []).map((l) => l.id as string);
+  const allIds = (leads ?? []).map((l) => l.id);
 
-  const { data: records, error: re } = await supabase
+  const { data: records, error: re } = (await supabase
     .from("consent_records")
     .select("lead_id, consent_method, created_at")
     .eq("campaign_id", campaignId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })) as {
+    data: ConsentRecordRow[] | null;
+    error: { message: string } | null;
+  };
   if (re) throw new Error(re.message);
 
   const latest = new Map<string, string>();
   for (const r of records ?? []) {
-    const lid = r.lead_id as string;
+    const lid = r.lead_id;
     if (!latest.has(lid)) {
       latest.set(lid, String(r.consent_method ?? "").toLowerCase());
     }
@@ -106,15 +135,18 @@ async function filterLeadIdsWithRisk(
   campaignId: string,
   organizationId: string
 ): Promise<string[]> {
-  const { data: rows, error } = await supabase
+  const { data: rows, error } = (await supabase
     .from("leads")
     .select("id, risk_flags")
     .eq("campaign_id", campaignId)
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)) as {
+    data: LeadRiskRow[] | null;
+    error: { message: string } | null;
+  };
   if (error) throw new Error(error.message);
   return (rows ?? [])
     .filter((r) => hasActiveRisk(r.risk_flags))
-    .map((r) => r.id as string);
+    .map((r) => r.id);
 }
 
 async function fetchLatestHistoryForLeads(
@@ -126,19 +158,22 @@ async function fetchLatestHistoryForLeads(
   const chunkSize = 100;
   for (let i = 0; i < leadIds.length; i += chunkSize) {
     const slice = leadIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from("lead_history")
       .select("lead_id, change_type, new_value, old_value, reason, created_at")
       .in("lead_id", slice)
       .order("created_at", { ascending: false })
-      .limit(15000);
+      .limit(15000)) as {
+      data: LeadHistoryListRow[] | null;
+      error: { message: string } | null;
+    };
     if (error) throw new Error(error.message);
     for (const row of data ?? []) {
-      const lid = row.lead_id as string;
+      const lid = row.lead_id;
       if (map.has(lid)) continue;
       map.set(lid, {
         label: formatLeadHistoryAction(row as HistoryRowMin),
-        at: row.created_at as string,
+        at: row.created_at,
       });
     }
   }
@@ -176,12 +211,15 @@ async function attachAssignedUsers(supabase: Sb, rows: LeadListRow[]): Promise<L
     ),
   ];
   if (agentIds.length === 0) return rows;
-  const { data: users, error } = await supabase
+  const { data: users, error } = (await supabase
     .from("users")
     .select("id, full_name, email, agent_code, employee_id")
-    .in("id", agentIds);
+    .in("id", agentIds)) as {
+    data: UserAttachRow[] | null;
+    error: { message: string } | null;
+  };
   if (error) return rows;
-  const byId = new Map((users ?? []).map((u) => [u.id as string, u]));
+  const byId = new Map((users ?? []).map((u) => [u.id, u]));
   return rows.map((r) => {
     const aid = r.assigned_agent_id as string | null;
     return {
