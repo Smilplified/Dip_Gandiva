@@ -172,8 +172,11 @@ export type Database = {
           start_date: string | null;
           end_date: string | null;
           status: string;
+          qualification_criteria: Json;
+          alert_config: Json;
           created_by: string | null;
           created_at: string;
+          updated_at: string;
           client_id: string | null;
           client_name: string | null;
           lead_type: string | null;
@@ -207,8 +210,11 @@ export type Database = {
           start_date?: string | null;
           end_date?: string | null;
           status?: string;
+          qualification_criteria?: Json;
+          alert_config?: Json;
           created_by?: string | null;
           created_at?: string;
+          updated_at?: string;
           client_id?: string | null;
           client_name?: string | null;
           lead_type?: string | null;
@@ -242,8 +248,11 @@ export type Database = {
           start_date?: string | null;
           end_date?: string | null;
           status?: string;
+          qualification_criteria?: Json;
+          alert_config?: Json;
           created_by?: string | null;
           created_at?: string;
+          updated_at?: string;
           client_id?: string | null;
           client_name?: string | null;
           lead_type?: string | null;
@@ -443,9 +452,13 @@ export type Database = {
           created_at: string;
           updated_at: string;
           risk_flags: Json | null;
-          consent_status: "pending" | "verified" | "missing" | "disputed" | null;
-          channel: "email" | "telemarketing" | null;
+          consent_status: "pending" | "verified" | "missing" | "disputed";
+          channel: "email" | "telemarketing";
           rep_id: string | null;
+          ingested_at: string;
+          qualified_at: string | null;
+          registered_at: string | null;
+          dq_reason_code: string | null;
         };
         Insert: {
           id?: string;
@@ -464,9 +477,13 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           risk_flags?: Json | null;
-          consent_status?: "pending" | "verified" | "missing" | "disputed" | null;
-          channel?: "email" | "telemarketing" | null;
+          consent_status?: "pending" | "verified" | "missing" | "disputed";
+          channel?: "email" | "telemarketing";
           rep_id?: string | null;
+          ingested_at?: string;
+          qualified_at?: string | null;
+          registered_at?: string | null;
+          dq_reason_code?: string | null;
         };
         Update: {
           id?: string;
@@ -485,9 +502,13 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           risk_flags?: Json | null;
-          consent_status?: "pending" | "verified" | "missing" | "disputed" | null;
-          channel?: "email" | "telemarketing" | null;
+          consent_status?: "pending" | "verified" | "missing" | "disputed";
+          channel?: "email" | "telemarketing";
           rep_id?: string | null;
+          ingested_at?: string;
+          qualified_at?: string | null;
+          registered_at?: string | null;
+          dq_reason_code?: string | null;
         };
       };
       campaign_metrics: {
@@ -603,35 +624,50 @@ export type Database = {
         Row: {
           id: string;
           lead_id: string;
-          changed_by: string | null;
+          changed_by: string;
           change_type: string;
           old_value: Json | null;
           new_value: Json | null;
           reason: string | null;
           ip_address: string | null;
           created_at: string;
+          previous_status: string | null;
+          new_status: string | null;
+          trigger_source: "system" | "manual";
+          reason_code: string | null;
+          metadata: Json;
         };
         Insert: {
           id?: string;
           lead_id: string;
-          changed_by?: string | null;
+          changed_by: string;
           change_type: string;
           old_value?: Json | null;
           new_value?: Json | null;
           reason?: string | null;
           ip_address?: string | null;
           created_at?: string;
+          previous_status?: string | null;
+          new_status?: string | null;
+          trigger_source?: "system" | "manual";
+          reason_code?: string | null;
+          metadata?: Json;
         };
         Update: {
           id?: string;
           lead_id?: string;
-          changed_by?: string | null;
+          changed_by?: string;
           change_type?: string;
           old_value?: Json | null;
           new_value?: Json | null;
           reason?: string | null;
           ip_address?: string | null;
           created_at?: string;
+          previous_status?: string | null;
+          new_status?: string | null;
+          trigger_source?: "system" | "manual";
+          reason_code?: string | null;
+          metadata?: Json;
         };
       };
       consent_records: {
@@ -687,6 +723,10 @@ export type Database = {
           resolved_by: string | null;
           resolved_at: string | null;
           resolution_note: string | null;
+          resolution_category: string | null;
+          display_id: number;
+          acknowledged_at: string | null;
+          acknowledged_by: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -704,6 +744,10 @@ export type Database = {
           resolved_by?: string | null;
           resolved_at?: string | null;
           resolution_note?: string | null;
+          resolution_category?: string | null;
+          display_id?: number;
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
           created_by?: string | null;
           created_at?: string;
         };
@@ -721,6 +765,10 @@ export type Database = {
           resolved_by?: string | null;
           resolved_at?: string | null;
           resolution_note?: string | null;
+          resolution_category?: string | null;
+          display_id?: number;
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
           created_by?: string | null;
           created_at?: string;
         };

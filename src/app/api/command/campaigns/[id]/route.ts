@@ -8,6 +8,9 @@ import {
   getProfile,
 } from "@/lib/command/db";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
+import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
+
+const COMMAND_CAMPAIGN_LEAD_IMPORT_MAX = 500;
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +88,7 @@ export async function PATCH(
   }
 
   const body = await request.json() as Record<string, unknown>;
+  const profile = await getProfile(supabase, user.id);
 
   const allowedFields = [
     "name", "description", "status", "start_date", "end_date",
@@ -156,6 +160,27 @@ export async function PATCH(
       lead_replace: (body.lead_replace as number | null) ?? 0,
     });
     await appendCampaignMetricsHistory(supabase, id, historyPayload);
+  }
+
+  const rawLeads = Array.isArray(body.leads) ? (body.leads as Record<string, unknown>[]) : [];
+  if (rawLeads.length > COMMAND_CAMPAIGN_LEAD_IMPORT_MAX) {
+    return NextResponse.json(
+      { error: `Maximum ${COMMAND_CAMPAIGN_LEAD_IMPORT_MAX} leads per import` },
+      { status: 400 }
+    );
+  }
+  if (rawLeads.length > 0) {
+    const leadPayloads = parsedRowsToLeadInserts(rawLeads, {
+      organizationId: profile?.organization_id ?? "",
+      campaignId: id,
+      createdBy: user.id,
+    });
+    if (leadPayloads.length > 0) {
+      const { error: insertLeadsError } = await supabase.from("leads").insert(leadPayloads as never);
+      if (insertLeadsError) {
+        return NextResponse.json({ error: insertLeadsError.message }, { status: 500 });
+      }
+    }
   }
 
   return NextResponse.json({ campaign });

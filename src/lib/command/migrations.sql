@@ -35,15 +35,29 @@ CREATE INDEX IF NOT EXISTS idx_campaign_metrics_campaign_id
 
 -- ── 3. lead_history (immutable audit log) ────────────────────
 CREATE TABLE IF NOT EXISTS lead_history (
-  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  lead_id      UUID        NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
-  changed_by   UUID        REFERENCES users(id),
-  change_type  TEXT        NOT NULL,   -- e.g. 'status_change', 'dq_override', 'consent_update'
-  old_value    JSONB,
-  new_value    JSONB,
-  reason       TEXT,
-  ip_address   TEXT,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id          UUID        NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  changed_by       UUID        NOT NULL REFERENCES users(id),
+  change_type      TEXT        NOT NULL,   -- e.g. 'status_change', 'alert_resolved'
+  old_value        JSONB,
+  new_value        JSONB,
+  reason           TEXT,
+  ip_address       TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  previous_status  TEXT,
+  new_status       TEXT,
+  trigger_source   TEXT        NOT NULL DEFAULT 'system'
+                     CHECK (trigger_source IN ('system','manual')),
+  reason_code      VARCHAR(255),
+  metadata         JSONB       NOT NULL DEFAULT '{}',
+  CONSTRAINT lead_history_status_change_new_status CHECK (
+    change_type <> 'status_change'
+    OR (new_status IS NOT NULL AND length(trim(new_status)) > 0)
+  ),
+  CONSTRAINT lead_history_manual_reason_code CHECK (
+    trigger_source <> 'manual'
+    OR (reason_code IS NOT NULL AND length(trim(reason_code)) > 0)
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_lead_history_lead_id
@@ -52,7 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_lead_history_lead_id
 CREATE OR REPLACE FUNCTION block_lead_history_mutation()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-  RAISE EXCEPTION 'lead_history is immutable — UPDATE/DELETE are not permitted';
+  RAISE EXCEPTION 'lead_history is append-only: UPDATE and DELETE are forbidden (immutable audit log).';
 END;
 $$;
 
@@ -65,6 +79,11 @@ DROP TRIGGER IF EXISTS lead_history_no_delete ON lead_history;
 CREATE TRIGGER lead_history_no_delete
   BEFORE DELETE ON lead_history
   FOR EACH ROW EXECUTE FUNCTION block_lead_history_mutation();
+
+REVOKE UPDATE, DELETE ON lead_history FROM PUBLIC;
+REVOKE UPDATE, DELETE ON lead_history FROM anon;
+REVOKE UPDATE, DELETE ON lead_history FROM authenticated;
+GRANT SELECT, INSERT ON lead_history TO authenticated;
 
 -- ── 4. consent_records (immutable) ───────────────────────────
 CREATE TABLE IF NOT EXISTS consent_records (
@@ -293,12 +312,16 @@ BEGIN
 
   -- ③ Immutable history entry
   INSERT INTO lead_history
-    (lead_id, changed_by, change_type, old_value, new_value, reason, ip_address)
+    (lead_id, changed_by, change_type, old_value, new_value, reason, ip_address,
+     previous_status, new_status, trigger_source, reason_code, metadata)
   VALUES
     (p_lead_id, p_changed_by, 'status_change',
      jsonb_build_object('status', p_old_status, 'consent_status', p_old_consent),
      jsonb_build_object('status', p_new_status, 'consent_status', p_new_consent),
-     p_reason, p_ip_address);
+     p_reason, NULLIF(trim(p_ip_address), ''),
+     p_old_status, p_new_status, 'system',
+     CASE WHEN p_reason IS NOT NULL AND length(trim(p_reason)) > 0 THEN left(trim(p_reason), 255) ELSE NULL END,
+     COALESCE(p_alert_metadata, '{}'::jsonb));
 
   -- ④ Upsert campaign_metrics aggregates atomically
   INSERT INTO campaign_metrics (campaign_id)

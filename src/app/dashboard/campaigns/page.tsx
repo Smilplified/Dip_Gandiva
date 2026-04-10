@@ -11,9 +11,9 @@ import {
   Col,
   Card,
   Statistic,
-  Tag,
   message,
   Skeleton,
+  DatePicker,
 } from "antd";
 import {
   PlusOutlined,
@@ -26,57 +26,51 @@ import {
 } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import CampaignTable from "@/components/command/CampaignTable";
+import CampaignTable, { type CommandCampaignRow } from "@/components/command/CampaignTable";
+import dayjs from "dayjs";
+import type { Dayjs } from "dayjs";
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
-interface Campaign {
-  id: string;
-  campaign_id: string;
-  name: string;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
-  client_name: string | null;
-  lead_type: string | null;
-  cpl: number | null;
-  total_allocation: number | null;
-  achieved: number | null;
-  industry: string | null;
-  geography: string | null;
-  campaign_metrics?: {
-    sponsor_name?: string | null;
-    total_leads_allocated?: number | null;
-    total_leads_delivered?: number | null;
-    total_campaign_spend?: number | null;
-    daily_reporting?: unknown;
-    channel_split?: unknown;
-    deficit_leads?: number | null;
-    lead_increment?: number | null;
-    lead_replace?: number | null;
-  };
-}
+type StatusFilter = "all" | "active" | "completed";
 
 export default function CampaignsPage() {
   const router = useRouter();
   const { hasRole } = useAuth();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [filtered, setFiltered] = useState<Campaign[]>([]);
+  const [campaigns, setCampaigns] = useState<CommandCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [listTruncated, setListTruncated] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
   const canCreate =
     hasRole("internal_operator") ||
     hasRole("internal_admin") ||
     hasRole("admin");
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   const fetchCampaigns = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/command/campaigns");
+      const params = new URLSearchParams();
+      params.set("enrich", "1");
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      const [df, dt] = dateRange ?? [null, null];
+      if (df) params.set("date_from", df.format("YYYY-MM-DD"));
+      if (dt) params.set("date_to", dt.format("YYYY-MM-DD"));
+
+      const res = await fetch(`/api/command/campaigns?${params.toString()}`);
       if (!res.ok) {
-        const d = await res.json() as { error?: string };
+        const d = (await res.json()) as { error?: string };
         if (res.status === 403) {
           message.error("You do not have access to the Campaign Command Center.");
           return;
@@ -84,36 +78,24 @@ export default function CampaignsPage() {
         message.error(d.error ?? "Failed to load campaigns");
         return;
       }
-      const data = await res.json() as { campaigns?: Campaign[] };
+      const data = (await res.json()) as {
+        campaigns?: CommandCampaignRow[];
+        truncated?: boolean;
+        total?: number;
+      };
       setCampaigns(data.campaigns ?? []);
-      setFiltered(data.campaigns ?? []);
+      setListTruncated(Boolean(data.truncated));
+      setTotalCount(data.total ?? data.campaigns?.length ?? 0);
     } catch {
       message.error("Network error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedSearch, statusFilter, dateRange]);
 
   useEffect(() => {
     void fetchCampaigns();
   }, [fetchCampaigns]);
-
-  useEffect(() => {
-    let result = campaigns;
-    if (search) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.campaign_id.toLowerCase().includes(q) ||
-          (c.client_name ?? "").toLowerCase().includes(q)
-      );
-    }
-    if (statusFilter) {
-      result = result.filter((c) => c.status === statusFilter);
-    }
-    setFiltered(result);
-  }, [search, statusFilter, campaigns]);
 
   const stats = {
     total: campaigns.length,
@@ -162,7 +144,6 @@ export default function CampaignsPage() {
         )}
       </div>
 
-      {/* Stats row */}
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         {[
           {
@@ -217,9 +198,7 @@ export default function CampaignsPage() {
                   {stat.icon}
                 </div>
                 <Statistic
-                  title={
-                    <Text style={{ fontSize: 12 }}>{stat.title}</Text>
-                  }
+                  title={<Text style={{ fontSize: 12 }}>{stat.title}</Text>}
                   value={stat.value}
                   valueStyle={{ fontSize: 22, fontWeight: 700, color: stat.color }}
                 />
@@ -229,7 +208,6 @@ export default function CampaignsPage() {
         ))}
       </Row>
 
-      {/* Filter bar */}
       <div
         style={{
           background: "#fff",
@@ -245,55 +223,54 @@ export default function CampaignsPage() {
       >
         <Input
           prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
-          placeholder="Search campaigns…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 260 }}
+          placeholder="Search by campaign name…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          style={{ width: 240 }}
           allowClear
         />
-        <Select
-          value={statusFilter || undefined}
+        <Select<StatusFilter>
+          value={statusFilter}
           onChange={setStatusFilter}
-          placeholder="All statuses"
           style={{ width: 160 }}
-          allowClear
-        >
-          {["active", "paused", "completed", "cancelled", "draft"].map((s) => (
-            <Select.Option key={s} value={s}>
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </Select.Option>
-          ))}
-        </Select>
-        <Space style={{ marginLeft: "auto" }}>
+          options={[
+            { value: "all", label: "All statuses" },
+            { value: "active", label: "Active" },
+            { value: "completed", label: "Completed" },
+          ]}
+        />
+        <RangePicker
+          value={dateRange}
+          onChange={(v) => setDateRange(v)}
+          format="YYYY-MM-DD"
+          style={{ minWidth: 260 }}
+          allowEmpty={[true, true]}
+        />
+        <Space style={{ marginLeft: "auto" }} wrap>
+          {listTruncated && (
+            <Text type="warning" style={{ fontSize: 12 }}>
+              Showing first 500 of {totalCount} campaigns; narrow filters to see more.
+            </Text>
+          )}
           <Text type="secondary" style={{ fontSize: 13 }}>
-            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+            {campaigns.length} result{campaigns.length !== 1 ? "s" : ""}
           </Text>
-          <Button
-            icon={<ReloadOutlined />}
-            size="small"
-            onClick={() => void fetchCampaigns()}
-          >
+          <Button icon={<ReloadOutlined />} size="small" onClick={() => void fetchCampaigns()}>
             Refresh
           </Button>
         </Space>
       </div>
 
-      {/* Table */}
       {loading ? (
         <Card style={cardStyle}>
           <Skeleton active paragraph={{ rows: 8 }} />
         </Card>
       ) : (
         <Card style={{ ...cardStyle, padding: 0 }} styles={{ body: { padding: 0 } }}>
-          <CampaignTable
-            campaigns={filtered}
-            loading={loading}
-            onRefresh={() => void fetchCampaigns()}
-          />
+          <CampaignTable campaigns={campaigns} loading={loading} />
         </Card>
       )}
 
-      {/* Access notice for client_viewer */}
       {hasRole("client_viewer") && (
         <div
           style={{

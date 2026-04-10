@@ -186,24 +186,47 @@ export async function appendLeadHistory(
   supabase: RulesEngineClient,
   payload: {
     leadId: string;
-    changedBy?: string;
+    changedBy: string;
     changeType: string;
     oldValue?: Record<string, unknown>;
     newValue?: Record<string, unknown>;
     reason?: string;
     ipAddress?: string;
+    triggerSource?: "system" | "manual";
+    reasonCode?: string | null;
+    metadata?: Record<string, unknown>;
   }
 ): Promise<void> {
+  const triggerSource = payload.triggerSource ?? "system";
+  const prev =
+    payload.oldValue && typeof payload.oldValue.status === "string"
+      ? payload.oldValue.status
+      : null;
+  const next =
+    payload.newValue && typeof payload.newValue.status === "string"
+      ? payload.newValue.status
+      : null;
+  const rc =
+    payload.reasonCode ??
+    (payload.reason && payload.reason.trim()
+      ? payload.reason.trim().slice(0, 255)
+      : null);
+
   const { error } = (await asAny(supabase)
     .from("lead_history")
     .insert({
       lead_id: payload.leadId,
-      changed_by: payload.changedBy ?? null,
+      changed_by: payload.changedBy,
       change_type: payload.changeType,
       old_value: payload.oldValue ?? null,
       new_value: payload.newValue ?? null,
       reason: payload.reason ?? null,
       ip_address: payload.ipAddress ?? null,
+      previous_status: prev,
+      new_status: next,
+      trigger_source: triggerSource,
+      reason_code: rc,
+      metadata: payload.metadata ?? {},
     })) as { error: { message: string } | null };
 
   if (error) console.error("[rules-engine] appendLeadHistory error:", error.message);

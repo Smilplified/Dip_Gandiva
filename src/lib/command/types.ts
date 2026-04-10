@@ -60,32 +60,44 @@ export interface CommandLeadRow {
 
 export interface CommandAlertRow {
   id: string;
-  organization_id: string;
+  organization_id?: string;
   campaign_id: string | null;
   lead_id: string | null;
   alert_type: string;
   severity: "low" | "medium" | "high" | "critical";
   title: string;
   message: string | null;
-  metadata: unknown;
+  metadata?: unknown;
   is_resolved: boolean;
   resolved_by: string | null;
   resolved_at: string | null;
   resolution_note: string | null;
-  created_by: string | null;
+  resolution_category?: string | null;
+  display_id?: number;
+  acknowledged_at?: string | null;
+  acknowledged_by?: string | null;
+  created_by?: string | null;
   created_at: string;
+  campaigns?: { name: string } | null;
+  resolved_by_user?: { full_name: string | null; email: string | null } | null;
+  acknowledged_by_user?: { full_name: string | null; email: string | null } | null;
 }
 
 export interface CommandLeadHistoryRow {
   id: string;
   lead_id: string;
-  changed_by: string | null;
+  changed_by: string;
   change_type: string;
   old_value: unknown;
   new_value: unknown;
   reason: string | null;
   ip_address: string | null;
   created_at: string;
+  previous_status: string | null;
+  new_status: string | null;
+  trigger_source: "system" | "manual";
+  reason_code: string | null;
+  metadata: unknown;
 }
 
 export interface CommandConsentRow {

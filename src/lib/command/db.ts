@@ -83,15 +83,32 @@ export async function getRoleNames(
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────
 
+/** `unresolved` = open + acknowledged (not yet resolved). */
+export type AlertListStatusFilter =
+  | "all"
+  | "unresolved"
+  | "open"
+  | "acknowledged"
+  | "resolved";
+
 export interface AlertQueryOptions {
   organizationId: string;
   campaignId?: string | null;
   allowedCampaignIds?: string[] | null;
   severity?: string | null;
+  /** @deprecated Pass `listStatus` from API layer instead */
   resolved?: boolean | null;
+  listStatus?: AlertListStatusFilter;
   limit?: number;
   cursor?: string | null;
 }
+
+const COMMAND_ALERT_LIST_SELECT = `id, display_id, alert_type, severity, title, message, is_resolved,
+  resolved_at, resolution_note, resolution_category, acknowledged_at,
+  campaign_id, lead_id, created_at,
+  campaigns(name),
+  resolved_by_user:users!alerts_resolved_by_fkey(full_name, email),
+  acknowledged_by_user:users!alerts_acknowledged_by_fkey(full_name, email)`;
 
 export async function queryAlerts(
   supabase: Client,
@@ -101,11 +118,7 @@ export async function queryAlerts(
 
   let q = db(supabase)
     .from("alerts")
-    .select(
-      `id, alert_type, severity, title, message, is_resolved,
-       resolved_at, resolution_note, campaign_id, lead_id, created_at,
-       campaigns(name)`
-    )
+    .select(COMMAND_ALERT_LIST_SELECT)
     .eq("organization_id", opts.organizationId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -119,8 +132,19 @@ export async function queryAlerts(
     return { items: [], nextCursor: null, hasMore: false };
   }
   if (opts.severity) q = q.eq("severity", opts.severity);
-  if (opts.resolved !== undefined && opts.resolved !== null) {
-    q = q.eq("is_resolved", opts.resolved);
+
+  const listStatus: AlertListStatusFilter =
+    opts.listStatus ??
+    (opts.resolved === true ? "resolved" : opts.resolved === false ? "unresolved" : "all");
+
+  if (listStatus === "resolved") {
+    q = q.eq("is_resolved", true);
+  } else if (listStatus === "unresolved") {
+    q = q.eq("is_resolved", false);
+  } else if (listStatus === "open") {
+    q = q.eq("is_resolved", false).is("acknowledged_at", null);
+  } else if (listStatus === "acknowledged") {
+    q = q.eq("is_resolved", false).not("acknowledged_at", "is", null);
   }
 
   if (opts.cursor) {
@@ -166,22 +190,125 @@ export async function getAllowedCampaignIdsForClientViewer(
   return (data ?? []).map((r) => r.id);
 }
 
+const RESOLUTION_CATEGORIES = new Set([
+  "false_positive",
+  "corrective_action",
+  "escalated",
+  "acknowledged_outcome",
+]);
+
 export async function resolveAlert(
   supabase: Client,
   alertId: string,
   userId: string,
-  resolutionNote?: string
+  resolutionNote: string,
+  resolutionCategory: string
 ): Promise<CommandAlertRow | null> {
-  const { data, error } = (await db(supabase)
+  const note = resolutionNote.trim();
+  if (note.length < 20) {
+    throw new Error("Resolution notes must be at least 20 characters");
+  }
+  if (!RESOLUTION_CATEGORIES.has(resolutionCategory)) {
+    throw new Error("Invalid resolution category");
+  }
+
+  const { data: existing, error: fetchErr } = (await db(supabase)
+    .from("alerts")
+    .select("lead_id, is_resolved")
+    .eq("id", alertId)
+    .single()) as {
+    data: { lead_id: string | null; is_resolved: boolean } | null;
+    error: { message: string } | null;
+  };
+
+  if (fetchErr || !existing) throw new Error(fetchErr?.message ?? "Alert not found");
+  if (existing.is_resolved) throw new Error("Alert is already resolved");
+
+  const resolvedAt = new Date().toISOString();
+
+  const { data: updated, error: updErr } = (await db(supabase)
     .from("alerts")
     .update({
       is_resolved: true,
       resolved_by: userId,
-      resolved_at: new Date().toISOString(),
-      resolution_note: resolutionNote ?? null,
+      resolved_at: resolvedAt,
+      resolution_note: note,
+      resolution_category: resolutionCategory,
     })
     .eq("id", alertId)
-    .select()
+    .select(COMMAND_ALERT_LIST_SELECT)
+    .single()) as { data: CommandAlertRow | null; error: { message: string } | null };
+
+  if (updErr) throw new Error(updErr.message);
+
+  if (existing.lead_id && updated) {
+    const disp = updated.display_id ?? "?";
+    const rc = note.trim().slice(0, 255);
+    const { error: histErr } = await db(supabase).from("lead_history").insert({
+      lead_id: existing.lead_id,
+      changed_by: userId,
+      change_type: "alert_resolved",
+      old_value: { alert_id: alertId },
+      new_value: {
+        display_id: updated.display_id,
+        resolution_category: resolutionCategory,
+        resolution_note: note.slice(0, 2000),
+      },
+      reason: `Alert #${disp} resolved [${resolutionCategory}]: ${note.slice(0, 400)}`,
+      trigger_source: "manual",
+      reason_code: rc,
+      metadata: {
+        alert_id: alertId,
+        resolution_category: resolutionCategory,
+      },
+    } as never);
+
+    if (histErr) {
+      await db(supabase)
+        .from("alerts")
+        .update({
+          is_resolved: false,
+          resolved_by: null,
+          resolved_at: null,
+          resolution_note: null,
+          resolution_category: null,
+        })
+        .eq("id", alertId);
+      throw new Error(
+        `Could not write audit log: ${histErr.message}. Alert was not marked resolved.`
+      );
+    }
+  }
+
+  return updated;
+}
+
+export async function acknowledgeAlert(
+  supabase: Client,
+  alertId: string,
+  userId: string
+): Promise<CommandAlertRow | null> {
+  const { data: existing, error: fetchErr } = (await db(supabase)
+    .from("alerts")
+    .select("is_resolved, acknowledged_at")
+    .eq("id", alertId)
+    .single()) as {
+    data: { is_resolved: boolean; acknowledged_at: string | null } | null;
+    error: { message: string } | null;
+  };
+
+  if (fetchErr || !existing) throw new Error(fetchErr?.message ?? "Alert not found");
+  if (existing.is_resolved) throw new Error("Cannot acknowledge a resolved alert");
+  if (existing.acknowledged_at) throw new Error("Alert is already acknowledged");
+
+  const { data, error } = (await db(supabase)
+    .from("alerts")
+    .update({
+      acknowledged_at: new Date().toISOString(),
+      acknowledged_by: userId,
+    })
+    .eq("id", alertId)
+    .select(COMMAND_ALERT_LIST_SELECT)
     .single()) as { data: CommandAlertRow | null; error: { message: string } | null };
 
   if (error) throw new Error(error.message);
@@ -200,7 +327,7 @@ export async function queryLeadHistory(
   let q = db(supabase)
     .from("lead_history")
     .select(
-      "id, change_type, old_value, new_value, reason, ip_address, created_at, changed_by"
+      "id, change_type, old_value, new_value, reason, ip_address, created_at, changed_by, previous_status, new_status, trigger_source, reason_code, metadata"
     )
     .eq("lead_id", leadId)
     .order("created_at", { ascending: false })
@@ -428,4 +555,124 @@ export async function getCampaignAnalytics(supabase: Client, campaignId: string)
     history: histResult.data ?? [],
     alerts: alertResult.data ?? [],
   };
+}
+
+/** Per-campaign lead aggregates for Command Center list (organization-scoped). */
+export interface CommandListLeadAgg {
+  total: number;
+  qualified: number;
+  /** Leads that cleared QA (qualified → funnel): qualified, registered, attended, no_show */
+  qa_verified: number;
+  dq: number;
+  missingConsent: number;
+  disputedConsent: number;
+  pendingConsent: number;
+  verified: number;
+}
+
+export async function aggregateCommandLeadStatsByCampaign(
+  supabase: Client,
+  organizationId: string,
+  campaignIds: string[]
+): Promise<Record<string, CommandListLeadAgg>> {
+  const postQaVerified = new Set(["qualified", "registered", "attended", "no_show"]);
+
+  const empty = (): CommandListLeadAgg => ({
+    total: 0,
+    qualified: 0,
+    qa_verified: 0,
+    dq: 0,
+    missingConsent: 0,
+    disputedConsent: 0,
+    pendingConsent: 0,
+    verified: 0,
+  });
+  if (campaignIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("leads")
+    .select("campaign_id, status, consent_status")
+    .eq("organization_id", organizationId)
+    .in("campaign_id", campaignIds);
+  if (error) throw new Error(error.message);
+  const out: Record<string, CommandListLeadAgg> = {};
+  for (const id of campaignIds) out[id] = empty();
+  for (const row of (data ?? []) as {
+    campaign_id: string;
+    status: string;
+    consent_status: string | null;
+  }[]) {
+    const b = out[row.campaign_id];
+    if (!b) continue;
+    b.total += 1;
+    const st = String(row.status ?? "").toLowerCase();
+    if (st === "qualified") b.qualified += 1;
+    if (postQaVerified.has(st)) b.qa_verified += 1;
+    if (st === "disqualified") b.dq += 1;
+    const cs = String(row.consent_status ?? "pending").toLowerCase();
+    if (cs === "missing") b.missingConsent += 1;
+    else if (cs === "disputed") b.disputedConsent += 1;
+    else if (cs === "pending") b.pendingConsent += 1;
+    else if (cs === "verified") b.verified += 1;
+  }
+  return out;
+}
+
+export interface CommandListAlertAgg {
+  count: number;
+  hasRed: boolean;
+  hasYellow: boolean;
+}
+
+export async function aggregateUnresolvedAlertsByCampaign(
+  supabase: Client,
+  organizationId: string,
+  campaignIds: string[]
+): Promise<Record<string, CommandListAlertAgg>> {
+  if (campaignIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("alerts")
+    .select("campaign_id, severity")
+    .eq("organization_id", organizationId)
+    .eq("is_resolved", false)
+    .in("campaign_id", campaignIds);
+  if (error) throw new Error(error.message);
+  const out: Record<string, CommandListAlertAgg> = {};
+  for (const id of campaignIds) {
+    out[id] = { count: 0, hasRed: false, hasYellow: false };
+  }
+  for (const row of (data ?? []) as {
+    campaign_id: string | null;
+    severity: string;
+  }[]) {
+    const cid = row.campaign_id;
+    if (!cid || !out[cid]) continue;
+    const b = out[cid];
+    b.count += 1;
+    if (row.severity === "critical" || row.severity === "high") b.hasRed = true;
+    if (row.severity === "medium" || row.severity === "low") b.hasYellow = true;
+  }
+  return out;
+}
+
+/** Count of dq_override alerts per campaign (admin DQ override audit events). */
+export async function aggregateDqOverrideAlertCountsByCampaign(
+  supabase: Client,
+  organizationId: string,
+  campaignIds: string[]
+): Promise<Record<string, number>> {
+  if (campaignIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("alerts")
+    .select("campaign_id")
+    .eq("organization_id", organizationId)
+    .eq("alert_type", "dq_override")
+    .in("campaign_id", campaignIds);
+  if (error) throw new Error(error.message);
+  const out: Record<string, number> = {};
+  for (const id of campaignIds) out[id] = 0;
+  for (const row of (data ?? []) as { campaign_id: string | null }[]) {
+    const cid = row.campaign_id;
+    if (cid && cid in out) out[cid] += 1;
+  }
+  return out;
 }

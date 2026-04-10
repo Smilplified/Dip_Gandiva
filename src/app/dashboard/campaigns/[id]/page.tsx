@@ -141,7 +141,11 @@ export default function CampaignDetailPage() {
         }}
         styles={{ body: { padding: "24px" } }}
       >
-        <CampaignDashboard key={refreshKey} campaignId={campaignId} />
+        <CampaignDashboard
+          key={refreshKey}
+          campaignId={campaignId}
+          initialTab={searchParams.get("tab")}
+        />
       </Card>
 
       {canEdit && (

@@ -168,6 +168,7 @@ export default function LeadAuditPanel({
   return (
     <>
       <Drawer
+        placement="right"
         title={
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <SafetyOutlined style={{ color: "#1890ff" }} />

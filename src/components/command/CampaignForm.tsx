@@ -14,12 +14,14 @@ import {
   Divider,
   Upload,
   Typography,
+  Space,
 } from "antd";
 import type { UploadFile } from "antd/es/upload/interface";
-import { UploadOutlined } from "@ant-design/icons";
+import { DownloadOutlined, UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
+import { downloadCampaignLeadsImportTemplate } from "@/lib/leadsImportTemplate";
 
 interface CampaignFormValues {
   campaign_id: string;
@@ -344,15 +346,38 @@ export default function CampaignForm({
           <Form.Item
             name="imported_leads_file"
             label="Upload Leads File (Excel/CSV)"
-            extra="Upload .xlsx / .xls / .csv to auto-count Total Leads Delivered and import leads on campaign create."
+            extra={
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+                Upload .xlsx / .xls / .csv to auto-count Total Leads Delivered and import leads on campaign
+                create. Use the templates so column names match what the importer expects (first row = headers).
+              </Typography.Paragraph>
+            }
           >
-            <Upload
-              maxCount={1}
-              beforeUpload={(file) => handleLeadsFileUpload(file)}
-              accept=".xlsx,.xls,.csv"
-            >
-              <Button icon={<UploadOutlined />}>Upload file</Button>
-            </Upload>
+            <Space wrap align="center" size="middle">
+              <Upload
+                maxCount={1}
+                beforeUpload={(file) => handleLeadsFileUpload(file)}
+                accept=".xlsx,.xls,.csv"
+              >
+                <Button icon={<UploadOutlined />}>Upload file</Button>
+              </Upload>
+              <Button
+                type="link"
+                icon={<DownloadOutlined />}
+                onClick={() => downloadCampaignLeadsImportTemplate("csv")}
+                style={{ paddingInline: 0 }}
+              >
+                Download CSV template
+              </Button>
+              <Button
+                type="link"
+                icon={<DownloadOutlined />}
+                onClick={() => downloadCampaignLeadsImportTemplate("xlsx")}
+                style={{ paddingInline: 0 }}
+              >
+                Download Excel template
+              </Button>
+            </Space>
           </Form.Item>
           {parsedLeads.length > 0 && (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>

@@ -9,10 +9,26 @@ import {
   clampLimit,
   encodeCursor,
   decodeCursor,
+  aggregateCommandLeadStatsByCampaign,
+  aggregateUnresolvedAlertsByCampaign,
+  aggregateDqOverrideAlertCountsByCampaign,
+  type CommandListLeadAgg,
+  type CommandListAlertAgg,
 } from "@/lib/command/db";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
+import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
+
+const COMMAND_CAMPAIGN_LEAD_IMPORT_MAX = 500;
 
 export const dynamic = "force-dynamic";
+
+const LIST_MAX = 500;
+
+function listCompliance(L: CommandListLeadAgg, A: CommandListAlertAgg): "green" | "yellow" | "red" {
+  if (A.hasRed || L.disputedConsent > 0) return "red";
+  if (A.hasYellow || L.missingConsent > 0 || L.pendingConsent > 0) return "yellow";
+  return "green";
+}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -28,6 +44,144 @@ export async function GET(request: NextRequest) {
   const profile = await getProfile(supabase, user.id);
 
   const sp = request.nextUrl.searchParams;
+
+  if (sp.get("enrich") === "1") {
+    const orgId = profile?.organization_id ?? "";
+    const qRaw = sp.get("q")?.trim() ?? "";
+    const statusGroup = (sp.get("status") ?? "all").toLowerCase();
+    const dateFrom = sp.get("date_from")?.trim() ?? "";
+    const dateTo = sp.get("date_to")?.trim() ?? "";
+
+    const clientViewerId = profile?.client_id ?? null;
+    if (userRoles.includes("client_viewer")) {
+      if (!clientViewerId) {
+        return NextResponse.json({
+          campaigns: [],
+          total: 0,
+          truncated: false,
+          limit: LIST_MAX,
+        });
+      }
+    }
+
+    let listQuery = supabase
+      .from("campaigns")
+      .select(
+        `id, campaign_id, name, description, status, start_date, end_date,
+         client_id, client_name, lead_type, cpl, revenue, total_allocation, achieved,
+         pending_allocation, industry, geography, created_at,
+         campaign_metrics(
+           sponsor_name,
+           total_leads_allocated,
+           total_campaign_spend,
+           total_leads_delivered,
+           daily_reporting,
+           channel_split,
+           deficit_leads,
+           lead_increment,
+           lead_replace
+         )`,
+        { count: "exact" }
+      )
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(LIST_MAX);
+
+    if (userRoles.includes("client_viewer") && clientViewerId) {
+      listQuery = listQuery.eq("client_id", clientViewerId);
+    }
+
+    if (qRaw.length > 0) {
+      const safe = qRaw.replace(/%/g, "").replace(/_/g, "");
+      if (safe.length > 0) listQuery = listQuery.ilike("name", `%${safe}%`);
+    }
+
+    if (statusGroup === "active") listQuery = listQuery.eq("status", "active");
+    if (statusGroup === "completed") listQuery = listQuery.eq("status", "completed");
+
+    if (dateFrom && dateTo) {
+      listQuery = listQuery
+        .or(`start_date.is.null,start_date.lte.${dateTo}`)
+        .or(`end_date.is.null,end_date.gte.${dateFrom}`);
+    } else if (dateFrom) {
+      listQuery = listQuery.or(`end_date.is.null,end_date.gte.${dateFrom}`);
+    } else if (dateTo) {
+      listQuery = listQuery.or(`start_date.is.null,start_date.lte.${dateTo}`);
+    }
+
+    const { data: listRows, count, error: listErr } = await listQuery;
+    if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
+
+    const rows = (listRows ?? []) as Record<string, unknown>[];
+    const ids = rows.map((r) => r.id as string);
+
+    let leadAgg: Record<string, CommandListLeadAgg> = {};
+    let alertAgg: Record<string, CommandListAlertAgg> = {};
+    let dqOverrideAgg: Record<string, number> = {};
+    if (ids.length > 0) {
+      try {
+        [leadAgg, alertAgg, dqOverrideAgg] = await Promise.all([
+          aggregateCommandLeadStatsByCampaign(supabase, orgId, ids),
+          aggregateUnresolvedAlertsByCampaign(supabase, orgId, ids),
+          aggregateDqOverrideAlertCountsByCampaign(supabase, orgId, ids),
+        ]);
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Aggregation failed" },
+          { status: 500 }
+        );
+      }
+    }
+
+    const emptyLead = (): CommandListLeadAgg => ({
+      total: 0,
+      qualified: 0,
+      qa_verified: 0,
+      dq: 0,
+      missingConsent: 0,
+      disputedConsent: 0,
+      pendingConsent: 0,
+      verified: 0,
+    });
+    const emptyAlert = (): CommandListAlertAgg => ({
+      count: 0,
+      hasRed: false,
+      hasYellow: false,
+    });
+
+    const enriched = rows.map((c) => {
+      const id = c.id as string;
+      const L = leadAgg[id] ?? emptyLead();
+      const A = alertAgg[id] ?? emptyAlert();
+      const qualifiedPct = L.total > 0 ? Math.round((L.qualified / L.total) * 1000) / 10 : 0;
+      const qaVerifiedPct = L.total > 0 ? Math.round((L.qa_verified / L.total) * 100) : 0;
+      const consentIssues = L.missingConsent + L.disputedConsent;
+      const overrideCount = dqOverrideAgg[id] ?? 0;
+      return {
+        ...c,
+        list_stats: {
+          total_leads: L.total,
+          qualified_count: L.qualified,
+          qualified_pct: qualifiedPct,
+          qa_verified_pct: qaVerifiedPct,
+          override_count: overrideCount,
+          consent_issues_count: consentIssues,
+          dq_count: L.dq,
+          unresolved_alerts: A.count,
+          compliance: listCompliance(L, A),
+        },
+      };
+    });
+
+    return NextResponse.json({
+      campaigns: enriched,
+      total: count ?? 0,
+      truncated: (count ?? 0) > LIST_MAX,
+      limit: LIST_MAX,
+    });
+  }
+
   const cursor = sp.get("cursor");
   const limit = clampLimit(sp.get("limit") ?? "25");
 
@@ -194,37 +348,18 @@ export async function POST(request: Request) {
   const rawLeads = Array.isArray(body.leads)
     ? (body.leads as Record<string, unknown>[])
     : [];
+  if (rawLeads.length > COMMAND_CAMPAIGN_LEAD_IMPORT_MAX) {
+    return NextResponse.json(
+      { error: `Maximum ${COMMAND_CAMPAIGN_LEAD_IMPORT_MAX} leads per import` },
+      { status: 400 }
+    );
+  }
   if (rawLeads.length > 0) {
-    const leadPayloads = rawLeads
-      .map((row) => {
-        const name =
-          (typeof row.name === "string" && row.name.trim()) ||
-          [row.first_name, row.last_name]
-            .map((v) => (typeof v === "string" ? v.trim() : ""))
-            .filter(Boolean)
-            .join(" ")
-            .trim() ||
-          null;
-        const companyName =
-          typeof row.company_name === "string" ? row.company_name.trim() || null : null;
-        const email = typeof row.email === "string" ? row.email.trim() || null : null;
-        const phone = typeof row.phone === "string" ? row.phone.trim() || null : null;
-
-        if (!name && !companyName && !email && !phone) return null;
-
-        return {
-          organization_id: (profile?.organization_id ?? "") as string,
-          campaign_id: (campaign as { id: string }).id,
-          name,
-          company_name: companyName,
-          email,
-          phone,
-          city: typeof row.city === "string" ? row.city.trim() || null : null,
-          status: typeof row.status === "string" && row.status.trim() ? row.status.trim() : "new",
-          created_by: user.id,
-        };
-      })
-      .filter(Boolean);
+    const leadPayloads = parsedRowsToLeadInserts(rawLeads, {
+      organizationId: (profile?.organization_id ?? "") as string,
+      campaignId: (campaign as { id: string }).id,
+      createdBy: user.id,
+    });
 
     if (leadPayloads.length > 0) {
       const { error: insertLeadsError } = await supabase

@@ -7,6 +7,7 @@ import {
   queryAlerts,
   clampLimit,
   getAllowedCampaignIdsForClientViewer,
+  type AlertListStatusFilter,
 } from "@/lib/command/db";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,18 @@ export async function GET(request: NextRequest) {
   const severity = sp.get("severity");
   const resolvedParam = sp.get("resolved");
   const resolved = resolvedParam !== null ? resolvedParam === "true" : null;
+  const alertStatusRaw = sp.get("alert_status");
+  const validStatus = new Set<AlertListStatusFilter>([
+    "all",
+    "unresolved",
+    "open",
+    "acknowledged",
+    "resolved",
+  ]);
+  const listStatus: AlertListStatusFilter | null =
+    alertStatusRaw && validStatus.has(alertStatusRaw as AlertListStatusFilter)
+      ? (alertStatusRaw as AlertListStatusFilter)
+      : null;
   const cursor = sp.get("cursor");
   const limit = clampLimit(sp.get("limit") ?? "25");
 
@@ -43,12 +56,21 @@ export async function GET(request: NextRequest) {
         )
       : null;
 
+    let listStatusForQuery: AlertListStatusFilter = "all";
+    if (listStatus) {
+      listStatusForQuery = listStatus;
+    } else if (resolved === true) {
+      listStatusForQuery = "resolved";
+    } else if (resolved === false) {
+      listStatusForQuery = "unresolved";
+    }
+
     const result = await queryAlerts(supabase, {
       organizationId: profile?.organization_id ?? "",
       campaignId,
       allowedCampaignIds,
       severity,
-      resolved,
+      listStatus: listStatusForQuery,
       limit,
       cursor,
     });

@@ -1,21 +1,20 @@
 "use client";
 
-import { Table, Tag, Progress, Button, Tooltip, Badge, Space } from "antd";
+import type { HTMLAttributes } from "react";
+import { Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import {
-  EyeOutlined,
-  EditOutlined,
-  RiseOutlined,
-  FallOutlined,
-} from "@ant-design/icons";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
+import { SafetyOutlined } from "@ant-design/icons";
+import Link from "next/link";
+import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+
+dayjs.extend(customParseFormat);
 
 interface CampaignMetrics {
   sponsor_name?: string | null;
   total_leads_allocated?: number | null;
-  total_leads_delivered?: number | null;
   total_campaign_spend?: number | null;
+  total_leads_delivered?: number | null;
   daily_reporting?: unknown;
   channel_split?: unknown;
   deficit_leads?: number | null;
@@ -23,7 +22,22 @@ interface CampaignMetrics {
   lead_replace?: number | null;
 }
 
-interface Campaign {
+export interface CampaignListStats {
+  total_leads: number;
+  qualified_count: number;
+  qualified_pct: number;
+  /** % of leads past QA (qualified / registered / attended / no_show). */
+  qa_verified_pct: number;
+  /** dq_override alert rows for this campaign. */
+  override_count: number;
+  /** Leads with missing or disputed consent. */
+  consent_issues_count: number;
+  dq_count: number;
+  unresolved_alerts: number;
+  compliance: "green" | "yellow" | "red";
+}
+
+export interface CommandCampaignRow {
   id: string;
   campaign_id: string;
   name: string;
@@ -38,257 +52,224 @@ interface Campaign {
   industry: string | null;
   geography: string | null;
   campaign_metrics?: CampaignMetrics | CampaignMetrics[];
+  list_stats?: CampaignListStats;
 }
 
 interface CampaignTableProps {
-  campaigns: Campaign[];
+  campaigns: CommandCampaignRow[];
   loading?: boolean;
-  onRefresh?: () => void;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  active: "green",
-  paused: "orange",
-  completed: "blue",
-  cancelled: "red",
-  draft: "default",
+const STATUS_TAG_PROPS: Record<string, { color: string }> = {
+  active: { color: "success" },
+  paused: { color: "warning" },
+  completed: { color: "default" },
+  cancelled: { color: "error" },
+  draft: { color: "default" },
 };
 
-export default function CampaignTable({
-  campaigns,
-  loading,
-}: CampaignTableProps) {
-  const router = useRouter();
-  const { hasRole } = useAuth();
+function formatLocalDate(iso: string | null): string {
+  if (!iso) return "—";
+  const strict = dayjs(iso, "YYYY-MM-DD", true);
+  if (strict.isValid()) return strict.format("MMM D, YYYY");
+  return dayjs(iso).format("MMM D, YYYY");
+}
 
-  const canEdit =
-    hasRole("internal_operator") ||
-    hasRole("internal_admin") ||
-    hasRole("admin");
+/** Keeps sortable headers on one line; minWidth stops flex layout from crushing columns. */
+function headerCellProps(minWidth: number) {
+  return (): HTMLAttributes<HTMLTableCellElement> => ({
+    style: { whiteSpace: "nowrap", minWidth },
+  });
+}
 
-  const getMetrics = (row: Campaign): CampaignMetrics => {
-    const m = row.campaign_metrics;
-    if (!m) return {};
-    if (Array.isArray(m)) return m[0] ?? {};
-    return m;
-  };
+function complianceShieldColor(level: "green" | "yellow" | "red") {
+  if (level === "green") return "#52c41a";
+  if (level === "yellow") return "#faad14";
+  return "#ff4d4f";
+}
 
-  const columns: ColumnsType<Campaign> = [
+function formatComplianceTooltip(stats: CampaignListStats | undefined): string {
+  const q = stats?.qa_verified_pct ?? 0;
+  const o = stats?.override_count ?? 0;
+  const c = stats?.consent_issues_count ?? 0;
+  return `${q}% QA verified | ${o} overrides | ${c} consent issues`;
+}
+
+function ComplianceShieldCell({ row }: { row: CommandCampaignRow }) {
+  const stats = row.list_stats;
+  const level = stats?.compliance ?? "green";
+  return (
+    <Tooltip title={formatComplianceTooltip(stats)} placement="topLeft">
+      <Link
+        href={`/dashboard/campaigns/${row.id}?tab=compliance`}
+        prefetch={false}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "inherit",
+        }}
+        aria-label="Open campaign compliance"
+      >
+        <SafetyOutlined style={{ fontSize: 18, color: complianceShieldColor(level) }} />
+      </Link>
+    </Tooltip>
+  );
+}
+
+export default function CampaignTable({ campaigns, loading }: CampaignTableProps) {
+  const columns: ColumnsType<CommandCampaignRow> = [
     {
-      title: "Sr. No",
-      key: "sr_no",
-      width: 80,
-      render: (_: unknown, __: Campaign, index: number) => index + 1,
-    },
-    {
-      title: "Campaign",
-      key: "campaign",
-      width: 240,
+      title: "Campaign Name",
+      key: "name",
+      width: 280,
+      ellipsis: true,
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      onHeaderCell: headerCellProps(280),
+      onCell: () => ({ style: { minWidth: 200, maxWidth: 360 } }),
       render: (_, row) => (
-        <div>
-          <div
-            style={{ fontWeight: 600, fontSize: 14, color: "#1677ff", cursor: "pointer" }}
-            onClick={() => router.push(`/dashboard/leads?campaign_id=${row.id}`)}
-            title="View leads for this campaign"
-          >
-            {row.name}
-          </div>
-          <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-            {row.campaign_id} &nbsp;·&nbsp; {row.client_name ?? "—"}
-          </div>
-        </div>
+        <Link href={`/dashboard/campaigns/${row.id}`} style={{ fontWeight: 600 }}>
+          {row.name}
+        </Link>
       ),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 100,
-      render: (status: string) => (
-        <Tag color={STATUS_COLORS[status] ?? "default"}>
-          {status.toUpperCase()}
-        </Tag>
+      width: 124,
+      sorter: (a, b) => a.status.localeCompare(b.status),
+      onHeaderCell: headerCellProps(124),
+      onCell: () => ({ style: { minWidth: 124 } }),
+      render: (status: string) => {
+        const s = String(status ?? "").toLowerCase();
+        const tag = STATUS_TAG_PROPS[s] ?? { color: "default" };
+        const label = s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
+        return (
+          <Tag color={tag.color} style={s === "completed" ? { color: "#595959", borderColor: "#d9d9d9" } : undefined}>
+            {label}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Start Date",
+      dataIndex: "start_date",
+      key: "start_date",
+      width: 136,
+      sorter: (a, b) => {
+        const x = a.start_date ?? "";
+        const y = b.start_date ?? "";
+        return x.localeCompare(y);
+      },
+      onHeaderCell: headerCellProps(136),
+      onCell: () => ({ style: { minWidth: 136, whiteSpace: "nowrap" } }),
+      render: (d: string | null) => (
+        <span style={{ fontSize: 13 }}>{formatLocalDate(d)}</span>
       ),
     },
     {
-      title: "Industry / Geo",
-      key: "meta",
-      width: 160,
+      title: "End Date",
+      dataIndex: "end_date",
+      key: "end_date",
+      width: 136,
+      sorter: (a, b) => {
+        const x = a.end_date ?? "";
+        const y = b.end_date ?? "";
+        return x.localeCompare(y);
+      },
+      onHeaderCell: headerCellProps(136),
+      onCell: () => ({ style: { minWidth: 136, whiteSpace: "nowrap" } }),
+      render: (d: string | null) => (
+        <span style={{ fontSize: 13 }}>{formatLocalDate(d)}</span>
+      ),
+    },
+    {
+      title: "Total Leads",
+      key: "total_leads",
+      width: 118,
+      sorter: (a, b) =>
+        (a.list_stats?.total_leads ?? 0) - (b.list_stats?.total_leads ?? 0),
+      onHeaderCell: headerCellProps(118),
+      onCell: () => ({ style: { minWidth: 118, whiteSpace: "nowrap" } }),
       render: (_, row) => (
-        <div>
-          <div style={{ fontSize: 13 }}>{row.industry ?? "—"}</div>
-          <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-            {row.geography ?? "—"}
-          </div>
-        </div>
+        <span style={{ fontWeight: 500 }}>{row.list_stats?.total_leads ?? 0}</span>
       ),
     },
     {
-      title: "Allocation",
-      key: "allocation",
-      width: 180,
+      title: "Qualified %",
+      key: "qualified_pct",
+      width: 132,
+      align: "right",
+      sorter: (a, b) =>
+        (a.list_stats?.qualified_pct ?? 0) - (b.list_stats?.qualified_pct ?? 0),
+      onHeaderCell: headerCellProps(132),
+      onCell: () => ({ style: { minWidth: 132, whiteSpace: "nowrap" } }),
       render: (_, row) => {
-        const m = getMetrics(row);
-        const total = row.total_allocation ?? m.total_leads_allocated ?? 0;
-        const achieved = row.achieved ?? m.total_leads_delivered ?? 0;
-        const pct = total > 0 ? Math.round((achieved / total) * 100) : 0;
+        const p = row.list_stats?.qualified_pct ?? 0;
+        return <span>{`${p}%`}</span>;
+      },
+    },
+    {
+      title: "DQ Count",
+      key: "dq_count",
+      width: 108,
+      align: "right",
+      sorter: (a, b) => (a.list_stats?.dq_count ?? 0) - (b.list_stats?.dq_count ?? 0),
+      onHeaderCell: headerCellProps(108),
+      onCell: () => ({ style: { minWidth: 108, whiteSpace: "nowrap" } }),
+      render: (_, row) => <span>{row.list_stats?.dq_count ?? 0}</span>,
+    },
+    {
+      title: "Alerts Count",
+      key: "alerts_count",
+      width: 128,
+      align: "right",
+      sorter: (a, b) =>
+        (a.list_stats?.unresolved_alerts ?? 0) - (b.list_stats?.unresolved_alerts ?? 0),
+      onHeaderCell: headerCellProps(128),
+      onCell: () => ({ style: { minWidth: 128, whiteSpace: "nowrap" } }),
+      render: (_, row) => {
+        const n = row.list_stats?.unresolved_alerts ?? 0;
         return (
-          <div>
-            <div style={{ fontSize: 12, marginBottom: 4 }}>
-              <span style={{ fontWeight: 600 }}>{achieved}</span>
-              <span style={{ color: "#8c8c8c" }}> / {total}</span>
-            </div>
-            <Progress
-              percent={pct}
-              size="small"
-              strokeColor={pct >= 80 ? "#52c41a" : pct >= 50 ? "#faad14" : "#ff4d4f"}
-              showInfo={false}
-              style={{ marginBottom: 0 }}
-            />
-          </div>
+          <Link
+            href={`/dashboard/campaigns/${row.id}?tab=alerts&alerts_filter=unresolved`}
+            prefetch={false}
+            style={{ fontWeight: n > 0 ? 600 : 400 }}
+            aria-label="Open unresolved alerts for this campaign"
+          >
+            {n}
+          </Link>
         );
       },
     },
     {
-      title: "CPL",
-      dataIndex: "cpl",
-      key: "cpl",
-      width: 80,
-      render: (cpl: number | null) => (
-        <span style={{ fontWeight: 500 }}>
-          {cpl != null ? `₹${cpl.toLocaleString()}` : "—"}
-        </span>
-      ),
-    },
-    {
-      title: "Delivered",
-      key: "delivered",
-      width: 100,
-      render: (_, row) => {
-        const m = getMetrics(row);
-        const delivered = m.total_leads_delivered ?? 0;
-        const deficit = m.deficit_leads ?? 0;
-        return (
-          <div>
-            <div style={{ fontWeight: 600 }}>{delivered}</div>
-            {deficit > 0 && (
-              <Badge
-                count={`-${deficit}`}
-                style={{ backgroundColor: "#ff4d4f", fontSize: 10 }}
-              />
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      title: "Spend",
-      key: "spend",
-      width: 110,
-      render: (_, row) => {
-        const m = getMetrics(row);
-        const spend = m.total_campaign_spend ?? 0;
-        return (
-          <span style={{ fontSize: 13, fontWeight: 500 }}>
-            {spend > 0 ? `₹${spend.toLocaleString()}` : "—"}
-          </span>
-        );
-      },
-    },
-    {
-      title: "Dates",
-      key: "dates",
-      width: 140,
-      render: (_, row) => (
-        <div style={{ fontSize: 12 }}>
-          <div>{row.start_date ?? "—"}</div>
-          <div style={{ color: "#8c8c8c" }}>→ {row.end_date ?? "—"}</div>
-        </div>
-      ),
-    },
-    {
-      title: "Ops Metrics",
-      key: "ops_metrics",
-      width: 200,
-      render: (_, row) => {
-        const m = getMetrics(row);
-        const inc = m.lead_increment ?? 0;
-        const rep = m.lead_replace ?? 0;
-        const hasDaily = m.daily_reporting != null;
-        const hasChannel = m.channel_split != null;
-        return (
-          <div style={{ fontSize: 12, lineHeight: 1.4 }}>
-            <div>Inc: <strong>{inc}</strong> · Replace: <strong>{rep}</strong></div>
-            <div style={{ color: "#8c8c8c" }}>
-              Daily: {hasDaily ? "Yes" : "No"} · Channel: {hasChannel ? "Yes" : "No"}
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      title: "Trend",
-      key: "trend",
-      width: 60,
-      render: (_, row) => {
-        const pct =
-          (row.total_allocation ?? 0) > 0
-            ? ((row.achieved ?? 0) / (row.total_allocation ?? 1)) * 100
-            : 0;
-        return pct >= 50 ? (
-          <Tooltip title="On track">
-            <RiseOutlined style={{ color: "#52c41a", fontSize: 18 }} />
-          </Tooltip>
-        ) : (
-          <Tooltip title="Behind target">
-            <FallOutlined style={{ color: "#ff4d4f", fontSize: 18 }} />
-          </Tooltip>
-        );
-      },
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      width: 100,
-      fixed: "right" as const,
-      render: (_, row) => (
-        <Space>
-          <Tooltip title="View details">
-            <Button
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={() => router.push(`/dashboard/campaigns/${row.id}`)}
-            />
-          </Tooltip>
-          {canEdit && (
-            <Tooltip title="Edit campaign">
-              <Button
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() =>
-                  router.push(`/dashboard/campaigns/${row.id}?edit=true`)
-                }
-              />
-            </Tooltip>
-          )}
-        </Space>
-      ),
+      title: "Compliance",
+      key: "compliance",
+      width: 104,
+      align: "center",
+      onHeaderCell: headerCellProps(104),
+      onCell: () => ({ style: { minWidth: 104 } }),
+      render: (_, row) => <ComplianceShieldCell row={row} />,
     },
   ];
 
   return (
-    <Table
+    <Table<CommandCampaignRow>
       columns={columns}
       dataSource={campaigns}
       rowKey="id"
       loading={loading}
       size="middle"
-      scroll={{ x: 1200 }}
-      pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `${t} campaigns` }}
+      tableLayout="fixed"
+      scroll={{ x: "max-content" }}
+      pagination={{
+        pageSize: 25,
+        showSizeChanger: true,
+        pageSizeOptions: [10, 25, 50, 100],
+        showTotal: (t) => `${t} campaigns`,
+      }}
       style={{ background: "#fff", borderRadius: 8 }}
-      rowClassName={(row) =>
-        row.status === "active" ? "" : "opacity-70"
-      }
     />
   );
 }
