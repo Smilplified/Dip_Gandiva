@@ -57,15 +57,6 @@ interface CampaignFormProps {
   onCancel?: () => void;
 }
 
-const INDUSTRIES = [
-  "Technology", "Healthcare", "Finance", "Education", "Manufacturing",
-  "Retail", "Real Estate", "Media", "Consulting", "Other",
-];
-
-const LEAD_TYPES = [
-  "B2B", "B2C", "HQL", "MQL", "SQL", "ICP", "ABM",
-];
-
 export default function CampaignForm({
   initialValues,
   campaignId,
@@ -267,36 +258,6 @@ export default function CampaignForm({
       </Form.Item>
 
       <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
-        Targeting
-      </Divider>
-
-      <Row gutter={16}>
-        <Col xs={24} md={8}>
-          <Form.Item name="industry" label="Industry">
-            <Select placeholder="Select industry" allowClear showSearch>
-              {INDUSTRIES.map((i) => (
-                <Select.Option key={i} value={i}>{i}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={8}>
-          <Form.Item name="geography" label="Geography">
-            <Input placeholder="e.g. India, APAC, Global" />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={8}>
-          <Form.Item name="lead_type" label="Lead Type">
-            <Select placeholder="Lead type" allowClear>
-              {LEAD_TYPES.map((t) => (
-                <Select.Option key={t} value={t}>{t}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
         Timeline &amp; Budget
       </Divider>
 
@@ -312,21 +273,21 @@ export default function CampaignForm({
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
-          <Form.Item name="cpl" label="CPL (₹)">
+          <Form.Item name="cpl" label="CPL ($)">
             <InputNumber
               style={{ width: "100%" }}
               min={0}
               placeholder="Cost per lead"
-              formatter={(v) => `₹ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+              formatter={(v) => `$ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
             />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
-          <Form.Item name="revenue" label="Revenue (₹)">
+          <Form.Item name="revenue" label="Revenue ($)">
             <InputNumber
               style={{ width: "100%" }}
               min={0}
-              formatter={(v) => `₹ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+              formatter={(v) => `$ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
             />
           </Form.Item>
         </Col>
@@ -394,81 +355,8 @@ export default function CampaignForm({
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
-          <Form.Item name="total_leads_allocated" label="Leads Allocated (Budget)">
-            <InputNumber style={{ width: "100%" }} min={0} />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item name="total_campaign_spend" label="Campaign Spend Budget (₹)">
-            <InputNumber
-              style={{ width: "100%" }}
-              min={0}
-              formatter={(v) => `₹ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-            />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
           <Form.Item name="total_leads_delivered" label="Total Leads Delivered">
             <InputNumber style={{ width: "100%" }} min={0} />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item name="deficit_leads" label="Deficit Leads">
-            <InputNumber style={{ width: "100%" }} min={0} />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item name="lead_increment" label="Lead Increment">
-            <InputNumber style={{ width: "100%" }} min={0} />
-          </Form.Item>
-        </Col>
-        <Col xs={24} md={12}>
-          <Form.Item name="lead_replace" label="Lead Replace">
-            <InputNumber style={{ width: "100%" }} min={0} />
-          </Form.Item>
-        </Col>
-        <Col xs={24}>
-          <Form.Item
-            name="daily_reporting"
-            label="Daily Reporting (JSON)"
-            extra='Example: {"2026-04-08":{"allocated":120,"delivered":95}}'
-            rules={[
-              {
-                validator: (_, value) => {
-                  if (!value || String(value).trim() === "") return Promise.resolve();
-                  try {
-                    JSON.parse(String(value));
-                    return Promise.resolve();
-                  } catch {
-                    return Promise.reject(new Error("Invalid JSON in Daily Reporting"));
-                  }
-                },
-              },
-            ]}
-          >
-            <Input.TextArea rows={4} placeholder='{"2026-04-08":{"allocated":120,"delivered":95}}' />
-          </Form.Item>
-        </Col>
-        <Col xs={24}>
-          <Form.Item
-            name="channel_split"
-            label="Channel Split (JSON)"
-            extra='Example: {"email":70,"telemarketing":30}'
-            rules={[
-              {
-                validator: (_, value) => {
-                  if (!value || String(value).trim() === "") return Promise.resolve();
-                  try {
-                    JSON.parse(String(value));
-                    return Promise.resolve();
-                  } catch {
-                    return Promise.reject(new Error("Invalid JSON in Channel Split"));
-                  }
-                },
-              },
-            ]}
-          >
-            <Input.TextArea rows={3} placeholder='{"email":70,"telemarketing":30}' />
           </Form.Item>
         </Col>
       </Row>

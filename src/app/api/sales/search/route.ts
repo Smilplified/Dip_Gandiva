@@ -150,7 +150,7 @@ export async function GET(request: Request) {
       results.deals = (data ?? []).map((r: Record<string, unknown>) => ({
         id: r.id,
         title: r.deal_name ?? "—",
-        subtitle: r.value != null ? `₹${Number(r.value).toLocaleString("en-IN")}` : "—",
+        subtitle: r.value != null ? `$${Number(r.value).toLocaleString("en-IN")}` : "—",
         meta: r.stage ? String(r.stage) : null,
         type: "deal",
         url: `/sales/deals`,

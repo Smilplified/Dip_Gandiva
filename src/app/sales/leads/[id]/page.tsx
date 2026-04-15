@@ -836,7 +836,7 @@ export default function LeadDetailPage() {
                       </Link>
                       {d.value != null && (
                         <div style={{ fontSize: 13, color: "#33475b", marginTop: 2 }}>
-                          Amount: <strong>₹{d.value.toLocaleString("en-IN")}</strong>
+                          Amount: <strong>${d.value.toLocaleString("en-IN")}</strong>
                         </div>
                       )}
                       {d.expected_close_date && (

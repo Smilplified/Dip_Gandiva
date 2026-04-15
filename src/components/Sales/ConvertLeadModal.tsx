@@ -235,7 +235,7 @@ export function ConvertLeadModal({ lead, open, onClose, onConverted }: Props) {
 
           {createDeal && (
             <>
-              <Form.Item name="deal_value" label="Deal Value (₹)">
+              <Form.Item name="deal_value" label="Deal Value ($)">
                 <InputNumber
                   min={0}
                   style={{ width: "100%" }}

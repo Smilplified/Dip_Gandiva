@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Col, Progress, Row, Select, Skeleton, Statistic, Typography } from "antd";
+import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Statistic, Typography } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import {
   BarChart,
   Bar,
@@ -20,6 +21,7 @@ import {
 } from "recharts";
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 interface OverviewResponse {
   campaigns: Array<{ id: string; name: string; campaign_id: string }>;
@@ -60,6 +62,7 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [campaignId, setCampaignId] = useState<string | undefined>(undefined);
   const [data, setData] = useState<OverviewResponse | null>(null);
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
 
   const fetchData = async (id?: string) => {
     setLoading(true);
@@ -88,33 +91,76 @@ export default function OverviewPage() {
     ];
   }, [data]);
 
+  const filteredTrendDaily = useMemo(() => {
+    const rows = data?.trendDaily ?? [];
+    if (!dateRange) return rows;
+    return rows.filter((r) => {
+      const d = dayjs(r.date);
+      if (!d.isValid()) return false;
+      return (
+        d.isSame(dateRange[0], "day") ||
+        d.isSame(dateRange[1], "day") ||
+        (d.isAfter(dateRange[0], "day") && d.isBefore(dateRange[1], "day"))
+      );
+    });
+  }, [data?.trendDaily, dateRange]);
+
+  const filteredChannelSplitDaily = useMemo(() => {
+    const rows = data?.channelSplitDaily ?? [];
+    if (!dateRange) return rows;
+    return rows.filter((r) => {
+      const d = dayjs(r.date);
+      if (!d.isValid()) return false;
+      return (
+        d.isSame(dateRange[0], "day") ||
+        d.isSame(dateRange[1], "day") ||
+        (d.isAfter(dateRange[0], "day") && d.isBefore(dateRange[1], "day"))
+      );
+    });
+  }, [data?.channelSplitDaily, dateRange]);
+
   if (loading && !data) return <Skeleton active paragraph={{ rows: 12 }} />;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 12 }}>
         <div>
-          <Title level={3} style={{ margin: 0 }}>Overview</Title>
+          <Title level={3} style={{ margin: 0 }}>Overview (Webinar)</Title>
           <Text type="secondary">Client analytics across campaigns</Text>
         </div>
-        <Select
-          style={{ width: 300 }}
-          placeholder="All Campaigns"
-          allowClear
-          value={campaignId}
-          onChange={(v) => setCampaignId(v)}
-          options={[
-            { label: "All Campaigns", value: undefined },
-            ...((data?.campaigns ?? []).map((c) => ({ value: c.id, label: `${c.name} (${c.campaign_id})` }))),
-          ]}
-        />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <RangePicker
+            value={dateRange}
+            onChange={(v) => {
+              if (!v || !v[0] || !v[1]) {
+                setDateRange(null);
+                return;
+              }
+              setDateRange([v[0], v[1]]);
+            }}
+            allowClear
+            format="YYYY-MM-DD"
+            placeholder={["From", "To"]}
+          />
+          <Select
+            style={{ width: 300 }}
+            placeholder="All Campaigns"
+            allowClear
+            value={campaignId}
+            onChange={(v) => setCampaignId(v)}
+            options={[
+              { label: "All Campaigns", value: undefined },
+              ...((data?.campaigns ?? []).map((c) => ({ value: c.id, label: `${c.name} (${c.campaign_id})` }))),
+            ]}
+          />
+        </div>
       </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         {[
-          { title: "Total Leads", value: data?.kpis.totalLeads ?? 0, color: "#1677ff" },
-          { title: "Qualified", value: data?.kpis.qualified ?? 0, color: "#52c41a" },
-          { title: "Registrations", value: data?.kpis.registrations ?? 0, color: "#faad14" },
+          { title: "Campaigns", value: data?.kpis.totalLeads ?? 0, color: "#1677ff" },
+          { title: "Total Qualified Leads", value: data?.kpis.qualified ?? 0, color: "#52c41a" },
+          { title: "Registrations on client in LP", value: data?.kpis.registrations ?? 0, color: "#faad14" },
           { title: "Attendees", value: data?.kpis.attendees ?? 0, color: "#722ed1" },
         ].map((k) => (
           <Col xs={12} md={6} key={k.title}>
@@ -128,14 +174,14 @@ export default function OverviewPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24}>
           <Card title="Daily Trend (Leads Delivered · Spend · Deficit)" style={{ borderRadius: 12 }}>
-            {(data?.trendDaily?.length ?? 0) === 0 ? (
+            {filteredTrendDaily.length === 0 ? (
               <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Text type="secondary">No daily history data</Text>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart
-                  data={data?.trendDaily ?? []}
+                  data={filteredTrendDaily}
                   margin={{ top: 12, right: 16, left: 0, bottom: 8 }}
                 >
                   <CartesianGrid stroke="#f0f0f0" strokeDasharray="4 4" />
@@ -143,8 +189,8 @@ export default function OverviewPage() {
                   <YAxis />
                   <RTooltip
                     formatter={(value: number, name: string) => {
-                      if (name === "Spend (₹)") {
-                        return [`₹${Number(value).toLocaleString()}`, name];
+                      if (name === "Spend ($)") {
+                        return [`$${Number(value).toLocaleString()}`, name];
                       }
                       return [Number(value).toLocaleString(), name];
                     }}
@@ -153,7 +199,7 @@ export default function OverviewPage() {
                   <Area
                     type="monotone"
                     dataKey="spend"
-                    name="Spend (₹)"
+                    name="Spend ($)"
                     stroke="#b37feb"
                     fill="#f9f0ff"
                     strokeWidth={2}
@@ -182,14 +228,14 @@ export default function OverviewPage() {
 
         <Col xs={24} lg={12}>
           <Card title="Channel Split (Daily, by Campaign)" style={{ borderRadius: 12 }}>
-            {(data?.channelSplitDaily?.length ?? 0) === 0 ? (
+            {filteredChannelSplitDaily.length === 0 ? (
               <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Text type="secondary">No channel split data</Text>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart
-                  data={(data?.channelSplitDaily ?? []).map((r) => ({
+                  data={filteredChannelSplitDaily.map((r) => ({
                     ...r,
                     shortDate: (r.date ?? "").slice(5), // MM-DD for clean axis ticks
                   }))}
@@ -252,7 +298,7 @@ export default function OverviewPage() {
                 <Col span={12}><Statistic title="Allocated" value={data?.metrics.total_leads_allocated ?? 0} /></Col>
                 <Col span={12}><Statistic title="Delivered" value={data?.metrics.total_leads_delivered ?? 0} /></Col>
               </Row>
-              <Statistic title="Campaign Spend" value={data?.metrics.total_campaign_spend ?? 0} prefix="₹" />
+              <Statistic title="Campaign Spend" value={data?.metrics.total_campaign_spend ?? 0} prefix="$" />
             </div>
           </Card>
         </Col>

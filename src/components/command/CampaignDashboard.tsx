@@ -869,7 +869,7 @@ export default function CampaignDashboard({
       dataIndex: "total_campaign_spend",
       key: "total_campaign_spend",
       width: 120,
-      render: (v: number | null) => `₹${Number(v ?? 0).toLocaleString()}`,
+      render: (v: number | null) => `$${Number(v ?? 0).toLocaleString()}`,
     },
     {
       title: "Deficit",
