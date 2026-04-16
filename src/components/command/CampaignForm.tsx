@@ -39,6 +39,7 @@ interface CampaignFormValues {
   revenue?: number | null;
   total_allocation?: number | null;
   sponsor_name?: string | null;
+  lead_aggregated?: string | null;
   total_leads_allocated?: number | null;
   total_campaign_spend?: number | null;
   total_leads_delivered?: number | null;
@@ -69,6 +70,15 @@ export default function CampaignForm({
   const [clientOptions, setClientOptions] = useState<Array<{ label: string; value: string }>>([]);
   const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const isEdit = Boolean(campaignId);
+
+  const watchedCpl = Form.useWatch("cpl", form);
+  const watchedAllocation = Form.useWatch("total_allocation", form);
+
+  useEffect(() => {
+    const cpl = watchedCpl ?? 0;
+    const allocation = watchedAllocation ?? 0;
+    form.setFieldValue("revenue", cpl * allocation);
+  }, [watchedCpl, watchedAllocation, form]);
 
   const normalizedInitialValues = useMemo(() => {
     if (!initialValues) return initialValues;
@@ -283,17 +293,31 @@ export default function CampaignForm({
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
-          <Form.Item name="revenue" label="Revenue ($)">
-            <InputNumber
-              style={{ width: "100%" }}
-              min={0}
-              formatter={(v) => `$ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-            />
+          <Form.Item name="total_allocation" label="Total Allocation">
+            <InputNumber style={{ width: "100%" }} min={0} placeholder="Lead quota" />
           </Form.Item>
         </Col>
         <Col xs={24} md={8}>
-          <Form.Item name="total_allocation" label="Total Allocation">
-            <InputNumber style={{ width: "100%" }} min={0} placeholder="Lead quota" />
+          <Form.Item
+            name="revenue"
+            label="Revenue ($)"
+            extra={
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Auto-calculated: CPL × Total Allocation
+              </Typography.Text>
+            }
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              min={0}
+              readOnly
+              controls={false}
+              formatter={(v) =>
+                v != null && Number.isFinite(Number(v))
+                  ? `$ ${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                  : ""
+              }
+            />
           </Form.Item>
         </Col>
       </Row>
@@ -355,8 +379,27 @@ export default function CampaignForm({
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
-          <Form.Item name="total_leads_delivered" label="Total Leads Delivered">
-            <InputNumber style={{ width: "100%" }} min={0} />
+          <Form.Item name="lead_aggregated" label="Lead Aggregated">
+            <Input placeholder="Lead aggregated source / label" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item
+            name="total_leads_delivered"
+            label="Total Leads Delivered"
+            extra={
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Filled automatically from the leads file; cannot be edited manually.
+              </Typography.Text>
+            }
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              min={0}
+              readOnly
+              controls={false}
+              placeholder="Upload a leads file to set the count"
+            />
           </Form.Item>
         </Col>
       </Row>

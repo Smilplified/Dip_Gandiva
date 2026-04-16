@@ -26,6 +26,7 @@ export const CAMPAIGN_LEADS_IMPORT_TEMPLATE_HEADERS = [
   "Job Level",
   "Status",
   "QA Status",
+  "Client LP Reg Timestamp",
   "Notes",
 ] as const;
 
@@ -52,6 +53,7 @@ export const CAMPAIGN_LEADS_IMPORT_TEMPLATE_SAMPLE_ROW: string[] = [
   "Director",
   "new",
   "",
+  "2026-04-10T14:30:00Z",
   "Sample row — remove and add your data; keep row 1 headers unchanged.",
 ];
 

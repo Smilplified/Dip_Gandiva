@@ -290,6 +290,7 @@ export async function POST(request: Request) {
       cpl: (body.cpl as number | null) ?? null,
       revenue: (body.revenue as number | null) ?? null,
       total_allocation: (body.total_allocation as number | null) ?? null,
+      lead_aggregated: (body.lead_aggregated as string | null)?.trim() || null,
       created_by: user.id,
     } as never)
     .select()

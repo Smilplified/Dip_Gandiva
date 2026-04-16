@@ -14,6 +14,7 @@ interface CampaignBasic {
   id: string;
   campaign_id: string;
   name: string;
+  lead_aggregated?: string | null;
   description?: string | null;
   industry?: string | null;
   geography?: string | null;

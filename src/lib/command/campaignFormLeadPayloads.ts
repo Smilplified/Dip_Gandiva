@@ -3,6 +3,22 @@
  * Used on campaign create (POST) and when importing via campaign edit (PATCH).
  */
 
+import dayjs from "dayjs";
+
+/** Parse CSV/Excel cell into ISO timestamp for `leads.registered_at` (client LP registration). */
+function parseClientLpRegTimestamp(raw: unknown): string | null {
+  if (raw == null) return null;
+  if (typeof raw === "number" && !Number.isNaN(raw)) {
+    const ms = (raw - 25569) * 86400 * 1000;
+    const d = new Date(ms);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  const s = String(raw).trim();
+  if (!s) return null;
+  const d = dayjs(s);
+  return d.isValid() ? d.toISOString() : null;
+}
+
 export function parsedRowsToLeadInserts(
   rawLeads: Record<string, unknown>[],
   ctx: { organizationId: string; campaignId: string; createdBy: string }
@@ -27,7 +43,11 @@ export function parsedRowsToLeadInserts(
       const status =
         typeof row.status === "string" && row.status.trim() ? row.status.trim() : "new";
 
-      return {
+      const registeredAt =
+        parseClientLpRegTimestamp(row.registered_at) ??
+        parseClientLpRegTimestamp(row.client_lp_reg_timestamp);
+
+      const payload: Record<string, unknown> = {
         organization_id: ctx.organizationId,
         campaign_id: ctx.campaignId,
         lead_id: leadIdHuman,
@@ -43,6 +63,8 @@ export function parsedRowsToLeadInserts(
         status,
         created_by: ctx.createdBy,
       };
+      if (registeredAt) payload.registered_at = registeredAt;
+      return payload;
     })
     .filter(Boolean) as Record<string, unknown>[];
 }

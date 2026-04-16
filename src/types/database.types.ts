@@ -197,6 +197,7 @@ export type Database = {
           seniority: string | null;
           job_function: string | null;
           creatives_url: string[] | null;
+          lead_aggregated: string | null;
         };
         Insert: {
           id?: string;
@@ -235,6 +236,7 @@ export type Database = {
           seniority?: string | null;
           job_function?: string | null;
           creatives_url?: string[] | null;
+          lead_aggregated?: string | null;
         };
         Update: {
           id?: string;
@@ -273,6 +275,7 @@ export type Database = {
           seniority?: string | null;
           job_function?: string | null;
           creatives_url?: string[] | null;
+          lead_aggregated?: string | null;
         };
       };
       campaign_assignments: {

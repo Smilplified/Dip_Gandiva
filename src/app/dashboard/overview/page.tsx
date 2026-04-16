@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Statistic, Typography } from "antd";
+import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Spin, Statistic, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import {
   BarChart,
@@ -15,9 +15,6 @@ import {
   ComposedChart,
   Line,
   Area,
-  FunnelChart,
-  Funnel,
-  LabelList,
 } from "recharts";
 
 const { Title, Text } = Typography;
@@ -64,6 +61,11 @@ export default function OverviewPage() {
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
 
+  // Independent state for the Performance Summary local campaign filter
+  const [perfCampaignId, setPerfCampaignId] = useState<string | undefined>(undefined);
+  const [perfData, setPerfData] = useState<OverviewResponse | null>(null);
+  const [perfLoading, setPerfLoading] = useState(false);
+
   const fetchData = async (id?: string) => {
     setLoading(true);
     try {
@@ -79,6 +81,21 @@ export default function OverviewPage() {
   useEffect(() => {
     void fetchData(campaignId);
   }, [campaignId]);
+
+  useEffect(() => {
+    const fetchPerf = async () => {
+      setPerfLoading(true);
+      try {
+        const qs = perfCampaignId ? `?campaign_id=${perfCampaignId}` : "";
+        const res = await fetch(`/api/command/overview${qs}`);
+        const json = (await res.json()) as OverviewResponse;
+        setPerfData(json);
+      } finally {
+        setPerfLoading(false);
+      }
+    };
+    void fetchPerf();
+  }, [perfCampaignId]);
 
   const funnelData = useMemo(() => {
     if (!data) return [];
@@ -237,7 +254,11 @@ export default function OverviewPage() {
                 <BarChart
                   data={filteredChannelSplitDaily.map((r) => ({
                     ...r,
-                    shortDate: (r.date ?? "").slice(5), // MM-DD for clean axis ticks
+                    shortDate: (() => {
+                      const d = new Date(r.date ?? "");
+                      if (isNaN(d.getTime())) return r.date ?? "";
+                      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+                    })(),
                   }))}
                   margin={{ top: 8, right: 12, left: 0, bottom: 8 }}
                 >
@@ -249,7 +270,11 @@ export default function OverviewPage() {
                         | { date?: string; campaignName?: string }
                         | undefined;
                       if (!row) return "";
-                      return `${row.date ?? ""} · ${row.campaignName ?? ""}`;
+                      const d = new Date(row.date ?? "");
+                      const label = isNaN(d.getTime())
+                        ? (row.date ?? "")
+                        : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+                      return `${label} · ${row.campaignName ?? ""}`;
                     }}
                   />
                   <Bar dataKey="email" stackId="channels" fill="#1677ff" name="Email" />
@@ -262,44 +287,117 @@ export default function OverviewPage() {
 
         <Col xs={24} lg={12}>
           <Card title="Leads Funnel" style={{ borderRadius: 12 }}>
-            <ResponsiveContainer width="100%" height={260}>
-              <FunnelChart>
-                <RTooltip />
-                <Funnel dataKey="value" data={funnelData} isAnimationActive>
-                  <LabelList position="right" fill="#000" stroke="none" dataKey="name" />
-                </Funnel>
-              </FunnelChart>
-            </ResponsiveContainer>
+            {funnelData.length === 0 || funnelData.every((d) => d.value === 0) ? (
+              <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Text type="secondary">No funnel data</Text>
+              </div>
+            ) : (
+              <div style={{ padding: "8px 0" }}>
+                {funnelData.map((stage, i) => {
+                  const max = funnelData[0]?.value || 1;
+                  const widthPct = Math.max(30, Math.round((stage.value / max) * 100));
+                  const prevValue = i === 0 ? null : funnelData[i - 1]?.value ?? 0;
+                  const convRate =
+                    prevValue && prevValue > 0
+                      ? Math.round((stage.value / prevValue) * 100)
+                      : null;
+
+                  const COLORS = ["#1677ff", "#4096ff", "#36cfc9", "#52c41a", "#95de64"];
+                  const color = COLORS[i] ?? "#1677ff";
+
+                  return (
+                    <div key={stage.name} style={{ marginBottom: i < funnelData.length - 1 ? 2 : 0 }}>
+                      <div
+                        style={{
+                          width: `${widthPct}%`,
+                          margin: "0 auto",
+                          background: color,
+                          borderRadius: 6,
+                          padding: "10px 16px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          transition: "width 0.4s ease",
+                          position: "relative",
+                        }}
+                      >
+                        <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>
+                          {stage.name}
+                        </span>
+                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginLeft: 8 }}>
+                          {stage.value.toLocaleString()}
+                        </span>
+                      </div>
+                      {convRate !== null && (
+                        <div style={{ textAlign: "center", padding: "2px 0" }}>
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            ↓ {convRate}% conversion
+                          </Text>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </Card>
         </Col>
 
         <Col xs={24} lg={12}>
-          <Card title="Performance Summary" style={{ borderRadius: 12 }}>
-            <div style={{ display: "grid", gap: 12 }}>
-              {[
-                { label: "Delivery Rate", value: data?.performance.deliveryRate ?? 0, color: "#1677ff" },
-                { label: "Registration Rate", value: data?.performance.registrationRate ?? 0, color: "#52c41a" },
-                { label: "Attendance Rate", value: data?.performance.attendanceRate ?? 0, color: "#722ed1" },
-                { label: "Deficit Rate", value: data?.performance.deficitRate ?? 0, color: "#ff4d4f" },
-              ].map((p) => (
-                <div key={p.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <Text>{p.label}</Text>
-                    <Text strong>{p.value}%</Text>
+          <Card
+            title={
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <span>Performance Summary</span>
+                <Select
+                  size="small"
+                  style={{ width: 220, fontWeight: 400 }}
+                  placeholder="All Campaigns"
+                  allowClear
+                  value={perfCampaignId}
+                  onChange={(v) => setPerfCampaignId(v)}
+                  options={[
+                    { label: "All Campaigns", value: undefined },
+                    ...((data?.campaigns ?? []).map((c) => ({
+                      value: c.id,
+                      label: `${c.name} (${c.campaign_id})`,
+                    }))),
+                  ]}
+                />
+              </div>
+            }
+            style={{ borderRadius: 12 }}
+          >
+            <Spin spinning={perfLoading} size="small">
+              {(() => {
+                const perf = perfData ?? data;
+                return (
+                  <div style={{ display: "grid", gap: 12 }}>
+                    {[
+                      { label: "Delivery Rate", value: perf?.performance.deliveryRate ?? 0, color: "#1677ff" },
+                      { label: "Registration Rate (client LP)", value: perf?.performance.registrationRate ?? 0, color: "#52c41a" },
+                      { label: "Attendance Rate", value: perf?.performance.attendanceRate ?? 0, color: "#722ed1" },
+                    ].map((p) => (
+                      <div key={p.label}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <Text>{p.label}</Text>
+                          <Text strong>{p.value}%</Text>
+                        </div>
+                        <Progress percent={p.value} showInfo={false} strokeColor={p.color} />
+                      </div>
+                    ))}
+                    <Row gutter={12} style={{ marginTop: 4 }}>
+                      <Col span={12}><Statistic title="Lead Increment" value={perf?.metrics.lead_increment ?? 0} /></Col>
+                      <Col span={12}><Statistic title="Lead Replace" value={perf?.metrics.lead_replace ?? 0} /></Col>
+                    </Row>
+                    <Row gutter={12}>
+                      <Col span={12}><Statistic title="Allocated" value={perf?.metrics.total_leads_allocated ?? 0} /></Col>
+                      <Col span={12}><Statistic title="Delivered" value={perf?.metrics.total_leads_delivered ?? 0} /></Col>
+                    </Row>
+                    <Statistic title="Campaign Spend" value={perf?.metrics.total_campaign_spend ?? 0} prefix="$" />
                   </div>
-                  <Progress percent={p.value} showInfo={false} strokeColor={p.color} />
-                </div>
-              ))}
-              <Row gutter={12} style={{ marginTop: 4 }}>
-                <Col span={12}><Statistic title="Lead Increment" value={data?.metrics.lead_increment ?? 0} /></Col>
-                <Col span={12}><Statistic title="Lead Replace" value={data?.metrics.lead_replace ?? 0} /></Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}><Statistic title="Allocated" value={data?.metrics.total_leads_allocated ?? 0} /></Col>
-                <Col span={12}><Statistic title="Delivered" value={data?.metrics.total_leads_delivered ?? 0} /></Col>
-              </Row>
-              <Statistic title="Campaign Spend" value={data?.metrics.total_campaign_spend ?? 0} prefix="$" />
-            </div>
+                );
+              })()}
+            </Spin>
           </Card>
         </Col>
 

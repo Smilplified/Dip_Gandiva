@@ -199,7 +199,7 @@ function escapeCsvCell(v: unknown): string {
 }
 
 const LEAD_LIST_SELECT = `id, name, first_name, last_name, company_name, job_title, email, phone, city, status, consent_status,
-  channel, risk_flags, created_at, updated_at, campaign_id, assigned_agent_id, rep_id, lead_tagging,
+  channel, risk_flags, created_at, updated_at, registered_at, campaign_id, assigned_agent_id, rep_id, lead_tagging,
   campaigns(id, name, campaign_id, client_id, client_name, status, start_date, end_date)`;
 
 type LeadListRow = Record<string, unknown>;

@@ -54,6 +54,10 @@ import {
   PhoneOutlined,
   DownloadOutlined,
   FlagOutlined,
+  PlusOutlined,
+  MinusOutlined,
+  CaretUpOutlined,
+  CaretDownOutlined,
 } from "@ant-design/icons";
 import AlertsPanel from "./AlertsPanel";
 import QAPanel from "./QAPanel";
@@ -80,6 +84,28 @@ function formatAvgIngestToQualify(ms: number | null | undefined): string {
   if (hours < 72) return `${Math.round(hours * 10) / 10} hours`;
   const days = hours / 24;
   return `${Math.round(days * 10) / 10} days`;
+}
+
+function formatCampaignDateRange(start: string | null, end: string | null): string {
+  const s = start && dayjs(start).isValid() ? dayjs(start).format("MMM D, YYYY") : null;
+  const e = end && dayjs(end).isValid() ? dayjs(end).format("MMM D, YYYY") : null;
+  if (s && e) return `${s} — ${e}`;
+  if (s) return s;
+  if (e) return e;
+  return "—";
+}
+
+/** Percent change for inline trend; null when unchanged or invalid. */
+function pctChange(current: number, previous: number): { pct: number; up: boolean } | null {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
+  if (previous <= 0) {
+    if (current <= 0) return null;
+    return { pct: 100, up: true };
+  }
+  const raw = ((current - previous) / previous) * 100;
+  if (raw === 0) return null;
+  const pct = Math.round(Math.abs(raw) * 10) / 10;
+  return { pct, up: raw > 0 };
 }
 
 const EMPTY_CHANNEL_SUMMARY: ChannelSummaryMetrics = {
@@ -203,6 +229,8 @@ interface CampaignDetail {
   name: string;
   campaign_id: string;
   status: string;
+  /** Lead aggregate label (campaigns.lead_aggregated). */
+  lead_aggregated?: string | null;
   client_name: string | null;
   industry: string | null;
   geography: string | null;
@@ -331,13 +359,6 @@ function sumStatusKeys(bd: Record<string, number>, keys: string[]): number {
 function pctFromPrev(curr: number, prev: number): number | null {
   if (prev <= 0) return null;
   return Math.round((curr / prev) * 1000) / 10;
-}
-
-function qualifiedPctColor(pct: number, totalLeads: number): string {
-  if (totalLeads <= 0) return "#8c8c8c";
-  if (pct > 80) return "#52c41a";
-  if (pct >= 60) return "#faad14";
-  return "#ff4d4f";
 }
 
 function leadFullName(row: LeadRow): string {
@@ -469,10 +490,16 @@ export default function CampaignDashboard({
     []
   );
   const [selectedLeadKeys, setSelectedLeadKeys] = useState<Key[]>([]);
+  const [allocationSaving, setAllocationSaving] = useState(false);
+  /** Allocation snapshot when this campaign was first shown (for % trend vs initial). */
+  const [allocationBaseline, setAllocationBaseline] = useState<number | null>(null);
 
   const isClientViewer = hasRole("client_viewer");
   const canBulkSelect =
     hasRole("internal_operator") || hasRole("internal_admin") || hasRole("admin");
+  const canAdjustAllocation =
+    !isClientViewer &&
+    (hasRole("internal_operator") || hasRole("internal_admin") || hasRole("admin"));
 
   useEffect(() => {
     if (!initialTab) return;
@@ -489,6 +516,10 @@ export default function CampaignDashboard({
     ]);
     if (allowed.has(t)) setActiveTab(t);
   }, [initialTab, isClientViewer]);
+
+  useEffect(() => {
+    setAllocationBaseline(null);
+  }, [campaignId]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -516,6 +547,52 @@ export default function CampaignDashboard({
       setLoading(false);
     }
   }, [campaignId, trendRangeOverride]);
+
+  useEffect(() => {
+    if (loading || !campaign) return;
+    const m = Array.isArray(campaign.campaign_metrics)
+      ? campaign.campaign_metrics[0]
+      : campaign.campaign_metrics;
+    const v = Number(campaign.total_allocation ?? m?.total_leads_allocated ?? 0) || 0;
+    setAllocationBaseline((b) => (b === null ? v : b));
+  }, [loading, campaign]);
+
+  const adjustAllocation = useCallback(
+    async (delta: number) => {
+      if (!canAdjustAllocation || delta === 0) return;
+      setAllocationSaving(true);
+      try {
+        const resGet = await fetch(`/api/command/campaigns/${campaignId}`);
+        const d = (await resGet.json()) as { campaign?: CampaignDetail };
+        const c = d.campaign;
+        if (!c) throw new Error("Campaign not found");
+        const m = Array.isArray(c.campaign_metrics) ? c.campaign_metrics[0] : c.campaign_metrics;
+        const current = Number(c.total_allocation ?? m?.total_leads_allocated ?? 0) || 0;
+        const next = Math.max(0, current + delta);
+        if (next === current) {
+          if (delta < 0) message.info("Allocation is already at the minimum (0).");
+          return;
+        }
+        const res = await fetch(`/api/command/campaigns/${campaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            total_allocation: next,
+            total_leads_allocated: next,
+          }),
+        });
+        const patchData = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(patchData.error ?? "Failed to update allocation");
+        message.success(delta > 0 ? "Allocation increased" : "Allocation decreased");
+        await fetchData();
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : "Update failed");
+      } finally {
+        setAllocationSaving(false);
+      }
+    },
+    [campaignId, canAdjustAllocation, fetchData]
+  );
 
   const fetchLeads = useCallback(async () => {
     setLeadsLoading(true);
@@ -674,11 +751,6 @@ export default function CampaignDashboard({
   const metrics = Array.isArray(campaign.campaign_metrics)
     ? campaign.campaign_metrics[0]
     : campaign.campaign_metrics;
-  const clientFromRelation = Array.isArray(campaign.clients)
-    ? campaign.clients[0]?.company_name
-    : campaign.clients?.company_name;
-  const resolvedClientName = campaign.client_name ?? clientFromRelation ?? null;
-
   const channelSplitFromMetrics =
     metrics?.channel_split && typeof metrics.channel_split === "object"
       ? (metrics.channel_split as Record<string, number>)
@@ -713,13 +785,12 @@ export default function CampaignDashboard({
       0
   );
 
-  const statusBreakdownNorm = normalizeStatusBreakdown(analytics?.leads.statusBreakdown ?? {});
   const totalLeadsKpi = analytics?.leads.total ?? 0;
-  const qualifiedForKpi = statusBreakdownNorm.qualified ?? 0;
-  const qualifiedPctKpi =
-    totalLeadsKpi > 0 ? Math.round((qualifiedForKpi / totalLeadsKpi) * 1000) / 10 : 0;
-  const registrationsKpi = statusBreakdownNorm.registered ?? 0;
-  const qualifiedPctKpiColor = qualifiedPctColor(qualifiedPctKpi, totalLeadsKpi);
+
+  const allocationNow =
+    Number(campaign.total_allocation ?? metrics?.total_leads_allocated ?? 0) || 0;
+  const allocationTrend =
+    allocationBaseline != null ? pctChange(allocationNow, allocationBaseline) : null;
 
   const leadColumns: ColumnsType<LeadRow> = [
     {
@@ -2069,9 +2140,67 @@ export default function CampaignDashboard({
                 {campaign.status.toUpperCase()}
               </Tag>
             </div>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              {campaign.campaign_id} &nbsp;·&nbsp; {resolvedClientName ?? "—"}
-            </Text>
+            <div style={{ marginTop: 10 }}>
+              <Space
+                wrap
+                size={[20, 12]}
+                split={
+                  <Divider
+                    type="vertical"
+                    style={{ margin: 0, height: 44, borderColor: "#f0f0f0" }}
+                  />
+                }
+              >
+                <div style={{ minWidth: 120, maxWidth: 280 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    Sponsor name
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {metrics?.sponsor_name?.trim() || "—"}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 120, maxWidth: 280 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    Aggregate name
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {campaign.lead_aggregated?.trim() || "—"}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 200, maxWidth: 360 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    Campaign dates
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {formatCampaignDateRange(campaign.start_date, campaign.end_date)}
+                  </Text>
+                </div>
+              </Space>
+            </div>
           </div>
 
           <Space>
@@ -2103,43 +2232,23 @@ export default function CampaignDashboard({
             <ChannelSplitMiniBar email={emailLeads} tele={teleLeads} />
           </Card>
 
-          <Card size="small" bordered styles={{ body: { padding: "14px 16px" } }} style={kpiCardStyle}>
-            <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>
-              Qualified %
-            </Text>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                lineHeight: 1.2,
-                color: qualifiedPctKpiColor,
-              }}
-            >
-              {totalLeadsKpi > 0 ? `${qualifiedPctKpi}%` : "—"}
-            </div>
-            <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-              Qualified / total leads
-            </Text>
-          </Card>
-
-          <Card size="small" bordered styles={{ body: { padding: "14px 16px" } }} style={kpiCardStyle}>
-            <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>
-              Registrations
-            </Text>
-            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2, color: "#262626" }}>
-              {registrationsKpi}
-            </div>
-            <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-              Status = registered
-            </Text>
-          </Card>
-
           <Card
             size="small"
             bordered
+            hoverable
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveTab("alerts")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setActiveTab("alerts");
+              }
+            }}
             styles={{ body: { padding: "14px 16px" } }}
             style={{
               ...kpiCardStyle,
+              cursor: "pointer",
               borderColor: openAlerts > 0 ? "#ffccc7" : undefined,
             }}
           >
@@ -2147,13 +2256,12 @@ export default function CampaignDashboard({
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
+                justifyContent: "space-between",
                 marginBottom: 6,
               }}
             >
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Unresolved Alerts
+                Alerts
               </Text>
               {openAlerts > 0 && (
                 <Badge count={openAlerts} style={{ backgroundColor: "#ff4d4f" }} />
@@ -2169,6 +2277,110 @@ export default function CampaignDashboard({
             >
               {openAlerts}
             </div>
+            <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
+              {criticalAlerts > 0
+                ? `${criticalAlerts} critical`
+                : openAlerts === 0
+                  ? "No open alerts"
+                  : "Tap to review"}
+            </Text>
+          </Card>
+
+          <Card size="small" bordered styles={{ body: { padding: "14px 16px" } }} style={kpiCardStyle}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 8,
+                marginBottom: 6,
+              }}
+            >
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Total Allocation
+              </Text>
+              {canAdjustAllocation && (
+                <Space size={6}>
+                  <Tooltip title="Decrease allocation by 1">
+                    <Button
+                      type="primary"
+                      size="small"
+                      shape="circle"
+                      icon={<MinusOutlined />}
+                      loading={allocationSaving}
+                      disabled={allocationNow <= 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void adjustAllocation(-1);
+                      }}
+                      style={{
+                        minWidth: 28,
+                        width: 28,
+                        height: 28,
+                        padding: 0,
+                        background: "#ff4d4f",
+                        borderColor: "#cf1322",
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Increase allocation by 1">
+                    <Button
+                      type="primary"
+                      size="small"
+                      shape="circle"
+                      icon={<PlusOutlined />}
+                      loading={allocationSaving}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void adjustAllocation(1);
+                      }}
+                      style={{
+                        minWidth: 28,
+                        width: 28,
+                        height: 28,
+                        padding: 0,
+                        background: "#52c41a",
+                        borderColor: "#389e0d",
+                      }}
+                    />
+                  </Tooltip>
+                </Space>
+              )}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                flexWrap: "wrap",
+                gap: 8,
+                rowGap: 4,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 28,
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  color: "#52c41a",
+                }}
+              >
+                {allocationNow.toLocaleString()}
+              </span>
+              {allocationTrend ? (
+                <span style={{ fontSize: 15, color: "#262626", fontWeight: 500 }}>
+                  ({allocationTrend.pct}%
+                  {allocationTrend.up ? (
+                    <CaretUpOutlined style={{ color: "#52c41a", fontSize: 15, marginLeft: 2 }} />
+                  ) : (
+                    <CaretDownOutlined style={{ color: "#ff4d4f", fontSize: 15, marginLeft: 2 }} />
+                  )}
+                  )
+                </span>
+              ) : null}
+            </div>
+            <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
+              Lead quota (campaign)
+            </Text>
           </Card>
         </div>
       </div>

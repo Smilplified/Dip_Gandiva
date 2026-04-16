@@ -92,7 +92,7 @@ export async function PATCH(
 
   const allowedFields = [
     "name", "description", "status", "start_date", "end_date",
-    "client_id", "client_name", "lead_type", "cpl", "revenue", "total_allocation",
+    "client_id", "client_name", "lead_type", "lead_aggregated", "cpl", "revenue", "total_allocation",
     "industry", "geography", "additional_comments", "weekly_call", "weekly_report",
   ];
 
