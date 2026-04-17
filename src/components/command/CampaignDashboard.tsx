@@ -49,6 +49,9 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   EyeOutlined,
+  AppstoreOutlined,
+  UnorderedListOutlined,
+  HistoryOutlined,
   SafetyOutlined,
   MailOutlined,
   PhoneOutlined,
@@ -93,19 +96,6 @@ function formatCampaignDateRange(start: string | null, end: string | null): stri
   if (s) return s;
   if (e) return e;
   return "—";
-}
-
-/** Percent change for inline trend; null when unchanged or invalid. */
-function pctChange(current: number, previous: number): { pct: number; up: boolean } | null {
-  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
-  if (previous <= 0) {
-    if (current <= 0) return null;
-    return { pct: 100, up: true };
-  }
-  const raw = ((current - previous) / previous) * 100;
-  if (raw === 0) return null;
-  const pct = Math.round(Math.abs(raw) * 10) / 10;
-  return { pct, up: raw > 0 };
 }
 
 const EMPTY_CHANNEL_SUMMARY: ChannelSummaryMetrics = {
@@ -729,14 +719,11 @@ export default function CampaignDashboard({
     const sb = normalizeStatusBreakdown(analytics.leads.statusBreakdown);
     const total = analytics.leads.total;
     const cQa = sumStatusKeys(sb, ["qualified", "disqualified", "registered", "attended", "no_show"]);
-    const cQual = sumStatusKeys(sb, ["qualified", "registered", "attended", "no_show"]);
     const cReg = sumStatusKeys(sb, ["registered", "attended", "no_show"]);
     const cAtt = sb.attended ?? 0;
     return [
       { key: "ingested", label: "Leads Ingested", count: total, fromPrev: null as number | null },
-      { key: "qa_verified", label: "QA Verified", count: cQa, fromPrev: pctFromPrev(cQa, total) },
-      { key: "qualified", label: "Qualified", count: cQual, fromPrev: pctFromPrev(cQual, cQa) },
-      { key: "registered", label: "Registered", count: cReg, fromPrev: pctFromPrev(cReg, cQual) },
+      { key: "registered", label: "Registered (Client LP)", count: cReg, fromPrev: pctFromPrev(cReg, cQa) },
       { key: "attended", label: "Attended", count: cAtt, fromPrev: pctFromPrev(cAtt, cReg) },
     ];
   }, [analytics]);
@@ -789,8 +776,12 @@ export default function CampaignDashboard({
 
   const allocationNow =
     Number(campaign.total_allocation ?? metrics?.total_leads_allocated ?? 0) || 0;
-  const allocationTrend =
-    allocationBaseline != null ? pctChange(allocationNow, allocationBaseline) : null;
+  const allocationBaselineValue = allocationBaseline ?? allocationNow;
+  const allocationDelta = allocationNow - allocationBaselineValue;
+  const allocationTrendPct = (() => {
+    if (allocationBaselineValue <= 0) return allocationNow > 0 ? 100 : 0;
+    return Math.round((Math.abs(allocationDelta) / allocationBaselineValue) * 1000) / 10;
+  })();
 
   const leadColumns: ColumnsType<LeadRow> = [
     {
@@ -1351,7 +1342,7 @@ export default function CampaignDashboard({
                   status. Range: {analytics.trends.rangeStart} — {analytics.trends.rangeEnd}
                 </Text>
                 <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={12}>
+                  <Col xs={24}>
                     <Text strong style={{ display: "block", marginBottom: 8 }}>
                       Lead volume ({trendGranularity === "daily" ? "daily" : "weekly"} ingestions)
                     </Text>
@@ -1377,55 +1368,6 @@ export default function CampaignDashboard({
                       </LineChart>
                     </ResponsiveContainer>
                   </Col>
-                  <Col xs={24} lg={12}>
-                    <Text strong style={{ display: "block", marginBottom: 8 }}>
-                      Qualification, DQ & registration rates
-                    </Text>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <LineChart data={trendChartRows} margin={{ left: 4, right: 8, top: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis
-                          dataKey={trendGranularity === "daily" ? "date" : "period"}
-                          tick={{ fontSize: 10 }}
-                          interval="preserveStartEnd"
-                          height={48}
-                        />
-                        <YAxis
-                          domain={[0, 100]}
-                          tick={{ fontSize: 11 }}
-                          tickFormatter={(v) => `${v}%`}
-                        />
-                        <RTooltip formatter={(v: number) => (v != null ? `${v}%` : "—")} />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="qualificationRate"
-                          stroke="#52c41a"
-                          strokeWidth={2}
-                          dot={false}
-                          name="Qualified / total"
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="dqRate"
-                          stroke="#ff4d4f"
-                          strokeWidth={2}
-                          dot={false}
-                          name="DQ / total"
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="registrationRate"
-                          stroke="#722ed1"
-                          strokeWidth={2}
-                          dot={false}
-                          name="Registered / qualified"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </Col>
                 </Row>
               </>
             )}
@@ -1435,7 +1377,11 @@ export default function CampaignDashboard({
     },
     {
       key: "channels",
-      label: "Channels",
+      label: (
+        <span>
+          <AppstoreOutlined /> Channels
+        </span>
+      ),
       children: (
         <>
           <Row gutter={[16, 16]}>
@@ -1598,7 +1544,11 @@ export default function CampaignDashboard({
     },
     {
       key: "leads",
-      label: `Leads (${leadsTotal || (analytics?.leads.total ?? 0)})`,
+      label: (
+        <span>
+          <UnorderedListOutlined /> Leads ({leadsTotal || (analytics?.leads.total ?? 0)})
+        </span>
+      ),
       children: (
         <div>
           <Card size="small" title="Filters" style={{ marginBottom: 16, borderRadius: 10 }}>
@@ -2056,7 +2006,11 @@ export default function CampaignDashboard({
     },
     {
       key: "history",
-      label: "History",
+      label: (
+        <span>
+          <HistoryOutlined /> History
+        </span>
+      ),
       children: (
         <Card size="small" bordered style={{ borderRadius: 10 }}>
           <Table
@@ -2366,17 +2320,17 @@ export default function CampaignDashboard({
               >
                 {allocationNow.toLocaleString()}
               </span>
-              {allocationTrend ? (
-                <span style={{ fontSize: 15, color: "#262626", fontWeight: 500 }}>
-                  ({allocationTrend.pct}%
-                  {allocationTrend.up ? (
-                    <CaretUpOutlined style={{ color: "#52c41a", fontSize: 15, marginLeft: 2 }} />
-                  ) : (
-                    <CaretDownOutlined style={{ color: "#ff4d4f", fontSize: 15, marginLeft: 2 }} />
-                  )}
-                  )
-                </span>
-              ) : null}
+              <span style={{ fontSize: 15, color: "#262626", fontWeight: 500 }}>
+                ({allocationTrendPct}%
+                {allocationDelta > 0 ? (
+                  <CaretUpOutlined style={{ color: "#52c41a", fontSize: 15, marginLeft: 2 }} />
+                ) : allocationDelta < 0 ? (
+                  <CaretDownOutlined style={{ color: "#ff4d4f", fontSize: 15, marginLeft: 2 }} />
+                ) : (
+                  <MinusOutlined style={{ color: "#8c8c8c", fontSize: 15, marginLeft: 2 }} />
+                )}
+                )
+              </span>
             </div>
             <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
               Lead quota (campaign)
