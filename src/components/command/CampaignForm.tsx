@@ -22,6 +22,7 @@ import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
 import { downloadCampaignLeadsImportTemplate } from "@/lib/leadsImportTemplate";
+import { useAuth } from "@/context/AuthContext";
 
 interface CampaignFormValues {
   campaign_id: string;
@@ -64,6 +65,11 @@ export default function CampaignForm({
   onSuccess,
   onCancel,
 }: CampaignFormProps) {
+  const { profile, hasRole } = useAuth();
+  const canPickAnyClient =
+    hasRole("internal_operator") || hasRole("internal_admin") || hasRole("admin");
+  const clientScopedToProfile = hasRole("client_viewer") && !canPickAnyClient;
+
   const [form] = Form.useForm<CampaignFormValues>();
   const [loading, setLoading] = useState(false);
   const [clientsLoading, setClientsLoading] = useState(false);
@@ -107,12 +113,14 @@ export default function CampaignForm({
           error?: string;
         };
         if (!res.ok) throw new Error(data.error ?? "Failed to load clients");
-        setClientOptions(
-          (data.clients ?? []).map((c) => ({
-            value: c.id,
-            label: c.company_name ?? c.id,
-          }))
-        );
+        let list = (data.clients ?? []).map((c) => ({
+          value: c.id,
+          label: c.company_name ?? c.id,
+        }));
+        if (clientScopedToProfile && profile?.client_id) {
+          list = list.filter((c) => c.value === profile.client_id);
+        }
+        setClientOptions(list);
       } catch {
         message.error("Failed to load client list");
       } finally {
@@ -120,7 +128,19 @@ export default function CampaignForm({
       }
     };
     void loadClients();
-  }, []);
+  }, [clientScopedToProfile, profile?.client_id]);
+
+  useEffect(() => {
+    if (isEdit || !clientScopedToProfile || !profile?.client_id) return;
+    const opt = clientOptions.find((o) => o.value === profile.client_id);
+    if (!opt) return;
+    const current = form.getFieldValue("client_id") as string | undefined;
+    if (current === profile.client_id) return;
+    form.setFieldsValue({
+      client_id: profile.client_id,
+      client_name: opt.label,
+    });
+  }, [isEdit, clientScopedToProfile, profile?.client_id, clientOptions, form]);
 
   const handleSubmit = async (values: CampaignFormValues) => {
     setLoading(true);
@@ -240,7 +260,8 @@ export default function CampaignForm({
               placeholder="Select client"
               loading={clientsLoading}
               showSearch
-              allowClear
+              allowClear={!clientScopedToProfile}
+              disabled={clientScopedToProfile && Boolean(profile?.client_id)}
               options={clientOptions}
               optionFilterProp="label"
               onChange={(value) => {

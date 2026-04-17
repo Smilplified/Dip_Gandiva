@@ -250,23 +250,37 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userRoles = await getRoleNames(supabase, user.id);
-  if (!hasCommandRole(userRoles)) {
+  const isCommand = hasCommandRole(userRoles);
+  const isClientViewer = userRoles.includes("client_viewer");
+  if (!isCommand && !isClientViewer) {
     return NextResponse.json(
-      { error: "Forbidden — requires internal_operator or higher" },
+      { error: "Forbidden — requires client_viewer or internal_operator (or higher)" },
       { status: 403 }
     );
   }
 
   const profile = await getProfile(supabase, user.id);
   const body = (await request.json()) as Record<string, unknown>;
+
+  let insertClientId = (body.client_id as string | null) ?? null;
+  if (!isCommand && isClientViewer) {
+    if (!profile?.client_id) {
+      return NextResponse.json(
+        { error: "Forbidden — your account has no client assigned; contact an administrator." },
+        { status: 403 }
+      );
+    }
+    insertClientId = profile.client_id;
+  }
+
   let resolvedClientName = (body.client_name as string | null) ?? null;
-  if ((body.client_id as string | null) && !resolvedClientName) {
+  if (insertClientId && !resolvedClientName) {
     const admin = getAdminClientSafe();
     if (admin) {
       const { data: clientRow } = await admin
         .from("clients")
         .select("company_name")
-        .eq("id", body.client_id as string)
+        .eq("id", insertClientId as string)
         .single();
       resolvedClientName = (clientRow as { company_name?: string | null } | null)?.company_name ?? null;
     }
@@ -284,7 +298,7 @@ export async function POST(request: Request) {
       start_date: (body.start_date as string | null) ?? null,
       end_date: (body.end_date as string | null) ?? null,
       status: (body.status as string) ?? "active",
-      client_id: (body.client_id as string | null) ?? null,
+      client_id: insertClientId,
       client_name: resolvedClientName,
       lead_type: (body.lead_type as string | null) ?? null,
       cpl: (body.cpl as number | null) ?? null,

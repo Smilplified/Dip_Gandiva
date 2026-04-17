@@ -15,7 +15,8 @@ export default function CreateCampaignPage() {
   const canCreate =
     hasRole("internal_operator") ||
     hasRole("internal_admin") ||
-    hasRole("admin");
+    hasRole("admin") ||
+    hasRole("client_viewer");
 
   if (!canCreate) {
     return (
@@ -23,7 +24,7 @@ export default function CreateCampaignPage() {
         <Result
           icon={<LockOutlined style={{ color: "#faad14" }} />}
           title="Access Restricted"
-          subTitle="You need internal_operator or internal_admin role to create campaigns."
+          subTitle="You need client_viewer, internal_operator, internal_admin, or admin to create campaigns."
           extra={
             <Button
               type="primary"

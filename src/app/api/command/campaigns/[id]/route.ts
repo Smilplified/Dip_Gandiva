@@ -83,12 +83,31 @@ export async function PATCH(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userRoles = await getRoleNames(supabase, user.id);
-  if (!hasCommandRole(userRoles)) {
+  const isCommand = hasCommandRole(userRoles);
+  const isClientViewer = userRoles.includes("client_viewer");
+  if (!isCommand && !isClientViewer) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json() as Record<string, unknown>;
   const profile = await getProfile(supabase, user.id);
+
+  if (!isCommand && isClientViewer) {
+    if (!profile?.client_id) {
+      return NextResponse.json(
+        { error: "Forbidden — your account has no client assigned; contact an administrator." },
+        { status: 403 }
+      );
+    }
+    const { data: row, error: ownErr } = await supabase
+      .from("campaigns")
+      .select("id, client_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (ownErr || !row || (row as { client_id: string | null }).client_id !== profile.client_id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   const allowedFields = [
     "name", "description", "status", "start_date", "end_date",
@@ -96,13 +115,18 @@ export async function PATCH(
     "industry", "geography", "additional_comments", "weekly_call", "weekly_report",
   ];
 
+  const fieldsForUser =
+    !isCommand && isClientViewer
+      ? allowedFields.filter((f) => f !== "client_id" && f !== "client_name")
+      : allowedFields;
+
   const updates: Record<string, unknown> = {};
-  for (const field of allowedFields) {
+  for (const field of fieldsForUser) {
     if (field in body) updates[field] = body[field];
   }
 
   // Keep client_name synced when client_id changes via dropdown selection
-  if ("client_id" in body && !("client_name" in body)) {
+  if (isCommand && "client_id" in body && !("client_name" in body)) {
     const admin = getAdminClientSafe();
     if (admin) {
       const { data: clientRow } = await admin

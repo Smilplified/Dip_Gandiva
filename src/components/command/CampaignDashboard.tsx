@@ -783,6 +783,9 @@ export default function CampaignDashboard({
     return Math.round((Math.abs(allocationDelta) / allocationBaselineValue) * 1000) / 10;
   })();
 
+  /** Remaining lead quota vs delivered: total allocation − total leads in scope. */
+  const deficitLeadsKpi = allocationNow - totalLeadsKpi;
+
   const leadColumns: ColumnsType<LeadRow> = [
     {
       title: "Name",
@@ -2339,6 +2342,15 @@ export default function CampaignDashboard({
             <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
               Lead quota (campaign)
             </Text>
+          </Card>
+
+          <Card size="small" bordered styles={{ body: { padding: "14px 16px" } }} style={kpiCardStyle}>
+            <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>
+              Deficit leads
+            </Text>
+            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2, color: "#262626" }}>
+              {deficitLeadsKpi.toLocaleString()}
+            </div>
           </Card>
         </div>
       </div>

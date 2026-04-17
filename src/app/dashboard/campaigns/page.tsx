@@ -20,7 +20,6 @@ import {
   ReloadOutlined,
   SearchOutlined,
   RocketOutlined,
-  AlertOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
 } from "@ant-design/icons";
@@ -50,7 +49,8 @@ export default function CampaignsPage() {
   const canCreate =
     hasRole("internal_operator") ||
     hasRole("internal_admin") ||
-    hasRole("admin");
+    hasRole("admin") ||
+    hasRole("client_viewer");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
@@ -271,25 +271,6 @@ export default function CampaignsPage() {
         </Card>
       )}
 
-      {hasRole("client_viewer") && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: "10px 16px",
-            background: "#fffbe6",
-            border: "1px solid #ffe58f",
-            borderRadius: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <AlertOutlined style={{ color: "#faad14" }} />
-          <Text style={{ fontSize: 13 }}>
-            You have read-only access to campaign data.
-          </Text>
-        </div>
-      )}
     </div>
   );
 }

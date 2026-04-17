@@ -84,7 +84,8 @@ export default function CampaignDetailPage() {
   const canEdit =
     hasRole("internal_operator") ||
     hasRole("internal_admin") ||
-    hasRole("admin");
+    hasRole("admin") ||
+    hasRole("client_viewer");
 
   useEffect(() => {
     if (!editDrawer) return;
