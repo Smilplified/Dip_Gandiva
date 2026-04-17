@@ -1845,9 +1845,13 @@ export default function CampaignDashboard({
                           paddingAngle={2}
                           dataKey="value"
                           nameKey="name"
-                          label={({ name, percent }) =>
-                            `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                          }
+                          labelLine={false}
+                          label={({ name, percent, value }) => {
+                            const p = Number(percent ?? 0);
+                            const v = Number(value ?? 0);
+                            if (v <= 0 || p < 0.01) return "";
+                            return `${name} ${(p * 100).toFixed(0)}%`;
+                          }}
                         >
                           {compliancePieChartData.map((entry, i) => (
                             <Cell key={i} fill={entry.fill} />
