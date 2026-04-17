@@ -733,8 +733,20 @@ export default function CampaignDashboard({
     return trendGranularity === "daily" ? analytics.trends.daily : analytics.trends.weekly;
   }, [analytics, trendGranularity]);
 
-  if (loading) return <Skeleton active paragraph={{ rows: 12 }} />;
-  if (!campaign) return <Alert message="Campaign not found" type="error" />;
+  if (loading) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Skeleton active paragraph={{ rows: 12 }} />
+      </div>
+    );
+  }
+  if (!campaign) {
+    return (
+      <div style={{ padding: 24 }}>
+        <Alert message="Campaign not found" type="error" />
+      </div>
+    );
+  }
   const metrics = Array.isArray(campaign.campaign_metrics)
     ? campaign.campaign_metrics[0]
     : campaign.campaign_metrics;
@@ -2063,17 +2075,15 @@ export default function CampaignDashboard({
       <div
         style={{
           position: "sticky",
-          top: 0,
+          // Pull up by dashboard Content padding so no grey strip shows above the bar while scrolling.
+          top: "calc(-1 * var(--app-content-padding, 0px))",
           zIndex: 20,
           background: "#fff",
-          paddingBottom: 16,
+          padding: "16px 24px",
           marginBottom: 16,
-          marginLeft: -4,
-          marginRight: -4,
-          paddingLeft: 4,
-          paddingRight: 4,
           borderBottom: "1px solid #f0f0f0",
           boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+          borderRadius: "12px 12px 0 0",
         }}
       >
         <div
@@ -2355,13 +2365,15 @@ export default function CampaignDashboard({
         </div>
       </div>
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={tabItems}
-        size="small"
-        type="card"
-      />
+      <div style={{ padding: "0 24px 24px" }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={tabItems}
+          size="small"
+          type="card"
+        />
+      </div>
 
       <LeadAuditPanel
         leadId={auditLeadId}

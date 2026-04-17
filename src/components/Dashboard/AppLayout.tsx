@@ -31,6 +31,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
             flex: 1,
             margin: "24px",
             padding: 24,
+            // Inherited by children; used e.g. by campaign sticky header to sit flush with the scroll top.
+            ["--app-content-padding" as string]: "24px",
             overflowY: "auto",
             overflowX: "auto",
             minWidth: 0,

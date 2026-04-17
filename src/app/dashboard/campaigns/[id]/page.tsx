@@ -98,8 +98,18 @@ export default function CampaignDetailPage() {
       .catch(() => message.error("Failed to load campaign"));
   }, [editDrawer, campaignId]);
 
+  /** Matches horizontal `Content` padding in `AppLayout` so the card spans the full inner width. */
+  const contentPad = 24;
+
   return (
-    <div>
+    <div
+      style={{
+        marginLeft: -contentPad,
+        marginRight: -contentPad,
+        paddingLeft: contentPad,
+        paddingRight: contentPad,
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -141,7 +151,7 @@ export default function CampaignDetailPage() {
           boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
           border: "1px solid #f0f0f0",
         }}
-        styles={{ body: { padding: "24px" } }}
+        styles={{ body: { padding: 0 } }}
       >
         <CampaignDashboard
           key={refreshKey}
