@@ -180,6 +180,7 @@ export type Database = {
           client_id: string | null;
           client_name: string | null;
           lead_type: string | null;
+          campaign_type: string | null;
           cpl: number | null;
           revenue: number | null;
           booked: number | null;
@@ -219,6 +220,7 @@ export type Database = {
           client_id?: string | null;
           client_name?: string | null;
           lead_type?: string | null;
+          campaign_type?: string | null;
           cpl?: number | null;
           revenue?: number | null;
           booked?: number | null;
@@ -258,6 +260,7 @@ export type Database = {
           client_id?: string | null;
           client_name?: string | null;
           lead_type?: string | null;
+          campaign_type?: string | null;
           cpl?: number | null;
           revenue?: number | null;
           booked?: number | null;

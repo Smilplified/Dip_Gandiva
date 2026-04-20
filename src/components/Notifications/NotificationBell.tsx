@@ -111,7 +111,7 @@ function resolveNavPath(
 
 export default function NotificationBell() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -257,13 +257,16 @@ export default function NotificationBell() {
   const handleNotifClick = useCallback(
     async (notif: AppNotification) => {
       await markAsRead(notif);
-      const path = resolveNavPath(notif.reference_type, notif.reference_id);
+      let path = resolveNavPath(notif.reference_type, notif.reference_id);
+      if (notif.reference_type === "campaign") {
+        path = hasRole("internal_operator") ? "/dashboard/campaigns" : "/tl/campaigns";
+      }
       if (path) {
         setOpen(false);
         router.push(path);
       }
     },
-    [markAsRead, router]
+    [hasRole, markAsRead, router]
   );
 
   const handleMarkAllRead = useCallback(async () => {

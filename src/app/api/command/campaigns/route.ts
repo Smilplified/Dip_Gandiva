@@ -17,6 +17,7 @@ import {
 } from "@/lib/command/db";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
+import { createNotifications } from "@/lib/notifications";
 
 const COMMAND_CAMPAIGN_LEAD_IMPORT_MAX = 500;
 
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
       .from("campaigns")
       .select(
         `id, campaign_id, name, description, status, start_date, end_date,
-         client_id, client_name, lead_type, cpl, revenue, total_allocation, achieved,
+         client_id, client_name, lead_type, campaign_type, cpl, revenue, total_allocation, achieved,
          pending_allocation, industry, geography, created_at,
          campaign_metrics(
            sponsor_name,
@@ -90,6 +91,8 @@ export async function GET(request: NextRequest) {
 
     if (userRoles.includes("client_viewer") && clientViewerId) {
       listQuery = listQuery.eq("client_id", clientViewerId);
+      // Client viewers should only see campaigns created from their own "Create New Campaign" flow.
+      listQuery = listQuery.eq("created_by", user.id);
     }
 
     if (qRaw.length > 0) {
@@ -189,7 +192,7 @@ export async function GET(request: NextRequest) {
     .from("campaigns")
     .select(
       `id, campaign_id, name, description, status, start_date, end_date,
-       client_id, client_name, lead_type, cpl, revenue, total_allocation, achieved,
+       client_id, client_name, lead_type, campaign_type, cpl, revenue, total_allocation, achieved,
        pending_allocation, industry, geography, created_at,
        campaign_metrics(
          sponsor_name,
@@ -215,6 +218,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ campaigns: [], total: 0, limit, nextCursor: null, hasMore: false });
     }
     query = query.eq("client_id", profile.client_id);
+    // Client viewers should only see campaigns created from their own "Create New Campaign" flow.
+    query = query.eq("created_by", user.id);
   }
 
   // Cursor-based pagination
@@ -301,6 +306,7 @@ export async function POST(request: Request) {
       client_id: insertClientId,
       client_name: resolvedClientName,
       lead_type: (body.lead_type as string | null) ?? null,
+      campaign_type: (body.campaign_type as string | null) ?? null,
       cpl: (body.cpl as number | null) ?? null,
       revenue: (body.revenue as number | null) ?? null,
       total_allocation: (body.total_allocation as number | null) ?? null,
@@ -382,6 +388,47 @@ export async function POST(request: Request) {
         .insert(leadPayloads as never);
       if (insertLeadsError) {
         return NextResponse.json({ error: insertLeadsError.message }, { status: 500 });
+      }
+    }
+  }
+
+  // Notify internal operators when a client viewer creates a campaign.
+  if (isClientViewer) {
+    const admin = getAdminClientSafe();
+    if (admin) {
+      const orgId = (profile?.organization_id ?? "") as string;
+      const { data: roleRows } = await admin
+        .from("roles")
+        .select("id, name")
+        .eq("organization_id", orgId);
+
+      const operatorRoleIds = ((roleRows ?? []) as { id: string; name: string | null }[])
+        .filter((r) => (r.name ?? "").toLowerCase().trim().replace(/\s+/g, "_") === "internal_operator")
+        .map((r) => r.id);
+
+      if (operatorRoleIds.length > 0) {
+        const { data: operatorRoleLinks } = await admin
+          .from("user_roles")
+          .select("user_id")
+          .in("role_id", operatorRoleIds);
+
+        const operatorIds = [...new Set(((operatorRoleLinks ?? []) as { user_id: string }[]).map((r) => r.user_id))]
+          .filter((id) => id && id !== user.id);
+
+        if (operatorIds.length > 0) {
+          await createNotifications(
+            operatorIds.map((receiverId) => ({
+              title: "New Campaign Created",
+              message: `Client viewer created campaign "${String(body.name ?? "Untitled Campaign")}".`,
+              type: "campaign" as const,
+              sender_id: user.id,
+              receiver_id: receiverId,
+              reference_type: "campaign" as const,
+              reference_id: (campaign as { id: string }).id,
+              organization_id: orgId,
+            }))
+          );
+        }
       }
     }
   }

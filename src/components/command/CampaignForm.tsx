@@ -27,6 +27,7 @@ import { useAuth } from "@/context/AuthContext";
 interface CampaignFormValues {
   campaign_id: string;
   name: string;
+  campaign_type?: string | null;
   description?: string | null;
   industry?: string | null;
   geography?: string | null;
@@ -252,6 +253,19 @@ export default function CampaignForm({
             rules={[{ required: true, message: "Name is required" }]}
           >
             <Input placeholder="Campaign display name" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="campaign_type" label="Campaign Type">
+            <Select
+              placeholder="Select campaign type"
+              allowClear
+              options={[
+                { value: "Email CS", label: "Email CS" },
+                { value: "Email CS DT", label: "Email CS DT" },
+                { value: "Webinar", label: "Webinar" },
+              ]}
+            />
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
