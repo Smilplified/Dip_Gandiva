@@ -266,6 +266,7 @@ export async function POST(request: Request) {
 
   const profile = await getProfile(supabase, user.id);
   const body = (await request.json()) as Record<string, unknown>;
+  const admin = getAdminClientSafe();
 
   let insertClientId = (body.client_id as string | null) ?? null;
   if (!isCommand && isClientViewer) {
@@ -280,7 +281,6 @@ export async function POST(request: Request) {
 
   let resolvedClientName = (body.client_name as string | null) ?? null;
   if (insertClientId && !resolvedClientName) {
-    const admin = getAdminClientSafe();
     if (admin) {
       const { data: clientRow } = await admin
         .from("clients")
@@ -291,7 +291,17 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: campaign, error } = (await supabase
+  if (isClientViewer && !admin) {
+    return NextResponse.json(
+      { error: "Admin API not configured. Set SUPABASE_SERVICE_ROLE_KEY in deployment environment." },
+      { status: 503 }
+    );
+  }
+
+  // client_viewer inserts must bypass campaigns RLS; API authorization above enforces scope.
+  const writeClient = isClientViewer && admin ? admin : supabase;
+
+  const { data: campaign, error } = (await writeClient
     .from("campaigns")
     .insert({
       organization_id: (profile?.organization_id ?? "") as string,
@@ -344,7 +354,7 @@ export async function POST(request: Request) {
       updated_by: user.id,
     };
     await upsertCampaignMetrics(
-      supabase,
+      writeClient,
       (campaign as unknown as { id: string }).id,
       {
         sponsor_name: (body.sponsor_name as string | null) ?? null,
@@ -359,7 +369,7 @@ export async function POST(request: Request) {
       }
     );
     await appendCampaignMetricsHistory(
-      supabase,
+      writeClient,
       (campaign as unknown as { id: string }).id,
       historyPayload
     );
@@ -383,7 +393,7 @@ export async function POST(request: Request) {
     });
 
     if (leadPayloads.length > 0) {
-      const { error: insertLeadsError } = await supabase
+      const { error: insertLeadsError } = await writeClient
         .from("leads")
         .insert(leadPayloads as never);
       if (insertLeadsError) {
@@ -394,7 +404,6 @@ export async function POST(request: Request) {
 
   // Notify internal operators when a client viewer creates a campaign.
   if (isClientViewer) {
-    const admin = getAdminClientSafe();
     if (admin) {
       const orgId = (profile?.organization_id ?? "") as string;
       const { data: roleRows } = await admin
