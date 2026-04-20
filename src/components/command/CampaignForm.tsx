@@ -17,11 +17,9 @@ import {
   Space,
 } from "antd";
 import type { UploadFile } from "antd/es/upload/interface";
-import { DownloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
-import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
-import { downloadCampaignLeadsImportTemplate } from "@/lib/leadsImportTemplate";
 import { useAuth } from "@/context/AuthContext";
 
 interface CampaignFormValues {
@@ -69,13 +67,13 @@ export default function CampaignForm({
   const { profile, hasRole } = useAuth();
   const canPickAnyClient =
     hasRole("internal_operator") || hasRole("internal_admin") || hasRole("admin");
-  const clientScopedToProfile = hasRole("client_viewer") && !canPickAnyClient;
+  const isClientViewer = hasRole("client_viewer");
+  const clientScopedToProfile = isClientViewer && !canPickAnyClient;
 
   const [form] = Form.useForm<CampaignFormValues>();
   const [loading, setLoading] = useState(false);
   const [clientsLoading, setClientsLoading] = useState(false);
   const [clientOptions, setClientOptions] = useState<Array<{ label: string; value: string }>>([]);
-  const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const isEdit = Boolean(campaignId);
 
   const watchedCpl = Form.useWatch("cpl", form);
@@ -157,7 +155,7 @@ export default function CampaignForm({
 
       const payload = {
         ...values,
-        leads: parsedLeads,
+        leads: [],
         daily_reporting: parsedDailyReporting,
         channel_split: parsedChannelSplit,
         start_date: values.start_date
@@ -195,31 +193,6 @@ export default function CampaignForm({
       message.error("Network error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleLeadsFileUpload = async (file: File) => {
-    try {
-      const lower = file.name.toLowerCase();
-      let leads: Record<string, unknown>[] = [];
-      if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
-        const buffer = await file.arrayBuffer();
-        leads = parseLeadsExcel(buffer);
-      } else if (lower.endsWith(".csv")) {
-        const text = await file.text();
-        leads = parseLeadsCsv(text);
-      } else {
-        message.error("Only .xlsx, .xls, or .csv files are supported");
-        return Upload.LIST_IGNORE;
-      }
-
-      setParsedLeads(leads);
-      form.setFieldValue("total_leads_delivered", leads.length);
-      message.success(`Parsed ${leads.length} leads from file`);
-      return false;
-    } catch {
-      message.error("Failed to parse file");
-      return Upload.LIST_IGNORE;
     }
   };
 
@@ -317,44 +290,48 @@ export default function CampaignForm({
             <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
           </Form.Item>
         </Col>
-        <Col xs={24} md={8}>
-          <Form.Item name="cpl" label="CPL ($)">
-            <InputNumber
-              style={{ width: "100%" }}
-              min={0}
-              placeholder="Cost per lead"
-              formatter={(v) => `$ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-            />
-          </Form.Item>
-        </Col>
+        {!isClientViewer && (
+          <Col xs={24} md={8}>
+            <Form.Item name="cpl" label="CPL ($)">
+              <InputNumber
+                style={{ width: "100%" }}
+                min={0}
+                placeholder="Cost per lead"
+                formatter={(v) => `$ ${v ?? ""}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+              />
+            </Form.Item>
+          </Col>
+        )}
         <Col xs={24} md={8}>
           <Form.Item name="total_allocation" label="Total Allocation">
             <InputNumber style={{ width: "100%" }} min={0} placeholder="Lead quota" />
           </Form.Item>
         </Col>
-        <Col xs={24} md={8}>
-          <Form.Item
-            name="revenue"
-            label="Revenue ($)"
-            extra={
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Auto-calculated: CPL × Total Allocation
-              </Typography.Text>
-            }
-          >
-            <InputNumber
-              style={{ width: "100%" }}
-              min={0}
-              readOnly
-              controls={false}
-              formatter={(v) =>
-                v != null && Number.isFinite(Number(v))
-                  ? `$ ${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                  : ""
+        {!isClientViewer && (
+          <Col xs={24} md={8}>
+            <Form.Item
+              name="revenue"
+              label="Revenue ($)"
+              extra={
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Auto-calculated: CPL × Total Allocation
+                </Typography.Text>
               }
-            />
-          </Form.Item>
-        </Col>
+            >
+              <InputNumber
+                style={{ width: "100%" }}
+                min={0}
+                readOnly
+                controls={false}
+                formatter={(v) =>
+                  v != null && Number.isFinite(Number(v))
+                    ? `$ ${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                    : ""
+                }
+              />
+            </Form.Item>
+          </Col>
+        )}
       </Row>
 
       <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
@@ -365,45 +342,22 @@ export default function CampaignForm({
         <Col xs={24}>
           <Form.Item
             name="imported_leads_file"
-            label="Upload Leads File (Excel/CSV)"
+            label="Upload File"
             extra={
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-                Upload .xlsx / .xls / .csv to auto-count Total Leads Delivered and import leads on campaign
-                create. Use the templates so column names match what the importer expects (first row = headers).
+                Attach any file format.
               </Typography.Paragraph>
             }
           >
             <Space wrap align="center" size="middle">
               <Upload
                 maxCount={1}
-                beforeUpload={(file) => handleLeadsFileUpload(file)}
-                accept=".xlsx,.xls,.csv"
+                beforeUpload={() => false}
               >
                 <Button icon={<UploadOutlined />}>Upload file</Button>
               </Upload>
-              <Button
-                type="link"
-                icon={<DownloadOutlined />}
-                onClick={() => downloadCampaignLeadsImportTemplate("csv")}
-                style={{ paddingInline: 0 }}
-              >
-                Download CSV template
-              </Button>
-              <Button
-                type="link"
-                icon={<DownloadOutlined />}
-                onClick={() => downloadCampaignLeadsImportTemplate("xlsx")}
-                style={{ paddingInline: 0 }}
-              >
-                Download Excel template
-              </Button>
             </Space>
           </Form.Item>
-          {parsedLeads.length > 0 && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Parsed leads ready for import: {parsedLeads.length}
-            </Typography.Text>
-          )}
         </Col>
       </Row>
 
@@ -414,29 +368,31 @@ export default function CampaignForm({
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
-          <Form.Item name="lead_aggregated" label="Lead Aggregated">
+          <Form.Item name="lead_aggregated" label="Campaign's Client Name (Aggregator)">
             <Input placeholder="Lead aggregated source / label" />
           </Form.Item>
         </Col>
-        <Col xs={24} md={12}>
-          <Form.Item
-            name="total_leads_delivered"
-            label="Total Leads Delivered"
-            extra={
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Filled automatically from the leads file; cannot be edited manually.
-              </Typography.Text>
-            }
-          >
-            <InputNumber
-              style={{ width: "100%" }}
-              min={0}
-              readOnly
-              controls={false}
-              placeholder="Upload a leads file to set the count"
-            />
-          </Form.Item>
-        </Col>
+        {!isClientViewer && (
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="total_leads_delivered"
+              label="Total Leads Delivered"
+              extra={
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Filled automatically from the leads file; cannot be edited manually.
+                </Typography.Text>
+              }
+            >
+              <InputNumber
+                style={{ width: "100%" }}
+                min={0}
+                readOnly
+                controls={false}
+                placeholder="Upload a leads file to set the count"
+              />
+            </Form.Item>
+          </Col>
+        )}
       </Row>
 
       <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", paddingTop: 8 }}>
