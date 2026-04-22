@@ -74,6 +74,7 @@ export default function CampaignForm({
   const [loading, setLoading] = useState(false);
   const [clientsLoading, setClientsLoading] = useState(false);
   const [clientOptions, setClientOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadFile[]>([]);
   const isEdit = Boolean(campaignId);
 
   const watchedCpl = Form.useWatch("cpl", form);
@@ -185,6 +186,30 @@ export default function CampaignForm({
       if (!res.ok) {
         message.error(data.error ?? "Failed to save campaign");
         return;
+      }
+
+      const persistedCampaignId =
+        (data.campaign?.id as string | undefined) ?? campaignId ?? undefined;
+
+      if (persistedCampaignId && uploadedFiles.length > 0) {
+        const formData = new FormData();
+        for (const file of uploadedFiles) {
+          if (file.originFileObj) formData.append("files", file.originFileObj);
+        }
+        if (formData.has("files")) {
+          const uploadRes = await fetch(`/api/command/campaigns/${persistedCampaignId}/files`, {
+            method: "POST",
+            body: formData,
+          });
+          const uploadData = (await uploadRes.json()) as { error?: string; errors?: string[] };
+          if (!uploadRes.ok) {
+            message.warning(uploadData.error ?? "Campaign saved, but file upload failed");
+          } else if (Array.isArray(uploadData.errors) && uploadData.errors.length > 0) {
+            message.warning(`Campaign saved. Some files failed: ${uploadData.errors.join("; ")}`);
+          } else {
+            message.success("File uploaded successfully");
+          }
+        }
       }
 
       message.success(isEdit ? "Campaign updated" : "Campaign created");
@@ -351,8 +376,10 @@ export default function CampaignForm({
           >
             <Space wrap align="center" size="middle">
               <Upload
-                maxCount={1}
+                multiple
                 beforeUpload={() => false}
+                fileList={uploadedFiles}
+                onChange={({ fileList }) => setUploadedFiles(fileList)}
               >
                 <Button icon={<UploadOutlined />}>Upload file</Button>
               </Upload>

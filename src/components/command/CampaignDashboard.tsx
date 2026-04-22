@@ -56,6 +56,7 @@ import {
   MailOutlined,
   PhoneOutlined,
   DownloadOutlined,
+  FileOutlined,
   FlagOutlined,
   PlusOutlined,
   MinusOutlined,
@@ -219,6 +220,7 @@ interface CampaignDetail {
   name: string;
   campaign_id: string;
   status: string;
+  campaign_type?: string | null;
   /** Lead aggregate label (campaigns.lead_aggregated). */
   lead_aggregated?: string | null;
   client_name: string | null;
@@ -226,11 +228,19 @@ interface CampaignDetail {
   geography: string | null;
   lead_type: string | null;
   cpl: number | null;
+  revenue?: number | null;
   total_allocation: number | null;
   achieved: number | null;
   start_date: string | null;
   end_date: string | null;
   description: string | null;
+  campaign_files?: {
+    id: string;
+    file_name: string;
+    file_path: string;
+    created_at: string;
+    download_url?: string | null;
+  }[] | null;
   clients?: { company_name?: string | null }[] | { company_name?: string | null } | null;
   campaign_metrics?: {
     sponsor_name?: string | null;
@@ -499,6 +509,7 @@ export default function CampaignDashboard({
       "overview",
       "channels",
       "leads",
+      "files",
       "compliance",
       "alerts",
       "history",
@@ -1000,6 +1011,43 @@ export default function CampaignDashboard({
           <Tag>None</Tag>
         );
       },
+    },
+  ];
+
+  const fileColumns: ColumnsType<NonNullable<CampaignDetail["campaign_files"]>[number]> = [
+    {
+      title: "File name",
+      dataIndex: "file_name",
+      key: "file_name",
+      ellipsis: true,
+      render: (name: string) => name || "—",
+    },
+    {
+      title: "Uploaded",
+      dataIndex: "created_at",
+      key: "created_at",
+      width: 170,
+      render: (v: string) => (v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"),
+    },
+    {
+      title: "Action",
+      key: "action",
+      width: 130,
+      align: "right",
+      render: (_, row) =>
+        row.download_url ? (
+          <Button
+            type="link"
+            icon={<DownloadOutlined />}
+            href={row.download_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download
+          </Button>
+        ) : (
+          <Text type="secondary">Unavailable</Text>
+        ),
     },
   ];
 
@@ -1780,6 +1828,26 @@ export default function CampaignDashboard({
       ),
     },
     {
+      key: "files",
+      label: (
+        <span>
+          <FileOutlined /> Files ({campaign.campaign_files?.length ?? 0})
+        </span>
+      ),
+      children: (
+        <Card size="small" bordered style={{ borderRadius: 10 }}>
+          <Table
+            rowKey="id"
+            columns={fileColumns}
+            dataSource={campaign.campaign_files ?? []}
+            size="small"
+            pagination={{ pageSize: 10, showTotal: (t) => `${t} file${t !== 1 ? "s" : ""}` }}
+            locale={{ emptyText: "No files uploaded for this campaign yet." }}
+          />
+        </Card>
+      ),
+    },
+    {
       key: "compliance",
       label: (
         <span>
@@ -2101,6 +2169,11 @@ export default function CampaignDashboard({
               <Title level={4} style={{ margin: 0 }}>
                 {campaign.name}
               </Title>
+              {campaign.campaign_id ? (
+                <Tag color="default" style={{ fontFamily: "monospace" }}>
+                  {campaign.campaign_id}
+                </Tag>
+              ) : null}
               <Tag
                 color={
                   campaign.status === "active" ? "green" :
@@ -2148,10 +2221,74 @@ export default function CampaignDashboard({
                       display: "block",
                     }}
                   >
+                    Client
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {campaign.client_name?.trim() || "—"}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 120, maxWidth: 280 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    Campaign type
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {campaign.campaign_type?.trim() || "—"}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 120, maxWidth: 280 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
                     Aggregate name
                   </Text>
                   <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
                     {campaign.lead_aggregated?.trim() || "—"}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 120, maxWidth: 280 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    Lead type
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {campaign.lead_type?.trim() || "—"}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 160, maxWidth: 320 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    Industry / Geography
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {[campaign.industry, campaign.geography].filter(Boolean).join(" / ") || "—"}
                   </Text>
                 </div>
                 <div style={{ minWidth: 200, maxWidth: 360 }}>
@@ -2168,6 +2305,44 @@ export default function CampaignDashboard({
                   </Text>
                   <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
                     {formatCampaignDateRange(campaign.start_date, campaign.end_date)}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 120, maxWidth: 240 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    CPL / Revenue
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {(campaign.cpl ?? null) != null
+                      ? `$${Number(campaign.cpl).toLocaleString()}`
+                      : "—"}
+                    {" / "}
+                    {(campaign.revenue ?? null) != null
+                      ? `$${Number(campaign.revenue).toLocaleString()}`
+                      : "—"}
+                  </Text>
+                </div>
+                <div style={{ minWidth: 240, maxWidth: 520 }}>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 11,
+                      letterSpacing: "0.05em",
+                      textTransform: "uppercase",
+                      display: "block",
+                    }}
+                  >
+                    Description
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
+                    {campaign.description?.trim() || "—"}
                   </Text>
                 </div>
               </Space>
