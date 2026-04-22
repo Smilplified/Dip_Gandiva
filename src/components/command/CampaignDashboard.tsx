@@ -399,6 +399,44 @@ function leadStatusTagColor(status: string): string {
   return "blue";
 }
 
+function renderDescriptionWithLinks(raw: string) {
+  const lines = raw
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l, idx, arr) => l.length > 0 || (idx > 0 && arr[idx - 1].length > 0));
+
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  return lines.map((line, lineIdx) => {
+    const parts = line.split(urlRegex);
+    return (
+      <div key={`desc-line-${lineIdx}`} style={{ marginBottom: 6 }}>
+        {parts.map((part, partIdx) => {
+          if (!part) return null;
+          if (part.startsWith("http://") || part.startsWith("https://")) {
+            return (
+              <a
+                key={`desc-part-${lineIdx}-${partIdx}`}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "#1677ff",
+                  textDecoration: "underline",
+                  wordBreak: "break-all",
+                }}
+              >
+                {part}
+              </a>
+            );
+          }
+          return <span key={`desc-part-${lineIdx}-${partIdx}`}>{part}</span>;
+        })}
+      </div>
+    );
+  });
+}
+
 function ChannelSplitMiniBar({ email, tele }: { email: number; tele: number }) {
   const total = email + tele;
   if (total <= 0) {
@@ -491,6 +529,7 @@ export default function CampaignDashboard({
   );
   const [selectedLeadKeys, setSelectedLeadKeys] = useState<Key[]>([]);
   const [allocationSaving, setAllocationSaving] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   /** Allocation snapshot when this campaign was first shown (for % trend vs initial). */
   const [allocationBaseline, setAllocationBaseline] = useState<number | null>(null);
 
@@ -507,6 +546,7 @@ export default function CampaignDashboard({
     if (t === "qa" && isClientViewer) return;
     const allowed = new Set([
       "overview",
+      "description",
       "channels",
       "leads",
       "files",
@@ -520,6 +560,9 @@ export default function CampaignDashboard({
 
   useEffect(() => {
     setAllocationBaseline(null);
+  }, [campaignId]);
+  useEffect(() => {
+    setDescriptionExpanded(false);
   }, [campaignId]);
 
   const fetchData = useCallback(async () => {
@@ -1439,6 +1482,52 @@ export default function CampaignDashboard({
       ),
     },
     {
+      key: "description",
+      label: (
+        <span>
+          <FileOutlined /> Description
+        </span>
+      ),
+      children: (
+        <Card size="small" bordered style={{ borderRadius: 10 }}>
+          {campaign.description?.trim() ? (
+            <>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  lineHeight: 1.6,
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere",
+                  ...(descriptionExpanded
+                    ? {}
+                    : {
+                        display: "-webkit-box",
+                        WebkitLineClamp: 5,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }),
+                }}
+              >
+                {renderDescriptionWithLinks(campaign.description.trim())}
+              </div>
+              <Button
+                type="link"
+                size="small"
+                style={{ paddingLeft: 0, marginTop: 8, height: "auto" }}
+                onClick={() => setDescriptionExpanded((v) => !v)}
+              >
+                {descriptionExpanded ? "Show Less" : "Show More"}
+              </Button>
+            </>
+          ) : (
+            <Text type="secondary">No description provided for this campaign.</Text>
+          )}
+        </Card>
+      ),
+    },
+    {
       key: "channels",
       label: (
         <span>
@@ -2327,22 +2416,6 @@ export default function CampaignDashboard({
                     {(campaign.revenue ?? null) != null
                       ? `$${Number(campaign.revenue).toLocaleString()}`
                       : "—"}
-                  </Text>
-                </div>
-                <div style={{ minWidth: 240, maxWidth: 520 }}>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: 11,
-                      letterSpacing: "0.05em",
-                      textTransform: "uppercase",
-                      display: "block",
-                    }}
-                  >
-                    Description
-                  </Text>
-                  <Text style={{ fontSize: 14, fontWeight: 600, display: "block", marginTop: 4 }}>
-                    {campaign.description?.trim() || "—"}
                   </Text>
                 </div>
               </Space>
