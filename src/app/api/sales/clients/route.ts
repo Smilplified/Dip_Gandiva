@@ -4,28 +4,49 @@ import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase
 
 export const dynamic = "force-dynamic";
 
+async function getUserContext() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single();
+
+  const orgId = (profile as { organization_id: string | null } | null)?.organization_id;
+  if (!orgId) {
+    return { error: NextResponse.json({ error: "No organization" }, { status: 400 }) };
+  }
+
+  const { data: roleRows } = await supabase
+    .from("user_roles")
+    .select("roles(name)")
+    .eq("user_id", user.id);
+  const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[])
+    .map((r) => r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_"))
+    .filter(Boolean) as string[];
+
+  const isSalesManager = roleNames.includes("sales_manager");
+  if (!isSalesManager) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+
+  return { user, orgId };
+}
+
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-      .from("users")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single();
-
-    const orgId = (profile as { organization_id: string | null } | null)?.organization_id;
-    if (!orgId) {
-      return NextResponse.json({ error: "No organization" }, { status: 400 });
-    }
+    const ctx = await getUserContext();
+    if ("error" in ctx) return ctx.error;
+    const { orgId } = ctx;
 
     const admin = getAdminClientSafe();
     if (!admin) {
@@ -106,26 +127,9 @@ function date(val: unknown): string | null {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase
-      .from("users")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single();
-
-    const orgId = (profile as { organization_id: string | null } | null)?.organization_id;
-    if (!orgId) {
-      return NextResponse.json({ error: "No organization" }, { status: 400 });
-    }
+    const ctx = await getUserContext();
+    if ("error" in ctx) return ctx.error;
+    const { orgId, user } = ctx;
 
     const body = await request.json();
 
