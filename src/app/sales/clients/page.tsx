@@ -304,7 +304,7 @@ export default function SalesClientsPage() {
               dataSource={clients}
               rowKey="id"
               scroll={{ x: 2200 }}
-              pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} clients` }}
+              pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} clients` }}
               locale={{ emptyText: "No clients yet. Click Add Client to create one." }}
               expandable={{
                 expandedRowRender: (record: ClientRow) => {

@@ -263,16 +263,25 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       title: "Employee Size",
       dataIndex: "employee_size",
       key: "employee_size",
-      width: 120,
-      render: (v: string | null) => v || "—",
+      width: 150,
+      ellipsis: true,
+      render: (v: string | null) => (
+        <span className="table-text-ellipsis" title={v || "—"}>
+          {v || "—"}
+        </span>
+      ),
     },
     {
       title: "Address",
       dataIndex: "address",
       key: "address",
-      width: 180,
+      width: 240,
       ellipsis: true,
-      render: (v: string | null) => v || "—",
+      render: (v: string | null) => (
+        <span className="table-text-ellipsis" title={v || "—"}>
+          {v || "—"}
+        </span>
+      ),
     },
     {
       title: "City",

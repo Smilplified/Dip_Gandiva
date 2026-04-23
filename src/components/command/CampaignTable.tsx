@@ -264,7 +264,7 @@ export default function CampaignTable({ campaigns, loading }: CampaignTableProps
       tableLayout="fixed"
       scroll={{ x: "max-content" }}
       pagination={{
-        pageSize: 25,
+        defaultPageSize: 25,
         showSizeChanger: true,
         pageSizeOptions: [10, 25, 50, 100],
         showTotal: (t) => `${t} campaigns`,

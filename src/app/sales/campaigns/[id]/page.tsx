@@ -808,7 +808,7 @@ export default function SalesCampaignDetailPage() {
           dataSource={leads}
           rowKey="id"
           scroll={{ x: 1500 }}
-          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
+          pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
           locale={{ emptyText: "No leads yet" }}
           size="middle"
         />
