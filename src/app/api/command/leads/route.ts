@@ -280,6 +280,7 @@ export async function GET(request: NextRequest) {
   const dateTo = sp.get("date_to")?.trim() || null;
   const consentTypeIn = parseList(sp, "consent_type_in");
   const riskActive = sp.get("risk_active") === "1" || sp.get("risk_active") === "true";
+  const deliveryStatus = sp.get("delivery_status")?.trim().toLowerCase() || null;
   const formatCsv = sp.get("format") === "csv";
 
   const cursor = sp.get("cursor");
@@ -382,6 +383,10 @@ export async function GET(request: NextRequest) {
     }
     if (dateTo) {
       x = x.lte("created_at", `${dateTo}T23:59:59.999Z`);
+    }
+
+    if (deliveryStatus === "delivered" || deliveryStatus === "not_delivered") {
+      x = x.eq("delivery_status", deliveryStatus);
     }
 
     if (userRoles.includes("client_viewer")) {

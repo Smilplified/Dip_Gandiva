@@ -282,6 +282,7 @@ interface CampaignDashboardProps {
   campaignId: string;
   /** Opens this tab on load (e.g. `alerts` from `?tab=alerts`). */
   initialTab?: string | null;
+  initialDeliveryStatus?: string | null;
 }
 
 interface CampaignMetricsHistoryRow {
@@ -516,6 +517,7 @@ function ChannelSplitMiniBar({ email, tele }: { email: number; tele: number }) {
 export default function CampaignDashboard({
   campaignId,
   initialTab,
+  initialDeliveryStatus,
 }: CampaignDashboardProps) {
   const { hasRole } = useAuth();
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
@@ -670,6 +672,9 @@ export default function CampaignDashboard({
       if (f.consentTypes.length > 0) sp.set("consent_type_in", f.consentTypes.join(","));
       if (f.riskOnly) sp.set("risk_active", "1");
       if (f.consentStatuses.length > 0) sp.set("consent_status_in", f.consentStatuses.join(","));
+      if (initialDeliveryStatus === "delivered" || initialDeliveryStatus === "not_delivered") {
+        sp.set("delivery_status", initialDeliveryStatus);
+      }
       const res = await fetch(`/api/command/leads?${sp.toString()}`);
       const data = (await res.json()) as { leads?: LeadRow[]; total?: number; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to load leads");
@@ -680,7 +685,15 @@ export default function CampaignDashboard({
     } finally {
       setLeadsLoading(false);
     }
-  }, [campaignId, leadPage, leadPageSize, leadSortField, leadSortOrder, leadPanelFilters]);
+  }, [
+    campaignId,
+    initialDeliveryStatus,
+    leadPage,
+    leadPageSize,
+    leadSortField,
+    leadSortOrder,
+    leadPanelFilters,
+  ]);
 
   const fetchCampaignReps = useCallback(async () => {
     try {
@@ -708,8 +721,11 @@ export default function CampaignDashboard({
     if (f.consentTypes.length > 0) sp.set("consent_type_in", f.consentTypes.join(","));
     if (f.riskOnly) sp.set("risk_active", "1");
     if (f.consentStatuses.length > 0) sp.set("consent_status_in", f.consentStatuses.join(","));
+    if (initialDeliveryStatus === "delivered" || initialDeliveryStatus === "not_delivered") {
+      sp.set("delivery_status", initialDeliveryStatus);
+    }
     window.open(`/api/command/leads?${sp.toString()}`, "_blank", "noopener,noreferrer");
-  }, [campaignId, leadPanelFilters, leadSortField, leadSortOrder]);
+  }, [campaignId, initialDeliveryStatus, leadPanelFilters, leadSortField, leadSortOrder]);
 
   const fetchMetricsHistory = useCallback(async () => {
     setHistoryLoading(true);

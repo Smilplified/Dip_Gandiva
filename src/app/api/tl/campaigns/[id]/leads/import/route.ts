@@ -28,6 +28,14 @@ function pickLeadFields(obj: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+function getChannelCandidates(channel: string | null): (string | null)[] {
+  if (!channel) return [null];
+  const lower = channel.toLowerCase();
+  if (lower === "email") return ["Email", "email"];
+  if (lower === "telemarketing") return ["Telemarketing", "telemarketing"];
+  return [channel];
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -135,6 +143,7 @@ export async function POST(
           : channelRaw === "telemarketing"
           ? "Telemarketing"
           : null;
+      const channelCandidates = getChannelCandidates(normalizedChannel);
 
       const upsertPayload = {
         name: derivedName || null,
@@ -212,12 +221,19 @@ export async function POST(
         if (!normalizedDeliveryStatus) {
           delete upsertPayload.delivery_status;
         }
-        const { error: updateError } = await dataClient
-          .from("leads")
-          .update(upsertPayload as never)
-          .eq("id", rowId)
-          .eq("campaign_id", campaignId)
-          .eq("organization_id", orgId);
+        let updateError: { message: string } | null = null;
+        for (const candidateChannel of channelCandidates) {
+          const payload = { ...upsertPayload, channel: candidateChannel } as Record<string, unknown>;
+          const { error } = await dataClient
+            .from("leads")
+            .update(payload as never)
+            .eq("id", rowId)
+            .eq("campaign_id", campaignId)
+            .eq("organization_id", orgId);
+          updateError = error as { message: string } | null;
+          if (!updateError) break;
+          if (!updateError.message?.includes("leads_channel_check")) break;
+        }
 
         if (updateError) {
           errors.push(`Row ${i + 1}: ${updateError.message}`);
@@ -230,17 +246,23 @@ export async function POST(
           continue;
         }
 
-        const { error: insertError } = await dataClient
-          .from("leads")
-          .insert({
-            organization_id: orgId,
-            campaign_id: campaignId,
-            assigned_agent_id: firstAgentId,
-            ...upsertPayload,
-            delivery_status: normalizedDeliveryStatus ?? "not_delivered",
-            channel: normalizedChannel,
-            created_by: user.id,
-          } as never);
+        let insertError: { message: string } | null = null;
+        for (const candidateChannel of channelCandidates) {
+          const { error } = await dataClient
+            .from("leads")
+            .insert({
+              organization_id: orgId,
+              campaign_id: campaignId,
+              assigned_agent_id: firstAgentId,
+              ...upsertPayload,
+              delivery_status: normalizedDeliveryStatus ?? "not_delivered",
+              channel: candidateChannel,
+              created_by: user.id,
+            } as never);
+          insertError = error as { message: string } | null;
+          if (!insertError) break;
+          if (!insertError.message?.includes("leads_channel_check")) break;
+        }
 
         if (insertError) {
           errors.push(`Row ${i + 1}: ${insertError.message}`);
