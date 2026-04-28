@@ -498,6 +498,7 @@ interface LeadAnalyticsRow {
   status: string;
   consent_status: string | null;
   channel: string | null;
+  delivery_status: string | null;
   created_at: string;
 }
 
@@ -524,7 +525,7 @@ export async function getCampaignAnalytics(supabase: Client, campaignId: string)
 
   const leadsResult = (await supabase
     .from("leads")
-    .select("id, status, consent_status, channel, created_at")
+    .select("id, status, consent_status, channel, delivery_status, created_at")
     .eq("campaign_id", campaignId)) as unknown as {
     data: LeadAnalyticsRow[] | null;
   };
@@ -573,7 +574,8 @@ export interface CommandListLeadAgg {
 export async function aggregateCommandLeadStatsByCampaign(
   supabase: Client,
   organizationId: string,
-  campaignIds: string[]
+  campaignIds: string[],
+  options?: { deliveredOnly?: boolean }
 ): Promise<Record<string, CommandListLeadAgg>> {
   const postQaVerified = new Set(["qualified", "registered", "attended", "no_show"]);
 
@@ -588,11 +590,15 @@ export async function aggregateCommandLeadStatsByCampaign(
     verified: 0,
   });
   if (campaignIds.length === 0) return {};
-  const { data, error } = await supabase
+  let leadsQuery = supabase
     .from("leads")
     .select("campaign_id, status, consent_status")
     .eq("organization_id", organizationId)
     .in("campaign_id", campaignIds);
+  if (options?.deliveredOnly) {
+    leadsQuery = leadsQuery.eq("delivery_status", "delivered");
+  }
+  const { data, error } = await leadsQuery;
   if (error) throw new Error(error.message);
   const out: Record<string, CommandListLeadAgg> = {};
   for (const id of campaignIds) out[id] = empty();

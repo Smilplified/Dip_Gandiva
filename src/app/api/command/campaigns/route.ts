@@ -125,7 +125,9 @@ export async function GET(request: NextRequest) {
     if (ids.length > 0) {
       try {
         [leadAgg, alertAgg, dqOverrideAgg] = await Promise.all([
-          aggregateCommandLeadStatsByCampaign(supabase, orgId, ids),
+          aggregateCommandLeadStatsByCampaign(supabase, orgId, ids, {
+            deliveredOnly: userRoles.includes("client_viewer"),
+          }),
           aggregateUnresolvedAlertsByCampaign(supabase, orgId, ids),
           aggregateDqOverrideAlertCountsByCampaign(supabase, orgId, ids),
         ]);

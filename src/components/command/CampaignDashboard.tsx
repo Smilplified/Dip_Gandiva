@@ -68,6 +68,7 @@ import QAPanel from "./QAPanel";
 import LeadAuditPanel from "./LeadAuditPanel";
 import { useAuth } from "@/context/AuthContext";
 import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
+import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 
 const { Text, Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -191,15 +192,27 @@ type LeadPanelFilters = {
 
 interface LeadRow {
   id: string;
+  organization_id?: string;
+  campaign_id?: string;
   name: string | null;
   first_name?: string | null;
   last_name?: string | null;
   company_name: string | null;
   job_title?: string | null;
+  phone?: string | null;
+  city?: string | null;
   email: string | null;
   status: string;
   consent_status: string | null;
   channel: string | null;
+  lead_tagging?: string | null;
+  followup_date?: string | null;
+  notes?: string | null;
+  ingested_at?: string | null;
+  qualified_at?: string | null;
+  registered_at?: string | null;
+  dq_reason_code?: string | null;
+  delivery_status?: string | null;
   rep_id?: string | null;
   assigned_agent_id?: string | null;
   assigned_user?: {
@@ -852,134 +865,83 @@ export default function CampaignDashboard({
   /** Remaining lead quota vs delivered: total allocation − total leads in scope. */
   const deficitLeadsKpi = allocationNow - totalLeadsKpi;
 
-  const leadColumns: ColumnsType<LeadRow> = [
-    {
-      title: "Name",
-      key: "name",
-      width: 160,
-      sorter: true,
-      sortOrder: leadSortField === "name" ? leadSortOrder : null,
-      render: (_, row) => (
-        <div style={{ fontWeight: 600, fontSize: 13 }}>{leadFullName(row)}</div>
-      ),
-    },
-    {
-      title: "Company",
-      dataIndex: "company_name",
-      key: "company_name",
-      width: 160,
-      sorter: true,
-      sortOrder: leadSortField === "company_name" ? leadSortOrder : null,
-      ellipsis: true,
-      render: (v: string | null) => v ?? "—",
-    },
-    {
-      title: "Title",
-      dataIndex: "job_title",
-      key: "job_title",
-      width: 130,
-      sorter: true,
-      sortOrder: leadSortField === "job_title" ? leadSortOrder : null,
-      ellipsis: true,
-      render: (v: string | null) => v ?? "—",
-    },
-    {
-      title: "Channel",
-      dataIndex: "channel",
-      key: "channel",
-      width: 120,
-      sorter: true,
-      sortOrder: leadSortField === "channel" ? leadSortOrder : null,
-      render: (ch: string | null) => {
-        const c = (ch ?? "email").toLowerCase();
-        const isTele = c === "telemarketing" || c === "tele";
-        return (
-          <Tag color={isTele ? "purple" : "blue"}>{isTele ? "Tele" : "Email"}</Tag>
-        );
-      },
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 130,
-      sorter: true,
-      sortOrder: leadSortField === "status" ? leadSortOrder : null,
-      render: (s: string) => (
-        <Tag color={leadStatusTagColor(s)}>{String(s ?? "").replace(/_/g, " ")}</Tag>
-      ),
-    },
-    {
-      title: "Consent Status",
-      dataIndex: "consent_status",
-      key: "consent_status",
-      width: 130,
-      sorter: true,
-      sortOrder: leadSortField === "consent_status" ? leadSortOrder : null,
-      render: (cs: string | null) => {
-        const key = (cs ?? "pending").toLowerCase();
-        return (
-          <Tag
-            style={
-              key === "verified"
-                ? { background: CONSENT_COLORS.verified, color: "#fff", borderColor: CONSENT_COLORS.verified }
-                : key === "missing"
+  const leadColumns: ColumnsType<LeadRow> = (() => {
+    const misColumns = getLeadTableColumns({
+      showActions: false,
+      showDeliveryStatus: false,
+    }) as unknown as ColumnsType<LeadRow>;
+    return [
+      ...misColumns,
+      {
+        title: <span style={{ whiteSpace: "nowrap" }}>Consent Status</span>,
+        dataIndex: "consent_status",
+        key: "consent_status",
+        width: 150,
+        sorter: true,
+        sortOrder: leadSortField === "consent_status" ? leadSortOrder : null,
+        render: (cs: string | null) => {
+          const key = (cs ?? "pending").toLowerCase();
+          return (
+            <Tag
+              style={
+                key === "verified"
+                  ? { background: CONSENT_COLORS.verified, color: "#fff", borderColor: CONSENT_COLORS.verified }
+                  : key === "missing"
                   ? { background: CONSENT_COLORS.missing, color: "#fff", borderColor: CONSENT_COLORS.missing }
                   : key === "disputed"
-                    ? { background: CONSENT_COLORS.disputed, color: "#fff", borderColor: CONSENT_COLORS.disputed }
-                    : { background: CONSENT_COLORS.pending, color: "#262626", borderColor: CONSENT_COLORS.pending }
-            }
-          >
-            {key}
-          </Tag>
-        );
+                  ? { background: CONSENT_COLORS.disputed, color: "#fff", borderColor: CONSENT_COLORS.disputed }
+                  : { background: CONSENT_COLORS.pending, color: "#262626", borderColor: CONSENT_COLORS.pending }
+              }
+            >
+              {key}
+            </Tag>
+          );
+        },
       },
-    },
-    {
-      title: "Rep ID",
-      key: "assigned_agent_id",
-      width: 110,
-      sorter: true,
-      sortOrder: leadSortField === "assigned_agent_id" ? leadSortOrder : null,
-      render: (_, row) => (
-        <span style={{ fontSize: 12 }}>{leadRepDisplay(row)}</span>
-      ),
-    },
-    {
-      title: "Last Action",
-      dataIndex: "last_action",
-      key: "last_action",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v ?? "—",
-    },
-    {
-      title: "Last Action Date",
-      dataIndex: "last_action_at",
-      key: "last_action_at",
-      width: 160,
-      render: (v: string | null) => (v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"),
-    },
-    {
-      title: "Risk",
-      key: "risk",
-      width: 56,
-      align: "center",
-      render: (_, row) => {
-        const flags = (row.risk_flags as unknown[]) ?? [];
-        const has = Array.isArray(flags) && flags.length > 0;
-        const tip = riskFlagTooltip(row.risk_flags);
-        if (!has) {
-          return <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />;
-        }
-        return (
-          <Tooltip title={tip || "Active risk flags"}>
-            <FlagOutlined style={{ color: "#ff4d4f", fontSize: 16 }} />
-          </Tooltip>
-        );
+      {
+        title: "Rep ID",
+        key: "assigned_agent_id",
+        width: 110,
+        sorter: true,
+        sortOrder: leadSortField === "assigned_agent_id" ? leadSortOrder : null,
+        render: (_, row) => <span style={{ fontSize: 12 }}>{leadRepDisplay(row)}</span>,
       },
-    },
-  ];
+      {
+        title: "Last Action",
+        dataIndex: "last_action",
+        key: "last_action",
+        width: 160,
+        ellipsis: true,
+        render: (v: string | null) => v ?? "—",
+      },
+      {
+        title: "Last Action Date",
+        dataIndex: "last_action_at",
+        key: "last_action_at",
+        width: 160,
+        render: (v: string | null) => (v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"),
+      },
+      {
+        title: "Risk",
+        key: "risk",
+        width: 56,
+        align: "center",
+        render: (_, row) => {
+          const flags = (row.risk_flags as unknown[]) ?? [];
+          const has = Array.isArray(flags) && flags.length > 0;
+          const tip = riskFlagTooltip(row.risk_flags);
+          if (!has) {
+            return <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />;
+          }
+          return (
+            <Tooltip title={tip || "Active risk flags"}>
+              <FlagOutlined style={{ color: "#ff4d4f", fontSize: 16 }} />
+            </Tooltip>
+          );
+        },
+      },
+    ];
+  })();
 
   const historyColumns: ColumnsType<CampaignMetricsHistoryRow> = [
     {

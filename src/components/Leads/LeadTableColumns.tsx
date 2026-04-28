@@ -19,10 +19,19 @@ const STATUS_COLORS: Record<string, string> = {
 type ColumnConfig = {
   showActions?: boolean;
   onEdit?: (lead: Lead) => void;
+  showDeliveryStatus?: boolean;
+  onMarkDelivered?: (lead: Lead) => void;
+  markingDeliveredLeadId?: string | null;
 };
 
 export function getLeadTableColumns(config: ColumnConfig = {}) {
-  const { showActions = true, onEdit } = config;
+  const {
+    showActions = true,
+    onEdit,
+    showDeliveryStatus = false,
+    onMarkDelivered,
+    markingDeliveredLeadId,
+  } = config;
 
   const baseColumns: NonNullable<TableProps<Lead>["columns"]> = [
     {
@@ -114,6 +123,14 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       render: (v: string | null) => v || "—",
     },
     {
+      title: "Channel",
+      dataIndex: "channel",
+      key: "channel",
+      width: 190,
+      ellipsis: true,
+      render: (v: string | null | undefined) => v || "—",
+    },
+    {
       title: "Status",
       dataIndex: "status",
       key: "status",
@@ -124,6 +141,55 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
         </Tag>
       ),
     },
+    ...(showDeliveryStatus
+      ? [
+          {
+            title: "Delivery",
+            dataIndex: "delivery_status",
+            key: "delivery_status",
+            width: 220,
+            fixed: "right" as const,
+            filters: [
+              { text: "Delivered", value: "delivered" },
+              { text: "Not Delivered", value: "not_delivered" },
+            ],
+            onFilter: (value, record) =>
+              (record.delivery_status ?? "not_delivered") === String(value),
+            render: (v: Lead["delivery_status"], record: Lead) => {
+              const status = (v ?? "not_delivered") as "not_delivered" | "delivered";
+              const delivered = status === "delivered";
+              return (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <Tag color={delivered ? "green" : "default"} style={{ margin: 0 }}>
+                    {delivered ? "Delivered" : "Not Delivered"}
+                  </Tag>
+                  {!delivered && onMarkDelivered ? (
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkDelivered(record);
+                      }}
+                      loading={markingDeliveredLeadId === record.id}
+                      style={{ paddingInline: 0, height: "auto" }}
+                    >
+                      Mark as Delivered
+                    </Button>
+                  ) : null}
+                </span>
+              );
+            },
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
     {
       title: "QA Status",
       dataIndex: "qa_status",

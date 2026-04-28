@@ -37,6 +37,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "employee_size", header: "employee_size" },
   { key: "see_all_employees", header: "see_all_employees" },
   { key: "industry", header: "industry" },
+  { key: "channel", header: "channel" },
   { key: "employee_size_link", header: "employee_size_link" },
   { key: "company_website_link", header: "company_website_link" },
   { key: "revenue_range", header: "revenue_range" },
@@ -67,6 +68,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "audit_date", header: "audit_date" },
   { key: "asset_title", header: "asset_title" },
   { key: "status", header: "status" },
+  { key: "delivery_status", header: "delivery_status" },
   { key: "qa_status", header: "qa_status" },
   { key: "disqualification_reasons", header: "disqualification_reasons" },
   { key: "disqualification_reason", header: "disqualification_reason" },
@@ -128,7 +130,11 @@ export function leadsToCsv(leads: Lead[]): string {
   const rows = leads.map((lead) => {
     const record = lead as Record<string, unknown>;
     return CSV_COLUMNS.map((c) =>
-      escapeCsvValue(record[c.key] as string | number | null | undefined)
+      escapeCsvValue(
+        c.key === "delivery_status"
+          ? ((record[c.key] as string | null | undefined) ?? "not_delivered")
+          : (record[c.key] as string | number | null | undefined)
+      )
     ).join(",");
   });
   return [headers, ...rows].join("\n");
@@ -155,7 +161,12 @@ function leadsToSheetData(leads: Lead[]): unknown[][] {
   const rows = leads.map((lead) => {
     const record = lead as Record<string, unknown>;
     return CSV_COLUMNS.map((c) => {
-      const v = record[c.key];
+      const v =
+        c.key === "delivery_status"
+          ? ((record[c.key] as string | null | undefined) ?? "not_delivered")
+          : c.key === "channel"
+          ? ((record[c.key] as string | null | undefined) ?? null)
+          : record[c.key];
       if (v == null) return "";
       return typeof v === "object" ? JSON.stringify(v) : v;
     });
