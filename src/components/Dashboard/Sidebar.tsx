@@ -31,25 +31,7 @@ const menuItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { hasRole, isInitialized, isLoading } = useAuth();
-
-  if (!isInitialized || isLoading) {
-    return (
-      <Sider
-        width={92}
-        theme="light"
-        style={{
-          position: "fixed",
-          insetInlineStart: 0,
-          top: 0,
-          bottom: 0,
-          zIndex: 100,
-          background: "#ffffff",
-          borderRight: "1px solid rgba(0,0,0,0.06)",
-        }}
-      />
-    );
-  }
+  const { hasRole } = useAuth();
 
   const isCommandCenterUser =
     hasRole("internal_operator") || hasRole("internal_admin") || hasRole("client_viewer");

@@ -45,6 +45,8 @@ export default function TLUsersPage() {
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+  const currentPage = pagination.current;
+  const pageSize = pagination.pageSize;
   const [searchQuery, setSearchQuery] = useState("");
 
   const fetchUsers = useCallback(async () => {
@@ -99,12 +101,11 @@ export default function TLUsersPage() {
   }, [users, normalizedQuery]);
 
   useEffect(() => {
-    setPagination((prev) => {
-      const maxPage = Math.max(1, Math.ceil(filteredUsers.length / prev.pageSize));
-      if (prev.current <= maxPage) return prev;
-      return { ...prev, current: maxPage };
-    });
-  }, [filteredUsers.length]);
+    const maxPage = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+    if (currentPage > maxPage) {
+      setPagination((prev) => ({ ...prev, current: maxPage }));
+    }
+  }, [filteredUsers.length, currentPage, pageSize]);
 
   const handleCreateUser = async () => {
     try {

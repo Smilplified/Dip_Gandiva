@@ -287,16 +287,12 @@ export async function GET(request: NextRequest) {
 
   // client_viewer: restrict to their own client's campaigns
   if (userRoles.includes("client_viewer")) {
-    if (!profile?.client_id) {
-      return NextResponse.json({ campaigns: [], total: 0, limit, nextCursor: null, hasMore: false });
-    }
-    const profileOrgId = profile?.organization_id;
-    if (!profileOrgId) {
+    if (!profile?.client_id || !profile?.organization_id) {
       return NextResponse.json({ campaigns: [], total: 0, limit, nextCursor: null, hasMore: false });
     }
     const clientViewerUserIds = await getClientViewerUserIdsForOrg(
       supabase,
-      profileOrgId
+      profile.organization_id
     );
     if (clientViewerUserIds.length === 0) {
       return NextResponse.json({ campaigns: [], total: 0, limit, nextCursor: null, hasMore: false });

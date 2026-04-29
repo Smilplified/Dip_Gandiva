@@ -16,24 +16,8 @@ const { Header } = Layout;
 
 export default function DashboardHeader() {
   const router = useRouter();
-  const { user, profile, roles, signOut, isInitialized, isLoading } = useAuth();
+  const { user, profile, roles, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
-
-  if (!isInitialized || isLoading) {
-    return (
-      <Header
-        style={{
-          height: 70,
-          minHeight: 70,
-          padding: "0 24px",
-          background: "#fff",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-          flexShrink: 0,
-          zIndex: 99,
-        }}
-      />
-    );
-  }
 
   const roleNames = roles.map((r) => r.role_name?.toLowerCase() ?? "");
   const roleLabel = roleNames.includes("internal_admin")
