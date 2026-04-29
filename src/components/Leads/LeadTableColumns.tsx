@@ -58,8 +58,22 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
           );
         };
         return (
-          <span className="lead-id-cell" style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{id}</span>
+          <span
+            className="lead-id-cell"
+            style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", minWidth: 0 }}
+          >
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                display: "block",
+              }}
+            >
+              {id}
+            </span>
             <Button
               type="text"
               size="small"
@@ -354,28 +368,48 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       dataIndex: "city",
       key: "city",
       width: 100,
-      render: (v: string | null) => v || "—",
+      ellipsis: true,
+      render: (v: string | null) => (
+        <span className="table-text-ellipsis" title={v || "—"}>
+          {v || "—"}
+        </span>
+      ),
     },
     {
       title: "State",
       dataIndex: "state",
       key: "state",
       width: 100,
-      render: (v: string | null) => v || "—",
+      ellipsis: true,
+      render: (v: string | null) => (
+        <span className="table-text-ellipsis" title={v || "—"}>
+          {v || "—"}
+        </span>
+      ),
     },
     {
       title: "Country",
       dataIndex: "country",
       key: "country",
       width: 100,
-      render: (v: string | null) => v || "—",
+      ellipsis: true,
+      render: (v: string | null) => (
+        <span className="table-text-ellipsis" title={v || "—"}>
+          {v || "—"}
+        </span>
+      ),
     },
     {
       title: "Zip",
       dataIndex: "zip_code",
       key: "zip_code",
       width: 90,
-      render: (v: string | null) => v || "—",
+      ellipsis: true,
+      render: (v: string | null) => (
+        <span className="table-text-ellipsis" title={v || "—"}>
+          {v || "—"}
+        </span>
+      ),
     },
     ...baseColumns.slice(8),
   ];

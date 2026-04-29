@@ -595,11 +595,11 @@ export async function aggregateCommandLeadStatsByCampaign(
   if (campaignIds.length === 0) return {};
   let leadsQuery = supabase
     .from("leads")
-    .select("campaign_id, status, consent_status")
+    .select("campaign_id, status, qa_status, consent_status")
     .eq("organization_id", organizationId)
     .in("campaign_id", campaignIds);
   if (options?.deliveredOnly) {
-    leadsQuery = leadsQuery.eq("delivery_status", "delivered");
+    leadsQuery = leadsQuery.in("delivery_status", ["delivered", "Delivered"]);
   }
   const { data, error } = await leadsQuery;
   if (error) throw new Error(error.message);
@@ -608,15 +608,20 @@ export async function aggregateCommandLeadStatsByCampaign(
   for (const row of (data ?? []) as {
     campaign_id: string;
     status: string;
+    qa_status: string | null;
     consent_status: string | null;
   }[]) {
     const b = out[row.campaign_id];
     if (!b) continue;
     b.total += 1;
-    const st = String(row.status ?? "").toLowerCase();
-    if (st === "qualified") b.qualified += 1;
-    if (postQaVerified.has(st)) b.qa_verified += 1;
-    if (st === "disqualified") b.dq += 1;
+    const st = String(row.status ?? "").toLowerCase().trim();
+    const qa = String(row.qa_status ?? "").toLowerCase().trim();
+    const qaOrStatus = qa || st;
+    // Keep campaign list qualified% consistent with dashboard analytics:
+    // treat post-QA leads (qualified/registered/attended/no_show) as qualified-like.
+    if (postQaVerified.has(qaOrStatus) || postQaVerified.has(st)) b.qualified += 1;
+    if (postQaVerified.has(qaOrStatus) || postQaVerified.has(st)) b.qa_verified += 1;
+    if (qaOrStatus === "disqualified" || st === "disqualified") b.dq += 1;
     const cs = String(row.consent_status ?? "pending").toLowerCase();
     if (cs === "missing") b.missingConsent += 1;
     else if (cs === "disputed") b.disputedConsent += 1;
