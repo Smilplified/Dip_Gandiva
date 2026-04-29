@@ -1,36 +1,22 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
-export const dynamic = "force-dynamic";
-
+/**
+ * POST /api/auth/signout
+ *
+ * Server-side session invalidation. Called by the client's signOut() helper
+ * before it performs the local Supabase signOut and hard-redirects to /login.
+ * This ensures the HttpOnly auth cookie is cleared even if the client-side
+ * call fails or runs in a context where cookies can't be written from JS.
+ */
 export async function POST() {
-  const supabase = await createClient();
-
   try {
+    const supabase = await createClient();
     await supabase.auth.signOut();
   } catch (err) {
-    console.error("Server signOut failed:", err);
+    // Best-effort — the client will still clear localStorage and reload.
+    console.warn("[api/auth/signout] error:", err);
   }
 
-  const cookieStore = await cookies();
-  const response = NextResponse.json(
-    { success: true },
-    {
-      headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-      },
-    }
-  );
-
-  for (const cookie of cookieStore.getAll()) {
-    if (cookie.name.includes("sb-") || cookie.name.includes("supabase")) {
-      response.cookies.set(cookie.name, "", {
-        path: "/",
-        maxAge: 0,
-      });
-    }
-  }
-
-  return response;
+  return NextResponse.json({ ok: true });
 }

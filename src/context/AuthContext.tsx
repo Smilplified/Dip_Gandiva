@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Tables } from "@/types/database.types";
@@ -12,13 +19,13 @@ import {
 } from "@/lib/auth/config";
 import { authDebug } from "@/lib/auth/debug";
 
+// ─── Public types ────────────────────────────────────────────────────────────
+
 export type UserRole = {
   id: string;
   name: string;
   role_name: string;
   description?: string | null;
-  // Optional because some deployments may not allow selecting organization_id
-  // on the joined `roles` relation (RLS/column permissions).
   organization_id?: string | null;
 };
 export type UserProfile = Tables<"users">;
@@ -44,9 +51,20 @@ interface AuthContextValue extends AuthState {
   getDefaultRedirect: () => string;
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function toUserRoles(roleRows: { role_id: string; roles: { name: string } | null }[]): UserRole[] {
+const ANON_STATE: AuthState = {
+  user: null,
+  session: null,
+  profile: null,
+  roles: [],
+  isLoading: false,
+  isInitialized: true,
+};
+
+function toUserRoles(
+  roleRows: { role_id: string; roles: { name: string } | null }[]
+): UserRole[] {
   return roleRows
     .filter((r) => r.roles?.name)
     .map((r) => ({
@@ -58,18 +76,40 @@ function toUserRoles(roleRows: { role_id: string; roles: { name: string } | null
 }
 
 function getRoleNames(roles: UserRole[]) {
-  return roles.map((role) => role.role_name);
+  return roles.map((r) => r.role_name);
 }
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+/**
+ * Wipe every auth-related key from localStorage and sessionStorage.
+ * Called on every sign-in (to clear previous user's stale data) and sign-out.
+ */
+function clearAllAuthStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    // Collect all sb-* and legacy supabase keys from localStorage.
+    const toRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (!key) continue;
+      if (
+        key.startsWith("sb-") ||
+        key === "supabase.auth.token" ||
+        key === AUTH_STORAGE_KEYS.lastRedirectPath
+      ) {
+        toRemove.push(key);
+      }
+    }
+    toRemove.forEach((k) => window.localStorage.removeItem(k));
 
-function getStoredRedirectPath() {
-  if (typeof window === "undefined") {
-    return null;
+    // Also nuke sessionStorage entirely — it has no cross-session value.
+    window.sessionStorage.clear();
+  } catch (err) {
+    console.warn("[auth] clearAllAuthStorage failed:", err);
   }
+}
 
+function getStoredRedirectPath(): string | null {
+  if (typeof window === "undefined") return null;
   try {
     return window.localStorage.getItem(AUTH_STORAGE_KEYS.lastRedirectPath);
   } catch {
@@ -78,66 +118,17 @@ function getStoredRedirectPath() {
 }
 
 function persistRedirectPath(path: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
+  if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(AUTH_STORAGE_KEYS.lastRedirectPath, path);
   } catch {
-    // Ignore storage failures.
+    // ignore
   }
 }
 
-function clearClientStorage() {
-  if (typeof window === "undefined") {
-    return;
-  }
+// ─── Context ──────────────────────────────────────────────────────────────────
 
-  try {
-    window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
-  } catch (err) {
-    console.warn("Failed to clear auth localStorage", err);
-  }
-}
-
-function clearStaleAuthStorageOnLogin() {
-  if (typeof window === "undefined") return;
-
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    let projectRef = "";
-    if (supabaseUrl) {
-      try {
-        projectRef = new URL(supabaseUrl).hostname.split(".")[0] ?? "";
-      } catch {
-        projectRef = "";
-      }
-    }
-
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i += 1) {
-      const key = window.localStorage.key(i);
-      if (!key) continue;
-
-      const isLegacySupabaseToken = key === "supabase.auth.token";
-      const isProjectScopedSupabaseToken =
-        projectRef.length > 0 && key.startsWith(`sb-${projectRef}-`) && key.includes("auth-token");
-      const isProjectScopedRoleCache =
-        projectRef.length > 0 && key.startsWith(`sb-${projectRef}-`) && key.includes("role");
-
-      if (isLegacySupabaseToken || isProjectScopedSupabaseToken || isProjectScopedRoleCache) {
-        keysToRemove.push(key);
-      }
-    }
-
-    keysToRemove.forEach((key) => window.localStorage.removeItem(key));
-    // Keep redirect-path behavior deterministic too.
-    window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
-  } catch (err) {
-    console.warn("Failed to clear stale auth storage on login", err);
-  }
-}
+const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -150,496 +141,391 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const supabase = createClient();
-  const syncRequestRef = useRef(0);
 
-  // Tracks the currently authenticated user's ID so event handlers can detect
-  // whether an incoming auth event is for the same user (background token refresh /
-  // cross-tab session sync) vs. a genuine new sign-in that requires a full re-sync.
+  /**
+   * Each time we start a new load, we increment this counter and capture the
+   * value.  Any branch that finds `loadCounterRef.current !== myToken` was
+   * superseded by a newer load and must not mutate state.
+   */
+  const loadCounterRef = useRef(0);
+
+  /** The user-id that is currently reflected in UI state (null = anonymous). */
   const currentUserIdRef = useRef<string | null>(null);
 
+  // ── Profile + roles fetchers ───────────────────────────────────────────────
+
   const fetchProfileAndRolesFromApi = useCallback(async () => {
-    const response = await fetch("/api/profile", {
-      method: "GET",
+    const res = await fetch("/api/profile", {
       credentials: "include",
       cache: "no-store",
       headers: { Accept: "application/json" },
     });
-
-    if (!response.ok) {
-      throw new Error(`Profile API returned ${response.status}`);
-    }
-
-    const data = await response.json() as {
+    if (!res.ok) throw new Error(`Profile API returned ${res.status}`);
+    const data = (await res.json()) as {
       profile?: (UserProfile & { roles?: string[] }) | null;
     };
-
     const profile = (data.profile ?? null) as UserProfile | null;
     const roles = (data.profile?.roles ?? [])
-      .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
-      .map((name) => ({
-        id: name,
-        name,
-        role_name: name,
-        description: null,
-      }));
-
+      .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+      .map((name) => ({ id: name, name, role_name: name, description: null }));
     return { profile, roles };
   }, []);
 
-  const resolveSessionUser = useCallback(async () => {
-    const sessionResult = await supabase.auth.getSession();
-    const session = sessionResult.data.session ?? null;
+  const fetchProfileAndRoles = useCallback(
+    async (userId: string) => {
+      const [profileRes, rolesRes] = await Promise.all([
+        supabase.from("users").select("*").eq("id", userId).single(),
+        supabase
+          .from("user_roles")
+          .select("role_id, roles(name)")
+          .eq("user_id", userId),
+      ]);
 
-    if (session?.user) {
-      return { session, user: session.user };
-    }
+      const profile = profileRes.error ? null : (profileRes.data as UserProfile);
+      const roleRows = (rolesRes.data ?? []) as {
+        role_id: string;
+        roles: { name: string } | null;
+      }[];
+      const roles = toUserRoles(roleRows);
 
-    const userResult = await supabase.auth.getUser();
-    return { session: null, user: userResult.data.user ?? null };
-  }, [supabase]);
-
-  const fetchProfileAndRoles = useCallback(async (userId: string) => {
-    const [profileRes, rolesRes] = await Promise.all([
-      supabase.from("users").select("*").eq("id", userId).single(),
-      supabase
-        .from("user_roles")
-        // Keep this selection minimal and aligned with `middleware.ts`:
-        // only fetch the role name to avoid RLS/column-permission issues
-        // in production that can lead to an empty `roles` array.
-        .select("role_id, roles(name)")
-        .eq("user_id", userId),
-    ]);
-
-    const profile = profileRes.error ? null : profileRes.data;
-    const roleRows = (rolesRes.data ?? []) as { role_id: string; roles: { name: string } | null }[];
-    const roles = toUserRoles(roleRows);
-
-    if (rolesRes.error) {
-      console.warn("Direct role fetch failed, falling back to profile API:", rolesRes.error.message);
-    }
-
-    // In production, some users can authenticate successfully but the browser-side
-    // role join can still return empty because of RLS/permission differences.
-    // Fallback to the server profile API so role-based layouts still resolve.
-    if (rolesRes.error || roles.length === 0) {
-      try {
-        const apiData = await fetchProfileAndRolesFromApi();
-        if (apiData.roles.length > 0 || apiData.profile) {
-          return apiData;
+      // Fallback: client-side RLS can silently block role rows for some users.
+      // The server-side profile API bypasses RLS and is the authoritative source.
+      if (rolesRes.error || roles.length === 0) {
+        try {
+          const apiData = await fetchProfileAndRolesFromApi();
+          if (apiData.roles.length > 0 || apiData.profile) {
+            return apiData;
+          }
+        } catch (err) {
+          console.warn("[auth] Profile API fallback failed:", err);
         }
-      } catch (err) {
-        console.warn("Profile API fallback failed:", err);
       }
-    }
 
-    return { profile, roles };
-  }, [fetchProfileAndRolesFromApi, supabase]);
+      return { profile, roles };
+    },
+    [fetchProfileAndRolesFromApi, supabase]
+  );
 
-  const syncAuthState = useCallback(
+  // ── Core loader ────────────────────────────────────────────────────────────
+
+  /**
+   * Single source-of-truth auth loader.
+   *
+   * - Always calls `getUser()` (server-round-trip, never stale).
+   * - Cancellable via `loadCounterRef`.
+   * - Never leaves `isLoading` stuck — every code path resolves it.
+   * - Returns the loaded result so callers (signIn) can read fresh roles.
+   */
+  const loadUser = useCallback(
     async (
       source: string,
-      preferred?: {
-        session?: Session | null;
-        user?: User | null;
-      },
-      options?: { silent?: boolean }
-    ) => {
-      const requestId = ++syncRequestRef.current;
+      opts?: { silent?: boolean }
+    ): Promise<{ user: User; roles: UserRole[] } | null> => {
+      const myToken = ++loadCounterRef.current;
 
-      // silent=true: keeps the existing UI visible during background refreshes so the
-      // dashboard never flashes a loading spinner (e.g. online-recovery, USER_UPDATED).
-      if (!options?.silent) {
-        setState((current) => ({ ...current, isLoading: true }));
+      if (!opts?.silent) {
+        setState((prev) => ({ ...prev, isLoading: true }));
       }
 
-      authDebug("provider", `sync start: ${source}`, {
-        requestId,
-        silent: Boolean(options?.silent),
-        preferredUserId: preferred?.user?.id ?? preferred?.session?.user?.id ?? null,
-      });
+      authDebug("provider", `loadUser start: ${source}`, { myToken });
 
       try {
-        let session = preferred?.session ?? null;
-        let user = preferred?.user ?? session?.user ?? null;
+        // ① Server-verified user — immune to stale local storage / cache.
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
 
-        if (!user) {
-          const resolved = await resolveSessionUser();
-          session = resolved.session ?? session;
-          user = resolved.user;
-        }
+        if (loadCounterRef.current !== myToken) return null; // superseded
 
-        if (!user) {
-          if (syncRequestRef.current !== requestId) {
-            return null;
-          }
-
+        if (userErr || !user) {
           currentUserIdRef.current = null;
-          setState({
-            user: null,
-            session: null,
-            profile: null,
-            roles: [],
-            isLoading: false,
-            isInitialized: true,
-          });
-          authDebug("provider", `sync anonymous: ${source}`, { requestId });
-          return { user: null, session: null, profile: null, roles: [] as UserRole[] };
-        }
-
-        const { profile, roles } = await fetchProfileAndRoles(user.id);
-        if (syncRequestRef.current !== requestId) {
+          setState({ ...ANON_STATE });
+          authDebug("provider", `loadUser anon: ${source}`, { myToken });
           return null;
         }
+
+        // ② Get the local session object (for access-token in downstream calls).
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (loadCounterRef.current !== myToken) return null; // superseded
+
+        // ③ Fetch profile + roles (with fallback to server API).
+        const { profile, roles } = await fetchProfileAndRoles(user.id);
+
+        if (loadCounterRef.current !== myToken) return null; // superseded
 
         currentUserIdRef.current = user.id;
         setState({
           user,
-          session,
+          session: session ?? null,
           profile,
           roles,
           isLoading: false,
           isInitialized: true,
         });
-        authDebug("provider", `sync success: ${source}`, {
-          requestId,
+
+        authDebug("provider", `loadUser success: ${source}`, {
+          myToken,
           userId: user.id,
           roles: getRoleNames(roles),
-          hasSession: Boolean(session),
         });
 
-        return { user, session, profile, roles };
+        return { user, roles };
       } catch (err) {
-        if (syncRequestRef.current !== requestId) {
-          return null;
-        }
+        if (loadCounterRef.current !== myToken) return null; // superseded
 
-        console.error("Refresh profile error:", err);
-        authDebug("provider", `sync error: ${source}`, {
-          requestId,
+        console.error(`[auth] loadUser error (${source}):`, err);
+        authDebug("provider", `loadUser error: ${source}`, {
+          myToken,
           error: err instanceof Error ? err.message : String(err),
         });
 
-        // If already authenticated, preserve the existing session on transient errors
-        // (e.g. network flap). Clearing state here would log the user out on any
-        // temporary connectivity issue — which is unacceptable for a CRM dashboard.
-        setState((current) => {
-          if (current.isInitialized && current.user !== null) {
-            authDebug("provider", `sync error - preserving existing session: ${source}`, { requestId });
-            return { ...current, isLoading: false };
+        setState((prev) => {
+          // If the user was already in a working session, keep them visible
+          // (transient network error should not log them out).
+          if (prev.isInitialized && prev.user !== null) {
+            return { ...prev, isLoading: false };
           }
-          // Initial load failed — no session to preserve.
+          // Cold-start error — go anonymous.
           currentUserIdRef.current = null;
-          return {
-            user: null,
-            session: null,
-            profile: null,
-            roles: [],
-            isLoading: false,
-            isInitialized: true,
-          };
+          return { ...ANON_STATE };
         });
 
         return null;
       }
     },
-    [fetchProfileAndRoles, resolveSessionUser]
+    [fetchProfileAndRoles, supabase]
   );
 
-  const refreshProfile = useCallback(async () => {
-    // Always silent — the user is already viewing the dashboard, no spinner needed.
-    await syncAuthState("manual-refresh", undefined, { silent: true });
-  }, [syncAuthState]);
-
-  const waitForSessionConfirmation = useCallback(
-    async (expectedUserId: string, timeoutMs = 4000) => {
-      const startedAt = Date.now();
-
-      while (Date.now() - startedAt < timeoutMs) {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.id === expectedUserId) {
-          return session;
-        }
-
-        await wait(150);
-      }
-
-      return null;
+  const refreshProfile = useCallback(
+    async () => {
+      await loadUser("manual-refresh", { silent: true });
     },
-    [supabase]
+    [loadUser]
   );
 
+  // ── Safety timeout ─────────────────────────────────────────────────────────
+  // Prevent infinite spinner if something goes catastrophically wrong on init.
   useEffect(() => {
-    let mounted = true;
+    if (state.isInitialized) return;
+    const timer = setTimeout(() => {
+      setState((prev) => (prev.isInitialized ? prev : { ...ANON_STATE }));
+    }, 12_000);
+    return () => clearTimeout(timer);
+  }, [state.isInitialized]);
 
-    const init = async () => {
-      try {
-        if (typeof window !== "undefined" && typeof navigator !== "undefined" && !navigator.onLine) {
-          setState({
-            user: null,
-            session: null,
-            profile: null,
-            roles: [],
-            isLoading: false,
-            isInitialized: true,
-          });
-          authDebug("provider", "init offline - starting anonymous");
-          return;
-        }
+  // ── Mount: init + auth-state listener ─────────────────────────────────────
+  useEffect(() => {
+    // Kick off the initial load immediately.
+    void loadUser("init");
 
-        await syncAuthState("init");
-      } catch (err) {
-        console.error("Auth init error:", err);
-        if (!mounted) return;
-        setState({
-          user: null,
-          session: null,
-          profile: null,
-          roles: [],
-          isLoading: false,
-          isInitialized: true,
-        });
-      }
-    };
-
-    void init();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       authDebug("provider", `auth event: ${event}`, {
-        hasSession: Boolean(session),
         userId: session?.user?.id ?? null,
         currentUserId: currentUserIdRef.current,
       });
 
+      // ── SIGNED_OUT ──────────────────────────────────────────────────────
       if (event === "SIGNED_OUT") {
+        // Cancel any in-flight load so it won't overwrite the anon state.
+        loadCounterRef.current++;
         currentUserIdRef.current = null;
-        setState({
-          user: null,
-          session: null,
-          profile: null,
-          roles: [],
-          isLoading: false,
-          isInitialized: true,
-        });
+        setState({ ...ANON_STATE });
         return;
       }
 
+      // ── INITIAL_SESSION ─────────────────────────────────────────────────
+      // The loadUser("init") above already handles this; skip to avoid a
+      // duplicate full sync on mount which causes the loading race.
       if (event === "INITIAL_SESSION") {
-        // Handled by init() above — skip to avoid a duplicate full sync on mount.
         return;
       }
 
+      // ── TOKEN_REFRESHED ─────────────────────────────────────────────────
+      // Only the JWT rotated — user identity and roles are unchanged.
+      // Patch the session silently so the dashboard never flashes a spinner.
       if (event === "TOKEN_REFRESHED") {
-        // A token refresh only rotates the JWT — the user's identity and roles are
-        // unchanged. Patch the session silently so the dashboard never flashes a
-        // loading spinner when the browser refreshes the token (e.g. on tab switch).
-        authDebug("provider", "TOKEN_REFRESHED - silent session update", {
-          userId: session?.user?.id,
-        });
-        setState((current) =>
-          current.isInitialized
-            ? { ...current, session, user: session?.user ?? current.user }
-            : current
+        setState((prev) =>
+          prev.isInitialized
+            ? { ...prev, session: session ?? null, user: session?.user ?? prev.user }
+            : prev
         );
         return;
       }
 
+      // ── SIGNED_IN ───────────────────────────────────────────────────────
       if (event === "SIGNED_IN") {
-        // If the same user is already authenticated (cross-tab token sync, bfcache
-        // page restore, or Supabase SDK re-emitting SIGNED_IN after TOKEN_REFRESHED),
-        // just patch the session silently — no loading spinner, no DB round-trip.
-        if (session?.user?.id && session.user.id === currentUserIdRef.current) {
-          authDebug("provider", "SIGNED_IN - same user, silent session update", {
-            userId: session.user.id,
-          });
-          setState((current) => ({
-            ...current,
+        // Same user already loaded (cross-tab sync / bfcache restore):
+        // just patch the session object, no DB round-trip needed.
+        if (
+          session?.user?.id &&
+          session.user.id === currentUserIdRef.current
+        ) {
+          setState((prev) => ({
+            ...prev,
             session,
-            user: session.user ?? current.user,
+            user: session.user ?? prev.user,
           }));
           return;
         }
-
-        // Different user or first sign-in — full sync with loading state.
-        authDebug("provider", "SIGNED_IN - new user, full sync", {
-          userId: session?.user?.id,
-        });
-        await syncAuthState(`event:${event}`, {
-          session,
-          user: session?.user ?? null,
-        });
+        // Different / new user → full fresh load.
+        await loadUser(`event:${event}`);
         return;
       }
 
+      // ── USER_UPDATED ────────────────────────────────────────────────────
       if (event === "USER_UPDATED") {
-        // User metadata changed. If it's the same user, re-fetch profile silently
-        // (no loading spinner). If somehow a different user, do a full sync.
         const isSameUser = session?.user?.id === currentUserIdRef.current;
-        authDebug("provider", `USER_UPDATED - ${isSameUser ? "silent" : "full"} sync`, {
-          userId: session?.user?.id,
-        });
-        await syncAuthState(
-          `event:${event}`,
-          { session, user: session?.user ?? null },
-          { silent: isSameUser }
-        );
+        await loadUser(`event:${event}`, { silent: isSameUser });
       }
     });
 
-    // When the browser comes back online, proactively refresh the profile/session.
-    // Use silent mode so the dashboard stays visible during the background re-sync.
+    // Re-sync silently when the browser comes back online.
     const handleOnline = () => {
-      if (!mounted) return;
-      authDebug("provider", "network online - silent background refresh");
-      void refreshProfile().catch((err) => {
-        console.error("Auth online refresh error:", err);
-      });
+      void loadUser("online-recovery", { silent: true }).catch(console.error);
     };
-
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
     }
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
       }
     };
-  }, [supabase, refreshProfile, syncAuthState]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ← intentionally empty: loadUser and supabase are stable refs
+
+  // ── signIn ─────────────────────────────────────────────────────────────────
 
   const signIn = useCallback(
-    async (email: string, password: string, requestedRedirectPath?: string) => {
-      setState((current) => ({ ...current, isLoading: true }));
+    async (
+      email: string,
+      password: string,
+      requestedRedirectPath?: string
+    ): Promise<{ error: Error | null; redirectPath?: string }> => {
+      setState((prev) => ({ ...prev, isLoading: true }));
       authDebug("provider", "signIn start", { email });
 
-      try {
-        clearStaleAuthStorageOnLogin();
+      // Wipe any previous user's tokens/cache before attempting a new login.
+      clearAllAuthStorage();
 
+      try {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
         if (error) {
-          setState((current) => ({ ...current, isLoading: false, isInitialized: true }));
+          setState((prev) => ({ ...prev, isLoading: false, isInitialized: true }));
           return { error: error as Error };
         }
 
-        if (data.user) {
-          // Always re-read user from auth service after login to avoid stale in-memory user snapshots.
-          const freshUserResult = await supabase.auth.getUser();
-          const freshUser = freshUserResult.data.user ?? data.user;
-
-          const confirmedSession =
-            data.session?.user?.id === data.user.id
-              ? data.session
-              : await waitForSessionConfirmation(data.user.id);
-
-          const resolved = await syncAuthState("signIn", {
-            session: confirmedSession,
-            user: freshUser,
-          });
-
-          if (!resolved?.user) {
-            return {
-              error: new Error("Sign-in succeeded but the session could not be restored."),
-            };
-          }
-
-          // Audit log in background - don't block redirect
-          void Promise.resolve(
-            supabase
-              .from("login_logs")
-              .insert({
-                user_id: data.user.id,
-                ip_address: null,
-                device_info:
-                  typeof navigator !== "undefined" ? navigator.userAgent : null,
-              } as never)
-          ).catch(() => {});
-
-          const redirectPath = resolvePostLoginRedirect({
-            requestedPath: requestedRedirectPath,
-            storedPath: getStoredRedirectPath(),
-            roleNames: getRoleNames(resolved.roles),
-          });
-
-          persistRedirectPath(redirectPath);
-          authDebug("provider", "signIn success", {
-            userId: resolved.user.id,
-            redirectPath,
-            roles: getRoleNames(resolved.roles),
-          });
-
-          return { error: null, redirectPath };
+        if (!data.user) {
+          setState((prev) => ({ ...prev, isLoading: false, isInitialized: true }));
+          return { error: new Error("Authentication did not return a user.") };
         }
 
-        // No error and no user (unexpected but handle gracefully)
-        setState((current) => ({ ...current, isLoading: false, isInitialized: true }));
-        return { error: new Error("Authentication did not return a user.") };
+        // Full server-verified load so roles are fresh for the redirect calculation.
+        const loaded = await loadUser("signIn");
+
+        // Fire-and-forget audit log.
+        void supabase
+          .from("login_logs")
+          .insert({
+            user_id: data.user.id,
+            ip_address: null,
+            device_info:
+              typeof navigator !== "undefined" ? navigator.userAgent : null,
+          } as never)
+          .then(() => {}, () => {});
+
+        const roles = loaded?.roles ?? [];
+        const redirectPath = resolvePostLoginRedirect({
+          requestedPath: requestedRedirectPath,
+          storedPath: getStoredRedirectPath(),
+          roleNames: getRoleNames(roles),
+        });
+
+        persistRedirectPath(redirectPath);
+        authDebug("provider", "signIn success", {
+          userId: data.user.id,
+          redirectPath,
+          roles: getRoleNames(roles),
+        });
+
+        return { error: null, redirectPath };
       } catch (err) {
-        console.error("Auth signIn error:", err);
-        setState((current) => ({ ...current, isLoading: false, isInitialized: true }));
+        console.error("[auth] signIn error:", err);
+        setState((prev) => ({ ...prev, isLoading: false, isInitialized: true }));
         return { error: err as Error };
       }
     },
-    [supabase, syncAuthState, waitForSessionConfirmation]
+    [supabase, loadUser]
   );
+
+  // ── signOut ────────────────────────────────────────────────────────────────
 
   const signOut = useCallback(async () => {
     authDebug("provider", "signOut start");
-    setState((current) => ({ ...current, isLoading: true }));
-    clearClientStorage();
 
-    try {
-      await fetch("/api/auth/signout", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-      });
-    } catch (err) {
-      console.error("Server signOut error:", err);
-    }
+    // Cancel any in-flight load immediately.
+    loadCounterRef.current++;
+    currentUserIdRef.current = null;
 
+    // Optimistically clear UI state first — no waiting.
+    setState({ ...ANON_STATE });
+
+    // Clear every auth token from every storage layer.
+    clearAllAuthStorage();
+
+    // Server-side session invalidation (best-effort, don't block redirect).
+    void fetch("/api/auth/signout", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    }).catch(() => {});
+
+    // Local Supabase session revocation.
     try {
       await supabase.auth.signOut({ scope: "local" });
     } catch (err) {
-      console.error("Auth signOut error:", err);
+      console.warn("[auth] supabase.signOut error:", err);
     }
 
-    currentUserIdRef.current = null;
-    setState({
-      user: null,
-      session: null,
-      profile: null,
-      roles: [],
-      isInitialized: true,
-      isLoading: false,
-    });
     authDebug("provider", "signOut complete");
 
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.assign("/login");
-    }
+    // Hard redirect — forces a complete React tree remount so no stale state
+    // from the previous user can bleed into the new session.
+    window.location.replace("/login");
   }, [supabase]);
+
+  // ── hasRole / getDefaultRedirect ───────────────────────────────────────────
 
   const hasRole = useCallback(
     (roleName: string) => {
       const normalized = normalizeRoleName(roleName);
-      return state.roles.some((r) => {
-        const rNormalized = normalizeRoleName(r.role_name);
-        return rNormalized === normalized || r.role_name?.toLowerCase() === roleName.toLowerCase();
-      });
+      return state.roles.some(
+        (r) =>
+          normalizeRoleName(r.role_name) === normalized ||
+          r.role_name?.toLowerCase() === roleName.toLowerCase()
+      );
     },
     [state.roles]
   );
 
-  const getDefaultRedirect = useCallback(() => {
-    return getDefaultRedirectPath(getRoleNames(state.roles));
-  }, [state.roles]);
+  const getDefaultRedirect = useCallback(
+    () => getDefaultRedirectPath(getRoleNames(state.roles)),
+    [state.roles]
+  );
+
+  // ── Context value ──────────────────────────────────────────────────────────
 
   const value: AuthContextValue = {
     ...state,
