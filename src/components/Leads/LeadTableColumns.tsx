@@ -213,18 +213,19 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
         <div style={{ padding: 8 }}>
           <Select
+            mode="multiple"
             allowClear
             placeholder="Filter QA status"
             style={{ width: 180, marginBottom: 8, display: "block" }}
-            value={(selectedKeys[0] as string | undefined) ?? undefined}
+            value={(selectedKeys as string[]) ?? []}
             options={[
               { value: "qualified", label: "Qualified" },
               { value: "disqualified", label: "Disqualified" },
               { value: "rectified", label: "Rectified" },
             ]}
-            onChange={(value) => {
-              if (value) {
-                setSelectedKeys([value]);
+            onChange={(values) => {
+              if (values && values.length > 0) {
+                setSelectedKeys(values);
               } else {
                 setSelectedKeys([]);
               }
