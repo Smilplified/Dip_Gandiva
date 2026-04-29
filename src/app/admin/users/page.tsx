@@ -118,11 +118,12 @@ export default function AdminUsersPage() {
   }, [users, normalizedQuery]);
 
   useEffect(() => {
-    const maxPage = Math.max(1, Math.ceil(filteredUsers.length / pagination.pageSize));
-    if (pagination.current > maxPage) {
-      setPagination((prev) => ({ ...prev, current: maxPage }));
-    }
-  }, [filteredUsers.length, pagination.current, pagination.pageSize]);
+    setPagination((prev) => {
+      const maxPage = Math.max(1, Math.ceil(filteredUsers.length / prev.pageSize));
+      if (prev.current <= maxPage) return prev;
+      return { ...prev, current: maxPage };
+    });
+  }, [filteredUsers.length]);
 
   const handleCreateUser = async () => {
     try {

@@ -101,6 +101,44 @@ function clearClientStorage() {
   }
 }
 
+function clearStaleAuthStorageOnLogin() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    let projectRef = "";
+    if (supabaseUrl) {
+      try {
+        projectRef = new URL(supabaseUrl).hostname.split(".")[0] ?? "";
+      } catch {
+        projectRef = "";
+      }
+    }
+
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (!key) continue;
+
+      const isLegacySupabaseToken = key === "supabase.auth.token";
+      const isProjectScopedSupabaseToken =
+        projectRef.length > 0 && key.startsWith(`sb-${projectRef}-`) && key.includes("auth-token");
+      const isProjectScopedRoleCache =
+        projectRef.length > 0 && key.startsWith(`sb-${projectRef}-`) && key.includes("role");
+
+      if (isLegacySupabaseToken || isProjectScopedSupabaseToken || isProjectScopedRoleCache) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+    // Keep redirect-path behavior deterministic too.
+    window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
+  } catch (err) {
+    console.warn("Failed to clear stale auth storage on login", err);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -478,6 +516,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authDebug("provider", "signIn start", { email });
 
       try {
+        clearStaleAuthStorageOnLogin();
+
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -489,6 +529,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data.user) {
+          // Always re-read user from auth service after login to avoid stale in-memory user snapshots.
+          const freshUserResult = await supabase.auth.getUser();
+          const freshUser = freshUserResult.data.user ?? data.user;
+
           const confirmedSession =
             data.session?.user?.id === data.user.id
               ? data.session
@@ -496,7 +540,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           const resolved = await syncAuthState("signIn", {
             session: confirmedSession,
-            user: data.user,
+            user: freshUser,
           });
 
           if (!resolved?.user) {

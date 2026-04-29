@@ -145,14 +145,21 @@ export default function CampaignForm({
   const handleSubmit = async (values: CampaignFormValues) => {
     setLoading(true);
     try {
-      const parsedDailyReporting =
-        values.daily_reporting && values.daily_reporting.trim()
-          ? JSON.parse(values.daily_reporting)
-          : undefined;
-      const parsedChannelSplit =
-        values.channel_split && values.channel_split.trim()
-          ? JSON.parse(values.channel_split)
-          : undefined;
+      let parsedDailyReporting: unknown;
+      let parsedChannelSplit: unknown;
+      try {
+        parsedDailyReporting =
+          values.daily_reporting && values.daily_reporting.trim()
+            ? JSON.parse(values.daily_reporting)
+            : undefined;
+        parsedChannelSplit =
+          values.channel_split && values.channel_split.trim()
+            ? JSON.parse(values.channel_split)
+            : undefined;
+      } catch {
+        message.error("Daily Reporting or Channel Split JSON is invalid");
+        return;
+      }
 
       const payload = {
         ...values,
@@ -181,7 +188,10 @@ export default function CampaignForm({
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json() as { campaign?: Record<string, unknown>; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        campaign?: Record<string, unknown>;
+        error?: string;
+      };
 
       if (!res.ok) {
         message.error(data.error ?? "Failed to save campaign");
@@ -192,30 +202,40 @@ export default function CampaignForm({
         (data.campaign?.id as string | undefined) ?? campaignId ?? undefined;
 
       if (persistedCampaignId && uploadedFiles.length > 0) {
-        const formData = new FormData();
-        for (const file of uploadedFiles) {
-          if (file.originFileObj) formData.append("files", file.originFileObj);
-        }
-        if (formData.has("files")) {
-          const uploadRes = await fetch(`/api/command/campaigns/${persistedCampaignId}/files`, {
-            method: "POST",
-            body: formData,
-          });
-          const uploadData = (await uploadRes.json()) as { error?: string; errors?: string[] };
-          if (!uploadRes.ok) {
-            message.warning(uploadData.error ?? "Campaign saved, but file upload failed");
-          } else if (Array.isArray(uploadData.errors) && uploadData.errors.length > 0) {
-            message.warning(`Campaign saved. Some files failed: ${uploadData.errors.join("; ")}`);
-          } else {
-            message.success("File uploaded successfully");
+        try {
+          const formData = new FormData();
+          for (const file of uploadedFiles) {
+            if (file.originFileObj) formData.append("files", file.originFileObj);
           }
+          if (formData.has("files")) {
+            const uploadRes = await fetch(`/api/command/campaigns/${persistedCampaignId}/files`, {
+              method: "POST",
+              body: formData,
+            });
+            const uploadData = (await uploadRes.json().catch(() => ({}))) as {
+              error?: string;
+              errors?: string[];
+            };
+            if (!uploadRes.ok) {
+              message.warning(uploadData.error ?? "Campaign saved, but file upload failed");
+            } else if (Array.isArray(uploadData.errors) && uploadData.errors.length > 0) {
+              message.warning(`Campaign saved. Some files failed: ${uploadData.errors.join("; ")}`);
+            }
+          }
+        } catch {
+          message.warning("Campaign saved, but file upload failed");
         }
       }
 
       message.success(isEdit ? "Campaign updated" : "Campaign created");
       onSuccess?.(data.campaign ?? {});
-    } catch {
-      message.error("Network error");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("network")) {
+        message.error("Network error while saving campaign");
+      } else {
+        message.error("Failed to save campaign");
+      }
     } finally {
       setLoading(false);
     }

@@ -78,7 +78,10 @@ export async function getRoleNames(
     .from("user_roles")
     .select("roles(name)")
     .eq("user_id", userId)) as { data: CommandRoleRow[] | null };
-  return (data ?? []).flatMap((r) => (r.roles ? [r.roles.name] : []));
+  return (data ?? [])
+    .flatMap((r) => (r.roles?.name ? [r.roles.name] : []))
+    .map((name) => name.toLowerCase().trim().replace(/\s+/g, "_"))
+    .filter((name) => name.length > 0);
 }
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────
