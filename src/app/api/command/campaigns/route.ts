@@ -20,10 +20,109 @@ import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads"
 import { createNotifications } from "@/lib/notifications";
 
 const COMMAND_CAMPAIGN_LEAD_IMPORT_MAX = 500;
+const CLIENT_VIEWER_CAMPAIGN_ALERT_TO = [
+  "developer@b2bindemand.com",
+  "saurabh@b2bindemand.com",
+  "shubham@b2bindemand.com",
+  "sanket@b2bindemand.com",
+];
+const CLIENT_VIEWER_CAMPAIGN_ALERT_SUBJECT = "Client Viewer created a campaign";
+const RESEND_API_URL = "https://api.resend.com/emails";
 
 export const dynamic = "force-dynamic";
 
 const LIST_MAX = 500;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatCreatedAt(value: string | null | undefined): string {
+  if (!value) return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  }
+  return date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
+async function sendClientViewerCampaignAlertEmail(args: {
+  campaignName: string;
+  campaignId: string;
+  clientName: string;
+  createdAt: string;
+  creatorName: string;
+  creatorEmail: string;
+}) {
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.CAMPAIGN_ALERT_EMAIL_FROM;
+    if (!apiKey || !from) {
+      console.warn(
+        "[campaign-alert-email] Missing RESEND_API_KEY or CAMPAIGN_ALERT_EMAIL_FROM; skipping email."
+      );
+      return;
+    }
+
+    const safeCampaignName = escapeHtml(args.campaignName);
+    const safeCampaignId = escapeHtml(args.campaignId);
+    const safeClientName = escapeHtml(args.clientName);
+    const safeCreatedAt = escapeHtml(args.createdAt);
+    const safeCreatorName = escapeHtml(args.creatorName);
+    const safeCreatorEmail = escapeHtml(args.creatorEmail);
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;line-height:1.45;color:#111827;">
+        <p style="margin:0 0 10px 0;"><strong>New campaign created by Client Viewer</strong></p>
+        <table style="border-collapse:collapse;">
+          <tr><td style="padding:2px 10px 2px 0;"><strong>Campaign</strong></td><td style="padding:2px 0;">${safeCampaignName}</td></tr>
+          <tr><td style="padding:2px 10px 2px 0;"><strong>Campaign ID</strong></td><td style="padding:2px 0;">${safeCampaignId}</td></tr>
+          <tr><td style="padding:2px 10px 2px 0;"><strong>Client</strong></td><td style="padding:2px 0;">${safeClientName}</td></tr>
+          <tr><td style="padding:2px 10px 2px 0;"><strong>Created At</strong></td><td style="padding:2px 0;">${safeCreatedAt}</td></tr>
+          <tr><td style="padding:2px 10px 2px 0;"><strong>Created By</strong></td><td style="padding:2px 0;">${safeCreatorName} (${safeCreatorEmail})</td></tr>
+        </table>
+      </div>
+    `;
+
+    const text =
+      `New campaign created by Client Viewer\n` +
+      `Campaign: ${args.campaignName}\n` +
+      `Campaign ID: ${args.campaignId}\n` +
+      `Client: ${args.clientName}\n` +
+      `Created At: ${args.createdAt}\n` +
+      `Created By: ${args.creatorName} (${args.creatorEmail})`;
+
+    const res = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: CLIENT_VIEWER_CAMPAIGN_ALERT_TO,
+        subject: CLIENT_VIEWER_CAMPAIGN_ALERT_SUBJECT,
+        html,
+        text,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error("[campaign-alert-email] Failed to send email", {
+        status: res.status,
+        body,
+      });
+    }
+  } catch (error) {
+    console.error("[campaign-alert-email] Unexpected error while sending email", error);
+  }
+}
 
 function listCompliance(L: CommandListLeadAgg, A: CommandListAlertAgg): "green" | "yellow" | "red" {
   if (A.hasRed || L.disputedConsent > 0) return "red";
@@ -439,7 +538,13 @@ export async function POST(request: Request) {
     } as never)
     .select()
     .single()) as unknown as {
-    data: { id: string } | null;
+    data: {
+      id: string;
+      campaign_id: string | null;
+      name: string | null;
+      client_name: string | null;
+      created_at: string | null;
+    } | null;
     error: { message: string } | null;
   };
 
@@ -518,6 +623,22 @@ export async function POST(request: Request) {
 
   // Notify internal operators when a client viewer creates a campaign.
   if (isClientViewer) {
+    const creatorName =
+      (profile as { full_name?: string | null } | null)?.full_name?.trim() ||
+      user.user_metadata?.full_name?.toString()?.trim() ||
+      user.email ||
+      "Unknown User";
+    const creatorEmail = user.email ?? "unknown-email";
+    const createdAt = formatCreatedAt(campaign?.created_at);
+    await sendClientViewerCampaignAlertEmail({
+      campaignName: (campaign?.name ?? String(body.name ?? "Untitled Campaign")).trim(),
+      campaignId: (campaign?.campaign_id ?? String(body.campaign_id ?? "")).trim() || "N/A",
+      clientName: (campaign?.client_name ?? resolvedClientName ?? "N/A").trim() || "N/A",
+      createdAt,
+      creatorName,
+      creatorEmail,
+    });
+
     if (admin) {
       const orgId = (profile?.organization_id ?? "") as string;
       const { data: roleRows } = await admin
