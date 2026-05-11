@@ -40,6 +40,7 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { ExpandableText } from "@/components/ExpandableText";
+import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -1042,7 +1043,13 @@ export default function SalesCampaignDetailPage() {
                   multiple
                   fileList={uploadFileList}
                   accept={ACCEPT_FILE_TYPES}
-                  beforeUpload={() => false}
+                  beforeUpload={(file) => {
+                    if (file.size > MAX_CAMPAIGN_FILE_BYTES) {
+                      message.error(`Each file must be ${MAX_CAMPAIGN_FILE_SIZE_MB}MB or smaller.`);
+                      return Upload.LIST_IGNORE;
+                    }
+                    return false;
+                  }}
                   onRemove={(file) => setUploadFileList((prev) => prev.filter((f) => f.uid !== file.uid))}
                   onChange={({ fileList: next }) => setUploadFileList(next)}
                   maxCount={20}
@@ -1051,7 +1058,9 @@ export default function SalesCampaignDetailPage() {
                     <InboxOutlined style={{ fontSize: 32, color: "#1677ff" }} />
                   </p>
                   <p className="ant-upload-text">Click or drag files to add</p>
-                  <p className="ant-upload-hint">PDF, Word, Excel, images, etc. Max 50MB per file.</p>
+                  <p className="ant-upload-hint">
+                    PDF, Word, Excel, images, etc. Max {MAX_CAMPAIGN_FILE_SIZE_MB}MB per file.
+                  </p>
                 </Dragger>
               </div>
             </Form.Item>

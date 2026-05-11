@@ -3,11 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getRoleNames, getProfile } from "@/lib/command/db";
+import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 
 export const dynamic = "force-dynamic";
 
 const BUCKET = "campaign-files";
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200);
@@ -78,8 +78,8 @@ export async function POST(
       if (key !== "files" && key !== "file") continue;
       const file = value as File;
       if (!file?.name || typeof file.size !== "number") continue;
-      if (file.size > MAX_FILE_SIZE) {
-        errors.push(`${file.name}: file too large (max 50MB)`);
+      if (file.size > MAX_CAMPAIGN_FILE_BYTES) {
+        errors.push(`${file.name}: file too large (max ${MAX_CAMPAIGN_FILE_SIZE_MB}MB)`);
         continue;
       }
 

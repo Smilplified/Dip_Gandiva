@@ -7,6 +7,7 @@ import { InboxOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { Spin } from "antd";
 import type { UploadFile } from "antd";
+import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -398,13 +399,19 @@ export default function SalesCreateCampaignPage() {
             <Col span={24}>
               <Form.Item
                 label="Upload Files"
-                tooltip="PDF, Word, Excel, PowerPoint, CSV, images, ZIP, etc. Max 50MB per file."
+                tooltip={`PDF, Word, Excel, PowerPoint, CSV, images, ZIP, etc. Max ${MAX_CAMPAIGN_FILE_SIZE_MB}MB per file.`}
               >
                 <Dragger
                   multiple
                   fileList={fileList}
                   accept={ACCEPT_FILE_TYPES}
-                  beforeUpload={() => false}
+                  beforeUpload={(file) => {
+                    if (file.size > MAX_CAMPAIGN_FILE_BYTES) {
+                      message.error(`Each file must be ${MAX_CAMPAIGN_FILE_SIZE_MB}MB or smaller.`);
+                      return Upload.LIST_IGNORE;
+                    }
+                    return false;
+                  }}
                   onRemove={(file) => setFileList((prev) => prev.filter((f) => f.uid !== file.uid))}
                   onChange={({ fileList: next }) => setFileList(next)}
                   maxCount={20}
