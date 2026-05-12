@@ -12,6 +12,9 @@ import {
 } from "@/lib/auth/config";
 import { authDebug } from "@/lib/auth/debug";
 
+/** Cross-tab: any tab that signs out tells others to drop stale JS + cookies. */
+const AUTH_SIGNOUT_BROADCAST_CHANNEL = "gandiv:auth-signout";
+
 export type UserRole = {
   id: string;
   name: string;
@@ -89,6 +92,18 @@ function persistRedirectPath(path: string) {
   }
 }
 
+function purgeSupabaseKeysFromStore(store: Storage) {
+  const keys: string[] = [];
+  for (let i = 0; i < store.length; i++) {
+    const key = store.key(i);
+    if (!key) continue;
+    if (key.startsWith("sb-") || key.toLowerCase().includes("supabase")) {
+      keys.push(key);
+    }
+  }
+  keys.forEach((k) => store.removeItem(k));
+}
+
 function clearClientStorage() {
   if (typeof window === "undefined") {
     return;
@@ -96,8 +111,23 @@ function clearClientStorage() {
 
   try {
     window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
+    purgeSupabaseKeysFromStore(window.localStorage);
+    purgeSupabaseKeysFromStore(window.sessionStorage);
   } catch (err) {
-    console.warn("Failed to clear auth localStorage", err);
+    console.warn("Failed to clear auth browser storage", err);
+  }
+}
+
+function broadcastAuthSignedOut() {
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
+    return;
+  }
+  try {
+    const bc = new BroadcastChannel(AUTH_SIGNOUT_BROADCAST_CHANNEL);
+    bc.postMessage("signed-out");
+    bc.close();
+  } catch {
+    // Ignore — e.g. private mode restrictions.
   }
 }
 
@@ -492,6 +522,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase, refreshProfile, syncAuthState]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
+      return;
+    }
+    const bc = new BroadcastChannel(AUTH_SIGNOUT_BROADCAST_CHANNEL);
+    bc.onmessage = (ev: MessageEvent) => {
+      if (ev.data !== "signed-out") return;
+      authDebug("provider", "cross-tab sign-out broadcast — hard navigation to login");
+      window.location.replace("/login");
+    };
+    return () => bc.close();
+  }, []);
+
   const signIn = useCallback(
     async (email: string, password: string, requestedRedirectPath?: string) => {
       setState((current) => ({ ...current, isLoading: true }));
@@ -509,6 +552,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (data.user) {
+          // Drop any in-flight getUser() from a previous session so the next validation
+          // is not tied to a stale promise after account switches.
+          getUserInFlightRef.current = null;
+          await supabase.auth.getSession();
+
           const confirmedSession =
             data.session?.user?.id === data.user.id
               ? data.session
@@ -525,17 +573,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
           }
 
-          // Audit log in background - don't block redirect
-          void Promise.resolve(
-            supabase
+          // Audit log after sync so REST uses the same JWT as the validated session.
+          void (async () => {
+            await supabase.auth.getSession();
+            await supabase
               .from("login_logs")
               .insert({
                 user_id: data.user.id,
                 ip_address: null,
                 device_info:
                   typeof navigator !== "undefined" ? navigator.userAgent : null,
-              } as never)
-          ).catch(() => {});
+              } as never);
+          })().catch(() => {});
 
           const redirectPath = resolvePostLoginRedirect({
             requestedPath: requestedRedirectPath,
@@ -568,6 +617,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     authDebug("provider", "signOut start");
     setState((current) => ({ ...current, isLoading: true }));
+    getUserInFlightRef.current = null;
+
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch (err) {
+      console.error("Auth signOut error:", err);
+    }
+
     clearClientStorage();
 
     try {
@@ -580,11 +637,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Server signOut error:", err);
     }
 
-    try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      console.error("Auth signOut error:", err);
-    }
+    broadcastAuthSignedOut();
 
     currentUserIdRef.current = null;
     setState({
@@ -597,8 +650,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     authDebug("provider", "signOut complete");
 
-    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-      window.location.assign("/login");
+    if (typeof window !== "undefined") {
+      window.location.replace("/login");
     }
   }, [supabase]);
 

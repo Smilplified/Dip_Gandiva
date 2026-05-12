@@ -4,6 +4,18 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
+function clearedSupabaseCookieOptions() {
+  const domain = process.env.AUTH_COOKIE_DOMAIN?.trim();
+  return {
+    path: "/",
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    ...(domain ? { domain } : {}),
+  };
+}
+
 export async function POST() {
   // Invalidate the session on Supabase's server (invalidates the refresh token).
   // The @supabase/ssr server client's setAll callback writes the cleared session
@@ -22,17 +34,13 @@ export async function POST() {
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
   );
 
+  const clearOpts = clearedSupabaseCookieOptions();
+
   try {
     const cookieStore = await cookies();
     for (const cookie of cookieStore.getAll()) {
       if (cookie.name.startsWith("sb-") || cookie.name.includes("supabase")) {
-        response.cookies.set(cookie.name, "", {
-          path: "/",
-          maxAge: 0,
-          httpOnly: true,
-          sameSite: "lax",
-          secure: process.env.NODE_ENV === "production",
-        });
+        response.cookies.set(cookie.name, "", clearOpts);
       }
     }
   } catch {
