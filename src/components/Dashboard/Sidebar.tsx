@@ -18,16 +18,26 @@ import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
 
+/** Real App Router paths only — broken links here cause Next.js to prefetch 404 RSC routes and slow/hang first paint. */
 const menuItems = [
-  { key: "/sales", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales" },
-  { key: "/contacts", icon: <TeamOutlined />, label: "Contacts", href: "/contacts" },
-  { key: "/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/campaigns" },
-  { key: "/deals", icon: <ProjectOutlined />, label: "Deals", href: "/deals" },
-  { key: "/companies", icon: <CustomerServiceOutlined />, label: "Companies", href: "/companies" },
-  { key: "/reports", icon: <BarChartOutlined />, label: "Reports", href: "/reports" },
-  { key: "/documents", icon: <FileTextOutlined />, label: "Documents", href: "/documents" },
-  { key: "/settings", icon: <SettingOutlined />, label: "Settings", href: "/settings" },
+  { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales/dashboard" },
+  { key: "/sales/contacts", icon: <TeamOutlined />, label: "Contacts", href: "/sales/contacts" },
+  { key: "/sales/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/sales/campaigns" },
+  { key: "/sales/deals", icon: <ProjectOutlined />, label: "Deals", href: "/sales/deals" },
+  { key: "/sales/accounts", icon: <CustomerServiceOutlined />, label: "Companies", href: "/sales/accounts" },
+  { key: "/sales/reports", icon: <BarChartOutlined />, label: "Reports", href: "/sales/reports" },
+  { key: "/sales/activities", icon: <FileTextOutlined />, label: "Activities", href: "/sales/activities" },
+  { key: "/sales/settings", icon: <SettingOutlined />, label: "Settings", href: "/sales/settings" },
 ];
+
+function pickActiveMenuKey(pathname: string | null | undefined, items: { key: string }[]) {
+  if (!pathname) return "/";
+  const matches = items.filter(
+    (item) => pathname === item.key || pathname.startsWith(`${item.key}/`)
+  );
+  if (!matches.length) return "/";
+  return matches.reduce((best, cur) => (cur.key.length > best.key.length ? cur : best)).key;
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -36,7 +46,11 @@ export default function Sidebar() {
   const isCommandCenterUser =
     hasRole("internal_operator") || hasRole("internal_admin") || hasRole("client_viewer");
 
-  const visibleMenuItems = isCommandCenterUser
+  // On hard refresh, roles can hydrate one tick after `user` — without this we briefly render
+  // the sales menu while already on `/dashboard/*`, and Next prefetches dead `/contacts`-style URLs.
+  const onDashboardSection = Boolean(pathname?.startsWith("/dashboard"));
+
+  const visibleMenuItems = isCommandCenterUser || onDashboardSection
     ? [
         { key: "/dashboard/overview", icon: <DashboardOutlined />, label: "Overview", href: "/dashboard/overview" },
         { key: "/dashboard/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/dashboard/campaigns" },
@@ -44,8 +58,7 @@ export default function Sidebar() {
       ]
     : menuItems;
 
-  const selectedKey =
-    visibleMenuItems.find((item) => pathname?.startsWith(item.key))?.key || "/";
+  const selectedKey = pickActiveMenuKey(pathname, visibleMenuItems);
 
   return (
     <Sider
@@ -100,6 +113,7 @@ export default function Sidebar() {
             <Tooltip key={item.key} title={item.label} placement="right">
               <Link
                 href={item.href}
+                prefetch={false}
                 style={{
                   display: "flex",
                   flexDirection: "column",
