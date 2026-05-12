@@ -33,6 +33,13 @@ interface AuthState {
   roles: UserRole[];
   isLoading: boolean;
   isInitialized: boolean;
+  /**
+   * Monotonically increasing counter bumped on every successful auth sync.
+   * Consumers can include this in `useEffect` deps to re-run data fetches when
+   * the auth state is refreshed (cross-tab token rotation, tab visibility return,
+   * manual `refreshProfile()`, sign-in for a new user, etc.).
+   */
+  authVersion: number;
 }
 
 interface AuthContextValue extends AuthState {
@@ -46,6 +53,9 @@ interface AuthContextValue extends AuthState {
   hasRole: (roleName: string) => boolean;
   getDefaultRedirect: () => string;
 }
+
+const INIT_FALLBACK_TIMEOUT_MS = 8_000;
+const VISIBILITY_MIN_HIDDEN_MS = 30_000;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -139,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     roles: [],
     isLoading: true,
     isInitialized: false,
+    authVersion: 0,
   });
 
   // Stable singleton — createClient() returns a module-level cached instance,
@@ -316,14 +327,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           currentUserIdRef.current = null;
-          setState({
+          setState((current) => ({
             user: null,
             session: null,
             profile: null,
             roles: [],
             isLoading: false,
             isInitialized: true,
-          });
+            authVersion: current.authVersion + 1,
+          }));
           authDebug("provider", `sync anonymous: ${source}`, { requestId });
           return { user: null, session: null, profile: null, roles: [] as UserRole[] };
         }
@@ -337,14 +349,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const sessionToStore = latestSession ?? session;
 
         currentUserIdRef.current = user.id;
-        setState({
+        setState((current) => ({
           user,
           session: sessionToStore,
           profile,
           roles,
           isLoading: false,
           isInitialized: true,
-        });
+          authVersion: current.authVersion + 1,
+        }));
         authDebug("provider", `sync success: ${source}`, {
           requestId,
           userId: user.id,
@@ -381,13 +394,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             roles: [],
             isLoading: false,
             isInitialized: true,
+            authVersion: current.authVersion + 1,
           };
         });
 
         return null;
       }
     },
-    [fetchProfileAndRoles, resolveSessionUser]
+    [fetchProfileAndRoles, resolveSessionUser, supabase]
   );
 
   const refreshProfile = useCallback(async () => {
@@ -415,18 +429,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let initSettled = false;
 
     const init = async () => {
+      // Soft fallback: if syncAuthState is hanging (rare — typically Supabase's
+      // navigator.locks contention with another tab or a slow network call),
+      // flip `isLoading` off after a bounded wait. We deliberately do NOT force
+      // `isInitialized: true` here: that would cause the dashboard layout to
+      // redirect an authenticated user to /login on slow networks. Instead we
+      // keep showing the loader and let the in-flight sync commit when it
+      // resolves (or the visibility/storage listeners below pick it up).
+      const fallbackTimer = setTimeout(() => {
+        if (initSettled || !mounted) return;
+        console.warn(
+          `[auth] init exceeded ${INIT_FALLBACK_TIMEOUT_MS}ms — relaxing isLoading; sync continues in background`
+        );
+        setState((current) => ({ ...current, isLoading: false }));
+      }, INIT_FALLBACK_TIMEOUT_MS);
+
       try {
         if (typeof window !== "undefined" && typeof navigator !== "undefined" && !navigator.onLine) {
-          setState({
+          setState((current) => ({
             user: null,
             session: null,
             profile: null,
             roles: [],
             isLoading: false,
             isInitialized: true,
-          });
+            authVersion: current.authVersion + 1,
+          }));
           authDebug("provider", "init offline - starting anonymous");
           return;
         }
@@ -435,14 +466,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error("Auth init error:", err);
         if (!mounted) return;
-        setState({
+        setState((current) => ({
           user: null,
           session: null,
           profile: null,
           roles: [],
           isLoading: false,
           isInitialized: true,
-        });
+          authVersion: current.authVersion + 1,
+        }));
+      } finally {
+        initSettled = true;
+        clearTimeout(fallbackTimer);
       }
     };
 
@@ -459,14 +494,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (event === "SIGNED_OUT") {
         currentUserIdRef.current = null;
-        setState({
+        setState((current) => ({
           user: null,
           session: null,
           profile: null,
           roles: [],
           isLoading: false,
           isInitialized: true,
-        });
+          authVersion: current.authVersion + 1,
+        }));
         return;
       }
 
@@ -479,12 +515,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // A token refresh only rotates the JWT — the user's identity and roles are
         // unchanged. Patch the session silently so the dashboard never flashes a
         // loading spinner when the browser refreshes the token (e.g. on tab switch).
+        // Bump authVersion so dashboard pages can refetch with the new JWT/cookies.
         authDebug("provider", "TOKEN_REFRESHED - silent session update", {
           userId: session?.user?.id,
         });
         setState((current) =>
           current.isInitialized
-            ? { ...current, session, user: session?.user ?? current.user }
+            ? {
+                ...current,
+                session,
+                user: session?.user ?? current.user,
+                authVersion: current.authVersion + 1,
+              }
             : current
         );
         return;
@@ -502,6 +544,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...current,
             session,
             user: session.user ?? current.user,
+            authVersion: current.authVersion + 1,
           }));
           return;
         }
@@ -542,8 +585,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     };
 
+    // When the tab returns to the foreground after being hidden long enough that
+    // the access token may have rotated in another tab (or expired), silently
+    // re-sync. The bumped authVersion makes dashboard pages refetch their data
+    // with the freshest cookies/JWT.
+    let hiddenAt: number | null =
+      typeof document !== "undefined" && document.visibilityState === "hidden"
+        ? Date.now()
+        : null;
+    const handleVisibility = () => {
+      if (!mounted || typeof document === "undefined") return;
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      // visible
+      const hiddenFor = hiddenAt ? Date.now() - hiddenAt : Infinity;
+      hiddenAt = null;
+      if (hiddenFor < VISIBILITY_MIN_HIDDEN_MS) return;
+      authDebug("provider", "tab visible after hidden - silent background refresh", {
+        hiddenForMs: hiddenFor,
+      });
+      void refreshProfile().catch((err) => {
+        console.error("Auth visibility refresh error:", err);
+      });
+    };
+
+    // Cross-tab: when another tab writes the Supabase auth tokens to localStorage
+    // (login, logout, or refresh on clients still using the localStorage adapter),
+    // re-sync this tab silently. Cookie-based sessions are already shared across
+    // tabs automatically; this primarily covers the localStorage path.
+    const handleStorage = (e: StorageEvent) => {
+      if (!mounted || !e.key) return;
+      const key = e.key;
+      const isSupabaseKey =
+        key.startsWith("sb-") || key.toLowerCase().includes("supabase");
+      if (!isSupabaseKey) return;
+      authDebug("provider", "cross-tab supabase storage change - silent refresh", {
+        key,
+      });
+      void refreshProfile().catch((err) => {
+        console.error("Auth storage refresh error:", err);
+      });
+    };
+
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
+      window.addEventListener("storage", handleStorage);
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
     }
 
     return () => {
@@ -551,6 +642,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
       if (typeof window !== "undefined") {
         window.removeEventListener("online", handleOnline);
+        window.removeEventListener("storage", handleStorage);
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
       }
     };
   }, [supabase, refreshProfile, syncAuthState]);
@@ -673,14 +768,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     broadcastAuthSignedOut();
 
     currentUserIdRef.current = null;
-    setState({
+    setState((current) => ({
       user: null,
       session: null,
       profile: null,
       roles: [],
       isInitialized: true,
       isLoading: false,
-    });
+      authVersion: current.authVersion + 1,
+    }));
     authDebug("provider", "signOut complete");
 
     if (typeof window !== "undefined") {

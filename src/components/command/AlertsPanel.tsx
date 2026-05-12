@@ -80,7 +80,7 @@ interface AlertsPanelProps {
 }
 
 export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanelProps) {
-  const { hasRole } = useAuth();
+  const { hasRole, authVersion } = useAuth();
   const authReady = useAuthReady();
   const searchParams = useSearchParams();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -129,7 +129,8 @@ export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanel
   useEffect(() => {
     if (!authReady) return;
     void fetchAlerts();
-  }, [authReady, fetchAlerts]);
+    // `authVersion` refetches after cross-tab token rotation / tab return.
+  }, [authReady, authVersion, fetchAlerts]);
 
   const handleResolve = async () => {
     if (!resolveModal) return;

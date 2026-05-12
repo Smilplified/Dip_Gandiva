@@ -38,7 +38,7 @@ type StatusFilter = "all" | "active" | "completed";
 
 export default function CampaignsPage() {
   const router = useRouter();
-  const { hasRole } = useAuth();
+  const { hasRole, authVersion } = useAuth();
   const authReady = useAuthReady();
   const [campaigns, setCampaigns] = useState<CommandCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +99,10 @@ export default function CampaignsPage() {
   useEffect(() => {
     if (!authReady) return;
     void fetchCampaigns();
-  }, [authReady, fetchCampaigns]);
+    // `authVersion` is included so this re-fetches whenever Supabase has rotated
+    // tokens or another tab has updated the auth state — without this, a tab
+    // restored from background can sit on stale data forever.
+  }, [authReady, authVersion, fetchCampaigns]);
 
   const stats = {
     total: campaigns.length,

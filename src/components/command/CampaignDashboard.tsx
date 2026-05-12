@@ -521,7 +521,7 @@ export default function CampaignDashboard({
   initialTab,
   initialDeliveryStatus,
 }: CampaignDashboardProps) {
-  const { hasRole } = useAuth();
+  const { hasRole, authVersion } = useAuth();
   const authReady = useAuthReady();
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
@@ -746,7 +746,8 @@ export default function CampaignDashboard({
   useEffect(() => {
     if (!authReady) return;
     void fetchData();
-  }, [authReady, fetchData]);
+    // `authVersion` refetches after cross-tab token rotation / tab return.
+  }, [authReady, authVersion, fetchData]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -756,14 +757,14 @@ export default function CampaignDashboard({
     if (activeTab === "history") {
       void fetchMetricsHistory();
     }
-  }, [authReady, activeTab, fetchLeads, fetchMetricsHistory]);
+  }, [authReady, authVersion, activeTab, fetchLeads, fetchMetricsHistory]);
 
   useEffect(() => {
     if (!authReady) return;
     if (activeTab === "leads") {
       void fetchCampaignReps();
     }
-  }, [authReady, activeTab, fetchCampaignReps]);
+  }, [authReady, authVersion, activeTab, fetchCampaignReps]);
 
   useEffect(() => {
     setLeadPage(1);

@@ -80,7 +80,7 @@ export default function LeadAuditPanel({
   onClose,
   onLeadUpdated,
 }: LeadAuditPanelProps) {
-  const { hasRole } = useAuth();
+  const { hasRole, authVersion } = useAuth();
   const authReady = useAuthReady();
   const [lead, setLead] = useState<Lead | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -112,7 +112,8 @@ export default function LeadAuditPanel({
       })
       .catch(() => message.error("Failed to load lead data"))
       .finally(() => setLoading(false));
-  }, [leadId, open, authReady]);
+    // `authVersion` refetches after cross-tab token rotation / tab return.
+  }, [leadId, open, authReady, authVersion]);
 
   const handleStatusChange = async () => {
     if (!leadId || !newStatus) return;

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Spin, Statistic, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import {
@@ -59,6 +60,7 @@ interface OverviewResponse {
 
 export default function OverviewPage() {
   const authReady = useAuthReady();
+  const { authVersion } = useAuth();
   const [loading, setLoading] = useState(true);
   const [campaignId, setCampaignId] = useState<string | undefined>(undefined);
   const [data, setData] = useState<OverviewResponse | null>(null);
@@ -84,7 +86,8 @@ export default function OverviewPage() {
   useEffect(() => {
     if (!authReady) return;
     void fetchData(campaignId);
-  }, [authReady, campaignId]);
+    // `authVersion` ensures we refetch after cross-tab token rotation / tab return.
+  }, [authReady, authVersion, campaignId]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -100,7 +103,7 @@ export default function OverviewPage() {
       }
     };
     void fetchPerf();
-  }, [authReady, perfCampaignId]);
+  }, [authReady, authVersion, perfCampaignId]);
 
   const funnelData = useMemo(() => {
     if (!data) return [];

@@ -56,7 +56,7 @@ export default function CampaignDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { hasRole } = useAuth();
+  const { hasRole, authVersion } = useAuth();
   const authReady = useAuthReady();
 
   const campaignId = params.id as string;
@@ -100,7 +100,8 @@ export default function CampaignDetailPage() {
         if (d.campaign) setCampaignBasic(d.campaign);
       })
       .catch(() => message.error("Failed to load campaign"));
-  }, [editDrawer, campaignId, authReady]);
+    // `authVersion` refetches after cross-tab token rotation / tab return.
+  }, [editDrawer, campaignId, authReady, authVersion]);
 
   /** Matches horizontal `Content` padding in `AppLayout` so the card spans the full inner width. */
   const contentPad = 24;

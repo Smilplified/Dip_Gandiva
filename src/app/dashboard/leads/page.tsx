@@ -6,6 +6,7 @@ import { Button, Card, DatePicker, Input, Space, Table, Tag, Typography, message
 import dayjs, { type Dayjs } from "dayjs";
 import type { ColumnsType } from "antd/es/table";
 import { DownloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 
@@ -42,6 +43,7 @@ export default function DashboardLeadsPage() {
   const router = useRouter();
   const sp = useSearchParams();
   const authReady = useAuthReady();
+  const { authVersion } = useAuth();
   const campaignFilter = sp.get("campaign_id");
 
   const [loading, setLoading] = useState(true);
@@ -73,7 +75,8 @@ export default function DashboardLeadsPage() {
   useEffect(() => {
     if (!authReady) return;
     void fetchLeads();
-  }, [authReady, fetchLeads]);
+    // `authVersion` refetches after cross-tab token rotation / tab return.
+  }, [authReady, authVersion, fetchLeads]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return rows;
