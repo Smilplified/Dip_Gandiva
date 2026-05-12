@@ -4,7 +4,7 @@ import AppLayout from "@/components/Dashboard/AppLayout";
 import { useAuth } from "@/context/AuthContext";
 import { Spin } from "antd";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const ALLOWED_ROLES = [
   "client_viewer",
@@ -30,14 +30,37 @@ export default function DashboardLayout({
 
   const isAllowed = ALLOWED_ROLES.some((r) => hasRole(r));
 
+  // Track last known stable authorized state so background token refreshes
+  // (isLoading=true momentarily) don't flash a spinner on an already-loaded page.
+  const wasAuthorizedRef = useRef(false);
+  if (isInitialized && !isLoading && user && isAllowed) {
+    wasAuthorizedRef.current = true;
+  }
+
   useEffect(() => {
     if (!isInitialized || isLoading) return;
-    if (!user) {
-      router.replace("/login");
-    }
-  }, [isInitialized, isLoading, user, router]);
 
-  if (!isInitialized || isLoading) {
+    if (!user) {
+      router.replace("/login?reason=session_expired");
+      return;
+    }
+
+    if (!isAllowed) {
+      router.replace("/login?reason=unauthorized");
+    }
+  }, [isInitialized, isLoading, user, isAllowed, router]);
+
+  // Reset wasAuthorizedRef when the user signs out so a subsequent login on
+  // the same SPA session doesn't skip the loading spinner for the wrong user.
+  useEffect(() => {
+    if (isInitialized && !isLoading && !user) {
+      wasAuthorizedRef.current = false;
+    }
+  }, [isInitialized, isLoading, user]);
+
+  // Show spinner only on first load (not yet initialized, or actively loading
+  // before we've ever confirmed authorization).
+  if (!isInitialized || (isLoading && !wasAuthorizedRef.current)) {
     return (
       <AppLayout>
         <div
@@ -54,6 +77,7 @@ export default function DashboardLayout({
     );
   }
 
+  // Redirect in progress (useEffect fires async — show brief transition spinner).
   if (!user || !isAllowed) {
     return (
       <AppLayout>

@@ -111,13 +111,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isInitialized: false,
   });
 
-  const supabase = createClient();
+  // Stable singleton — createClient() returns a module-level cached instance,
+  // but calling it on every render is unnecessary. useRef ensures one call.
+  const supabase = useRef(createClient()).current;
   const syncRequestRef = useRef(0);
 
   // Tracks the currently authenticated user's ID so event handlers can detect
   // whether an incoming auth event is for the same user (background token refresh /
   // cross-tab session sync) vs. a genuine new sign-in that requires a full re-sync.
   const currentUserIdRef = useRef<string | null>(null);
+
+  // In-flight deduplication for getUser(): if init() and a SIGNED_IN event handler
+  // both call resolveSessionUser() at the same moment, they share a single server
+  // round-trip instead of making N parallel requests (rate-limit & perf guard).
+  const getUserInFlightRef = useRef<ReturnType<typeof supabase.auth.getUser> | null>(null);
+
+  const getValidatedUser = useCallback(() => {
+    if (!getUserInFlightRef.current) {
+      getUserInFlightRef.current = supabase.auth.getUser().finally(() => {
+        getUserInFlightRef.current = null;
+      });
+    }
+    return getUserInFlightRef.current;
+  }, [supabase]);
 
   const fetchProfileAndRolesFromApi = useCallback(async () => {
     const response = await fetch("/api/profile", {
@@ -149,16 +165,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resolveSessionUser = useCallback(async () => {
-    const sessionResult = await supabase.auth.getSession();
-    const session = sessionResult.data.session ?? null;
+    // Always validate with the server first. getSession() reads from local cookies
+    // without a network call and can return stale/expired sessions — especially
+    // after tab close or role switches. getValidatedUser() is the authoritative
+    // source and deduplicates concurrent requests.
+    const { data: { user }, error } = await getValidatedUser();
 
-    if (session?.user) {
-      return { session, user: session.user };
+    if (error || !user) {
+      return { session: null, user: null };
     }
 
-    const userResult = await supabase.auth.getUser();
-    return { session: null, user: userResult.data.user ?? null };
-  }, [supabase]);
+    // Only read session data after we've confirmed the user is valid server-side.
+    const { data: { session } } = await supabase.auth.getSession();
+    return { session: session ?? null, user };
+  }, [supabase, getValidatedUser]);
 
   const fetchProfileAndRoles = useCallback(async (userId: string) => {
     const [profileRes, rolesRes] = await Promise.all([
@@ -561,7 +581,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await supabase.auth.signOut({ scope: "local" });
+      await supabase.auth.signOut();
     } catch (err) {
       console.error("Auth signOut error:", err);
     }

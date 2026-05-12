@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { AUTH_STORAGE_KEYS, resolvePostLoginRedirect } from "@/lib/auth/config";
@@ -26,8 +26,10 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? undefined;
+  const reason = searchParams.get("reason");
   const { isInitialized, user, roles, getDefaultRedirect, signIn } = useAuth();
   const redirectDone = useRef(false);
 
@@ -41,16 +43,22 @@ function LoginContent() {
     [getDefaultRedirect, redirect, roles]
   );
 
-  const doRedirect = (path: string) => {
-    redirectDone.current = true;
-    authDebug("login", "redirecting after auth", { path });
-    window.location.assign(path);
-  };
+  // Use SPA navigation (router.replace) so the auth state set by signIn() is
+  // reused directly on the target page — no full page reload, no loading flash.
+  const doRedirect = useCallback(
+    (path: string) => {
+      if (redirectDone.current) return;
+      redirectDone.current = true;
+      authDebug("login", "redirecting after auth", { path });
+      router.replace(path);
+    },
+    [router]
+  );
 
   useEffect(() => {
     if (!isInitialized || !user || redirectDone.current) return;
     doRedirect(getResolvedRedirectPath());
-  }, [getResolvedRedirectPath, isInitialized, user]);
+  }, [doRedirect, getResolvedRedirectPath, isInitialized, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,6 +192,24 @@ function LoginContent() {
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-5 w-full">
+              {reason === "session_expired" && !error && (
+                <div
+                  role="status"
+                  className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                >
+                  <span className="shrink-0 mt-0.5">⚠</span>
+                  <span>Your session has expired. Please sign in again.</span>
+                </div>
+              )}
+              {reason === "unauthorized" && !error && (
+                <div
+                  role="status"
+                  className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                >
+                  <span className="shrink-0 mt-0.5">⚠</span>
+                  <span>Your account doesn&apos;t have access to that page. Please sign in with the correct account.</span>
+                </div>
+              )}
               {error && (
                 <div
                   role="alert"
