@@ -1,8 +1,6 @@
 export const AUTH_STORAGE_KEYS = {
   lastRedirectPath: "gandiv:lastRedirectPath",
   debug: "gandiv:auth-debug",
-  /** Session flag: after a hard reload on /dashboard, `router.refresh()` runs once while session is stable */
-  dashboardRscResyncOnce: "gandiv:dashboard-rsc-resync-once",
 } as const;
 
 export const PUBLIC_PATHS = ["/login"] as const;

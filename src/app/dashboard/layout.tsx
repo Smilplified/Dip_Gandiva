@@ -2,10 +2,9 @@
 
 import AppLayout from "@/components/Dashboard/AppLayout";
 import { useAuth } from "@/context/AuthContext";
-import { AUTH_STORAGE_KEYS } from "@/lib/auth/config";
 import { Spin } from "antd";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 const ALLOWED_ROLES = [
   "client_viewer",
@@ -31,13 +30,6 @@ export default function DashboardLayout({
 
   const isAllowed = ALLOWED_ROLES.some((r) => hasRole(r));
 
-  // Track last known stable authorized state so background token refreshes
-  // (isLoading=true momentarily) don't flash a spinner on an already-loaded page.
-  const wasAuthorizedRef = useRef(false);
-  if (isInitialized && !isLoading && user && isAllowed) {
-    wasAuthorizedRef.current = true;
-  }
-
   useEffect(() => {
     if (!isInitialized || isLoading) return;
 
@@ -51,36 +43,9 @@ export default function DashboardLayout({
     }
   }, [isInitialized, isLoading, user, isAllowed, router]);
 
-  // Reset wasAuthorizedRef when the user signs out so a subsequent login on
-  // the same SPA session doesn't skip the loading spinner for the wrong user.
-  useEffect(() => {
-    if (isInitialized && !isLoading && !user) {
-      wasAuthorizedRef.current = false;
-    }
-  }, [isInitialized, isLoading, user]);
-
-  // Hard browser refresh: revalidate the App Router tree once the session is stable so
-  // client pages and server middleware see the same cookies (avoids empty data until a second refresh).
-  useEffect(() => {
-    if (!isInitialized || isLoading || !user || !isAllowed) {
-      return;
-    }
-    if (typeof window === "undefined" || typeof performance === "undefined") return;
-    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    if (nav?.type !== "reload") return;
-    try {
-      const key = AUTH_STORAGE_KEYS.dashboardRscResyncOnce;
-      if (sessionStorage.getItem(key) === "1") return;
-      sessionStorage.setItem(key, "1");
-    } catch {
-      return;
-    }
-    router.refresh();
-  }, [isInitialized, isLoading, user, isAllowed, router]);
-
-  // Show spinner only on first load (not yet initialized, or actively loading
-  // before we've ever confirmed authorization).
-  if (!isInitialized || (isLoading && !wasAuthorizedRef.current)) {
+  // Never render dashboard children until auth has fully finished loading — otherwise
+  // `useAuthReady()` stays false while the shell is visible and data effects never run.
+  if (!isInitialized || isLoading) {
     return (
       <AppLayout>
         <div
@@ -97,7 +62,6 @@ export default function DashboardLayout({
     );
   }
 
-  // Redirect in progress (useEffect fires async — show brief transition spinner).
   if (!user || !isAllowed) {
     return (
       <AppLayout>

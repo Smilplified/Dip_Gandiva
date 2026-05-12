@@ -26,6 +26,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import CampaignTable, { type CommandCampaignRow } from "@/components/command/CampaignTable";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -70,10 +71,7 @@ export default function CampaignsPage() {
       if (df) params.set("date_from", df.format("YYYY-MM-DD"));
       if (dt) params.set("date_to", dt.format("YYYY-MM-DD"));
 
-      const res = await fetch(`/api/command/campaigns?${params.toString()}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
+      const res = await fetchWithAuthRetry(`/api/command/campaigns?${params.toString()}`);
       if (!res.ok) {
         const d = (await res.json()) as { error?: string };
         if (res.status === 403) {

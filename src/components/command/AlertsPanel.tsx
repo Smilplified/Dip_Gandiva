@@ -20,6 +20,8 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { CheckCircleOutlined, ReloadOutlined, EyeOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthReady } from "@/hooks/useAuthReady";
+import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import {
   ALERT_CATEGORY_DEFINITIONS,
   getAlertCategoryLabel,
@@ -79,6 +81,7 @@ interface AlertsPanelProps {
 
 export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanelProps) {
   const { hasRole } = useAuth();
+  const authReady = useAuthReady();
   const searchParams = useSearchParams();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -113,7 +116,7 @@ export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanel
       params.set("alert_status", listFilter);
       if (severityFilter) params.set("severity", severityFilter);
 
-      const res = await fetch(`/api/command/alerts?${params.toString()}`);
+      const res = await fetchWithAuthRetry(`/api/command/alerts?${params.toString()}`);
       const data = (await res.json()) as { alerts?: AlertItem[] };
       setAlerts(data.alerts ?? []);
     } catch {
@@ -124,15 +127,16 @@ export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanel
   }, [campaignId, listFilter, severityFilter]);
 
   useEffect(() => {
+    if (!authReady) return;
     void fetchAlerts();
-  }, [fetchAlerts]);
+  }, [authReady, fetchAlerts]);
 
   const handleResolve = async () => {
     if (!resolveModal) return;
     try {
       const values = await form.validateFields();
       setResolveLoading(true);
-      const res = await fetch(`/api/command/alerts/${resolveModal}/resolve`, {
+      const res = await fetchWithAuthRetry(`/api/command/alerts/${resolveModal}/resolve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -159,7 +163,7 @@ export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanel
 
   const handleAcknowledge = async (alertId: string) => {
     try {
-      const res = await fetch(`/api/command/alerts/${alertId}/acknowledge`, {
+      const res = await fetchWithAuthRetry(`/api/command/alerts/${alertId}/acknowledge`, {
         method: "POST",
       });
       if (res.ok) {

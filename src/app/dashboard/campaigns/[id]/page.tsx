@@ -6,6 +6,7 @@ import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import CampaignDashboard from "@/components/command/CampaignDashboard";
 import CampaignForm from "@/components/command/CampaignForm";
 
@@ -93,7 +94,7 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     if (!editDrawer || !authReady) return;
 
-    fetch(`/api/command/campaigns/${campaignId}`, { credentials: "include", cache: "no-store" })
+    fetchWithAuthRetry(`/api/command/campaigns/${campaignId}`)
       .then((r) => r.json())
       .then((d: { campaign?: CampaignBasic }) => {
         if (d.campaign) setCampaignBasic(d.campaign);

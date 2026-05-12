@@ -25,6 +25,8 @@ import {
   EditOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthReady } from "@/hooks/useAuthReady";
+import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 
 const { Text } = Typography;
 
@@ -79,6 +81,7 @@ export default function LeadAuditPanel({
   onLeadUpdated,
 }: LeadAuditPanelProps) {
   const { hasRole } = useAuth();
+  const authReady = useAuthReady();
   const [lead, setLead] = useState<Lead | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -96,12 +99,12 @@ export default function LeadAuditPanel({
   const canDqOverride = hasRole("internal_admin") || hasRole("admin");
 
   useEffect(() => {
-    if (!open || !leadId) return;
+    if (!open || !leadId || !authReady) return;
 
     setLoading(true);
     Promise.all([
-      fetch(`/api/command/leads/${leadId}`).then((r) => r.json()) as Promise<{ lead: Lead }>,
-      fetch(`/api/command/leads/${leadId}/history`).then((r) => r.json()) as Promise<{ history: HistoryEntry[] }>,
+      fetchWithAuthRetry(`/api/command/leads/${leadId}`).then((r) => r.json()) as Promise<{ lead: Lead }>,
+      fetchWithAuthRetry(`/api/command/leads/${leadId}/history`).then((r) => r.json()) as Promise<{ history: HistoryEntry[] }>,
     ])
       .then(([leadData, histData]) => {
         setLead(leadData.lead);
@@ -109,13 +112,13 @@ export default function LeadAuditPanel({
       })
       .catch(() => message.error("Failed to load lead data"))
       .finally(() => setLoading(false));
-  }, [leadId, open]);
+  }, [leadId, open, authReady]);
 
   const handleStatusChange = async () => {
     if (!leadId || !newStatus) return;
     setStatusLoading(true);
     try {
-      const res = await fetch(`/api/command/leads/${leadId}/status`, {
+      const res = await fetchWithAuthRetry(`/api/command/leads/${leadId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,8 +148,8 @@ export default function LeadAuditPanel({
 
       // Refresh panel data
       const [updatedLead, updatedHistory] = await Promise.all([
-        fetch(`/api/command/leads/${leadId}`).then((r) => r.json()) as Promise<{ lead: Lead }>,
-        fetch(`/api/command/leads/${leadId}/history`).then((r) => r.json()) as Promise<{ history: HistoryEntry[] }>,
+        fetchWithAuthRetry(`/api/command/leads/${leadId}`).then((r) => r.json()) as Promise<{ lead: Lead }>,
+        fetchWithAuthRetry(`/api/command/leads/${leadId}/history`).then((r) => r.json()) as Promise<{ history: HistoryEntry[] }>,
       ]);
       setLead(updatedLead.lead);
       setHistory(updatedHistory.history ?? []);

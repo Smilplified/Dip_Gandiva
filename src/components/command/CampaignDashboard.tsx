@@ -68,6 +68,7 @@ import QAPanel from "./QAPanel";
 import LeadAuditPanel from "./LeadAuditPanel";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 
@@ -593,8 +594,8 @@ export default function CampaignDashboard({
       const qs = sp.toString();
       const analyticsUrl = `/api/command/campaigns/${campaignId}/analytics${qs ? `?${qs}` : ""}`;
       const [campRes, analyticsRes] = await Promise.all([
-        fetch(`/api/command/campaigns/${campaignId}`, { credentials: "include", cache: "no-store" }),
-        fetch(analyticsUrl, { credentials: "include", cache: "no-store" }),
+        fetchWithAuthRetry(`/api/command/campaigns/${campaignId}`),
+        fetchWithAuthRetry(analyticsUrl),
       ]);
 
       const campData = await campRes.json() as { campaign?: CampaignDetail };
@@ -623,10 +624,7 @@ export default function CampaignDashboard({
       if (!canAdjustAllocation || delta === 0) return;
       setAllocationSaving(true);
       try {
-        const resGet = await fetch(`/api/command/campaigns/${campaignId}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
+        const resGet = await fetchWithAuthRetry(`/api/command/campaigns/${campaignId}`);
         const d = (await resGet.json()) as { campaign?: CampaignDetail };
         const c = d.campaign;
         if (!c) throw new Error("Campaign not found");
@@ -637,10 +635,9 @@ export default function CampaignDashboard({
           if (delta < 0) message.info("Allocation is already at the minimum (0).");
           return;
         }
-        const res = await fetch(`/api/command/campaigns/${campaignId}`, {
+        const res = await fetchWithAuthRetry(`/api/command/campaigns/${campaignId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          credentials: "include",
           body: JSON.stringify({
             total_allocation: next,
             total_leads_allocated: next,
@@ -681,10 +678,7 @@ export default function CampaignDashboard({
       if (initialDeliveryStatus === "delivered" || initialDeliveryStatus === "not_delivered") {
         sp.set("delivery_status", initialDeliveryStatus);
       }
-      const res = await fetch(`/api/command/leads?${sp.toString()}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
+      const res = await fetchWithAuthRetry(`/api/command/leads?${sp.toString()}`);
       const data = (await res.json()) as { leads?: LeadRow[]; total?: number; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to load leads");
       setLeads(data.leads ?? []);
@@ -706,10 +700,7 @@ export default function CampaignDashboard({
 
   const fetchCampaignReps = useCallback(async () => {
     try {
-      const res = await fetch(`/api/command/campaigns/${campaignId}/reps`, {
-        credentials: "include",
-        cache: "no-store",
-      });
+      const res = await fetchWithAuthRetry(`/api/command/campaigns/${campaignId}/reps`);
       const data = (await res.json()) as { reps?: { id: string; label: string; rep_id: string | null }[] };
       setCampaignReps(data.reps ?? []);
     } catch {
@@ -742,10 +733,7 @@ export default function CampaignDashboard({
   const fetchMetricsHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`/api/command/campaigns/${campaignId}/history?limit=180`, {
-        credentials: "include",
-        cache: "no-store",
-      });
+      const res = await fetchWithAuthRetry(`/api/command/campaigns/${campaignId}/history?limit=180`);
       const data = (await res.json()) as { history?: CampaignMetricsHistoryRow[] };
       setMetricsHistory(data.history ?? []);
     } catch {

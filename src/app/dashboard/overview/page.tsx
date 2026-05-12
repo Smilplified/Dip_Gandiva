@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Spin, Statistic, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import {
   BarChart,
   Bar,
@@ -72,10 +73,7 @@ export default function OverviewPage() {
     setLoading(true);
     try {
       const qs = id ? `?campaign_id=${id}` : "";
-      const res = await fetch(`/api/command/overview${qs}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
+      const res = await fetchWithAuthRetry(`/api/command/overview${qs}`);
       const json = (await res.json()) as OverviewResponse;
       setData(json);
     } finally {
@@ -94,10 +92,7 @@ export default function OverviewPage() {
       setPerfLoading(true);
       try {
         const qs = perfCampaignId ? `?campaign_id=${perfCampaignId}` : "";
-        const res = await fetch(`/api/command/overview${qs}`, {
-          credentials: "include",
-          cache: "no-store",
-        });
+        const res = await fetchWithAuthRetry(`/api/command/overview${qs}`);
         const json = (await res.json()) as OverviewResponse;
         setPerfData(json);
       } finally {
