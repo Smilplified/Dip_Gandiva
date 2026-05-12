@@ -113,6 +113,11 @@ function clearClientStorage() {
     window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
     purgeSupabaseKeysFromStore(window.localStorage);
     purgeSupabaseKeysFromStore(window.sessionStorage);
+    try {
+      window.sessionStorage.removeItem(AUTH_STORAGE_KEYS.dashboardRscResyncOnce);
+    } catch {
+      // ignore
+    }
   } catch (err) {
     console.warn("Failed to clear auth browser storage", err);
   }

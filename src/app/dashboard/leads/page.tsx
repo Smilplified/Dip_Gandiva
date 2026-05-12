@@ -6,6 +6,7 @@ import { Button, Card, DatePicker, Input, Space, Table, Tag, Typography, message
 import dayjs, { type Dayjs } from "dayjs";
 import type { ColumnsType } from "antd/es/table";
 import { DownloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { useAuthReady } from "@/hooks/useAuthReady";
 
 function escapeCsvCell(v: unknown): string {
   const s = v == null ? "" : String(v);
@@ -39,9 +40,10 @@ interface LeadRow {
 export default function DashboardLeadsPage() {
   const router = useRouter();
   const sp = useSearchParams();
+  const authReady = useAuthReady();
   const campaignFilter = sp.get("campaign_id");
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [rows, setRows] = useState<LeadRow[]>([]);
   const [search, setSearch] = useState("");
@@ -56,7 +58,10 @@ export default function DashboardLeadsPage() {
         qs.set("date_from", dateRange[0].format("YYYY-MM-DD"));
         qs.set("date_to", dateRange[1].format("YYYY-MM-DD"));
       }
-      const res = await fetch(`/api/command/leads?${qs.toString()}`);
+      const res = await fetch(`/api/command/leads?${qs.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       const data = (await res.json()) as { leads?: LeadRow[]; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to fetch leads");
       setRows(data.leads ?? []);
@@ -68,8 +73,9 @@ export default function DashboardLeadsPage() {
   }, [campaignFilter, dateRange]);
 
   useEffect(() => {
+    if (!authReady) return;
     void fetchLeads();
-  }, [fetchLeads]);
+  }, [authReady, fetchLeads]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return rows;

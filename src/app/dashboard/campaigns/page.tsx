@@ -25,6 +25,7 @@ import {
 } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthReady } from "@/hooks/useAuthReady";
 import CampaignTable, { type CommandCampaignRow } from "@/components/command/CampaignTable";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -37,6 +38,7 @@ type StatusFilter = "all" | "active" | "completed";
 export default function CampaignsPage() {
   const router = useRouter();
   const { hasRole } = useAuth();
+  const authReady = useAuthReady();
   const [campaigns, setCampaigns] = useState<CommandCampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
@@ -68,7 +70,10 @@ export default function CampaignsPage() {
       if (df) params.set("date_from", df.format("YYYY-MM-DD"));
       if (dt) params.set("date_to", dt.format("YYYY-MM-DD"));
 
-      const res = await fetch(`/api/command/campaigns?${params.toString()}`);
+      const res = await fetch(`/api/command/campaigns?${params.toString()}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!res.ok) {
         const d = (await res.json()) as { error?: string };
         if (res.status === 403) {
@@ -94,8 +99,9 @@ export default function CampaignsPage() {
   }, [debouncedSearch, statusFilter, dateRange]);
 
   useEffect(() => {
+    if (!authReady) return;
     void fetchCampaigns();
-  }, [fetchCampaigns]);
+  }, [authReady, fetchCampaigns]);
 
   const stats = {
     total: campaigns.length,

@@ -5,6 +5,7 @@ import { Button, Card, Typography, Drawer, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useAuthReady } from "@/hooks/useAuthReady";
 import CampaignDashboard from "@/components/command/CampaignDashboard";
 import CampaignForm from "@/components/command/CampaignForm";
 
@@ -55,6 +56,7 @@ export default function CampaignDetailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { hasRole } = useAuth();
+  const authReady = useAuthReady();
 
   const campaignId = params.id as string;
   const shouldEditOnMount = searchParams.get("edit") === "true";
@@ -89,15 +91,15 @@ export default function CampaignDetailPage() {
     hasRole("client_viewer");
 
   useEffect(() => {
-    if (!editDrawer) return;
+    if (!editDrawer || !authReady) return;
 
-    fetch(`/api/command/campaigns/${campaignId}`)
+    fetch(`/api/command/campaigns/${campaignId}`, { credentials: "include", cache: "no-store" })
       .then((r) => r.json())
       .then((d: { campaign?: CampaignBasic }) => {
         if (d.campaign) setCampaignBasic(d.campaign);
       })
       .catch(() => message.error("Failed to load campaign"));
-  }, [editDrawer, campaignId]);
+  }, [editDrawer, campaignId, authReady]);
 
   /** Matches horizontal `Content` padding in `AppLayout` so the card spans the full inner width. */
   const contentPad = 24;

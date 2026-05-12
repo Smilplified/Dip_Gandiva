@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Spin, Statistic, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { useAuthReady } from "@/hooks/useAuthReady";
 import {
   BarChart,
   Bar,
@@ -56,6 +57,7 @@ interface OverviewResponse {
 }
 
 export default function OverviewPage() {
+  const authReady = useAuthReady();
   const [loading, setLoading] = useState(true);
   const [campaignId, setCampaignId] = useState<string | undefined>(undefined);
   const [data, setData] = useState<OverviewResponse | null>(null);
@@ -70,7 +72,10 @@ export default function OverviewPage() {
     setLoading(true);
     try {
       const qs = id ? `?campaign_id=${id}` : "";
-      const res = await fetch(`/api/command/overview${qs}`);
+      const res = await fetch(`/api/command/overview${qs}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
       const json = (await res.json()) as OverviewResponse;
       setData(json);
     } finally {
@@ -79,15 +84,20 @@ export default function OverviewPage() {
   };
 
   useEffect(() => {
+    if (!authReady) return;
     void fetchData(campaignId);
-  }, [campaignId]);
+  }, [authReady, campaignId]);
 
   useEffect(() => {
+    if (!authReady) return;
     const fetchPerf = async () => {
       setPerfLoading(true);
       try {
         const qs = perfCampaignId ? `?campaign_id=${perfCampaignId}` : "";
-        const res = await fetch(`/api/command/overview${qs}`);
+        const res = await fetch(`/api/command/overview${qs}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
         const json = (await res.json()) as OverviewResponse;
         setPerfData(json);
       } finally {
@@ -95,7 +105,7 @@ export default function OverviewPage() {
       }
     };
     void fetchPerf();
-  }, [perfCampaignId]);
+  }, [authReady, perfCampaignId]);
 
   const funnelData = useMemo(() => {
     if (!data) return [];
