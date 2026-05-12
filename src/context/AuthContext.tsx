@@ -205,9 +205,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { session: null, user: null };
     }
 
-    // Only read session data after we've confirmed the user is valid server-side.
-    const { data: { session } } = await supabase.auth.getSession();
-    return { session: session ?? null, user };
+    // On a fresh tab, the in-memory session can briefly be null even after getUser()
+    // resolved (storage hydration races with the server validation). Poll a few times
+    // so the committed state has a real session — without ever blocking the user gate.
+    let session = (await supabase.auth.getSession()).data.session ?? null;
+    if (!session) {
+      for (let i = 0; i < 6 && !session; i++) {
+        await wait(80);
+        session = (await supabase.auth.getSession()).data.session ?? null;
+      }
+    }
+    return { session, user };
   }, [supabase, getValidatedUser]);
 
   const fetchProfileAndRoles = useCallback(async (userId: string) => {
