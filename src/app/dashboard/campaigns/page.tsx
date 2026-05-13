@@ -270,7 +270,7 @@ export default function CampaignsPage() {
 
       {loading ? (
         <Card style={cardStyle}>
-          <Skeleton active paragraph={{ rows: 8 }} />
+          <Skeleton active title={{ width: "32%" }} paragraph={{ rows: 4 }} />
         </Card>
       ) : (
         <Card style={{ ...cardStyle, padding: 0 }} styles={{ body: { padding: 0 } }}>

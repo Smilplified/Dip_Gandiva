@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Spin } from "antd";
 import {
   SearchOutlined,
   RocketOutlined,
@@ -253,7 +252,9 @@ export default function DashboardGlobalSearch() {
           placeholder="Search campaigns, leads, alerts..."
           style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "#111827", fontFamily: "inherit" }}
         />
-        {loading && <Spin size="small" style={{ flexShrink: 0 }} />}
+        {loading && (
+          <span style={{ flexShrink: 0, fontSize: 11, color: "#9ca3af", fontWeight: 500 }}>…</span>
+        )}
         {query && !loading && (
           <CloseOutlined
             onMouseDown={(e) => {
@@ -324,8 +325,8 @@ export default function DashboardGlobalSearch() {
                 Start typing to search dashboard data.
               </div>
             ) : loading ? (
-              <div style={{ padding: "28px 20px", textAlign: "center" }}>
-                <Spin size="small" />
+              <div style={{ padding: "28px 20px", textAlign: "center", fontSize: 12, color: "#9ca3af" }}>
+                Searching…
               </div>
             ) : !hasResults ? (
               <div style={{ padding: "28px 20px", textAlign: "center", fontSize: 12, color: "#9ca3af" }}>

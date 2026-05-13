@@ -271,7 +271,7 @@ export default function CampaignTable({ campaigns, loading }: CampaignTableProps
       columns={columns}
       dataSource={campaigns}
       rowKey="id"
-      loading={loading}
+      loading={false}
       size="middle"
       tableLayout="fixed"
       scroll={{ x: "max-content" }}

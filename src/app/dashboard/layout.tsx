@@ -2,9 +2,11 @@
 
 import AppLayout from "@/components/Dashboard/AppLayout";
 import { useAuth } from "@/context/AuthContext";
-import { Spin } from "antd";
+import { Skeleton, Typography } from "antd";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+
+const { Text } = Typography;
 
 const ALLOWED_ROLES = [
   "client_viewer",
@@ -55,15 +57,8 @@ export default function DashboardLayout({
   if (!isInitialized) {
     return (
       <AppLayout>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: 400,
-          }}
-        >
-          <Spin size="large" tip="Loading…" />
+        <div style={{ maxWidth: 960, margin: "0 auto", padding: "8px 0 24px" }}>
+          <Skeleton active title={{ width: "38%" }} paragraph={{ rows: 5 }} />
         </div>
       </AppLayout>
     );
@@ -78,10 +73,12 @@ export default function DashboardLayout({
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            minHeight: 400,
+            minHeight: 280,
           }}
         >
-          <Spin size="large" tip="Redirecting…" />
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            Redirecting to sign in…
+          </Text>
         </div>
       </AppLayout>
     );
@@ -103,10 +100,12 @@ export default function DashboardLayout({
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            minHeight: 400,
+            minHeight: 280,
           }}
         >
-          <Spin size="large" tip="Redirecting…" />
+          <Text type="secondary" style={{ fontSize: 14 }}>
+            Redirecting…
+          </Text>
         </div>
       </AppLayout>
     );

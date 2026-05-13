@@ -245,6 +245,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return session;
     };
 
+    /** Server reads HttpOnly/session cookies — often valid when `getUser()` is still null (refresh race). */
+    const bootstrapFromProfileApi = async (): Promise<{ session: Session | null; user: User | null }> => {
+      authDebug("provider", "resolveSessionUser: bootstrapping via /api/profile");
+      try {
+        const ac = new AbortController();
+        const tid = setTimeout(() => ac.abort(), PROFILE_API_TIMEOUT_MS);
+        const res = await fetch("/api/profile", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+          signal: ac.signal,
+        });
+        clearTimeout(tid);
+        if (!res.ok) {
+          return { session: null, user: null };
+        }
+        const data = (await res.json()) as {
+          profile?: { id: string; email?: string | null } | null;
+        };
+        const pid = data.profile?.id;
+        if (!pid) {
+          return { session: null, user: null };
+        }
+        const syntheticUser = {
+          id: pid,
+          aud: "authenticated",
+          role: "authenticated",
+          email: data.profile?.email ?? undefined,
+          app_metadata: {},
+          user_metadata: {},
+          created_at: "",
+        } as User;
+        const session = await sessionFromStorage();
+        return { session, user: syntheticUser };
+      } catch {
+        return { session: null, user: null };
+      }
+    };
+
     const race = await Promise.race([
       getValidatedUser().then((r) => ({ kind: "getUser" as const, r })),
       wait(GET_USER_PRIMARY_DEADLINE_MS).then(() => ({ kind: "deadline" as const })),
@@ -255,51 +295,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: { user },
         error,
       } = race.r;
-      if (error || !user) {
-        return { session: null, user: null };
+      if (!error && user) {
+        const session = await sessionFromStorage();
+        return { session, user };
       }
-      const session = await sessionFromStorage();
-      return { session, user };
+      // `getUser()` often returns no user immediately after hard refresh even though
+      // `/api/profile` succeeds — same-origin cookies are already valid. Do not bail
+      // before trying the profile API.
+      return bootstrapFromProfileApi();
     }
 
-    // `getUser()` wedged past the deadline — unblock with cookie-authenticated profile
-    // (same pattern as fetchProfileAndRolesFromApi; avoids multi-minute blank dashboard).
     authDebug("provider", "resolveSessionUser: getUser slow — bootstrapping via /api/profile");
-    try {
-      const ac = new AbortController();
-      const tid = setTimeout(() => ac.abort(), PROFILE_API_TIMEOUT_MS);
-      const res = await fetch("/api/profile", {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-        signal: ac.signal,
-      });
-      clearTimeout(tid);
-      if (!res.ok) {
-        return { session: null, user: null };
-      }
-      const data = (await res.json()) as {
-        profile?: { id: string; email?: string | null } | null;
-      };
-      const pid = data.profile?.id;
-      if (!pid) {
-        return { session: null, user: null };
-      }
-      const syntheticUser = {
-        id: pid,
-        aud: "authenticated",
-        role: "authenticated",
-        email: data.profile?.email ?? undefined,
-        app_metadata: {},
-        user_metadata: {},
-        created_at: "",
-      } as User;
-      const session = await sessionFromStorage();
-      return { session, user: syntheticUser };
-    } catch {
-      return { session: null, user: null };
-    }
+    return bootstrapFromProfileApi();
   }, [getValidatedUser, supabase]);
 
   const fetchProfileAndRoles = useCallback(

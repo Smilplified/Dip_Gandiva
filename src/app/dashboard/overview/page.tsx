@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Spin, Statistic, Typography } from "antd";
+import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Statistic, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -375,37 +375,43 @@ export default function OverviewPage() {
             }
             style={{ borderRadius: 12 }}
           >
-            <Spin spinning={perfLoading} size="small">
-              {(() => {
-                const perf = perfData ?? data;
-                return (
-                  <div style={{ display: "grid", gap: 12 }}>
-                    {[
-                      { label: "Delivery Rate", value: perf?.performance.deliveryRate ?? 0, color: "#1677ff" },
-                      { label: "Registration Rate (client LP)", value: perf?.performance.registrationRate ?? 0, color: "#52c41a" },
-                      { label: "Attendance Rate", value: perf?.performance.attendanceRate ?? 0, color: "#722ed1" },
-                    ].map((p) => (
-                      <div key={p.label}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <Text>{p.label}</Text>
-                          <Text strong>{p.value}%</Text>
-                        </div>
-                        <Progress percent={p.value} showInfo={false} strokeColor={p.color} />
+            {(() => {
+              const perf = perfData ?? data;
+              return (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    opacity: perfLoading ? 0.55 : 1,
+                    transition: "opacity 0.18s ease",
+                    pointerEvents: perfLoading ? "none" : "auto",
+                  }}
+                >
+                  {[
+                    { label: "Delivery Rate", value: perf?.performance.deliveryRate ?? 0, color: "#1677ff" },
+                    { label: "Registration Rate (client LP)", value: perf?.performance.registrationRate ?? 0, color: "#52c41a" },
+                    { label: "Attendance Rate", value: perf?.performance.attendanceRate ?? 0, color: "#722ed1" },
+                  ].map((p) => (
+                    <div key={p.label}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <Text>{p.label}</Text>
+                        <Text strong>{p.value}%</Text>
                       </div>
-                    ))}
-                    <Row gutter={12} style={{ marginTop: 4 }}>
-                      <Col span={12}><Statistic title="Lead Increment" value={perf?.metrics.lead_increment ?? 0} /></Col>
-                      <Col span={12}><Statistic title="Lead Replace" value={perf?.metrics.lead_replace ?? 0} /></Col>
-                    </Row>
-                    <Row gutter={12}>
-                      <Col span={12}><Statistic title="Allocated" value={perf?.metrics.total_leads_allocated ?? 0} /></Col>
-                      <Col span={12}><Statistic title="Delivered" value={perf?.metrics.total_leads_delivered ?? 0} /></Col>
-                    </Row>
-                    <Statistic title="Campaign Spend" value={perf?.metrics.total_campaign_spend ?? 0} prefix="$" />
-                  </div>
-                );
-              })()}
-            </Spin>
+                      <Progress percent={p.value} showInfo={false} strokeColor={p.color} />
+                    </div>
+                  ))}
+                  <Row gutter={12} style={{ marginTop: 4 }}>
+                    <Col span={12}><Statistic title="Lead Increment" value={perf?.metrics.lead_increment ?? 0} /></Col>
+                    <Col span={12}><Statistic title="Lead Replace" value={perf?.metrics.lead_replace ?? 0} /></Col>
+                  </Row>
+                  <Row gutter={12}>
+                    <Col span={12}><Statistic title="Allocated" value={perf?.metrics.total_leads_allocated ?? 0} /></Col>
+                    <Col span={12}><Statistic title="Delivered" value={perf?.metrics.total_leads_delivered ?? 0} /></Col>
+                  </Row>
+                  <Statistic title="Campaign Spend" value={perf?.metrics.total_campaign_spend ?? 0} prefix="$" />
+                </div>
+              );
+            })()}
           </Card>
         </Col>
 
