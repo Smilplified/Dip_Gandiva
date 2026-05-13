@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 /**
- * If profile/role sync (`isLoading`) never settles (slow Supabase client queries,
+ * If profile/role sync (`isLoading`) never settles (slow network, etc.),
  * stuck network, etc.), dashboard pages would otherwise never run their first
  * `fetchWithAuthRetry` — cookies still authenticate API routes.
  */
-const AUTH_READY_STUCK_LOADING_MS = 5_000;
+/** Secondary safety if `isLoading` never clears (should be rare after auth bootstrap fixes). */
+const AUTH_READY_STUCK_LOADING_MS = 4_000;
 
 /**
  * True once Supabase has validated a user for this tab.

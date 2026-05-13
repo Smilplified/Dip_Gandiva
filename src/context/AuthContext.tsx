@@ -58,6 +58,13 @@ const INIT_FALLBACK_TIMEOUT_MS = 8_000;
 const VISIBILITY_MIN_HIDDEN_MS = 30_000;
 /** Same-origin profile fetch — never let it hang without an upper bound. */
 const PROFILE_API_TIMEOUT_MS = 12_000;
+/**
+ * If a single `supabase.auth.getUser()` wedges (network, GoTrue lock, browser quirks),
+ * every caller used to await the same promise for minutes. Abandon and start fresh.
+ */
+const GET_USER_IN_FLIGHT_STALE_MS = 10_000;
+/** If `getUser()` does not resolve in time, trust same-origin `/api/profile` (cookie session). */
+const GET_USER_PRIMARY_DEADLINE_MS = 10_000;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -167,15 +174,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // In-flight deduplication for getUser(): if init() and a SIGNED_IN event handler
   // both call resolveSessionUser() at the same moment, they share a single server
   // round-trip instead of making N parallel requests (rate-limit & perf guard).
-  const getUserInFlightRef = useRef<ReturnType<typeof supabase.auth.getUser> | null>(null);
+  type GetUserPromise = ReturnType<typeof supabase.auth.getUser>;
+  const getUserInFlightRef = useRef<{ promise: GetUserPromise; started: number } | null>(null);
 
   const getValidatedUser = useCallback(() => {
-    if (!getUserInFlightRef.current) {
-      getUserInFlightRef.current = supabase.auth.getUser().finally(() => {
-        getUserInFlightRef.current = null;
-      });
+    const now = Date.now();
+    if (
+      getUserInFlightRef.current &&
+      now - getUserInFlightRef.current.started > GET_USER_IN_FLIGHT_STALE_MS
+    ) {
+      getUserInFlightRef.current = null;
     }
-    return getUserInFlightRef.current;
+    if (!getUserInFlightRef.current) {
+      const started = Date.now();
+      const promise = supabase.auth.getUser().finally(() => {
+        if (getUserInFlightRef.current?.promise === promise) {
+          getUserInFlightRef.current = null;
+        }
+      });
+      getUserInFlightRef.current = { promise, started };
+    }
+    return getUserInFlightRef.current.promise;
   }, [supabase]);
 
   const fetchProfileAndRolesFromApi = useCallback(async () => {
@@ -215,28 +234,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resolveSessionUser = useCallback(async () => {
-    // Always validate with the server first. getSession() reads from local cookies
-    // without a network call and can return stale/expired sessions — especially
-    // after tab close or role switches. getValidatedUser() is the authoritative
-    // source and deduplicates concurrent requests.
-    const { data: { user }, error } = await getValidatedUser();
+    const sessionFromStorage = async (): Promise<Session | null> => {
+      let session = (await supabase.auth.getSession()).data.session ?? null;
+      if (!session) {
+        for (let i = 0; i < 6 && !session; i++) {
+          await wait(80);
+          session = (await supabase.auth.getSession()).data.session ?? null;
+        }
+      }
+      return session;
+    };
 
-    if (error || !user) {
+    const race = await Promise.race([
+      getValidatedUser().then((r) => ({ kind: "getUser" as const, r })),
+      wait(GET_USER_PRIMARY_DEADLINE_MS).then(() => ({ kind: "deadline" as const })),
+    ]);
+
+    if (race.kind === "getUser") {
+      const {
+        data: { user },
+        error,
+      } = race.r;
+      if (error || !user) {
+        return { session: null, user: null };
+      }
+      const session = await sessionFromStorage();
+      return { session, user };
+    }
+
+    // `getUser()` wedged past the deadline — unblock with cookie-authenticated profile
+    // (same pattern as fetchProfileAndRolesFromApi; avoids multi-minute blank dashboard).
+    authDebug("provider", "resolveSessionUser: getUser slow — bootstrapping via /api/profile");
+    try {
+      const ac = new AbortController();
+      const tid = setTimeout(() => ac.abort(), PROFILE_API_TIMEOUT_MS);
+      const res = await fetch("/api/profile", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        signal: ac.signal,
+      });
+      clearTimeout(tid);
+      if (!res.ok) {
+        return { session: null, user: null };
+      }
+      const data = (await res.json()) as {
+        profile?: { id: string; email?: string | null } | null;
+      };
+      const pid = data.profile?.id;
+      if (!pid) {
+        return { session: null, user: null };
+      }
+      const syntheticUser = {
+        id: pid,
+        aud: "authenticated",
+        role: "authenticated",
+        email: data.profile?.email ?? undefined,
+        app_metadata: {},
+        user_metadata: {},
+        created_at: "",
+      } as User;
+      const session = await sessionFromStorage();
+      return { session, user: syntheticUser };
+    } catch {
       return { session: null, user: null };
     }
-
-    // On a fresh tab, the in-memory session can briefly be null even after getUser()
-    // resolved (storage hydration races with the server validation). Poll a few times
-    // so the committed state has a real session — without ever blocking the user gate.
-    let session = (await supabase.auth.getSession()).data.session ?? null;
-    if (!session) {
-      for (let i = 0; i < 6 && !session; i++) {
-        await wait(80);
-        session = (await supabase.auth.getSession()).data.session ?? null;
-      }
-    }
-    return { session, user };
-  }, [supabase, getValidatedUser]);
+  }, [getValidatedUser, supabase]);
 
   const fetchProfileAndRoles = useCallback(
     async (userId: string) => {
