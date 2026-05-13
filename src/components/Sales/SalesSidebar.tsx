@@ -16,11 +16,18 @@ import {
   SettingOutlined,
   DashboardOutlined,
 } from "@ant-design/icons";
+import { IconMessage2 } from "@tabler/icons-react";
 import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
 
-type MenuItem = { key: string; icon: React.ReactNode; label: string; href: string };
+type MenuItem = {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  href: string;
+  accent?: "emerald";
+};
 
 const commonMenuItems: MenuItem[] = [
   { key: "/sales/clients", icon: <TeamOutlined />, label: "Clients", href: "/sales/clients" },
@@ -45,8 +52,17 @@ export default function SalesSidebar() {
     ? { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales/dashboard" }
     : { key: "/sales", icon: <DollarOutlined />, label: "Dashboard", href: "/sales" };
 
+  const chatItem: MenuItem = {
+    key: "/sales/chat",
+    icon: <IconMessage2 size={20} stroke={1.75} />,
+    label: "Chat",
+    href: "/sales/chat",
+    accent: "emerald",
+  };
+
   const menuItems: MenuItem[] = [
     dashboardItem,
+    chatItem,
     ...commonMenuItems.filter((item) => {
       if (!isSalesOnly) return true;
       return item.key !== "/sales/clients" && item.key !== "/sales/campaigns";
@@ -120,6 +136,7 @@ export default function SalesSidebar() {
             <Tooltip key={item.key} title={item.label} placement="right">
               <Link
                 href={item.href}
+                prefetch={false}
                 style={{
                   display: "flex",
                   flexDirection: "column",
@@ -130,7 +147,11 @@ export default function SalesSidebar() {
                   padding: "6px 4px",
                   borderRadius: 14,
                   textDecoration: "none",
-                  background: active ? "#eff6ff" : "transparent",
+                  background: active
+                    ? item.accent === "emerald"
+                      ? "#ecfdf5"
+                      : "#eff6ff"
+                    : "transparent",
                   transition: "all 0.18s ease",
                   cursor: "pointer",
                 }}
@@ -143,9 +164,17 @@ export default function SalesSidebar() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: active ? "#1677ff" : "#f3f4f6",
+                    background: active
+                      ? item.accent === "emerald"
+                        ? "#1d9e75"
+                        : "#1677ff"
+                      : "#f3f4f6",
                     color: active ? "#ffffff" : "#4b5563",
-                    boxShadow: active ? "0 6px 14px rgba(22,119,255,0.28)" : "none",
+                    boxShadow: active
+                      ? item.accent === "emerald"
+                        ? "0 6px 14px rgba(29,158,117,0.28)"
+                        : "0 6px 14px rgba(22,119,255,0.28)"
+                      : "none",
                     fontSize: 20,
                   }}
                 >
@@ -155,7 +184,11 @@ export default function SalesSidebar() {
                   style={{
                     fontSize: 11,
                     lineHeight: 1.1,
-                    color: active ? "#0f172a" : "#6b7280",
+                    color: active
+                      ? item.accent === "emerald"
+                        ? "#065f46"
+                        : "#0f172a"
+                      : "#6b7280",
                     fontWeight: active ? 600 : 500,
                     textAlign: "center",
                     maxWidth: "100%",

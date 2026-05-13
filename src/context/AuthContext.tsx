@@ -432,19 +432,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let initSettled = false;
 
     const init = async () => {
-      // Soft fallback: if syncAuthState is hanging (rare — typically Supabase's
-      // navigator.locks contention with another tab or a slow network call),
-      // flip `isLoading` off after a bounded wait. We deliberately do NOT force
-      // `isInitialized: true` here: that would cause the dashboard layout to
-      // redirect an authenticated user to /login on slow networks. Instead we
-      // keep showing the loader and let the in-flight sync commit when it
-      // resolves (or the visibility/storage listeners below pick it up).
+      // Hard fallback: if the full sync hangs (Supabase navigator.locks
+      // contention or slow network), unblock useAuthReady after the timeout so
+      // pages can still attempt their own fetches (fetchWithAuthRetry handles
+      // transient 401s). The sync continues in the background.
       const fallbackTimer = setTimeout(() => {
         if (initSettled || !mounted) return;
         console.warn(
-          `[auth] init exceeded ${INIT_FALLBACK_TIMEOUT_MS}ms — relaxing isLoading; sync continues in background`
+          `[auth] init exceeded ${INIT_FALLBACK_TIMEOUT_MS}ms — forcing initialized; sync continues`
         );
-        setState((current) => ({ ...current, isLoading: false }));
+        setState((current) => ({
+          ...current,
+          isLoading: false,
+          isInitialized: true,
+        }));
       }, INIT_FALLBACK_TIMEOUT_MS);
 
       try {
@@ -461,6 +462,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           authDebug("provider", "init offline - starting anonymous");
           return;
         }
+
+        // ── FAST PATH ─────────────────────────────────────────────────────────
+        // Read the session directly from the in-memory / localStorage store.
+        // This is synchronous-ish (~1 ms) — no network call. If a session exists,
+        // we flip `isInitialized: true` immediately so the dashboard layout can
+        // render its shell and pages can show their own skeletons while the full
+        // server-validated sync (getUser + profile DB queries) runs below.
+        // `isLoading` stays `true` so `useAuthReady` keeps pages from firing real
+        // data fetches until the profile/roles are confirmed.
+        if (typeof window !== "undefined") {
+          const { data: { session: quickSession } } = await supabase.auth.getSession();
+          if (quickSession?.user && mounted) {
+            setState((current) => ({
+              ...current,
+              user: quickSession.user,
+              session: quickSession,
+              // keep isLoading: true — useAuthReady will stay false until the
+              // full sync below sets it to false with validated profile + roles.
+              isInitialized: true,
+            }));
+            authDebug("provider", "init fast-path: session from storage", {
+              userId: quickSession.user.id,
+            });
+          }
+        }
+        // ── END FAST PATH ─────────────────────────────────────────────────────
 
         await syncAuthState("init");
       } catch (err) {

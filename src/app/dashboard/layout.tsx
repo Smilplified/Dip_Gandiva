@@ -28,9 +28,11 @@ export default function DashboardLayout({
   const { isInitialized, isLoading, hasRole, user } = useAuth();
   const router = useRouter();
 
-  const isAllowed = ALLOWED_ROLES.some((r) => hasRole(r));
+  // `isAllowed` is only reliable once loading is finished (roles are populated then).
+  const isAllowed = !isLoading && ALLOWED_ROLES.some((r) => hasRole(r));
 
   useEffect(() => {
+    // Wait until auth is fully settled (user identity + roles confirmed).
     if (!isInitialized || isLoading) return;
 
     if (!user) {
@@ -43,9 +45,14 @@ export default function DashboardLayout({
     }
   }, [isInitialized, isLoading, user, isAllowed, router]);
 
-  // Never render dashboard children until auth has fully finished loading — otherwise
-  // `useAuthReady()` stays false while the shell is visible and data effects never run.
-  if (!isInitialized || isLoading) {
+  // Block ONLY until we know whether a user session exists.
+  // `isInitialized` flips true as soon as either:
+  //   a) the fast-path getSession() finds a stored session (< 1 ms), or
+  //   b) the full server-side sync completes.
+  // We no longer block on `isLoading` here — pages have their own skeletons
+  // and useAuthReady() keeps them from firing real API calls until profile /
+  // roles are ready. This eliminates the full-page spinner on tab-reopen.
+  if (!isInitialized) {
     return (
       <AppLayout>
         <div
@@ -62,7 +69,33 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user || !isAllowed) {
+  // User not authenticated (fast-path found no session, or getUser failed).
+  if (!user) {
+    return (
+      <AppLayout>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: 400,
+          }}
+        >
+          <Spin size="large" tip="Redirecting…" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Profile/roles are still loading (post fast-path). Render children so pages
+  // can show their own skeletons — useAuthReady() keeps data fetches gated until
+  // isLoading becomes false.
+  if (isLoading) {
+    return <AppLayout>{children}</AppLayout>;
+  }
+
+  // Roles confirmed — enforce authorization.
+  if (!isAllowed) {
     return (
       <AppLayout>
         <div

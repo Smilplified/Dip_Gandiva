@@ -1,6 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+
+/**
+ * If profile/role sync (`isLoading`) never settles (slow Supabase client queries,
+ * stuck network, etc.), dashboard pages would otherwise never run their first
+ * `fetchWithAuthRetry` — cookies still authenticate API routes.
+ */
+const AUTH_READY_STUCK_LOADING_MS = 5_000;
 
 /**
  * True once Supabase has validated a user for this tab.
@@ -14,5 +22,18 @@ import { useAuth } from "@/context/AuthContext";
  */
 export function useAuthReady() {
   const { isInitialized, isLoading, user } = useAuth();
-  return Boolean(isInitialized && !isLoading && user);
+  const [unblockStuckLoading, setUnblockStuckLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isInitialized || !user || !isLoading) {
+      setUnblockStuckLoading(false);
+      return;
+    }
+    const t = window.setTimeout(() => setUnblockStuckLoading(true), AUTH_READY_STUCK_LOADING_MS);
+    return () => window.clearTimeout(t);
+  }, [isInitialized, user, isLoading]);
+
+  const ready =
+    Boolean(isInitialized && user) && (!isLoading || unblockStuckLoading);
+  return ready;
 }

@@ -14,6 +14,7 @@ import {
   CustomerServiceOutlined,
   SendOutlined,
 } from "@ant-design/icons";
+import { IconMessage2 } from "@tabler/icons-react";
 import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
@@ -55,6 +56,13 @@ export default function Sidebar() {
         { key: "/dashboard/overview", icon: <DashboardOutlined />, label: "Overview", href: "/dashboard/overview" },
         { key: "/dashboard/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/dashboard/campaigns" },
         { key: "/dashboard/leads", icon: <TeamOutlined />, label: "Leads", href: "/dashboard/leads" },
+        {
+          key: "/dashboard/chat",
+          icon: <IconMessage2 size={20} stroke={1.75} />,
+          label: "Chat",
+          href: "/dashboard/chat",
+          accent: "emerald" as const,
+        },
       ]
     : menuItems;
 
@@ -109,6 +117,16 @@ export default function Sidebar() {
       >
         {visibleMenuItems.map((item) => {
           const active = selectedKey === item.key;
+          const emerald = "accent" in item && item.accent === "emerald";
+          const linkBg = active ? (emerald ? "#ecfdf5" : "#eff6ff") : "transparent";
+          const circleBg = active ? (emerald ? "#1d9e75" : "#1677ff") : "#f3f4f6";
+          const circleColor = active ? "#ffffff" : "#4b5563";
+          const shadow = active
+            ? emerald
+              ? "0 6px 14px rgba(29,158,117,0.28)"
+              : "0 6px 14px rgba(22,119,255,0.28)"
+            : "none";
+          const labelColor = active ? (emerald ? "#065f46" : "#0f172a") : "#6b7280";
           return (
             <Tooltip key={item.key} title={item.label} placement="right">
               <Link
@@ -124,7 +142,7 @@ export default function Sidebar() {
                   padding: "6px 4px",
                   borderRadius: 14,
                   textDecoration: "none",
-                  background: active ? "#eff6ff" : "transparent",
+                  background: linkBg,
                   transition: "all 0.18s ease",
                   cursor: "pointer",
                 }}
@@ -137,11 +155,9 @@ export default function Sidebar() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: active ? "#1677ff" : "#f3f4f6",
-                    color: active ? "#ffffff" : "#4b5563",
-                    boxShadow: active
-                      ? "0 6px 14px rgba(22,119,255,0.28)"
-                      : "none",
+                    background: circleBg,
+                    color: circleColor,
+                    boxShadow: shadow,
                     fontSize: 20,
                   }}
                 >
@@ -151,7 +167,7 @@ export default function Sidebar() {
                   style={{
                     fontSize: 11,
                     lineHeight: 1.1,
-                    color: active ? "#0f172a" : "#6b7280",
+                    color: labelColor,
                     fontWeight: active ? 600 : 500,
                     textAlign: "center",
                     maxWidth: "100%",
