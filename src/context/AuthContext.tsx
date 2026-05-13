@@ -529,12 +529,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const fallbackTimer = setTimeout(() => {
         if (initSettled || !mounted) return;
         console.warn(
-          `[auth] init exceeded ${INIT_FALLBACK_TIMEOUT_MS}ms — forcing initialized; sync continues`
+          `[auth] init exceeded ${INIT_FALLBACK_TIMEOUT_MS}ms — easing loading gate; sync continues`
         );
         setState((current) => ({
           ...current,
           isLoading: false,
-          isInitialized: true,
+          // Never flip `isInitialized` to true while `user` is still unknown — that
+          // makes `dashboard/layout` think the session is gone and sends users to
+          // `/login?reason=session_expired` during a slow tab-reopen / hard refresh.
+          ...(current.user ? { isInitialized: true } : {}),
         }));
       }, INIT_FALLBACK_TIMEOUT_MS);
 
