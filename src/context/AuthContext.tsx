@@ -56,6 +56,8 @@ interface AuthContextValue extends AuthState {
 
 const INIT_FALLBACK_TIMEOUT_MS = 8_000;
 const VISIBILITY_MIN_HIDDEN_MS = 30_000;
+/** Same-origin profile fetch — never let it hang without an upper bound. */
+const PROFILE_API_TIMEOUT_MS = 12_000;
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -177,32 +179,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const fetchProfileAndRolesFromApi = useCallback(async () => {
-    const response = await fetch("/api/profile", {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
+    const ac = new AbortController();
+    const tid = setTimeout(() => ac.abort(), PROFILE_API_TIMEOUT_MS);
+    try {
+      const response = await fetch("/api/profile", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        signal: ac.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`Profile API returned ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Profile API returned ${response.status}`);
+      }
+
+      const data = (await response.json()) as {
+        profile?: (UserProfile & { roles?: string[] }) | null;
+      };
+
+      const profile = (data.profile ?? null) as UserProfile | null;
+      const roles = (data.profile?.roles ?? [])
+        .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
+        .map((name) => ({
+          id: name,
+          name,
+          role_name: name,
+          description: null,
+        }));
+
+      return { profile, roles };
+    } finally {
+      clearTimeout(tid);
     }
-
-    const data = await response.json() as {
-      profile?: (UserProfile & { roles?: string[] }) | null;
-    };
-
-    const profile = (data.profile ?? null) as UserProfile | null;
-    const roles = (data.profile?.roles ?? [])
-      .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
-      .map((name) => ({
-        id: name,
-        name,
-        role_name: name,
-        description: null,
-      }));
-
-    return { profile, roles };
   }, []);
 
   const resolveSessionUser = useCallback(async () => {
@@ -229,64 +238,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { session, user };
   }, [supabase, getValidatedUser]);
 
-  const fetchProfileAndRoles = useCallback(async (userId: string) => {
-    const DIRECT_QUERY_MS = 14_000;
-    const directQueries = Promise.all([
-      supabase.from("users").select("*").eq("id", userId).single(),
-      supabase
-        .from("user_roles")
-        // Keep this selection minimal and aligned with `middleware.ts`:
-        // only fetch the role name to avoid RLS/column-permission issues
-        // in production that can lead to an empty `roles` array.
-        .select("role_id, roles(name)")
-        .eq("user_id", userId),
-    ]);
-
-    let profileRes: Awaited<typeof directQueries>[0];
-    let rolesRes: Awaited<typeof directQueries>[1];
-    try {
-      const pair = await Promise.race([
-        directQueries,
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("profile-direct-timeout")), DIRECT_QUERY_MS);
-        }),
-      ]);
-      profileRes = pair[0];
-      rolesRes = pair[1];
-    } catch (e) {
-      console.warn("Direct profile/roles fetch failed or timed out, using profile API:", e);
-      try {
-        return await fetchProfileAndRolesFromApi();
-      } catch (err) {
-        console.warn("Profile API fallback failed:", err);
-        return { profile: null, roles: [] as UserRole[] };
-      }
-    }
-
-    const profile = profileRes.error ? null : profileRes.data;
-    const roleRows = (rolesRes.data ?? []) as { role_id: string; roles: { name: string } | null }[];
-    const roles = toUserRoles(roleRows);
-
-    if (rolesRes.error) {
-      console.warn("Direct role fetch failed, falling back to profile API:", rolesRes.error.message);
-    }
-
-    // In production, some users can authenticate successfully but the browser-side
-    // role join can still return empty because of RLS/permission differences.
-    // Fallback to the server profile API so role-based layouts still resolve.
-    if (rolesRes.error || roles.length === 0) {
+  const fetchProfileAndRoles = useCallback(
+    async (userId: string) => {
+      // Prefer same-origin `/api/profile` first: one round-trip, server-side Supabase
+      // with the session cookie, avoids production-only slowness/hangs from browser
+      // PostgREST (`users` / `user_roles`) under RLS or cross-region latency.
       try {
         const apiData = await fetchProfileAndRolesFromApi();
-        if (apiData.roles.length > 0 || apiData.profile) {
+        const idOk = !apiData.profile?.id || apiData.profile.id === userId;
+        if (idOk && (apiData.roles.length > 0 || apiData.profile)) {
           return apiData;
         }
-      } catch (err) {
-        console.warn("Profile API fallback failed:", err);
+        if (!idOk) {
+          console.warn("[auth] Profile API user id mismatch; trying direct Supabase queries");
+        }
+      } catch (e) {
+        console.warn("Profile API (primary) failed, trying direct Supabase queries:", e);
       }
-    }
 
-    return { profile, roles };
-  }, [fetchProfileAndRolesFromApi, supabase]);
+      const DIRECT_QUERY_MS = 14_000;
+      const directQueries = Promise.all([
+        supabase.from("users").select("*").eq("id", userId).single(),
+        supabase
+          .from("user_roles")
+          // Keep this selection minimal and aligned with `middleware.ts`:
+          // only fetch the role name to avoid RLS/column-permission issues
+          // in production that can lead to an empty `roles` array.
+          .select("role_id, roles(name)")
+          .eq("user_id", userId),
+      ]);
+
+      let profileRes: Awaited<typeof directQueries>[0];
+      let rolesRes: Awaited<typeof directQueries>[1];
+      try {
+        const pair = await Promise.race([
+          directQueries,
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("profile-direct-timeout")), DIRECT_QUERY_MS);
+          }),
+        ]);
+        profileRes = pair[0];
+        rolesRes = pair[1];
+      } catch (e) {
+        console.warn("Direct profile/roles fetch failed or timed out, retrying profile API:", e);
+        try {
+          return await fetchProfileAndRolesFromApi();
+        } catch (err) {
+          console.warn("Profile API fallback failed:", err);
+          return { profile: null, roles: [] as UserRole[] };
+        }
+      }
+
+      const profile = profileRes.error ? null : profileRes.data;
+      const roleRows = (rolesRes.data ?? []) as { role_id: string; roles: { name: string } | null }[];
+      const roles = toUserRoles(roleRows);
+
+      if (rolesRes.error) {
+        console.warn("Direct role fetch failed, falling back to profile API:", rolesRes.error.message);
+      }
+
+      // Browser-side role join can still return empty because of RLS/permission differences.
+      if (rolesRes.error || roles.length === 0) {
+        try {
+          const apiData = await fetchProfileAndRolesFromApi();
+          if (apiData.roles.length > 0 || apiData.profile) {
+            return apiData;
+          }
+        } catch (err) {
+          console.warn("Profile API fallback failed:", err);
+        }
+      }
+
+      return { profile, roles };
+    },
+    [fetchProfileAndRolesFromApi, supabase]
+  );
 
   const syncAuthState = useCallback(
     async (

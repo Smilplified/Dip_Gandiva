@@ -14,7 +14,6 @@ import {
   CustomerServiceOutlined,
   SendOutlined,
 } from "@ant-design/icons";
-import { IconMessage2 } from "@tabler/icons-react";
 import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
@@ -56,13 +55,6 @@ export default function Sidebar() {
         { key: "/dashboard/overview", icon: <DashboardOutlined />, label: "Overview", href: "/dashboard/overview" },
         { key: "/dashboard/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/dashboard/campaigns" },
         { key: "/dashboard/leads", icon: <TeamOutlined />, label: "Leads", href: "/dashboard/leads" },
-        {
-          key: "/dashboard/chat",
-          icon: <IconMessage2 size={20} stroke={1.75} />,
-          label: "Chat",
-          href: "/dashboard/chat",
-          accent: "emerald" as const,
-        },
       ]
     : menuItems;
 
