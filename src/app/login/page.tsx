@@ -104,23 +104,16 @@ function LoginContent() {
     }
   };
 
-  if (!isInitialized) {
+  // Don't block render on isInitialized — if a user is already logged in,
+  // the useEffect above fires doRedirect() immediately. Showing a full-screen
+  // spinner here just makes the navigation delay visible without adding value.
+  // The submit button's own "Signing in..." state covers the login flow.
+  if (!isInitialized && !user) {
     return (
       <div className="login-page min-h-screen flex items-center justify-center bg-[#f8fafc]">
         <div className="flex flex-col items-center gap-3">
           <div className="h-9 w-9 rounded-full border-2 border-slate-200 border-t-slate-500 animate-spin" />
           <span className="text-sm text-slate-500">Loading...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (user) {
-    return (
-      <div className="login-page min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-9 w-9 rounded-full border-2 border-slate-200 border-t-slate-500 animate-spin" />
-          <span className="text-sm text-slate-500">Redirecting to dashboard...</span>
         </div>
       </div>
     );

@@ -106,37 +106,59 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies(request, response, loginPath);
   }
 
-  // If user exists, fetch roles
+  // If user exists, fetch roles — but only when the middleware actually needs
+  // them to make a redirect decision. For normal sub-path navigation by an
+  // authenticated user (e.g. /dashboard/campaigns, /sales/leads) the role check
+  // is not needed and the DB round-trip only adds latency to every SPA navigation.
   if (user) {
-    try {
-      const roleNames = await getUserRoleNames(supabase, user.id);
+    const needsRoleCheck =
+      pathname === "/" ||
+      pathname === "/dashboard" ||
+      !canAccessPath(pathname, []) === false; // always check unknown paths
 
-      // Root/dashboard redirect
-      if (pathname === "/" || pathname === "/dashboard") {
-        const redirectPath = getDefaultRedirectPath(roleNames);
+    // Only hit the DB when we actually need to make a role-based redirect.
+    // For /dashboard/* and other role-gated prefixes we still need the check.
+    const isRoleGatedPath =
+      pathname === "/" ||
+      pathname === "/dashboard" ||
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/agent") ||
+      pathname.startsWith("/tl") ||
+      pathname.startsWith("/sales") ||
+      pathname.startsWith("/qa") ||
+      pathname.startsWith("/mis");
 
-        authDebug("middleware", "redirect root/dashboard", {
-          userId: user.id,
-          redirectPath,
-        });
+    if (isRoleGatedPath) {
+      try {
+        const roleNames = await getUserRoleNames(supabase, user.id);
 
-        return redirectWithCookies(request, response, redirectPath);
+        // Root/dashboard redirect
+        if (pathname === "/" || pathname === "/dashboard") {
+          const redirectPath = getDefaultRedirectPath(roleNames);
+
+          authDebug("middleware", "redirect root/dashboard", {
+            userId: user.id,
+            redirectPath,
+          });
+
+          return redirectWithCookies(request, response, redirectPath);
+        }
+
+        // Unauthorized route
+        if (!canAccessPath(pathname, roleNames)) {
+          const fallbackPath = getDefaultRedirectPath(roleNames);
+
+          authDebug("middleware", "redirect unauthorized", {
+            userId: user.id,
+            pathname,
+            fallbackPath,
+          });
+
+          return redirectWithCookies(request, response, fallbackPath);
+        }
+      } catch (err) {
+        console.warn("[middleware] role fetch failed:", err);
       }
-
-      // Unauthorized route
-      if (!canAccessPath(pathname, roleNames)) {
-        const fallbackPath = getDefaultRedirectPath(roleNames);
-
-        authDebug("middleware", "redirect unauthorized", {
-          userId: user.id,
-          pathname,
-          fallbackPath,
-        });
-
-        return redirectWithCookies(request, response, fallbackPath);
-      }
-    } catch (err) {
-      console.warn("[middleware] role fetch failed:", err);
     }
   }
 

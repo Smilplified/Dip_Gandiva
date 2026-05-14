@@ -34,6 +34,17 @@ export function createClient() {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // Disable the navigator.locks-based storage serialization.
+      // @supabase/auth-js v2.64+ acquires an exclusive NavigatorLock for every
+      // getSession / getUser / signIn call. With cookie-based sessions (@supabase/ssr)
+      // the middleware already handles token refresh server-side, so the browser
+      // client does not need lock-serialized localStorage access.
+      // Without this, concurrent calls during login (signInWithPassword +
+      // waitForSessionConfirmation polling + onAuthStateChange + init fast-path)
+      // queue up on the same exclusive lock and the 10 000 ms timeout fires,
+      // causing the "Acquiring an exclusive Navigator LockManager lock timed out"
+      // warning and blocking the entire auth flow.
+      lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<unknown>) => fn(),
     },
   });
   return client;

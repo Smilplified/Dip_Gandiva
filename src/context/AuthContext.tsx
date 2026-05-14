@@ -243,8 +243,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const sessionFromStorage = async (): Promise<Session | null> => {
       let session = (await supabase.auth.getSession()).data.session ?? null;
       if (!session) {
-        for (let i = 0; i < 6 && !session; i++) {
-          await wait(80);
+        for (let i = 0; i < 3 && !session; i++) {
+          await wait(50);
           session = (await supabase.auth.getSession()).data.session ?? null;
         }
       }
@@ -515,7 +515,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [syncAuthState]);
 
   const waitForSessionConfirmation = useCallback(
-    async (expectedUserId: string, timeoutMs = 4000) => {
+    async (expectedUserId: string, timeoutMs = 1_500) => {
       const startedAt = Date.now();
 
       while (Date.now() - startedAt < timeoutMs) {
@@ -591,13 +591,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // data fetches until the profile/roles are confirmed.
         if (typeof window !== "undefined") {
           let quickSession: Session | null = null;
-          for (let attempt = 0; attempt < 14; attempt++) {
+          for (let attempt = 0; attempt < 5; attempt++) {
             const { data: { session: s } } = await supabase.auth.getSession();
             if (s?.user) {
               quickSession = s;
               break;
             }
-            await wait(80);
+            await wait(50);
             if (!mounted) return;
           }
           if (quickSession?.user && mounted) {
