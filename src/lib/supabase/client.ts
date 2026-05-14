@@ -44,7 +44,10 @@ export function createClient() {
       // queue up on the same exclusive lock and the 10 000 ms timeout fires,
       // causing the "Acquiring an exclusive Navigator LockManager lock timed out"
       // warning and blocking the entire auth flow.
-      lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<unknown>) => fn(),
+      lock: <R>(name: string, acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
+        void name; void acquireTimeout;
+        return fn();
+      },
     },
   });
   return client;

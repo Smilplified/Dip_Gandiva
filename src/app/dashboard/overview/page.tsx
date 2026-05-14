@@ -103,7 +103,9 @@ export default function OverviewPage() {
   useEffect(() => {
     if (!authReady) return;
     const key = perfCampaignId ?? "__all__";
-    const sameKey = lastPerfKeyRef.current === key && perfData !== null;
+    // Use ref comparison instead of reading perfData state to avoid adding it
+    // as a dep (which would cause the effect to re-run on every perf fetch).
+    const sameKey = lastPerfKeyRef.current === key;
     lastPerfKeyRef.current = key;
     const ac = new AbortController();
     const fetchPerf = async () => {
