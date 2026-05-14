@@ -26,7 +26,9 @@ export function createClient() {
   }
 
   // Use default cookie-based storage so middleware can read session on redirect.
-  // Do NOT pass storage: localStorage - that breaks SSR/middleware auth.
+  // Do NOT pass storage: localStorage — that breaks SSR/middleware auth.
+  // Do NOT set auth.storageKey here: @supabase/ssr manages chunked cookie keys; a
+  // custom key can desync the client from middleware session refresh.
   client = createBrowserClient<Database>(supabaseUrl, supabaseKey, {
     auth: {
       persistSession: true,

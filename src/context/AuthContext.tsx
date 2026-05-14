@@ -123,6 +123,8 @@ function purgeSupabaseKeysFromStore(store: Storage) {
   keys.forEach((k) => store.removeItem(k));
 }
 
+import { cache, GANDIV_CACHE_PREFIX } from "@/lib/cache";
+
 function clearClientStorage() {
   if (typeof window === "undefined") {
     return;
@@ -132,6 +134,7 @@ function clearClientStorage() {
     window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
     purgeSupabaseKeysFromStore(window.localStorage);
     purgeSupabaseKeysFromStore(window.sessionStorage);
+    cache.clearByPrefix(GANDIV_CACHE_PREFIX);
   } catch (err) {
     console.warn("Failed to clear auth browser storage", err);
   }
