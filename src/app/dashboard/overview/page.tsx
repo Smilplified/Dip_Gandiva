@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Statistic, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useAuth } from "@/context/AuthContext";
@@ -70,9 +70,14 @@ export default function OverviewPage() {
   const [perfCampaignId, setPerfCampaignId] = useState<string | undefined>(undefined);
   const [perfData, setPerfData] = useState<OverviewResponse | null>(null);
   const [perfLoading, setPerfLoading] = useState(false);
+  const lastOverviewKeyRef = useRef<string>("");
+  const lastPerfKeyRef = useRef<string>("");
 
   const fetchData = async (id?: string) => {
-    setLoading(true);
+    const key = id ?? "__all__";
+    const sameKey = lastOverviewKeyRef.current === key && data !== null;
+    lastOverviewKeyRef.current = key;
+    if (!sameKey) setLoading(true);
     try {
       const qs = id ? `?campaign_id=${id}` : "";
       const res = await fetchWithAuthRetry(`/api/command/overview${qs}`);
@@ -91,8 +96,11 @@ export default function OverviewPage() {
 
   useEffect(() => {
     if (!authReady) return;
+    const key = perfCampaignId ?? "__all__";
+    const sameKey = lastPerfKeyRef.current === key && perfData !== null;
+    lastPerfKeyRef.current = key;
     const fetchPerf = async () => {
-      setPerfLoading(true);
+      if (!sameKey) setPerfLoading(true);
       try {
         const qs = perfCampaignId ? `?campaign_id=${perfCampaignId}` : "";
         const res = await fetchWithAuthRetry(`/api/command/overview${qs}`);

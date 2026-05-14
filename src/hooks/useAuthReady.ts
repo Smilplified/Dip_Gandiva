@@ -8,8 +8,8 @@ import { useAuth } from "@/context/AuthContext";
  * stuck network, etc.), dashboard pages would otherwise never run their first
  * `fetchWithAuthRetry` — cookies still authenticate API routes.
  */
-/** Secondary safety if `isLoading` never clears (should be rare after auth bootstrap fixes). */
-const AUTH_READY_STUCK_LOADING_MS = 4_000;
+/** Secondary safety if `isLoading` never clears (slow profile sync, etc.). */
+const AUTH_READY_STUCK_LOADING_MS = 2_500;
 
 /**
  * True once Supabase has validated a user for this tab.

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { purgeSupabaseAuthCookiesFromDocument } from "@/lib/supabase/browser-auth-cleanup";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Tables } from "@/types/database.types";
 import {
@@ -54,7 +55,8 @@ interface AuthContextValue extends AuthState {
   getDefaultRedirect: () => string;
 }
 
-const INIT_FALLBACK_TIMEOUT_MS = 8_000;
+/** If full `syncAuthState("init")` is slow, unblock UI so layouts/pages don't spin forever (cold tab / cookie hydration race). */
+const INIT_FALLBACK_TIMEOUT_MS = 5_000;
 const VISIBILITY_MIN_HIDDEN_MS = 30_000;
 /** Same-origin profile fetch — never let it hang without an upper bound. */
 const PROFILE_API_TIMEOUT_MS = 12_000;
@@ -135,6 +137,7 @@ function clearClientStorage() {
     purgeSupabaseKeysFromStore(window.localStorage);
     purgeSupabaseKeysFromStore(window.sessionStorage);
     cache.clearByPrefix(GANDIV_CACHE_PREFIX);
+    purgeSupabaseAuthCookiesFromDocument();
   } catch (err) {
     console.warn("Failed to clear auth browser storage", err);
   }
@@ -456,7 +459,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           roles,
           isLoading: false,
           isInitialized: true,
-          authVersion: current.authVersion + 1,
+          // Only bump when this sync was user-visible — silent refreshes should not
+          // re-trigger every dashboard `useEffect([authVersion])` data load.
+          authVersion: options?.silent ? current.authVersion : current.authVersion + 1,
         }));
         authDebug("provider", `sync success: ${source}`, {
           requestId,
@@ -539,16 +544,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const fallbackTimer = setTimeout(() => {
         if (initSettled || !mounted) return;
         console.warn(
-          `[auth] init exceeded ${INIT_FALLBACK_TIMEOUT_MS}ms — easing loading gate; sync continues`
+          `[auth] init exceeded ${INIT_FALLBACK_TIMEOUT_MS}ms — unblocking UI; sync continues in background`
         );
-        setState((current) => ({
-          ...current,
-          isLoading: false,
-          // Never flip `isInitialized` to true while `user` is still unknown — that
-          // makes `dashboard/layout` think the session is gone and sends users to
-          // `/login?reason=session_expired` during a slow tab-reopen / hard refresh.
-          ...(current.user ? { isInitialized: true } : {}),
-        }));
+        void (async () => {
+          let lateSession: Session | null = null;
+          try {
+            const { data } = await supabase.auth.getSession();
+            lateSession = data.session ?? null;
+          } catch {
+            // ignore
+          }
+          if (!mounted) return;
+          setState((current) => ({
+            ...current,
+            isLoading: false,
+            isInitialized: true,
+            ...(lateSession?.user && !current.user
+              ? { user: lateSession.user, session: lateSession }
+              : {}),
+          }));
+        })();
       }, INIT_FALLBACK_TIMEOUT_MS);
 
       try {
@@ -575,11 +590,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // `isLoading` stays `true` so `useAuthReady` keeps pages from firing real
         // data fetches until the profile/roles are confirmed.
         if (typeof window !== "undefined") {
-          const { data: { session: quickSession } } = await supabase.auth.getSession();
+          let quickSession: Session | null = null;
+          for (let attempt = 0; attempt < 14; attempt++) {
+            const { data: { session: s } } = await supabase.auth.getSession();
+            if (s?.user) {
+              quickSession = s;
+              break;
+            }
+            await wait(80);
+            if (!mounted) return;
+          }
           if (quickSession?.user && mounted) {
             setState((current) => ({
               ...current,
-              user: quickSession.user,
+              user: quickSession!.user,
               session: quickSession,
               // keep isLoading: true — useAuthReady will stay false until the
               // full sync below sets it to false with validated profile + roles.
@@ -645,7 +669,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // A token refresh only rotates the JWT — the user's identity and roles are
         // unchanged. Patch the session silently so the dashboard never flashes a
         // loading spinner when the browser refreshes the token (e.g. on tab switch).
-        // Bump authVersion so dashboard pages can refetch with the new JWT/cookies.
+        // Do not bump `authVersion` — same-origin fetches use cookies; refetching
+        // every list/overview on each rotation caused visible reload churn.
         authDebug("provider", "TOKEN_REFRESHED - silent session update", {
           userId: session?.user?.id,
         });
@@ -655,7 +680,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ...current,
                 session,
                 user: session?.user ?? current.user,
-                authVersion: current.authVersion + 1,
               }
             : current
         );
@@ -674,7 +698,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...current,
             session,
             user: session.user ?? current.user,
-            authVersion: current.authVersion + 1,
           }));
           return;
         }
@@ -717,8 +740,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // When the tab returns to the foreground after being hidden long enough that
     // the access token may have rotated in another tab (or expired), silently
-    // re-sync. The bumped authVersion makes dashboard pages refetch their data
-    // with the freshest cookies/JWT.
+    // re-sync. This does not bump `authVersion` (silent sync) so lists keep cached UI.
     let hiddenAt: number | null =
       typeof document !== "undefined" && document.visibilityState === "hidden"
         ? Date.now()
@@ -788,7 +810,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     bc.onmessage = (ev: MessageEvent) => {
       if (ev.data !== "signed-out") return;
       authDebug("provider", "cross-tab sign-out broadcast — hard navigation to login");
-      window.location.replace("/login");
+      window.location.replace(`${window.location.origin}/login?signedOut=1`);
     };
     return () => bc.close();
   }, []);
@@ -877,6 +899,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState((current) => ({ ...current, isLoading: true }));
     getUserInFlightRef.current = null;
 
+    // 1) Server first: reads HttpOnly session cookies and writes cleared Set-Cookie on the response.
+    if (typeof window !== "undefined") {
+      try {
+        await fetch(`${window.location.origin}/api/auth/signout`, {
+          method: "POST",
+          credentials: "include",
+          cache: "no-store",
+        });
+      } catch (err) {
+        console.error("Server signOut error:", err);
+      }
+    }
+
+    // 2) Client GoTrue sign-out + storage/cookie sweep (covers any readable sb-* pairs).
     try {
       await supabase.auth.signOut({ scope: "global" });
     } catch (err) {
@@ -884,16 +920,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     clearClientStorage();
-
-    try {
-      await fetch("/api/auth/signout", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-      });
-    } catch (err) {
-      console.error("Server signOut error:", err);
-    }
 
     broadcastAuthSignedOut();
 
@@ -910,7 +936,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authDebug("provider", "signOut complete");
 
     if (typeof window !== "undefined") {
-      window.location.replace("/login");
+      window.location.replace(`${window.location.origin}/login?signedOut=1`);
     }
   }, [supabase]);
 

@@ -84,6 +84,10 @@ export async function middleware(request: NextRequest) {
 
   if (isPublicPath(pathname)) {
     if (pathname === "/login" && supabase) {
+      const signedOut = request.nextUrl.searchParams.get("signedOut") === "1";
+      if (signedOut) {
+        return response;
+      }
       try {
         const {
           data: { user },
