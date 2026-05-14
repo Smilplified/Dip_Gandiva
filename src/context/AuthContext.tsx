@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, resetClient } from "@/lib/supabase/client";
 import { purgeSupabaseAuthCookiesFromDocument } from "@/lib/supabase/browser-auth-cleanup";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Tables } from "@/types/database.types";
@@ -128,16 +128,21 @@ function purgeSupabaseKeysFromStore(store: Storage) {
 import { cache, GANDIV_CACHE_PREFIX } from "@/lib/cache";
 
 function clearClientStorage() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
+  if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
+    // Clear all localStorage keys — Supabase sb-* tokens, app cache, redirect path
     purgeSupabaseKeysFromStore(window.localStorage);
     purgeSupabaseKeysFromStore(window.sessionStorage);
+    window.localStorage.removeItem(AUTH_STORAGE_KEYS.lastRedirectPath);
     cache.clearByPrefix(GANDIV_CACHE_PREFIX);
+    // Expire all readable Supabase cookies from document
     purgeSupabaseAuthCookiesFromDocument();
+    // Reset the module-level Supabase client singleton so the next
+    // createClient() call returns a fresh instance with zero in-memory
+    // session state. Without this, getSession() on the login page returns
+    // the old session from the stale in-memory cache even after cookies
+    // are cleared, causing slow/failed re-auth on the next sign-in.
+    resetClient();
   } catch (err) {
     console.warn("Failed to clear auth browser storage", err);
   }
@@ -906,48 +911,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     authDebug("provider", "signOut start");
-    setState((current) => ({ ...current, isLoading: true }));
     getUserInFlightRef.current = null;
-
-    // 1) Server first: reads HttpOnly session cookies and writes cleared Set-Cookie on the response.
-    if (typeof window !== "undefined") {
-      try {
-        await fetch(`${window.location.origin}/api/auth/signout`, {
-          method: "POST",
-          credentials: "include",
-          cache: "no-store",
-        });
-      } catch (err) {
-        console.error("Server signOut error:", err);
-      }
-    }
-
-    // 2) Client GoTrue sign-out + storage/cookie sweep (covers any readable sb-* pairs).
-    try {
-      await supabase.auth.signOut({ scope: "global" });
-    } catch (err) {
-      console.error("Auth signOut error:", err);
-    }
-
-    clearClientStorage();
-
-    broadcastAuthSignedOut();
-
+    syncRequestRef.current++; // cancel any in-flight syncAuthState
     currentUserIdRef.current = null;
-    setState((current) => ({
+
+    // 1. Clear React state immediately so UI reflects signed-out instantly
+    setState({
       user: null,
       session: null,
       profile: null,
       roles: [],
       isInitialized: true,
       isLoading: false,
-      authVersion: current.authVersion + 1,
-    }));
+      authVersion: 0,
+    });
+
+    // 2. Wipe all client-side storage + reset Supabase singleton BEFORE any
+    //    async calls so nothing can read stale state during the network phase
+    clearClientStorage();
+
+    // 3. Server: clear HttpOnly session cookies
+    try {
+      await fetch(`${window.location.origin}/api/auth/signout`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+    } catch (err) {
+      console.error("Server signOut error:", err);
+    }
+
+    // 4. GoTrue: invalidate the refresh token server-side (best-effort)
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch {
+      // Ignore — client singleton is already reset, cookies already cleared
+    }
+
+    // 5. Notify other tabs
+    broadcastAuthSignedOut();
+
     authDebug("provider", "signOut complete");
 
-    if (typeof window !== "undefined") {
-      window.location.replace(`${window.location.origin}/login?signedOut=1`);
-    }
+    // 6. Hard navigate to login — fresh page load with clean state
+    window.location.replace(`${window.location.origin}/login`);
   }, [supabase]);
 
   const hasRole = useCallback(
