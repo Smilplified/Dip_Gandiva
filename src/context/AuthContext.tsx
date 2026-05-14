@@ -687,11 +687,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (event === "SIGNED_IN") {
-        // If the same user is already authenticated (cross-tab token sync, bfcache
-        // page restore, or Supabase SDK re-emitting SIGNED_IN after TOKEN_REFRESHED),
-        // just patch the session silently — no loading spinner, no DB round-trip.
+        // Always patch silently when the user matches the current session.
+        // This covers:
+        //   1. The post-signIn() SIGNED_IN echo — signIn() already ran syncAuthState
+        //      and set currentUserIdRef. Re-running a full (non-silent) sync here
+        //      would set isLoading:true again, causing useAuthReady to flip false
+        //      and blocking all dashboard API calls until the stuck-loading timer.
+        //   2. Cross-tab token sync / bfcache restore.
         if (session?.user?.id && session.user.id === currentUserIdRef.current) {
-          authDebug("provider", "SIGNED_IN - same user, silent session update", {
+          authDebug("provider", "SIGNED_IN - same user, silent session patch", {
             userId: session.user.id,
           });
           setState((current) => ({
@@ -702,7 +706,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Different user or first sign-in — full sync with loading state.
+        // Genuinely different user (account switch in another tab, etc.).
+        // Full sync is correct here — this is not the post-login echo path.
         authDebug("provider", "SIGNED_IN - new user, full sync", {
           userId: session?.user?.id,
         });
@@ -842,10 +847,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ? data.session
               : await waitForSessionConfirmation(data.user.id);
 
+          // Pass silent:true so isLoading stays false after this sync completes.
+          // The SIGNED_IN event echo from supabase.auth.signInWithPassword will
+          // fire after this returns — it must NOT re-set isLoading:true.
+          // currentUserIdRef is set inside syncAuthState, so the SIGNED_IN handler
+          // will see the same userId and take the silent patch path.
           const resolved = await syncAuthState("signIn", {
             session: confirmedSession,
             user: data.user,
-          });
+          }, { silent: false });
 
           if (!resolved?.user) {
             return {

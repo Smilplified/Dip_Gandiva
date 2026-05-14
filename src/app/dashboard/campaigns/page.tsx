@@ -73,6 +73,8 @@ export default function CampaignsPage() {
 
   const fetchCampaigns = useCallback(
     async (opts?: { background?: boolean; skipCache?: boolean }) => {
+      if (!authReady) return;
+
       const params = new URLSearchParams();
       params.set("enrich", "1");
       if (debouncedSearch) params.set("q", debouncedSearch);
@@ -93,7 +95,25 @@ export default function CampaignsPage() {
           setListTruncated(Boolean(hit.truncated));
           setTotalCount(hit.total ?? hit.campaigns.length);
           setLoading(false);
-          void fetchCampaigns({ background: true });
+          // Background revalidation: fire-and-forget without recursive self-ref
+          void (async () => {
+            try {
+              const res = await fetchWithAuthRetry(`/api/command/campaigns?${qs}`);
+              if (!res.ok) return;
+              const data = (await res.json()) as {
+                campaigns?: CommandCampaignRow[];
+                truncated?: boolean;
+                total?: number;
+              };
+              const list = data.campaigns ?? [];
+              setCampaigns(list);
+              setListTruncated(Boolean(data.truncated));
+              setTotalCount(data.total ?? list.length);
+              cache.set<CampaignsListCache>(cacheKey, { campaigns: list, truncated: Boolean(data.truncated), total: data.total ?? list.length }, 5);
+            } catch {
+              // silent background revalidation failure
+            }
+          })();
           return;
         }
         setLoading(true);
@@ -134,12 +154,13 @@ export default function CampaignsPage() {
         setLoading(false);
       }
     },
-    [debouncedSearch, statusFilter, dateRange, user?.id]
+    [authReady, debouncedSearch, statusFilter, dateRange, user?.id]
   );
 
- useEffect(() => {
-  void fetchCampaigns();
-}, [authVersion, fetchCampaigns]);
+  useEffect(() => {
+    if (!authReady) return;
+    void fetchCampaigns();
+  }, [authReady, authVersion, fetchCampaigns]);
 
   const stats = {
     total: campaigns.length,

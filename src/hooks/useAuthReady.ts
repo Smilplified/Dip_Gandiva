@@ -4,28 +4,25 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 /**
- * If profile/role sync (`isLoading`) never settles (slow network, etc.),
- * stuck network, etc.), dashboard pages would otherwise never run their first
- * `fetchWithAuthRetry` — cookies still authenticate API routes.
- */
-/** Secondary safety if `isLoading` never clears (slow profile sync, etc.). */
-const AUTH_READY_STUCK_LOADING_MS = 2_500;
-
-/**
- * True once Supabase has validated a user for this tab.
+ * True once auth is initialized, a user exists, and profile/roles have loaded.
  *
- * IMPORTANT: We deliberately do NOT require `state.session.access_token`. After a
- * fresh tab open, `supabase.auth.getUser()` resolves before the in-memory session
- * is hydrated from storage — meaning `state.session` can be `null` even though the
- * user is valid and cookies are present. Server API routes authenticate via cookies,
- * and `fetchWithAuthRetry` already handles transient 401s, so gating on `user` alone
- * is the correct and fast signal.
+ * Safety valve: if isLoading never clears (slow profile sync, network stall),
+ * unblock after AUTH_READY_STUCK_LOADING_MS so pages can attempt fetches.
+ * fetchWithAuthRetry handles transient 401s gracefully.
+ *
+ * We do NOT gate on session.access_token — after a fresh tab open, getUser()
+ * resolves before the in-memory session is hydrated from storage. Server API
+ * routes authenticate via cookies, so user alone is the correct signal.
  */
+const AUTH_READY_STUCK_LOADING_MS = 1_500;
+
 export function useAuthReady() {
   const { isInitialized, isLoading, user } = useAuth();
   const [unblockStuckLoading, setUnblockStuckLoading] = useState(false);
 
   useEffect(() => {
+    // Only arm the stuck-loading timer when we have a user but isLoading is
+    // still true (profile/roles sync is slow). Reset when conditions change.
     if (!isInitialized || !user || !isLoading) {
       setUnblockStuckLoading(false);
       return;
@@ -34,7 +31,5 @@ export function useAuthReady() {
     return () => window.clearTimeout(t);
   }, [isInitialized, user, isLoading]);
 
-  const ready =
-    Boolean(isInitialized && user) && (!isLoading || unblockStuckLoading);
-  return ready;
+  return Boolean(isInitialized && user) && (!isLoading || unblockStuckLoading);
 }

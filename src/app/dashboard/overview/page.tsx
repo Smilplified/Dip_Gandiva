@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Statistic, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useAuth } from "@/context/AuthContext";
@@ -73,44 +73,55 @@ export default function OverviewPage() {
   const lastOverviewKeyRef = useRef<string>("");
   const lastPerfKeyRef = useRef<string>("");
 
-  const fetchData = async (id?: string) => {
+  const fetchData = useCallback(async (id?: string, signal?: AbortSignal) => {
     const key = id ?? "__all__";
     const sameKey = lastOverviewKeyRef.current === key && data !== null;
     lastOverviewKeyRef.current = key;
     if (!sameKey) setLoading(true);
     try {
       const qs = id ? `?campaign_id=${id}` : "";
-      const res = await fetchWithAuthRetry(`/api/command/overview${qs}`);
+      const res = await fetchWithAuthRetry(`/api/command/overview${qs}`, { signal });
+      if (signal?.aborted) return;
       const json = (await res.json()) as OverviewResponse;
       setData(json);
+    } catch (err) {
+      if ((err as { name?: string }).name === "AbortError") return;
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!authReady) return;
-    void fetchData(campaignId);
+    const ac = new AbortController();
+    void fetchData(campaignId, ac.signal);
+    return () => ac.abort();
     // `authVersion` ensures we refetch after cross-tab token rotation / tab return.
-  }, [authReady, authVersion, campaignId]);
+  }, [authReady, authVersion, campaignId, fetchData]);
 
   useEffect(() => {
     if (!authReady) return;
     const key = perfCampaignId ?? "__all__";
     const sameKey = lastPerfKeyRef.current === key && perfData !== null;
     lastPerfKeyRef.current = key;
+    const ac = new AbortController();
     const fetchPerf = async () => {
       if (!sameKey) setPerfLoading(true);
       try {
         const qs = perfCampaignId ? `?campaign_id=${perfCampaignId}` : "";
-        const res = await fetchWithAuthRetry(`/api/command/overview${qs}`);
+        const res = await fetchWithAuthRetry(`/api/command/overview${qs}`, { signal: ac.signal });
+        if (ac.signal.aborted) return;
         const json = (await res.json()) as OverviewResponse;
         setPerfData(json);
+      } catch (err) {
+        if ((err as { name?: string }).name === "AbortError") return;
       } finally {
-        setPerfLoading(false);
+        if (!ac.signal.aborted) setPerfLoading(false);
       }
     };
     void fetchPerf();
+    return () => ac.abort();
   }, [authReady, authVersion, perfCampaignId]);
 
   const funnelData = useMemo(() => {
