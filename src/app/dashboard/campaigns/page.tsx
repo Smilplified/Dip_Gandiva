@@ -137,13 +137,9 @@ export default function CampaignsPage() {
     [debouncedSearch, statusFilter, dateRange, user?.id]
   );
 
-  useEffect(() => {
-    if (!authReady) return;
-    void fetchCampaigns();
-    // `authVersion` is included so this re-fetches whenever Supabase has rotated
-    // tokens or another tab has updated the auth state — without this, a tab
-    // restored from background can sit on stale data forever.
-  }, [authReady, authVersion, fetchCampaigns]);
+ useEffect(() => {
+  void fetchCampaigns();
+}, [authVersion, fetchCampaigns]);
 
   const stats = {
     total: campaigns.length,

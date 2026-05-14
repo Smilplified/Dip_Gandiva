@@ -64,117 +64,88 @@ async function getUserRoleNames(
 
 export async function middleware(request: NextRequest) {
   const canonicalRedirect = maybeRedirectToCanonicalHost(request);
-  if (canonicalRedirect) {
-    return canonicalRedirect;
-  }
+  if (canonicalRedirect) return canonicalRedirect;
 
   const pathname = request.nextUrl.pathname;
   const currentSearch = request.nextUrl.search;
-  const { supabase, getResponse } = createMiddlewareSupabaseClient(request);
 
-  try {
-    if (supabase) {
-      await supabase.auth.getUser();
-    }
-  } catch (err) {
-    console.warn("[middleware] updateSession failed:", (err as Error)?.message ?? err);
-  }
+  const { supabase, getResponse } = createMiddlewareSupabaseClient(request);
 
   let response = getResponse();
 
-  if (isPublicPath(pathname)) {
-    if (pathname === "/login" && supabase) {
-      const signedOut = request.nextUrl.searchParams.get("signedOut") === "1";
-      if (signedOut) {
-        return response;
-      }
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        response = getResponse();
-
-        if (user) {
-          const roleNames = await getUserRoleNames(supabase, user.id);
-          const redirectPath = getDefaultRedirectPath(roleNames);
-          authDebug("middleware", "redirect authenticated user away from login", {
-            userId: user.id,
-            redirectPath,
-          });
-          return redirectWithCookies(request, response, redirectPath);
-        }
-      } catch (err) {
-        console.warn("[middleware] /login auth check failed:", (err as Error)?.message ?? err);
-      }
-    }
-
-    return response;
-  }
-
-  if (!isProtectedPath(pathname)) {
-    return response;
-  }
-
   if (!supabase) {
-    return redirectWithCookies(
-      request,
-      response,
-      buildLoginRedirectPath(pathname, currentSearch)
-    );
+    return response;
   }
+
+  let user = null;
 
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+
+    // Refresh cookies ONLY ONCE
     response = getResponse();
-
-    if (!user) {
-      const loginPath = buildLoginRedirectPath(pathname, currentSearch);
-      authDebug("middleware", "redirect anonymous protected route", {
-        pathname,
-        loginPath,
-      });
-      return redirectWithCookies(request, response, loginPath);
-    }
-
-    const roleNames = await getUserRoleNames(supabase, user.id);
-    response = getResponse();
-
-    if (pathname === "/" || pathname === "/dashboard") {
-      const redirectPath = getDefaultRedirectPath(roleNames);
-      authDebug("middleware", "redirect root/dashboard to role default", {
-        userId: user.id,
-        redirectPath,
-      });
-      return redirectWithCookies(request, response, redirectPath);
-    }
-
-    if (!canAccessPath(pathname, roleNames)) {
-      const fallbackPath =
-        roleNames.length > 0
-          ? getDefaultRedirectPath(roleNames)
-          : buildLoginRedirectPath(pathname, currentSearch);
-
-      authDebug("middleware", "redirect unauthorized protected route", {
-        userId: user.id,
-        pathname,
-        fallbackPath,
-        roleNames,
-      });
-      return redirectWithCookies(request, response, fallbackPath);
-    }
   } catch (err) {
-    console.warn("[middleware] Supabase auth/roles failed:", (err as Error)?.message ?? err);
+    console.warn("[middleware] auth failed:", err);
+  }
+
+  // Allow public routes
+  if (isPublicPath(pathname)) {
+    return response;
+  }
+
+  // Protected route + no user → login
+  if (isProtectedPath(pathname) && !user) {
     const loginPath = buildLoginRedirectPath(pathname, currentSearch);
+
+    authDebug("middleware", "redirect anonymous protected route", {
+      pathname,
+      loginPath,
+    });
+
     return redirectWithCookies(request, response, loginPath);
+  }
+
+  // If user exists, fetch roles
+  if (user) {
+    try {
+      const roleNames = await getUserRoleNames(supabase, user.id);
+
+      // Root/dashboard redirect
+      if (pathname === "/" || pathname === "/dashboard") {
+        const redirectPath = getDefaultRedirectPath(roleNames);
+
+        authDebug("middleware", "redirect root/dashboard", {
+          userId: user.id,
+          redirectPath,
+        });
+
+        return redirectWithCookies(request, response, redirectPath);
+      }
+
+      // Unauthorized route
+      if (!canAccessPath(pathname, roleNames)) {
+        const fallbackPath = getDefaultRedirectPath(roleNames);
+
+        authDebug("middleware", "redirect unauthorized", {
+          userId: user.id,
+          pathname,
+          fallbackPath,
+        });
+
+        return redirectWithCookies(request, response, fallbackPath);
+      }
+    } catch (err) {
+      console.warn("[middleware] role fetch failed:", err);
+    }
   }
 
   return response;
 }
 
 export const config = {
+  
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+],
 };
