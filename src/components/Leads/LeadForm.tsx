@@ -131,27 +131,55 @@ export function LeadForm({
     }
     setVoiceUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`/api/agent/leads/${lead.id}/voice-lock`, {
+      // Step 1 — get a signed upload URL from server (tiny JSON request, no Vercel size limit issue)
+      const presignRes = await fetch(`/api/agent/leads/${lead.id}/voice-lock/presign`, {
         method: "POST",
         credentials: "include",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, mimeType: file.type || "audio/mpeg" }),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        message.error(json?.error || "Failed to upload recording");
+      const presignJson = await presignRes.json().catch(() => ({}));
+      if (!presignRes.ok) {
+        message.error(presignJson?.error || "Failed to prepare upload");
         return;
       }
-      setVoiceRecordings(
-        (json?.recordings ?? []).map((r: any) => ({
-          id: r.id ?? r.path,
-          name: r.name,
-          path: r.path,
-          url: r.url ?? null,
-        })),
-      );
-      message.success("Recording uploaded");
+
+      const { signedUrl, path } = presignJson as { signedUrl: string; token: string; path: string };
+
+      // Step 2 — upload directly to Supabase Storage (bypasses Vercel's 4.5 MB body limit)
+      const uploadRes = await fetch(signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "audio/mpeg" },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => "");
+        message.error(`Upload failed (${uploadRes.status})${errText ? `: ${errText}` : ""}`);
+        return;
+      }
+
+      // Step 3 — refresh recordings list from server (signed URLs for playback)
+      const listRes = await fetch(`/api/agent/leads/${lead.id}/voice-lock`, {
+        credentials: "include",
+      });
+      const listJson = await listRes.json().catch(() => ({}));
+      if (listRes.ok) {
+        setVoiceRecordings(
+          (listJson?.recordings ?? []).map((r: { id?: string; path: string; name: string; url?: string | null }) => ({
+            id: r.id ?? r.path,
+            name: r.name,
+            path: r.path,
+            url: r.url ?? null,
+          })),
+        );
+      }
+
+      // Verify the file actually landed (path returned by presign)
+      if (!path) {
+        message.warning("Uploaded but could not confirm. Refresh to check.");
+      } else {
+        message.success("Recording uploaded");
+      }
     } catch (err) {
       console.error("Voice upload error", err);
       message.error("Failed to upload recording");
