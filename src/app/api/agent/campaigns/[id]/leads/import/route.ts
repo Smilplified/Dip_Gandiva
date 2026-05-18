@@ -3,6 +3,71 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+const AGENT_IMPORT_FIELDS = [
+  "name",
+  "first_name",
+  "last_name",
+  "salutation",
+  "company_name",
+  "phone",
+  "email",
+  "domain",
+  "direct_number",
+  "company_number",
+  "phone_number_link",
+  "job_title",
+  "job_level",
+  "department",
+  "job_function",
+  "job_title_link",
+  "address",
+  "city",
+  "state",
+  "country",
+  "zip_code",
+  "employee_size",
+  "see_all_employees",
+  "industry",
+  "employee_size_link",
+  "company_website_link",
+  "revenue_range",
+  "revenue_link",
+  "sic_code",
+  "sic_code_link",
+  "naics_code",
+  "naics_code_link",
+  "founded_years",
+  "founded_years_link",
+  "contact_linkedin_url",
+  "company_linkedin_url",
+  "scored",
+  "appointment",
+  "lead_tagging",
+  "ra_comment",
+  "special_comments",
+  "call_back",
+  "call_notes",
+  "lead_disposition",
+  "followup_date",
+  "notes",
+  "status",
+] as const;
+
+function pickAgentFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of AGENT_IMPORT_FIELDS) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && v !== "") {
+      out[k] = typeof v === "string" ? v.trim() : v;
+    }
+  }
+  return out;
+}
+
+function normalizeString(value: unknown): string | null {
+  return typeof value === "string" ? value.trim() || null : null;
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -38,7 +103,6 @@ export async function POST(
       );
     }
 
-    // Ensure agent is assigned to this campaign
     const { data: assignment } = await supabase
       .from("campaign_assignments")
       .select("id")
@@ -66,35 +130,136 @@ export async function POST(
       );
     }
 
-    const normalizeString = (value: unknown): string | null =>
-      typeof value === "string" ? value.trim() || null : null;
-
     const errors: string[] = [];
     let created = 0;
+    let updated = 0;
 
     for (let i = 0; i < rawLeads.length; i++) {
       const row = rawLeads[i] as Record<string, unknown>;
 
-      // Explicitly ignore any id or lead_id coming from file – Lead ID is system generated
-      delete row.id;
-      delete row.lead_id;
-      delete row.created_by;
-      delete row.created_by_name;
+      const rowIdRaw = row.id as string | number | undefined;
+      const rowId = rowIdRaw != null ? String(rowIdRaw).trim() : "";
+      const rowLeadIdRaw = row.lead_id as string | number | undefined;
+      const rowLeadId =
+        rowLeadIdRaw != null ? String(rowLeadIdRaw).trim() : "";
 
-      // Normalize core identification fields
-      const first_name = normalizeString(row.first_name);
-      const last_name = normalizeString(row.last_name);
-      const name = normalizeString(row.name);
-      const company_name = normalizeString(row.company_name);
-      const email = normalizeString(row.email);
-      const domain = normalizeString(row.domain);
+      const fields = pickAgentFields(row);
+      const first_name = normalizeString(fields.first_name);
+      const last_name = normalizeString(fields.last_name);
+      const name = normalizeString(fields.name);
+      const company_name = normalizeString(fields.company_name);
+      const email = normalizeString(fields.email);
+      const domain = normalizeString(fields.domain);
       const phone =
-        typeof row.phone === "string" ? row.phone.trim() || null : null;
+        typeof fields.phone === "string" ? fields.phone.trim() || null : null;
 
       const derivedName =
         [first_name, last_name].filter(Boolean).join(" ").trim() ||
         name ||
         null;
+
+      let existingLeadId: string | null = rowId || null;
+
+      if (!existingLeadId && rowLeadId) {
+        const { data: existingByLeadId, error: lookupError } = await supabase
+          .from("leads")
+          .select("id")
+          .eq("lead_id", rowLeadId)
+          .eq("campaign_id", campaignId)
+          .eq("organization_id", orgId)
+          .eq("assigned_agent_id", user.id)
+          .maybeSingle();
+
+        if (lookupError) {
+          errors.push(`Row ${i + 1}: ${lookupError.message}`);
+          continue;
+        }
+        existingLeadId =
+          (existingByLeadId as { id: string } | null)?.id ?? null;
+        if (!existingLeadId) {
+          errors.push(
+            `Row ${i + 1}: Lead not found (${rowLeadId}). Export leads first and keep the lead_id column when editing.`
+          );
+          continue;
+        }
+      }
+
+      const leadStatus =
+        typeof fields.status === "string" && fields.status.length > 0
+          ? (fields.status as string)
+          : "new";
+
+      const upsertPayload: Record<string, unknown> = {
+        name: derivedName || null,
+        first_name,
+        last_name,
+        salutation: fields.salutation ?? null,
+        company_name,
+        phone,
+        email,
+        domain,
+        direct_number: fields.direct_number ?? null,
+        company_number: fields.company_number ?? null,
+        phone_number_link: fields.phone_number_link ?? null,
+        job_title: fields.job_title ?? null,
+        job_level: fields.job_level ?? null,
+        department: fields.department ?? null,
+        job_function: fields.job_function ?? null,
+        job_title_link: fields.job_title_link ?? null,
+        address: fields.address ?? null,
+        city: fields.city ?? null,
+        state: fields.state ?? null,
+        country: fields.country ?? null,
+        zip_code: fields.zip_code ?? null,
+        employee_size: fields.employee_size ?? null,
+        see_all_employees: fields.see_all_employees ?? null,
+        industry: fields.industry ?? null,
+        employee_size_link: fields.employee_size_link ?? null,
+        company_website_link: fields.company_website_link ?? null,
+        revenue_range: fields.revenue_range ?? null,
+        revenue_link: fields.revenue_link ?? null,
+        sic_code: fields.sic_code ?? null,
+        sic_code_link: fields.sic_code_link ?? null,
+        naics_code: fields.naics_code ?? null,
+        naics_code_link: fields.naics_code_link ?? null,
+        founded_years:
+          fields.founded_years != null ? Number(fields.founded_years) : null,
+        founded_years_link: fields.founded_years_link ?? null,
+        contact_linkedin_url: fields.contact_linkedin_url ?? null,
+        company_linkedin_url: fields.company_linkedin_url ?? null,
+        scored: fields.scored ?? null,
+        appointment: fields.appointment ?? null,
+        lead_tagging: fields.lead_tagging ?? null,
+        ra_comment: fields.ra_comment ?? null,
+        special_comments: fields.special_comments ?? null,
+        call_back: fields.call_back ?? null,
+        call_notes: fields.call_notes ?? null,
+        lead_disposition: fields.lead_disposition ?? null,
+        followup_date: fields.followup_date ?? null,
+        notes: fields.notes ?? null,
+        status: leadStatus,
+      };
+
+      if (existingLeadId) {
+        const { data: updatedRow, error: updateError } = await supabase
+          .from("leads")
+          .update(upsertPayload as never)
+          .eq("id", existingLeadId)
+          .eq("campaign_id", campaignId)
+          .eq("organization_id", orgId)
+          .eq("assigned_agent_id", user.id)
+          .select("id")
+          .maybeSingle();
+
+        if (updateError) {
+          errors.push(`Row ${i + 1}: ${updateError.message}`);
+        } else if (!updatedRow) {
+          errors.push(`Row ${i + 1}: Lead not found or not assigned to you`);
+        } else {
+          updated++;
+        }
+        continue;
+      }
 
       if (!derivedName && !company_name && !email && !phone) {
         errors.push(
@@ -103,7 +268,6 @@ export async function POST(
         continue;
       }
 
-      // Duplicate lead check based on same keys as single-lead create
       if (
         first_name &&
         last_name &&
@@ -134,82 +298,19 @@ export async function POST(
             lead_id: string | null;
           };
           errors.push(
-            `Row ${i + 1}: Duplicate lead (${existing.lead_id ?? existing.id})`
+            `Row ${i + 1}: Duplicate lead (${existing.lead_id ?? existing.id}). Use export with lead_id to update existing leads.`
           );
           continue;
         }
       }
 
-      const leadStatus =
-        typeof row.status === "string" && row.status.length > 0
-          ? (row.status as string)
-          : "new";
-
-      const insertPayload: Record<string, unknown> = {
+      const { error: insertError } = await supabase.from("leads").insert({
         organization_id: orgId,
         campaign_id: campaignId,
         assigned_agent_id: user.id,
-        name: derivedName || null,
-        first_name,
-        last_name,
-        salutation: row.salutation ?? null,
-        company_name,
-        phone,
-        email,
-        domain,
-        direct_number: row.direct_number ?? null,
-        company_number: row.company_number ?? null,
-        phone_number_link: row.phone_number_link ?? null,
-        job_title: row.job_title ?? null,
-        job_level: row.job_level ?? null,
-        department: row.department ?? null,
-        job_function: row.job_function ?? null,
-        job_title_link: row.job_title_link ?? null,
-        tenurity: row.tenurity ?? null,
-        vv_status: row.vv_status ?? null,
-        email_status: row.email_status ?? null,
-        ev_tool: row.ev_tool ?? null,
-        address: row.address ?? null,
-        city: row.city ?? null,
-        state: row.state ?? null,
-        country: row.country ?? null,
-        zip_code: row.zip_code ?? null,
-        employee_size: row.employee_size ?? null,
-        see_all_employees: row.see_all_employees ?? null,
-        industry: row.industry ?? null,
-        employee_size_link: row.employee_size_link ?? null,
-        company_website_link: row.company_website_link ?? null,
-        revenue_range: row.revenue_range ?? null,
-        revenue_link: row.revenue_link ?? null,
-        sic_code: row.sic_code ?? null,
-        sic_code_link: row.sic_code_link ?? null,
-        naics_code: row.naics_code ?? null,
-        naics_code_link: row.naics_code_link ?? null,
-        founded_years:
-          row.founded_years != null
-            ? Number(row.founded_years)
-            : null,
-        founded_years_link: row.founded_years_link ?? null,
-        contact_linkedin_url: row.contact_linkedin_url ?? null,
-        company_linkedin_url: row.company_linkedin_url ?? null,
-        scored: row.scored ?? null,
-        appointment: row.appointment ?? null,
-        lead_tagging: row.lead_tagging ?? null,
-        ra_comment: row.ra_comment ?? null,
-        special_comments: row.special_comments ?? null,
-        call_back: row.call_back ?? null,
-        call_notes: row.call_notes ?? null,
-        // QA-only fields are deliberately ignored (asset_title, qa_status, qa_name, audit_date, qa_comments, primary_reason, secondary_reason, etc.)
-        lead_disposition: row.lead_disposition ?? null,
-        followup_date: row.followup_date ?? null,
-        notes: row.notes ?? null,
-        status: leadStatus,
+        ...upsertPayload,
         created_by: user.id,
-      };
-
-      const { error: insertError } = await supabase
-        .from("leads")
-        .insert(insertPayload as never);
+      } as never);
 
       if (insertError) {
         errors.push(`Row ${i + 1}: ${insertError.message}`);
@@ -220,7 +321,7 @@ export async function POST(
 
     return NextResponse.json({
       created,
-      updated: 0,
+      updated,
       total: rawLeads.length,
       errors,
     });
@@ -232,4 +333,3 @@ export async function POST(
     );
   }
 }
-

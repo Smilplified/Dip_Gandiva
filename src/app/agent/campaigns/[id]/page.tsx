@@ -365,8 +365,16 @@ export default function AgentCampaignDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
       const created = data.created ?? 0;
-      const total = data.total ?? created;
-      message.success(`Imported ${created} of ${total} leads`);
+      const updated = data.updated ?? 0;
+      const total = data.total ?? created + updated;
+      const parts: string[] = [];
+      if (created > 0) parts.push(`${created} new`);
+      if (updated > 0) parts.push(`${updated} updated`);
+      message.success(
+        parts.length > 0
+          ? `Import complete: ${parts.join(", ")} (${total} rows)`
+          : `Processed ${total} rows`
+      );
       if (data.errors?.length) {
         message.warning(
           data.errors.slice(0, 3).join("; ") +
@@ -808,8 +816,9 @@ export default function AgentCampaignDetailPage() {
           >
             download the Excel format
           </Typography.Link>{" "}
-          (Lead ID, QA fields, and Created By are hidden and managed by the
-          system) or upload your own CSV/Excel with matching columns.
+          (includes <strong>lead_id</strong> so edits update the same lead) or
+          upload your own CSV/Excel. Keep the <strong>lead_id</strong> or{" "}
+          <strong>id</strong> column when editing exported files.
         </Typography.Paragraph>
         <Upload.Dragger
           accept=".csv,.xlsx,.xls"
@@ -836,8 +845,8 @@ export default function AgentCampaignDetailPage() {
             Click or drag CSV or Excel file here
           </p>
           <p className="ant-upload-hint">
-            Excel format hides Lead ID, QA fields, and Created By. These will be
-            generated and validated automatically after upload.
+            Re-uploading an exported file updates existing leads when lead_id or
+            id is present. New rows without an id are added as new leads.
           </p>
         </Upload.Dragger>
         {parsedLeads.length > 0 && (

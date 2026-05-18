@@ -3,12 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type ChatInboxCampaignRow = {
+export type ChatInboxCampaignRow = {
   id: string;
   campaignId: string;
   name: string;
-  clientName: string | null;
-  clientId: string;
+};
+
+export type ChatInboxClientRow = {
+  id: string;
+  companyName: string;
+  campaigns: ChatInboxCampaignRow[];
 };
 
 export async function GET() {
@@ -44,8 +48,9 @@ export async function GET() {
       .map((r) => r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_"))
       .filter(Boolean) as string[];
 
-    const canViewAllCampaigns =
+    const canViewAllClients =
       roleNames.includes("sales_manager") ||
+      roleNames.includes("sales") ||
       roleNames.includes("internal_operator") ||
       roleNames.includes("internal_admin") ||
       roleNames.includes("admin");
@@ -55,15 +60,15 @@ export async function GET() {
 
     let query = supabase
       .from("campaigns")
-      .select("id, campaign_id, name, client_name, client_id, status")
+      .select("id, campaign_id, name, client_id, client_name, status, clients(company_name)")
       .eq("organization_id", orgId)
       .eq("status", "active")
       .not("client_id", "is", null)
       .order("name", { ascending: true });
 
-    if (!canViewAllCampaigns && isClientViewer) {
+    if (!canViewAllClients && isClientViewer) {
       if (!userClientId) {
-        return NextResponse.json({ campaigns: [] as ChatInboxCampaignRow[] });
+        return NextResponse.json({ clients: [] as ChatInboxClientRow[] });
       }
       query = query.eq("client_id", userClientId);
     }
@@ -78,19 +83,39 @@ export async function GET() {
       id: string;
       campaign_id: string;
       name: string;
-      client_name: string | null;
       client_id: string;
+      client_name: string | null;
+      clients: { company_name: string } | null | { company_name: string }[];
     };
 
-    const campaigns: ChatInboxCampaignRow[] = ((rows ?? []) as Raw[]).map((r) => ({
-      id: r.id,
-      campaignId: r.campaign_id,
-      name: r.name,
-      clientName: r.client_name,
-      clientId: r.client_id,
-    }));
+    const byClient = new Map<string, ChatInboxClientRow>();
 
-    return NextResponse.json({ campaigns });
+    for (const row of (rows ?? []) as Raw[]) {
+      const embedded = row.clients;
+      const fromClientTable = Array.isArray(embedded)
+        ? embedded[0]?.company_name
+        : embedded?.company_name;
+      const companyName =
+        fromClientTable?.trim() || row.client_name?.trim() || "Unknown client";
+
+      let client = byClient.get(row.client_id);
+      if (!client) {
+        client = { id: row.client_id, companyName, campaigns: [] };
+        byClient.set(row.client_id, client);
+      }
+
+      client.campaigns.push({
+        id: row.id,
+        campaignId: row.campaign_id,
+        name: row.name,
+      });
+    }
+
+    const clients = [...byClient.values()].sort((a, b) =>
+      a.companyName.localeCompare(b.companyName)
+    );
+
+    return NextResponse.json({ clients });
   } catch (e) {
     console.error("GET /api/chat/campaigns:", e);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -124,7 +124,13 @@ export function parseLeadsExcel(buffer: ArrayBuffer): Record<string, unknown>[] 
       const str = val != null ? String(val).trim() : "";
       if (key) {
         if (str) row[key] = str;
-        else if (key === "id" && (val !== undefined && val !== null)) row[key] = String(val).trim();
+        else if (
+          (key === "id" || key === "lead_id") &&
+          val !== undefined &&
+          val !== null
+        ) {
+          row[key] = String(val).trim();
+        }
       }
     }
     if (row.id === "") delete row.id;

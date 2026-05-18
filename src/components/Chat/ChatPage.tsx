@@ -2,30 +2,29 @@
 
 import InboxPanel from "./InboxPanel";
 import ChatThread from "./ChatThread";
-import LeadInfoPanel from "./LeadInfoPanel";
+import ClientInfoPanel from "./ClientInfoPanel";
 import { useChat } from "./useChat";
 
 export default function ChatPage() {
   const {
-    filteredConversations,
-    totalUnread,
-    tab,
-    setTab,
-    search,
-    setSearch,
-    activeLeadId,
-    activeConversation,
-    selectConversation,
+    activeThread,
     threadMessages,
+    messagesLoading,
+    threadLoading,
+    threadError,
     draft,
     setDraft,
     sendMessage,
-    leadInfoOpen,
-    setLeadInfoOpen,
-    chatCampaigns,
-    campaignsLoading,
-    campaignsError,
+    clientInfoOpen,
+    setClientInfoOpen,
+    chatClients,
+    clientsLoading,
+    clientsError,
+    selectedClientId,
+    selectClient,
+    clientCampaigns,
     selectedCampaignId,
+    selectedCampaignName,
     selectCampaign,
   } = useChat();
 
@@ -40,32 +39,32 @@ export default function ChatPage() {
     >
       <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
         <InboxPanel
-          conversations={filteredConversations}
-          activeLeadId={activeLeadId}
-          onSelect={selectConversation}
-          tab={tab}
-          onTabChange={setTab}
-          search={search}
-          onSearchChange={setSearch}
-          totalUnread={totalUnread}
-          campaigns={chatCampaigns}
-          campaignsLoading={campaignsLoading}
-          campaignsError={campaignsError}
+          clients={chatClients}
+          clientsLoading={clientsLoading}
+          clientsError={clientsError}
+          selectedClientId={selectedClientId}
+          onSelectClient={selectClient}
+          clientCampaigns={clientCampaigns}
           selectedCampaignId={selectedCampaignId}
           onSelectCampaign={selectCampaign}
+          selectedCampaignName={selectedCampaignName}
+          threadLoading={threadLoading}
+          threadError={threadError}
+          hasActiveThread={Boolean(activeThread)}
         />
         <ChatThread
-          conversation={activeConversation}
+          thread={activeThread}
           messages={threadMessages}
           draft={draft}
           onDraftChange={setDraft}
           onSend={sendMessage}
-          leadInfoOpen={leadInfoOpen}
-          onToggleLeadInfo={() => setLeadInfoOpen((v) => !v)}
+          loading={messagesLoading}
+          clientInfoOpen={clientInfoOpen}
+          onToggleClientInfo={() => setClientInfoOpen((v) => !v)}
         />
-        <LeadInfoPanel
-          conversation={activeConversation}
-          open={leadInfoOpen}
+        <ClientInfoPanel
+          thread={activeThread}
+          open={clientInfoOpen}
           messageCount={threadMessages.length}
         />
       </div>

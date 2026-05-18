@@ -92,7 +92,6 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
 const AGENT_HIDDEN_COLUMNS = new Set<string>([
   "id",
   "campaign_id",
-  "lead_id",
   "asset_title",
   "qa_status",
   "audit_date",
@@ -219,8 +218,8 @@ function leadsToAgentSheetData(leads: Lead[]): unknown[][] {
 }
 
 /**
- * Download Agent-safe Excel: hides Lead ID, QA fields, and Created By so that
- * uploaded files only contain fields Agents are allowed to see/edit.
+ * Download Agent-safe Excel: includes lead_id for re-import matching; hides
+ * internal id, QA fields, and Created By.
  */
 export function downloadAgentExcel(
   leads: Lead[],

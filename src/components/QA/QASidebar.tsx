@@ -4,19 +4,22 @@ import { Layout, Tooltip } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { FundProjectionScreenOutlined, DashboardOutlined } from "@ant-design/icons";
+import { FundProjectionScreenOutlined, DashboardOutlined, AudioOutlined } from "@ant-design/icons";
 
 const { Sider } = Layout;
 
 const menuItems = [
   { key: "/qa/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/qa/dashboard" },
   { key: "/qa/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/qa/campaigns" },
+  { key: "/qa/recordings", icon: <AudioOutlined />, label: "Recordings", href: "/qa/recordings" },
 ];
 
 export default function QASidebar() {
   const pathname = usePathname();
   const selectedKey = pathname?.startsWith("/qa/campaigns")
     ? "/qa/campaigns"
+    : pathname?.startsWith("/qa/recordings")
+    ? "/qa/recordings"
     : "/qa/dashboard";
 
   return (

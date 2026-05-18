@@ -739,7 +739,7 @@ export default function CampaignDetailPage() {
             <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
           </p>
           <p className="ant-upload-text">Click or drag CSV or Excel file here</p>
-          <p className="ant-upload-hint">Export as Excel from this page, edit, then re-upload to update by id. Or use CSV with First Name, Last Name, Company, Email, Phone, etc.</p>
+          <p className="ant-upload-hint">Export as Excel, edit (keep the lead_id or id column), then re-upload to update existing leads. Rows without an id are added as new leads.</p>
         </Upload.Dragger>
         {parsedLeads.length > 0 && (
           <Typography.Text style={{ display: "block", marginTop: 12, color: "#52c41a" }}>

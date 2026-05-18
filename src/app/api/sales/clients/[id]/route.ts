@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { ensureClientWhatsAppLinked } from "@/lib/chat/client-whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,10 @@ export async function PATCH(
 
     if (error) {
       return NextResponse.json({ error: error.message || "Failed to update client" }, { status: 500 });
+    }
+
+    if (payload.contact_mobile) {
+      await ensureClientWhatsAppLinked(admin, clientId, payload.contact_mobile);
     }
 
     return NextResponse.json({ success: true });

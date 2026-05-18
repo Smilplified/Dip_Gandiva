@@ -122,7 +122,32 @@ export async function POST(
     for (let i = 0; i < rawLeads.length; i++) {
       const row = rawLeads[i] as Record<string, unknown>;
       const rowIdRaw = row["id"] as string | number | undefined;
-      const rowId = rowIdRaw != null ? String(rowIdRaw).trim() : "";
+      let rowId = rowIdRaw != null ? String(rowIdRaw).trim() : "";
+      const rowLeadIdRaw = row["lead_id"] as string | number | undefined;
+      const rowLeadId = rowLeadIdRaw != null ? String(rowLeadIdRaw).trim() : "";
+
+      // If no UUID id but lead_id is present, resolve it to the internal id
+      if (!rowId && rowLeadId) {
+        const { data: byLeadId, error: lookupErr } = await dataClient
+          .from("leads")
+          .select("id")
+          .eq("lead_id", rowLeadId)
+          .eq("campaign_id", campaignId)
+          .eq("organization_id", orgId)
+          .maybeSingle();
+        if (lookupErr) {
+          errors.push(`Row ${i + 1}: ${lookupErr.message}`);
+          continue;
+        }
+        rowId = (byLeadId as { id: string } | null)?.id ?? "";
+        if (!rowId) {
+          errors.push(
+            `Row ${i + 1}: Lead not found (${rowLeadId}). Export leads first and keep the lead_id column when editing.`
+          );
+          continue;
+        }
+      }
+
       const fields = pickLeadFields(row);
       const first_name = ((fields.first_name as string) ?? (fields.name as string)?.split(/\s+/)[0]) ?? null;
       const last_name = ((fields.last_name as string) ?? (fields.name as string)?.split(/\s+/).slice(1).join(" ")) || null;

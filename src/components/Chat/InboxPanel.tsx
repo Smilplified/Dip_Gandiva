@@ -1,151 +1,130 @@
 "use client";
 
-import { IconSearch } from "@tabler/icons-react";
-import type { ChatInboxCampaign, Conversation, ConversationTab } from "./types";
-import ConversationItem from "./ConversationItem";
+import { IconBrandWhatsapp } from "@tabler/icons-react";
+import type { ChatInboxCampaign, ChatInboxClient } from "./types";
 
 interface InboxPanelProps {
-  conversations: Conversation[];
-  activeLeadId: string | null;
-  onSelect: (leadId: string) => void;
-  tab: ConversationTab;
-  onTabChange: (t: ConversationTab) => void;
-  search: string;
-  onSearchChange: (v: string) => void;
-  totalUnread: number;
-  campaigns: ChatInboxCampaign[];
-  campaignsLoading: boolean;
-  campaignsError: string | null;
+  clients: ChatInboxClient[];
+  clientsLoading: boolean;
+  clientsError: string | null;
+  selectedClientId: string | null;
+  onSelectClient: (clientId: string) => void;
+  clientCampaigns: ChatInboxCampaign[];
   selectedCampaignId: string | null;
-  onSelectCampaign: (campaignId: string | null) => void;
+  onSelectCampaign: (campaignId: string) => void;
+  selectedCampaignName: string | null;
+  threadLoading?: boolean;
+  threadError?: string | null;
+  hasActiveThread?: boolean;
 }
 
-const TABS: { id: ConversationTab; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "mine", label: "Mine" },
-  { id: "unread", label: "Unread" },
-];
-
 export default function InboxPanel({
-  conversations,
-  activeLeadId,
-  onSelect,
-  tab,
-  onTabChange,
-  search,
-  onSearchChange,
-  totalUnread,
-  campaigns,
-  campaignsLoading,
-  campaignsError,
+  clients,
+  clientsLoading,
+  clientsError,
+  selectedClientId,
+  onSelectClient,
+  clientCampaigns,
   selectedCampaignId,
   onSelectCampaign,
+  selectedCampaignName,
+  threadLoading = false,
+  threadError = null,
+  hasActiveThread = false,
 }: InboxPanelProps) {
+  const selectedClient = clients.find((c) => c.id === selectedClientId);
+
   return (
-    <div className="flex h-full w-[268px] shrink-0 flex-col border-r border-[#e4e7ec] bg-white">
-      <div className="shrink-0 border-b border-[#e4e7ec] px-3 pb-3 pt-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="m-0 text-[15px] font-semibold text-[#101828]">Inbox</h2>
-          {totalUnread > 0 ? (
-            <span className="rounded-full bg-[#fef3f2] px-2 py-0.5 text-[11px] font-medium text-[#d92d20]">
-              {totalUnread} new
-            </span>
-          ) : null}
-        </div>
+    <div className="flex h-full w-[248px] shrink-0 flex-col border-r border-[#e4e7ec] bg-white">
+      <div className="shrink-0 border-b border-[#e4e7ec] px-3 pb-3 pt-3">
+        <h2 className="m-0 mb-2 text-[15px] font-semibold text-[#101828]">Inbox</h2>
 
-        <p className="m-0 mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#98a2b3]">
-          Active campaigns · client assigned
-        </p>
-        {campaignsError ? (
-          <p className="mb-2 rounded-lg bg-[#fef3f2] px-2 py-1.5 text-[11px] text-[#b42318]">{campaignsError}</p>
+        {clientsError ? (
+          <p className="mb-2 rounded-lg bg-[#fef3f2] px-2 py-1.5 text-[11px] text-[#b42318]">{clientsError}</p>
         ) : null}
-        {campaignsLoading ? (
-          <div className="mb-3 max-h-[120px] space-y-2 overflow-y-auto">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-11 animate-pulse rounded-lg bg-[#f2f4f7]" />
-            ))}
-          </div>
-        ) : campaigns.length === 0 ? (
-          <p className="mb-3 text-[12px] leading-snug text-[#98a2b3]">
-            No active campaigns with an assigned client for your account.
-          </p>
-        ) : (
-          <div className="mb-3 max-h-[140px] space-y-1.5 overflow-y-auto rounded-lg border border-[#eef1f5] bg-[#fafbfb] p-1.5">
-            {campaigns.map((c) => {
-              const sel = c.id === selectedCampaignId;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => onSelectCampaign(c.id)}
-                  className={[
-                    "flex w-full flex-col rounded-md border px-2.5 py-2 text-left transition-colors",
-                    sel
-                      ? "border-[#1d9e75] bg-[#ecfdf5] shadow-sm"
-                      : "border-transparent bg-white hover:border-[#e4e7ec] hover:bg-[#f7f8fa]",
-                  ].join(" ")}
-                >
-                  <span className="truncate text-[12px] font-semibold text-[#101828]">{c.name}</span>
-                  <span className="truncate text-[10px] text-[#475467]">
-                    {c.clientName?.trim() ? c.clientName : "Client"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
 
-        <div className="relative">
-          <IconSearch
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#98a2b3]"
-            size={16}
-            stroke={1.5}
-            aria-hidden
-          />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search conversations..."
-            className="w-full rounded-lg border border-[#e4e7ec] bg-[#f7f8fa] py-2 pl-9 pr-3 text-[13px] text-[#101828] outline-none placeholder:text-[#98a2b3] focus:border-[#1d9e75] focus:ring-1 focus:ring-[#1d9e75]"
-          />
-        </div>
-        <div className="mt-3 flex border-b border-[#e4e7ec]">
-          {TABS.map((t) => {
-            const on = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => onTabChange(t.id)}
-                className={[
-                  "flex-1 border-0 bg-transparent pb-2.5 text-[13px] transition-colors",
-                  on ? "border-b-2 border-[#1d9e75] font-medium text-[#1d9e75]" : "border-b-2 border-transparent font-normal text-[#475467]",
-                ].join(" ")}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div className="crm-inbox-scroll flex min-h-0 flex-1 flex-col">
-        {conversations.length === 0 ? (
-          <p className="min-h-full border-b border-[#eef1f5] px-3 py-6 text-center text-[13px] text-[#98a2b3]">
-            No conversations match.
-          </p>
-        ) : (
-          <div className="flex min-h-full flex-1 flex-col divide-y divide-[#eef1f5] border-b border-[#eef1f5]">
-            {conversations.map((c) => (
-              <ConversationItem
-                key={c.leadId}
-                conversation={c}
-                active={c.leadId === activeLeadId}
-                onSelect={() => onSelect(c.leadId)}
-              />
-            ))}
+        <label className="mb-2 block">
+          <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-[#98a2b3]">
+            Client
+          </span>
+          {clientsLoading ? (
+            <div className="h-9 animate-pulse rounded-lg bg-[#f2f4f7]" aria-hidden />
+          ) : clients.length === 0 ? (
+            <p className="text-[11px] leading-snug text-[#98a2b3]">No clients with active campaigns.</p>
+          ) : (
+            <select
+              value={selectedClientId ?? ""}
+              onChange={(e) => onSelectClient(e.target.value)}
+              className="w-full cursor-pointer appearance-none rounded-lg border border-[#e4e7ec] bg-[#f7f8fa] py-2 pl-2.5 pr-7 text-[12px] font-medium text-[#101828] outline-none focus:border-[#1d9e75] focus:ring-1 focus:ring-[#1d9e75]"
+              aria-label="Select client"
+            >
+              {clients.map((cl) => (
+                <option key={cl.id} value={cl.id}>
+                  {cl.companyName}
+                  {cl.campaigns.length > 1 ? ` (${cl.campaigns.length} campaigns)` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </label>
+
+        {clientCampaigns.length > 0 ? (
+          <div className="mb-0">
+            <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-[#98a2b3]">
+              Campaign
+            </span>
+            <div className="max-h-[140px] space-y-1 overflow-y-auto rounded-lg border border-[#eef1f5] bg-[#fafbfb] p-1">
+              {clientCampaigns.map((camp) => {
+                const on = camp.id === selectedCampaignId;
+                return (
+                  <button
+                    key={camp.id}
+                    type="button"
+                    onClick={() => onSelectCampaign(camp.id)}
+                    className={[
+                      "w-full truncate rounded-md border px-2 py-1.5 text-left text-[11px] transition-colors",
+                      on
+                        ? "border-[#1d9e75] bg-[#ecfdf5] font-semibold text-[#065f46]"
+                        : "border-transparent bg-white font-medium text-[#344054] hover:bg-[#f7f8fa]",
+                    ].join(" ")}
+                    title={camp.name}
+                  >
+                    {camp.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        )}
+        ) : null}
+      </div>
+
+      <div className="crm-inbox-scroll flex min-h-0 flex-1 flex-col px-3 py-4">
+        {!selectedCampaignId ? (
+          <p className="text-center text-[12px] leading-relaxed text-[#98a2b3]">
+            Select a client and campaign to open WhatsApp chat.
+          </p>
+        ) : threadError ? (
+          <p className="text-center text-[12px] text-[#b42318]">{threadError}</p>
+        ) : threadLoading ? (
+          <div className="space-y-2">
+            <div className="h-12 animate-pulse rounded-lg bg-[#f2f4f7]" />
+            <div className="h-4 w-3/4 animate-pulse rounded bg-[#f2f4f7]" />
+          </div>
+        ) : hasActiveThread && selectedClient ? (
+          <div className="rounded-lg border border-[#e4e7ec] bg-[#f7f8fa] p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[#1d9e75]">
+              <IconBrandWhatsapp size={14} stroke={1.5} aria-hidden />
+              Client chat open
+            </div>
+            <p className="m-0 text-[13px] font-semibold text-[#101828]">{selectedClient.companyName}</p>
+            {selectedCampaignName ? (
+              <p className="mt-1 m-0 text-[11px] text-[#667085]">Campaign: {selectedCampaignName}</p>
+            ) : null}
+            <p className="mt-2 m-0 text-[11px] leading-relaxed text-[#98a2b3]">
+              Messages with this client for the selected campaign appear on the right.
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   );
