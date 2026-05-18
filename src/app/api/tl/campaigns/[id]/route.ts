@@ -33,7 +33,7 @@ export async function GET(
 
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("id, campaign_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, employee_size, abm, seniority, job_function, creatives_url, created_at")
+      .select("id, campaign_id, campaign_code, client_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, employee_size, abm, seniority, job_function, creatives_url, created_at")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();

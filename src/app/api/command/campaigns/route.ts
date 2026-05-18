@@ -219,7 +219,7 @@ export async function GET(request: NextRequest) {
     let listQuery = supabase
       .from("campaigns")
       .select(
-        `id, campaign_id, name, description, status, start_date, end_date,
+        `id, campaign_id, campaign_code, name, description, status, start_date, end_date,
          client_id, client_name, lead_type, campaign_type, cpl, revenue, total_allocation, achieved,
          pending_allocation, industry, geography, created_at, created_by,
          campaign_metrics(
@@ -363,7 +363,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("campaigns")
     .select(
-      `id, campaign_id, name, description, status, start_date, end_date,
+      `id, campaign_id, campaign_code, name, description, status, start_date, end_date,
        client_id, client_name, lead_type, campaign_type, cpl, revenue, total_allocation, achieved,
        pending_allocation, industry, geography, created_at, created_by,
        campaign_metrics(

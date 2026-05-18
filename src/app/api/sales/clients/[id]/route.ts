@@ -72,7 +72,7 @@ export async function PATCH(
 
     const company_name = str(body.company_name);
     if (!company_name) {
-      return NextResponse.json({ error: "Company name is required" }, { status: 400 });
+      return NextResponse.json({ error: "Client name is required" }, { status: 400 });
     }
 
     const contact_person = str(body.contact_person);
@@ -96,6 +96,7 @@ export async function PATCH(
     }
 
     const payload = {
+      client_code: str(body.client_code),
       company_name,
       company_website: str(body.company_website),
       industry_type: str(body.industry_type),

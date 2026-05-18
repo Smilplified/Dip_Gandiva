@@ -40,6 +40,7 @@ export interface CampaignListStats {
 export interface CommandCampaignRow {
   id: string;
   campaign_id: string;
+  campaign_code?: string | null;
   name: string;
   created_by_name?: string | null;
   status: string;
@@ -120,6 +121,19 @@ function ComplianceShieldCell({ row }: { row: CommandCampaignRow }) {
 
 export default function CampaignTable({ campaigns, loading }: CampaignTableProps) {
   const columns: ColumnsType<CommandCampaignRow> = [
+    {
+      title: "Campaign Code",
+      dataIndex: "campaign_code",
+      key: "campaign_code",
+      width: 130,
+      onHeaderCell: headerCellProps(130),
+      onCell: () => ({ style: { minWidth: 130, whiteSpace: "nowrap" } }),
+      render: (val: string | null | undefined) => (
+        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+          {val || "—"}
+        </Tag>
+      ),
+    },
     {
       title: "Campaign Name",
       key: "name",

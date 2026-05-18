@@ -21,6 +21,7 @@ import { useRoleGuard } from "@/hooks/useRoleGuard";
 type Campaign = {
   id: string;
   campaign_id?: string | null;
+  campaign_code?: string | null;
   name: string;
   client_name?: string | null;
   description: string | null;
@@ -248,6 +249,17 @@ export default function MISCampaignsPage() {
                   <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                     {index + 1}
                   </Typography.Text>
+                ),
+              },
+              {
+                title: "Campaign Code",
+                dataIndex: "campaign_code",
+                key: "campaign_code",
+                width: 130,
+                render: (val: string | null | undefined) => (
+                  <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {val || "—"}
+                  </Tag>
                 ),
               },
               {

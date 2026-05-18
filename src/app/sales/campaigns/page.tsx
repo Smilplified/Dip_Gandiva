@@ -32,13 +32,13 @@ import {
   PlayCircleOutlined,
   PauseCircleOutlined,
   SearchOutlined,
-  CopyOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 
 type CampaignRow = {
   id: string;
   campaign_id: string;
+  campaign_code: string | null;
   name: string;
   client_name: string | null;
   lead_type: string | null;
@@ -154,6 +154,7 @@ export default function SalesCampaignsPage() {
       (c.name?.toLowerCase().includes(searchText.toLowerCase())) ||
       (c.client_name?.toLowerCase().includes(searchText.toLowerCase())) ||
       (c.campaign_id?.toLowerCase().includes(searchText.toLowerCase())) ||
+      (c.campaign_code?.toLowerCase().includes(searchText.toLowerCase())) ||
       (c.lead_type?.toLowerCase().includes(searchText.toLowerCase())) ||
       (c.industry?.toLowerCase().includes(searchText.toLowerCase())) ||
       (c.geography?.toLowerCase().includes(searchText.toLowerCase()));
@@ -186,39 +187,16 @@ export default function SalesCampaignsPage() {
       render: (_: unknown, __: CampaignRow, index: number) => index + 1,
     },
     {
-      title: "Campaign ID",
-      dataIndex: "campaign_id",
-      key: "campaign_id",
-      width: 240,
+      title: "Campaign Code",
+      dataIndex: "campaign_code",
+      key: "campaign_code",
+      width: 130,
       fixed: "left" as const,
-      render: (val: string | undefined, r: CampaignRow) => {
-        const id = (val ?? r?.campaign_id ?? "").toString().trim();
-        const copy = (e: React.MouseEvent) => {
-          e.stopPropagation();
-          if (!id) return;
-          navigator.clipboard.writeText(id).then(
-            () => message.success("Campaign ID copied"),
-            () => message.error("Failed to copy")
-          );
-        };
-        return (
-          <span className="campaign-id-cell" style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, width: "100%" }}>
-            <span style={{ fontFamily: "monospace", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: "1 1 0" }}>
-              {id || "—"}
-            </span>
-            <Tooltip title={id ? "Copy Campaign ID" : "No ID to copy"}>
-              <Button
-                type="text"
-                size="small"
-                icon={<CopyOutlined />}
-                onClick={copy}
-                disabled={!id}
-                style={{ flexShrink: 0, padding: "2px 6px" }}
-              />
-            </Tooltip>
-          </span>
-        );
-      },
+      render: (val: string | null) => (
+        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+          {val || "—"}
+        </Tag>
+      ),
     },
     {
       title: "Client Name",

@@ -32,7 +32,9 @@ import { useAuth } from "@/context/AuthContext";
 
 type CampaignRow = {
   id: string;
+  campaign_code: string | null;
   name: string;
+  client_name: string | null;
   industry: string | null;
   geography: string | null;
   status: string;
@@ -153,6 +155,18 @@ export default function TLCampaignsPage() {
       width: 72,
       fixed: "left" as const,
       render: (_: unknown, __: CampaignRow, index: number) => index + 1,
+    },
+    {
+      title: "Campaign Code",
+      dataIndex: "campaign_code",
+      key: "campaign_code",
+      width: 130,
+      fixed: "left" as const,
+      render: (val: string | null) => (
+        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+          {val || "—"}
+        </Tag>
+      ),
     },
     {
       title: "Campaign Name",

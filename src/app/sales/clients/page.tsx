@@ -36,6 +36,7 @@ type CampaignBrief = { id: string; campaign_id: string; name: string; status: st
 
 type ClientRow = {
   id: string;
+  client_code: string | null;
   company_name: string;
   company_website: string | null;
   industry_type: string | null;
@@ -67,6 +68,7 @@ export default function SalesClientsPage() {
   const [editingClient, setEditingClient] = useState<ClientRow | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
@@ -107,6 +109,7 @@ export default function SalesClientsPage() {
   const openEditModal = (record: ClientRow) => {
     setEditingClient(record);
     editForm.setFieldsValue({
+      client_code: record.client_code,
       company_name: record.company_name,
       company_website: record.company_website,
       industry_type: record.industry_type,
@@ -191,6 +194,17 @@ export default function SalesClientsPage() {
 
   const totalCampaigns = clients.reduce((sum, c) => sum + (c.campaigns?.length ?? 0), 0);
 
+  const q = search.trim().toLowerCase();
+  const filteredClients = q
+    ? clients.filter(
+        (c) =>
+          (c.contact_full_name ?? "").toLowerCase().includes(q) ||
+          (c.contact_person ?? "").toLowerCase().includes(q) ||
+          (c.company_name ?? "").toLowerCase().includes(q) ||
+          (c.contact_work_email ?? "").toLowerCase().includes(q)
+      )
+    : clients;
+
   const renderText = (v: string | null | number | undefined) => (v != null && v !== "" ? String(v) : "—");
 
   const columns = [
@@ -202,13 +216,37 @@ export default function SalesClientsPage() {
       render: (_: unknown, __: ClientRow, index: number) => index + 1,
     },
     {
-      title: "Company Name",
+      title: "Client Code",
+      dataIndex: "client_code",
+      key: "client_code",
+      width: 110,
+      fixed: "left" as const,
+      render: (v: string | null) =>
+        v ? (
+          <span style={{ fontFamily: "monospace", background: "#f0f0f0", padding: "2px 7px", borderRadius: 5, fontSize: 12 }}>
+            {v}
+          </span>
+        ) : (
+          <span style={{ color: "#bbb" }}>—</span>
+        ),
+    },
+    {
+      title: "Client name",
       dataIndex: "company_name",
       key: "company_name",
       width: 160,
       ellipsis: true,
       fixed: "left" as const,
-      render: (v: string) => <span style={{ fontWeight: 600 }}>{v}</span>,
+      render: (v: string) => renderText(v),
+    },
+    {
+      title: "Contact person",
+      dataIndex: "contact_full_name",
+      key: "contact_full_name_fixed",
+      width: 160,
+      ellipsis: true,
+      fixed: "left" as const,
+      render: (v: string | null) => <span style={{ fontWeight: 600 }}>{v || "—"}</span>,
     },
     {
       title: "Company Website",
@@ -273,17 +311,9 @@ export default function SalesClientsPage() {
       render: (v: string | null) => renderText(v),
     },
     {
-      title: "Contact Person",
+      title: "Primary contact",
       dataIndex: "contact_person",
       key: "contact_person",
-      width: 120,
-      ellipsis: true,
-      render: (v: string | null) => renderText(v),
-    },
-    {
-      title: "Full Name",
-      dataIndex: "contact_full_name",
-      key: "contact_full_name",
       width: 120,
       ellipsis: true,
       render: (v: string | null) => renderText(v),
@@ -423,11 +453,33 @@ export default function SalesClientsPage() {
             </Col>
           </Row>
 
-          <Card title="All Clients" bodyStyle={{ overflowX: "auto" }}>
+          <Card
+            title={
+              <Row align="middle" justify="space-between" wrap={false} style={{ gap: 12 }}>
+                <span>
+                  All Clients
+                  {q && (
+                    <Typography.Text type="secondary" style={{ fontSize: 13, fontWeight: 400, marginLeft: 8 }}>
+                      {filteredClients.length} of {clients.length}
+                    </Typography.Text>
+                  )}
+                </span>
+                <Input.Search
+                  placeholder="Search by client name, contact person, primary contact, email…"
+                  allowClear
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onSearch={(v) => setSearch(v)}
+                  style={{ width: 300, fontWeight: 400 }}
+                />
+              </Row>
+            }
+            bodyStyle={{ overflowX: "auto" }}
+          >
             <Table
               className="table-single-line"
               columns={columns}
-              dataSource={clients}
+              dataSource={filteredClients}
               rowKey="id"
               scroll={{ x: 2350 }}
               pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} clients` }}
@@ -495,13 +547,22 @@ export default function SalesClientsPage() {
       >
         <Form form={editForm} layout="vertical" className="mt-4">
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={8}>
+              <Form.Item
+                name="client_code"
+                label="Client Code"
+                tooltip="Short unique code (e.g. CYB). Auto-generated if blank."
+              >
+                <Input style={{ fontFamily: "monospace" }} placeholder="e.g. CYB" />
+              </Form.Item>
+            </Col>
+            <Col span={16}>
               <Form.Item
                 name="company_name"
-                label="Company Name"
-                rules={[{ required: true, message: "Company name is required" }]}
+                label="Client name"
+                rules={[{ required: true, message: "Client name is required" }]}
               >
-                <Input />
+                <Input placeholder="e.g. Acme Inc." />
               </Form.Item>
             </Col>
             <Col span={12}>

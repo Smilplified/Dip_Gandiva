@@ -84,8 +84,18 @@ export function AddClientForm({ form, onSuccess, onCancel, showCancel = true }: 
           <Card size="small" title={<span><BankOutlined style={{ marginRight: 8 }} />Company Information</span>} styles={{ body: { paddingTop: 8 } }}>
             <Row gutter={12}>
               <Col span={12}>
-                <Form.Item name="company_name" label="Company Name" rules={[{ required: true, message: "Required" }]}>
+                <Form.Item name="company_name" label="Client name" rules={[{ required: true, message: "Required" }]}>
                   <Input placeholder="e.g. Acme Inc." />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="client_code"
+                  label="Client Code"
+                  rules={[{ required: true, message: "Required" }, { max: 20, message: "Max 20 chars" }]}
+                  tooltip="Short unique code for this client (e.g. CYB, 7KD)."
+                >
+                  <Input placeholder="e.g. CYB" style={{ fontFamily: "monospace" }} />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -140,7 +150,7 @@ export function AddClientForm({ form, onSuccess, onCancel, showCancel = true }: 
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="contact_full_name" label="Full Name" rules={[{ required: true, message: "Required" }]}>
+                <Form.Item name="contact_full_name" label="Client Name" rules={[{ required: true, message: "Required" }]}>
                   <Input placeholder="Contact full name" />
                 </Form.Item>
               </Col>

@@ -40,10 +40,12 @@ import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
 import { ExpandableText } from "@/components/ExpandableText";
+import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 
 type Campaign = {
   id: string;
   campaign_id?: string | null;
+  campaign_code?: string | null;
   name: string;
   client_name?: string | null;
   description: string | null;
@@ -403,6 +405,8 @@ export default function MISCampaignDetailPage() {
     markingDeliveredLeadId,
   });
 
+  const headerCode = campaignHeaderDisplayCode(campaign);
+
   return (
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
       <div style={{ marginBottom: 20 }}>
@@ -432,8 +436,13 @@ export default function MISCampaignDetailPage() {
               {campaign.name}
             </Typography.Title>
             <Space size="small" wrap>
-              {campaign.campaign_id && (
-                <Tag style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}>{campaign.campaign_id}</Tag>
+              {headerCode && (
+                <Tag
+                  color={headerCode.isStructuredCode ? "blue" : undefined}
+                  style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}
+                >
+                  {headerCode.text}
+                </Tag>
               )}
               <Tag color={statusColors[campaign.status] ?? "default"} style={{ textTransform: "capitalize", margin: 0 }}>
                 {campaign.status}

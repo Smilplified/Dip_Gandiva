@@ -69,6 +69,7 @@ import LeadAuditPanel from "./LeadAuditPanel";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
+import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 
@@ -234,6 +235,7 @@ interface CampaignDetail {
   id: string;
   name: string;
   campaign_id: string;
+  campaign_code?: string | null;
   status: string;
   campaign_type?: string | null;
   /** Lead aggregate label (campaigns.lead_aggregated). */
@@ -837,6 +839,7 @@ export default function CampaignDashboard({
       </div>
     );
   }
+  const headerCode = campaignHeaderDisplayCode(campaign);
   const metrics = Array.isArray(campaign.campaign_metrics)
     ? campaign.campaign_metrics[0]
     : campaign.campaign_metrics;
@@ -2243,9 +2246,12 @@ export default function CampaignDashboard({
               <Title level={4} style={{ margin: 0 }}>
                 {campaign.name}
               </Title>
-              {campaign.campaign_id ? (
-                <Tag color="default" style={{ fontFamily: "monospace" }}>
-                  {campaign.campaign_id}
+              {headerCode ? (
+                <Tag
+                  color={headerCode.isStructuredCode ? "blue" : "default"}
+                  style={{ fontFamily: "monospace" }}
+                >
+                  {headerCode.text}
                 </Tag>
               ) : null}
               <Tag

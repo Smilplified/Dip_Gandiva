@@ -26,7 +26,7 @@ export async function GET() {
     const { data: campaigns, error: campaignsError } = await supabase
       .from("campaigns")
       .select(`
-        id, campaign_id, name, client_name, description, industry, geography, lead_type, status,
+        id, campaign_id, campaign_code, name, client_name, client_id, description, industry, geography, lead_type, status,
         start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved,
         pending_allocation, region, weekly_call, weekly_report, additional_comments,
         assigned_team_leader_id, created_by, created_at
@@ -38,7 +38,7 @@ export async function GET() {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });
     }
 
-    type CampaignRow = { id: string; campaign_id: string; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; cpl: number | null; revenue: number | null; booked: number | null; total_allocation: number | null; post_qa: number | null; achieved: number | null; pending_allocation: number | null; region: string | null; weekly_call: string | null; weekly_report: string | null; additional_comments: string | null; assigned_team_leader_id: string | null; created_by: string | null; created_at: string };
+    type CampaignRow = { id: string; campaign_id: string; campaign_code: string | null; client_id: string | null; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; cpl: number | null; revenue: number | null; booked: number | null; total_allocation: number | null; post_qa: number | null; achieved: number | null; pending_allocation: number | null; region: string | null; weekly_call: string | null; weekly_report: string | null; additional_comments: string | null; assigned_team_leader_id: string | null; created_by: string | null; created_at: string };
     const campaignsList = (campaigns ?? []) as CampaignRow[];
 
     // Fetch user names: assigned team leaders + creators (for fallback when no TL assigned)

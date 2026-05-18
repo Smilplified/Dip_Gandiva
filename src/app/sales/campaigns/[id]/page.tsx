@@ -42,6 +42,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ExpandableText } from "@/components/ExpandableText";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
+import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -64,6 +65,7 @@ const ACCEPT_FILE_TYPES =
 type Campaign = {
   id: string;
   campaign_id: string;
+  campaign_code?: string | null;
   name: string;
   client_name: string | null;
   description: string | null;
@@ -540,6 +542,8 @@ export default function SalesCampaignDetailPage() {
     </div>
   );
 
+  const headerCode = campaignHeaderDisplayCode(campaign);
+
   return (
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
       {/* Breadcrumb & back */}
@@ -581,9 +585,12 @@ export default function SalesCampaignDetailPage() {
               </Typography.Text>
             )}
             <Space size="small" wrap>
-              {campaign.campaign_id && (
-                <Tag style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}>
-                  {campaign.campaign_id}
+              {headerCode && (
+                <Tag
+                  color={headerCode.isStructuredCode ? "blue" : undefined}
+                  style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}
+                >
+                  {headerCode.text}
                 </Tag>
               )}
               <Tag color={statusColors[campaign.status] ?? "default"} style={{ textTransform: "capitalize", margin: 0 }}>

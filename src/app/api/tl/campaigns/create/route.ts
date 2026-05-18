@@ -168,7 +168,7 @@ export async function POST(request: Request) {
         creatives_url: Array.isArray(creatives_url) && creatives_url.length > 0 ? creatives_url.filter((v) => v && typeof v === "string").map((v) => String(v).trim()).filter(Boolean) : null,
         created_by: user.id,
       } as never)
-      .select("id, campaign_id")
+      .select("id, campaign_id, campaign_code")
       .single();
 
     if (insertError) {
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    const row = campaign as { id: string; campaign_id: string } | null;
+    const row = campaign as { id: string; campaign_id: string; campaign_code: string | null } | null;
 
     // Notify the assigned TL (if different from creator)
     if (assigned_team_leader_id && assigned_team_leader_id !== user.id && row?.id) {
@@ -200,6 +200,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       campaign_id: row?.id,
       campaign_display_id: row?.campaign_id,
+      campaign_code: row?.campaign_code ?? null,
     });
   } catch (err) {
     console.error("Create campaign error:", err);

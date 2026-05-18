@@ -67,7 +67,7 @@ export async function GET(request: Request) {
 
     let clientsQuery = admin
       .from("clients")
-      .select("id, company_name, company_website, industry_type, company_size, year_established, company_address, city, state, country, contact_person, contact_full_name, contact_designation, contact_work_email, contact_mobile, contact_linkedin, created_at")
+      .select("id, client_code, company_name, company_website, industry_type, company_size, year_established, company_address, city, state, country, contact_person, contact_full_name, contact_designation, contact_work_email, contact_mobile, contact_linkedin, created_at")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
 
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     const company_name = str(body.company_name);
     if (!company_name) {
       return NextResponse.json(
-        { error: "Company name is required" },
+        { error: "Client name is required" },
         { status: 400 }
       );
     }
@@ -186,6 +186,7 @@ export async function POST(request: Request) {
     const payload = {
       organization_id: orgId,
       created_by: user.id,
+      client_code: str(body.client_code),
       company_name,
       company_website: str(body.company_website),
       industry_type: str(body.industry_type),
@@ -216,6 +217,10 @@ export async function POST(request: Request) {
     const admin = getAdminClientSafe();
     if (!admin) {
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
+
+    if (!payload.client_code) {
+      return NextResponse.json({ error: "Client code is required" }, { status: 400 });
     }
 
     const { data: client, error: insertError } = await admin
