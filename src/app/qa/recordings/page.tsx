@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import JSZip from "jszip";
 import {
   Badge,
   Button,
@@ -27,6 +28,7 @@ import {
   ReloadOutlined,
   SoundOutlined,
   UserOutlined,
+  FileZipOutlined,
 } from "@ant-design/icons";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 
@@ -54,6 +56,7 @@ type LeadWithRecordings = {
   id: string;
   lead_id: string | null;
   name: string | null;
+  email: string | null;
   agent_name: string | null;
   recordings: RecordingEntry[];
 };
@@ -171,24 +174,52 @@ function RecordingCard({ rec }: { rec: RecordingEntry }) {
   return (
     <div
       style={{
-        border: "1px solid #f0f0f0",
-        borderRadius: 10,
-        padding: "12px 16px",
-        background: "#fafafa",
+        border: "1px solid #ede9fe",
+        borderRadius: 12,
+        padding: "14px 16px",
+        background: "#fff",
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
+        boxShadow: "0 1px 4px rgba(114,46,209,0.07)",
+        height: "100%",
+        minWidth: 0,
       }}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+      {/* Title row */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <SoundOutlined style={{ color: "#722ed1", fontSize: 14 }} />
-            <Text strong style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: "#f3e8ff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <SoundOutlined style={{ color: "#722ed1", fontSize: 13 }} />
+            </div>
+            <Text
+              strong
+              style={{
+                fontSize: 12,
+                lineHeight: 1.3,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                wordBreak: "break-all",
+              }}
+            >
               {rec.display_name}
             </Text>
           </div>
-          <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 2 }}>
+          <Text type="secondary" style={{ fontSize: 11, paddingLeft: 34 }}>
             {formatDate(rec.created_at)}
             {rec.size ? ` · ${formatFileSize(rec.size)}` : ""}
           </Text>
@@ -198,17 +229,27 @@ function RecordingCard({ rec }: { rec: RecordingEntry }) {
             <Button
               type="text"
               size="small"
-              icon={<DownloadOutlined />}
+              icon={<DownloadOutlined style={{ color: "#722ed1" }} />}
               href={rec.url}
               download={rec.display_name}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ flexShrink: 0 }}
+              style={{ flexShrink: 0, marginTop: 2 }}
             />
           </Tooltip>
         )}
       </div>
-      <AudioPlayer rec={rec} />
+
+      {/* Audio player */}
+      <div
+        style={{
+          background: "#f9f5ff",
+          borderRadius: 8,
+          padding: "8px 10px",
+        }}
+      >
+        <AudioPlayer rec={rec} />
+      </div>
     </div>
   );
 }
@@ -228,6 +269,8 @@ function CampaignPanel({
   // Filters inside the panel
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [leadSearch, setLeadSearch] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     if (loaded) return;
@@ -253,8 +296,17 @@ function CampaignPanel({
 
   const totalRecs = data?.leads.reduce((s, l) => s + l.recordings.length, 0) ?? 0;
 
-  // Apply date filter + sort to all recordings across leads
+  // Apply search + date filter + sort
+  const q = leadSearch.trim().toLowerCase();
   const filteredLeads: LeadWithRecordings[] = (data?.leads ?? [])
+    .filter((lead) => {
+      if (!q) return true;
+      return (
+        (lead.email ?? "").toLowerCase().includes(q) ||
+        (lead.name ?? "").toLowerCase().includes(q) ||
+        (lead.lead_id ?? "").toLowerCase().includes(q)
+      );
+    })
     .map((lead) => {
       const recs = lead.recordings
         .filter((rec) => {
@@ -277,6 +329,47 @@ function CampaignPanel({
     .filter((lead) => lead.recordings.length > 0);
 
   const filteredTotal = filteredLeads.reduce((s, l) => s + l.recordings.length, 0);
+
+  const handleExportZip = async () => {
+    if (filteredTotal === 0) return;
+    setExporting(true);
+    const key = "zip-export";
+    message.loading({ content: `Preparing ZIP (0 / ${filteredTotal})…`, key, duration: 0 });
+    try {
+      const zip = new JSZip();
+      let done = 0;
+      for (const lead of filteredLeads) {
+        const folderName = (lead.name || lead.lead_id || lead.id)
+          .replace(/[^a-zA-Z0-9._\- ]/g, "_")
+          .slice(0, 60);
+        const folder = zip.folder(folderName)!;
+        for (const rec of lead.recordings) {
+          if (!rec.url) continue;
+          const resp = await fetch(rec.url);
+          if (!resp.ok) continue;
+          const buf = await resp.arrayBuffer();
+          // Determine extension from url or original name
+          const ext = rec.original_name.split(".").pop() || "mp3";
+          folder.file(`${rec.display_name}.${ext}`, buf);
+          done++;
+          message.loading({ content: `Preparing ZIP (${done} / ${filteredTotal})…`, key, duration: 0 });
+        }
+      }
+      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const suffix = (leadSearch || dateRange) ? "-filtered" : "";
+      a.href = url;
+      a.download = `${campaign.name.replace(/[^a-zA-Z0-9._\- ]/g, "_")}_recordings${suffix}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success({ content: `Downloaded ${done} recording${done !== 1 ? "s" : ""} as ZIP`, key });
+    } catch (e) {
+      message.error({ content: e instanceof Error ? e.message : "Export failed", key });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div
@@ -341,13 +434,27 @@ function CampaignPanel({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
+                gap: 10,
                 padding: "10px 20px",
                 borderBottom: "1px solid #f5f5f5",
                 background: "#fafafa",
                 flexWrap: "wrap",
               }}
             >
+              <input
+                placeholder="Search by email / name / lead ID…"
+                value={leadSearch}
+                onChange={(e) => setLeadSearch(e.target.value)}
+                style={{
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 6,
+                  padding: "4px 10px",
+                  fontSize: 13,
+                  outline: "none",
+                  width: 240,
+                  background: "#fff",
+                }}
+              />
               <DatePicker.RangePicker
                 size="small"
                 value={dateRange ?? undefined}
@@ -368,11 +475,12 @@ function CampaignPanel({
                   { value: "oldest", label: "Oldest first" },
                 ]}
               />
-              {(dateRange || sortOrder !== "newest") && (
+              {(leadSearch || dateRange || sortOrder !== "newest") && (
                 <Button
                   size="small"
                   type="text"
                   onClick={() => {
+                    setLeadSearch("");
                     setDateRange(null);
                     setSortOrder("newest");
                   }}
@@ -380,10 +488,22 @@ function CampaignPanel({
                   Reset
                 </Button>
               )}
-              <Text type="secondary" style={{ fontSize: 12, marginLeft: "auto" }}>
-                {filteredTotal} recording{filteredTotal !== 1 ? "s" : ""}
-                {dateRange ? " (filtered)" : ""}
-              </Text>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {filteredTotal} recording{filteredTotal !== 1 ? "s" : ""}
+                  {(leadSearch || dateRange) ? " (filtered)" : ""}
+                </Text>
+                <Button
+                  size="small"
+                  icon={<FileZipOutlined />}
+                  onClick={handleExportZip}
+                  loading={exporting}
+                  disabled={filteredTotal === 0}
+                  style={{ borderColor: "#722ed1", color: "#722ed1" }}
+                >
+                  Export ZIP
+                </Button>
+              </div>
             </div>
           )}
 
@@ -404,11 +524,33 @@ function CampaignPanel({
               />
             )}
             {!loading && loaded && filteredLeads.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 {filteredLeads.map((lead) => (
                   <div key={lead.id}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <UserOutlined style={{ color: "#6b7280" }} />
+                    {/* Lead header */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 12,
+                        paddingBottom: 8,
+                        borderBottom: "1px solid #f0f0f0",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: "50%",
+                          background: "#f3f4f6",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <UserOutlined style={{ color: "#6b7280", fontSize: 13 }} />
+                      </div>
                       <Text strong style={{ fontSize: 13 }}>
                         {lead.name || lead.lead_id || lead.id}
                       </Text>
@@ -417,13 +559,29 @@ function CampaignPanel({
                           {lead.lead_id}
                         </Text>
                       )}
+                      {lead.email && (
+                        <Text type="secondary" style={{ fontSize: 11 }}>
+                          {lead.email}
+                        </Text>
+                      )}
                       {lead.agent_name && (
                         <Tag color="purple" style={{ margin: 0 }}>
                           {lead.agent_name}
                         </Tag>
                       )}
+                      <Text type="secondary" style={{ fontSize: 11, marginLeft: "auto" }}>
+                        {lead.recordings.length} recording{lead.recordings.length !== 1 ? "s" : ""}
+                      </Text>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+                    {/* 3-column recording grid */}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                        gap: 12,
+                      }}
+                    >
                       {lead.recordings.map((rec) => (
                         <RecordingCard key={rec.path} rec={rec} />
                       ))}

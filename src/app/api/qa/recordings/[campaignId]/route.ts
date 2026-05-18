@@ -13,6 +13,7 @@ type LeadRow = {
   name: string | null;
   first_name: string | null;
   last_name: string | null;
+  email: string | null;
   assigned_agent_id: string | null;
 };
 
@@ -41,6 +42,7 @@ export type LeadWithRecordings = {
   id: string;
   lead_id: string | null;
   name: string | null;
+  email: string | null;
   agent_name: string | null;
   recordings: RecordingEntry[];
 };
@@ -129,7 +131,7 @@ export async function GET(
     // Fetch lead rows (batch)
     const { data: leads, error: leadsErr } = await supabase
       .from("leads")
-      .select("id, lead_id, name, first_name, last_name, assigned_agent_id")
+      .select("id, lead_id, name, first_name, last_name, email, assigned_agent_id")
       .in("id", leadIds)
       .eq("campaign_id", campaignId)
       .eq("organization_id", orgId);
@@ -182,11 +184,17 @@ export async function GET(
           .createSignedUrl(objectPath, SIGNED_URL_EXPIRY);
 
         const dateStr = formatDate(f.created_at);
+        const emailPart = lead.email
+          ? lead.email.trim().replace(/[^a-zA-Z0-9@._-]/g, "_")
+          : null;
         const displayName = [
           safeName(agentName),
           safeName(campaignRow.name),
+          emailPart,
           dateStr || "Unknown-Date",
-        ].join("_");
+        ]
+          .filter(Boolean)
+          .join("_");
 
         recordings.push({
           path: objectPath,
@@ -203,6 +211,7 @@ export async function GET(
           id: lead.id,
           lead_id: lead.lead_id,
           name: leadName,
+          email: lead.email ?? null,
           agent_name: agentName,
           recordings,
         });

@@ -141,8 +141,19 @@ export default function SalesCreateCampaignPage() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create campaign");
+      // Safe JSON parse — proxy errors (413, 502 etc.) return plain text
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch {
+        const text = await res.text().catch(() => "");
+        throw new Error(
+          res.status === 409
+            ? "A campaign with this name already exists. Please choose a different name."
+            : text || `Server error (${res.status})`
+        );
+      }
+      if (!res.ok) throw new Error((data.error as string) || "Failed to create campaign");
 
       const campaignId = data.campaign_id as string;
       const filesToUpload = fileList.filter((f) => f.originFileObj);
@@ -157,11 +168,24 @@ export default function SalesCreateCampaignPage() {
           credentials: "include",
           body: formData,
         });
-        const uploadData = await uploadRes.json();
+        let uploadData: Record<string, unknown> = {};
+        try {
+          uploadData = await uploadRes.json();
+        } catch {
+          // Non-JSON response from proxy (e.g. 413 payload too large)
+          message.warning(
+            uploadRes.status === 413
+              ? "Campaign created, but one or more files exceeded the size limit and were not uploaded."
+              : "Campaign created, but file upload failed. Please upload files from the campaign page."
+          );
+          message.success("Campaign created");
+          router.replace(`/sales/campaigns/${campaignId}`);
+          return;
+        }
         if (!uploadRes.ok) {
-          message.warning(uploadData.error || "Campaign created but some files failed to upload.");
-        } else if (uploadData.errors?.length) {
-          message.warning(`Campaign created. ${uploadData.errors.join(" ")}`);
+          message.warning((uploadData.error as string) || "Campaign created but some files failed to upload.");
+        } else if ((uploadData.errors as string[] | undefined)?.length) {
+          message.warning(`Campaign created. ${(uploadData.errors as string[]).join(" ")}`);
         }
       }
 
