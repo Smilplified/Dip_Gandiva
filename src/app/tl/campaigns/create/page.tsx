@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -143,26 +144,17 @@ export default function TLCampaignCreatePage() {
       if (!res.ok) throw new Error(data.error || "Failed to create campaign");
 
       const campaignId = data.campaign_id as string;
-      const filesToUpload = fileList.filter((f) => f.originFileObj);
+      const filesToUpload = fileList
+        .filter((f) => f.originFileObj)
+        .map((f) => f.originFileObj as File);
 
       if (filesToUpload.length > 0) {
-        const formData = new FormData();
-        filesToUpload.forEach((f) => {
-          if (f.originFileObj) formData.append("files", f.originFileObj);
-        });
-        const uploadRes = await fetch(`/api/tl/campaigns/${campaignId}/files`, {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) {
-          message.warning(
-            uploadData.error ||
-              "Campaign created but some files failed to upload."
-          );
-        } else if (uploadData.errors?.length) {
-          message.warning(`Campaign created. ${uploadData.errors.join(" ")}`);
+        const { errors: uploadErrors } = await uploadCampaignFilesDirect(
+          `/api/tl/campaigns/${campaignId}/files`,
+          filesToUpload
+        );
+        if (uploadErrors.length) {
+          message.warning(`Campaign created. Some files failed: ${uploadErrors.slice(0, 2).join("; ")}`);
         }
       }
 
@@ -176,6 +168,7 @@ export default function TLCampaignCreatePage() {
       setLoading(false);
     }
   };
+  
 
   if (!isInitialized) {
     return (

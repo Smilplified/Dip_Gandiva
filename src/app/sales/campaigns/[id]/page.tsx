@@ -41,6 +41,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { ExpandableText } from "@/components/ExpandableText";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
+import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -315,22 +316,16 @@ export default function SalesCampaignDetailPage() {
         throw new Error(data.error || "Failed to update");
       }
 
-      const filesToUpload = uploadFileList.filter((f) => f.originFileObj);
+      const filesToUpload = uploadFileList
+        .filter((f) => f.originFileObj)
+        .map((f) => f.originFileObj as File);
       if (filesToUpload.length > 0) {
-        const formData = new FormData();
-        filesToUpload.forEach((f) => {
-          if (f.originFileObj) formData.append("files", f.originFileObj);
-        });
-        const uploadRes = await fetch(`/api/tl/campaigns/${id}/files`, {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) {
-          message.warning(uploadData.error || "Campaign saved but some files failed to upload.");
-        } else if (uploadData.errors?.length) {
-          message.warning(`Campaign saved. ${uploadData.errors.join(" ")}`);
+        const { errors: uploadErrors } = await uploadCampaignFilesDirect(
+          `/api/tl/campaigns/${id}/files`,
+          filesToUpload
+        );
+        if (uploadErrors.length) {
+          message.warning(`Campaign saved. Some files failed: ${uploadErrors.slice(0, 2).join("; ")}`);
         }
       }
 

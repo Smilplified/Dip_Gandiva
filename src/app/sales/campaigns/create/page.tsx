@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Spin } from "antd";
 import type { UploadFile } from "antd";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
+import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -156,36 +157,17 @@ export default function SalesCreateCampaignPage() {
       if (!res.ok) throw new Error((data.error as string) || "Failed to create campaign");
 
       const campaignId = data.campaign_id as string;
-      const filesToUpload = fileList.filter((f) => f.originFileObj);
+      const filesToUpload = fileList
+        .filter((f) => f.originFileObj)
+        .map((f) => f.originFileObj as File);
 
       if (filesToUpload.length > 0) {
-        const formData = new FormData();
-        filesToUpload.forEach((f) => {
-          if (f.originFileObj) formData.append("files", f.originFileObj);
-        });
-        const uploadRes = await fetch(`/api/tl/campaigns/${campaignId}/files`, {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
-        let uploadData: Record<string, unknown> = {};
-        try {
-          uploadData = await uploadRes.json();
-        } catch {
-          // Non-JSON response from proxy (e.g. 413 payload too large)
-          message.warning(
-            uploadRes.status === 413
-              ? "Campaign created, but one or more files exceeded the size limit and were not uploaded."
-              : "Campaign created, but file upload failed. Please upload files from the campaign page."
-          );
-          message.success("Campaign created");
-          router.replace(`/sales/campaigns/${campaignId}`);
-          return;
-        }
-        if (!uploadRes.ok) {
-          message.warning((uploadData.error as string) || "Campaign created but some files failed to upload.");
-        } else if ((uploadData.errors as string[] | undefined)?.length) {
-          message.warning(`Campaign created. ${(uploadData.errors as string[]).join(" ")}`);
+        const { errors: uploadErrors } = await uploadCampaignFilesDirect(
+          `/api/tl/campaigns/${campaignId}/files`,
+          filesToUpload
+        );
+        if (uploadErrors.length) {
+          message.warning(`Campaign created. Some files failed: ${uploadErrors.slice(0, 2).join("; ")}`);
         }
       }
 

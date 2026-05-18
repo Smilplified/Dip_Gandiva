@@ -21,6 +21,7 @@ import { UploadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { useAuth } from "@/context/AuthContext";
+import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 
 interface CampaignFormValues {
   campaign_id: string;
@@ -202,28 +203,17 @@ export default function CampaignForm({
         (data.campaign?.id as string | undefined) ?? campaignId ?? undefined;
 
       if (persistedCampaignId && uploadedFiles.length > 0) {
-        try {
-          const formData = new FormData();
-          for (const file of uploadedFiles) {
-            if (file.originFileObj) formData.append("files", file.originFileObj);
+        const filesToUpload = uploadedFiles
+          .filter((f) => f.originFileObj)
+          .map((f) => f.originFileObj as File);
+        if (filesToUpload.length > 0) {
+          const { errors: uploadErrors } = await uploadCampaignFilesDirect(
+            `/api/command/campaigns/${persistedCampaignId}/files`,
+            filesToUpload
+          );
+          if (uploadErrors.length) {
+            message.warning(`Campaign saved. Some files failed: ${uploadErrors.slice(0, 2).join("; ")}`);
           }
-          if (formData.has("files")) {
-            const uploadRes = await fetch(`/api/command/campaigns/${persistedCampaignId}/files`, {
-              method: "POST",
-              body: formData,
-            });
-            const uploadData = (await uploadRes.json().catch(() => ({}))) as {
-              error?: string;
-              errors?: string[];
-            };
-            if (!uploadRes.ok) {
-              message.warning(uploadData.error ?? "Campaign saved, but file upload failed");
-            } else if (Array.isArray(uploadData.errors) && uploadData.errors.length > 0) {
-              message.warning(`Campaign saved. Some files failed: ${uploadData.errors.join("; ")}`);
-            }
-          }
-        } catch {
-          message.warning("Campaign saved, but file upload failed");
         }
       }
 
