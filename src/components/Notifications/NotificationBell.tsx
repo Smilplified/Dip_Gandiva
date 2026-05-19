@@ -259,7 +259,13 @@ export default function NotificationBell() {
       await markAsRead(notif);
       let path = resolveNavPath(notif.reference_type, notif.reference_id);
       if (notif.reference_type === "campaign") {
-        path = hasRole("internal_operator") ? "/dashboard/campaigns" : "/tl/campaigns";
+        if (hasRole("internal_operator")) {
+          path = "/dashboard/campaigns";
+        } else if (hasRole("sales_manager") || hasRole("sales")) {
+          path = "/sales/campaigns";
+        } else {
+          path = "/tl/campaigns";
+        }
       }
       if (path) {
         setOpen(false);

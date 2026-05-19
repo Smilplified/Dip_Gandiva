@@ -18,6 +18,14 @@ import {
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
 import { createNotifications } from "@/lib/notifications";
+import { normalizeRoleName } from "@/lib/auth/config";
+
+/** In-app recipients when a client viewer creates a campaign. */
+const CLIENT_VIEWER_CAMPAIGN_NOTIFY_ROLES = new Set([
+  "internal_operator",
+  "operations_manager",
+  "sales_manager",
+]);
 
 const COMMAND_CAMPAIGN_LEAD_IMPORT_MAX = 500;
 const CLIENT_VIEWER_CAMPAIGN_ALERT_TO = [
@@ -621,7 +629,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // Notify internal operators when a client viewer creates a campaign.
+  // Notify ops/sales managers and internal operators when a client viewer creates a campaign.
   if (isClientViewer) {
     const creatorName =
       (profile as { full_name?: string | null } | null)?.full_name?.trim() ||
@@ -646,22 +654,23 @@ export async function POST(request: Request) {
         .select("id, name")
         .eq("organization_id", orgId);
 
-      const operatorRoleIds = ((roleRows ?? []) as { id: string; name: string | null }[])
-        .filter((r) => (r.name ?? "").toLowerCase().trim().replace(/\s+/g, "_") === "internal_operator")
+      const notifyRoleIds = ((roleRows ?? []) as { id: string; name: string | null }[])
+        .filter((r) => CLIENT_VIEWER_CAMPAIGN_NOTIFY_ROLES.has(normalizeRoleName(r.name)))
         .map((r) => r.id);
 
-      if (operatorRoleIds.length > 0) {
-        const { data: operatorRoleLinks } = await admin
+      if (notifyRoleIds.length > 0) {
+        const { data: notifyRoleLinks } = await admin
           .from("user_roles")
           .select("user_id")
-          .in("role_id", operatorRoleIds);
+          .in("role_id", notifyRoleIds);
 
-        const operatorIds = [...new Set(((operatorRoleLinks ?? []) as { user_id: string }[]).map((r) => r.user_id))]
-          .filter((id) => id && id !== user.id);
+        const receiverIds = [
+          ...new Set(((notifyRoleLinks ?? []) as { user_id: string }[]).map((r) => r.user_id)),
+        ].filter((id) => id && id !== user.id);
 
-        if (operatorIds.length > 0) {
+        if (receiverIds.length > 0) {
           await createNotifications(
-            operatorIds.map((receiverId) => ({
+            receiverIds.map((receiverId) => ({
               title: "New Campaign Created",
               message: `Client viewer created campaign "${String(body.name ?? "Untitled Campaign")}".`,
               type: "campaign" as const,

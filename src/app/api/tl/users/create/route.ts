@@ -117,6 +117,7 @@ export async function POST(request: Request) {
         full_name: full_name?.trim() || null,
         department: department?.trim() || null,
         designation: designation?.trim() || null,
+        ...(isTL && !isAdmin ? { reporting_manager_id: user.id } : {}),
       } as never)
       .eq("id", createdUserId);
 
