@@ -4,19 +4,20 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ProfilePage from "@/components/Profile/ProfilePage";
 import { useAuth } from "@/context/AuthContext";
+import { getTLAreaRoleDisplayName } from "@/lib/auth/tl-access";
 import { Spin } from "antd";
 
 export default function TLProfilePage() {
   const router = useRouter();
-  const { hasRole, isInitialized } = useAuth();
+  const { hasTLAccess, isInitialized, roles } = useAuth();
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) {
+    if (!hasTLAccess()) {
       router.replace("/login");
       return;
     }
-  }, [isInitialized, hasRole, router]);
+  }, [isInitialized, hasTLAccess, router]);
 
   if (!isInitialized) {
     return (
@@ -26,9 +27,10 @@ export default function TLProfilePage() {
     );
   }
 
-  if (!hasRole("team_leader") && !hasRole("tl")) {
+  if (!hasTLAccess()) {
     return null;
   }
 
-  return <ProfilePage profilePath="/tl/profile" roleLabel="Team Leader" />;
+  const roleLabel = getTLAreaRoleDisplayName(roles);
+  return <ProfilePage profilePath="/tl/profile" roleLabel={roleLabel} />;
 }

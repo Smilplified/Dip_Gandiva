@@ -59,7 +59,7 @@ export async function POST(
       .map((r) => r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_"))
       .filter((n): n is string => !!n);
     const isAgent = roleNames.includes("agent");
-    const isPrivileged = ["team_leader","tl","qa","admin","sales"].some((r) => roleNames.includes(r));
+    const isPrivileged = ["team_leader","tl","operations_manager","qa","admin","sales"].some((r) => roleNames.includes(r));
 
     if (isAgent && !isPrivileged) {
       const { data: assignment } = await supabase

@@ -17,6 +17,7 @@ import {
 } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 type Campaign = {
   id: string;
@@ -61,6 +62,8 @@ export default function MISCampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [campaignsPage, setCampaignsPage] = useState(1);
+  const [campaignsPageSize, setCampaignsPageSize] = useState(15);
   const [isOffline, setIsOffline] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
@@ -110,6 +113,10 @@ export default function MISCampaignsPage() {
       }
     };
   }, [fetchDashboard]);
+
+  useEffect(() => {
+    setCampaignsPage(1);
+  }, [search, statusFilter]);
 
   const filteredCampaigns = useCallback(() => {
     let result = campaigns;
@@ -224,10 +231,15 @@ export default function MISCampaignsPage() {
             rowKey="id"
             dataSource={list}
             pagination={{
-              defaultPageSize: 15,
+              current: campaignsPage,
+              pageSize: campaignsPageSize,
               showSizeChanger: true,
               pageSizeOptions: ["10", "15", "25", "50"],
               showTotal: (t) => `${t} campaigns`,
+              onChange: (page, size) => {
+                setCampaignsPage(page);
+                setCampaignsPageSize(size);
+              },
             }}
             onRow={(record) => ({
               onClick: () => router.push(`/mis/campaigns/${record.id}`),
@@ -247,7 +259,7 @@ export default function MISCampaignsPage() {
                 align: "center" as const,
                 render: (_: unknown, __: Campaign, index: number) => (
                   <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                    {index + 1}
+                    {tableSerialNumber(campaignsPage, campaignsPageSize, index)}
                   </Typography.Text>
                 ),
               },

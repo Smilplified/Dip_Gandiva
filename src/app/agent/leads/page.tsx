@@ -30,6 +30,8 @@ export default function AgentMyLeadsPage() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(10);
   const [isOffline, setIsOffline] = useState(false);
 
   const fetchLeads = useCallback(async () => {
@@ -102,7 +104,14 @@ export default function AgentMyLeadsPage() {
     });
   }, [leads, leadSearch, dateRange]);
 
-  const baseColumns = getLeadTableColumns({ showActions: false });
+  useEffect(() => {
+    setLeadsPage(1);
+  }, [leadSearch, dateRange]);
+
+  const baseColumns = getLeadTableColumns({
+    showActions: false,
+    pagination: { current: leadsPage, pageSize: leadsPageSize },
+  });
   const campaignColumn = {
     title: "Campaign",
     key: "campaign_name",
@@ -227,7 +236,17 @@ export default function AgentMyLeadsPage() {
             rowKey="id"
             loading={loading}
             scroll={{ x: 2800 }}
-            pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
+            pagination={{
+              current: leadsPage,
+              pageSize: leadsPageSize,
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "15", "25", "50"],
+              showTotal: (t) => `Total ${t} leads`,
+              onChange: (page, size) => {
+                setLeadsPage(page);
+                setLeadsPageSize(size);
+              },
+            }}
             locale={{
               emptyText: leadSearch || dateRange?.[0] || dateRange?.[1]
                 ? "No leads match the filter."

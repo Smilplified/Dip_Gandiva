@@ -32,7 +32,7 @@ type UserRow = Tables<"users"> & {
 
 export default function TLUsersPage() {
   const router = useRouter();
-  const { hasRole, profile, isInitialized } = useAuth();
+  const { hasTLAccess, profile, isInitialized } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<Tables<"roles">[]>([]);
   const [agentOnly, setAgentOnly] = useState(false);
@@ -73,12 +73,12 @@ export default function TLUsersPage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) {
+    if (!hasTLAccess()) {
       router.replace("/login");
       return;
     }
     fetchUsers();
-  }, [isInitialized, hasRole, router, fetchUsers]);
+  }, [isInitialized, hasTLAccess, router, fetchUsers]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredUsers = useMemo(() => {
@@ -269,7 +269,7 @@ export default function TLUsersPage() {
     );
   }
 
-  if (!hasRole("team_leader") && !hasRole("tl")) {
+  if (!hasTLAccess()) {
     return null;
   }
 

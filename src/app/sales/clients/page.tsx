@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dayjs from "dayjs";
 import {
   Card,
   Row,
@@ -16,7 +17,6 @@ import {
   Typography,
   Spin,
   message,
-  Modal,
   Popconfirm,
   Space,
 } from "antd";
@@ -53,6 +53,16 @@ type ClientRow = {
   contact_mobile: string | null;
   contact_linkedin: string | null;
   created_at: string;
+  services_products_offered?: string | null;
+  target_market?: string | null;
+  target_geography?: string | null;
+  current_revenue_range?: string | null;
+  existing_crm?: boolean | null;
+  existing_crm_which?: string | null;
+  problem_solving?: string | null;
+  services_looking_for?: string | null;
+  budget_range?: string | null;
+  expected_start_date?: string | null;
   campaigns?: CampaignBrief[];
 };
 
@@ -64,11 +74,12 @@ export default function SalesClientsPage() {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientRow | null>(null);
-  const [savingEdit, setSavingEdit] = useState(false);
   const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [clientsPage, setClientsPage] = useState(1);
+  const [clientsPageSize, setClientsPageSize] = useState(10);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
@@ -95,6 +106,10 @@ export default function SalesClientsPage() {
     fetchData();
   }, [isInitialized, hasSalesAccess, router, fetchData]);
 
+  useEffect(() => {
+    setClientsPage(1);
+  }, [search]);
+
   const handleAddSuccess = () => {
     setDrawerOpen(false);
     form.resetFields();
@@ -106,58 +121,54 @@ export default function SalesClientsPage() {
     form.resetFields();
   };
 
-  const openEditModal = (record: ClientRow) => {
-    setEditingClient(record);
+  useEffect(() => {
+    if (!editDrawerOpen || !editingClient) return;
     editForm.setFieldsValue({
-      client_code: record.client_code,
-      company_name: record.company_name,
-      company_website: record.company_website,
-      industry_type: record.industry_type,
-      company_size: record.company_size,
-      year_established: record.year_established,
-      company_address: record.company_address,
-      city: record.city,
-      state: record.state,
-      country: record.country,
-      contact_person: record.contact_person,
-      contact_full_name: record.contact_full_name,
-      contact_designation: record.contact_designation,
-      contact_work_email: record.contact_work_email,
-      contact_mobile: record.contact_mobile,
-      contact_linkedin: record.contact_linkedin,
+      client_code: editingClient.client_code,
+      company_name: editingClient.company_name,
+      company_website: editingClient.company_website,
+      industry_type: editingClient.industry_type,
+      company_size: editingClient.company_size,
+      year_established: editingClient.year_established,
+      company_address: editingClient.company_address,
+      city: editingClient.city,
+      state: editingClient.state,
+      country: editingClient.country,
+      contact_person: editingClient.contact_person,
+      contact_full_name: editingClient.contact_full_name,
+      contact_designation: editingClient.contact_designation,
+      contact_work_email: editingClient.contact_work_email,
+      contact_mobile: editingClient.contact_mobile,
+      contact_linkedin: editingClient.contact_linkedin,
+      services_products_offered: editingClient.services_products_offered,
+      target_market: editingClient.target_market,
+      target_geography: editingClient.target_geography,
+      current_revenue_range: editingClient.current_revenue_range,
+      existing_crm: editingClient.existing_crm,
+      existing_crm_which: editingClient.existing_crm_which,
+      problem_solving: editingClient.problem_solving,
+      services_looking_for: editingClient.services_looking_for,
+      budget_range: editingClient.budget_range,
+      expected_start_date: editingClient.expected_start_date
+        ? dayjs(editingClient.expected_start_date)
+        : undefined,
     });
-    setEditOpen(true);
+  }, [editDrawerOpen, editingClient, editForm]);
+
+  const openEditDrawer = (record: ClientRow) => {
+    setEditingClient(record);
+    setEditDrawerOpen(true);
   };
 
-  const closeEditModal = () => {
-    setEditOpen(false);
+  const closeEditDrawer = () => {
+    setEditDrawerOpen(false);
     setEditingClient(null);
     editForm.resetFields();
   };
 
-  const handleSaveEdit = async () => {
-    if (!editingClient) return;
-    try {
-      const values = await editForm.validateFields();
-      setSavingEdit(true);
-      const res = await fetch(`/api/sales/clients/${editingClient.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(values),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to update client");
-      }
-      message.success("Client updated successfully");
-      closeEditModal();
-      fetchData();
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to update client");
-    } finally {
-      setSavingEdit(false);
-    }
+  const handleEditSuccess = () => {
+    closeEditDrawer();
+    fetchData();
   };
 
   const handleDeleteClient = async (record: ClientRow) => {
@@ -213,17 +224,29 @@ export default function SalesClientsPage() {
       key: "sr",
       width: 72,
       fixed: "left" as const,
-      render: (_: unknown, __: ClientRow, index: number) => index + 1,
+      render: (_: unknown, __: ClientRow, index: number) =>
+        (clientsPage - 1) * clientsPageSize + index + 1,
     },
     {
       title: "Client Code",
       dataIndex: "client_code",
       key: "client_code",
-      width: 110,
+      width: 168,
       fixed: "left" as const,
+      onCell: () => ({ className: "table-cell-client-code" }),
       render: (v: string | null) =>
         v ? (
-          <span style={{ fontFamily: "monospace", background: "#f0f0f0", padding: "2px 7px", borderRadius: 5, fontSize: 12 }}>
+          <span
+            style={{
+              fontFamily: "monospace",
+              background: "#f0f0f0",
+              padding: "2px 7px",
+              borderRadius: 5,
+              fontSize: 12,
+              display: "inline-block",
+              whiteSpace: "nowrap",
+            }}
+          >
             {v}
           </span>
         ) : (
@@ -373,7 +396,7 @@ export default function SalesClientsPage() {
             type="text"
             size="small"
             icon={<EditOutlined />}
-            onClick={() => openEditModal(record)}
+            onClick={() => openEditDrawer(record)}
             disabled={!canManageClients}
           />
           <Popconfirm
@@ -481,8 +504,18 @@ export default function SalesClientsPage() {
               columns={columns}
               dataSource={filteredClients}
               rowKey="id"
-              scroll={{ x: 2350 }}
-              pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} clients` }}
+              scroll={{ x: 2410 }}
+              pagination={{
+                current: clientsPage,
+                pageSize: clientsPageSize,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "15", "25", "50"],
+                showTotal: (t) => `Total ${t} clients`,
+                onChange: (page, size) => {
+                  setClientsPage(page);
+                  setClientsPageSize(size);
+                },
+              }}
               locale={{ emptyText: "No clients yet. Click Add Client to create one." }}
               expandable={{
                 expandedRowRender: (record: ClientRow) => {
@@ -535,121 +568,27 @@ export default function SalesClientsPage() {
         />
       </Drawer>
 
-      <Modal
+      <Drawer
         title="Edit Client"
-        open={editOpen}
-        onCancel={closeEditModal}
-        onOk={handleSaveEdit}
-        okText="Save"
-        confirmLoading={savingEdit}
+        placement="right"
+        width={800}
+        open={editDrawerOpen}
+        onClose={closeEditDrawer}
         destroyOnClose
-        width={820}
+        styles={{ body: { paddingTop: 8 } }}
       >
-        <Form form={editForm} layout="vertical" className="mt-4">
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                name="client_code"
-                label="Client Code"
-                tooltip="Short unique code (e.g. CYB). Auto-generated if blank."
-              >
-                <Input style={{ fontFamily: "monospace" }} placeholder="e.g. CYB" />
-              </Form.Item>
-            </Col>
-            <Col span={16}>
-              <Form.Item
-                name="company_name"
-                label="Client name"
-                rules={[{ required: true, message: "Client name is required" }]}
-              >
-                <Input placeholder="e.g. Acme Inc." />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="company_website" label="Company Website">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="industry_type" label="Industry Type">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="company_size" label="Company Size">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="year_established" label="Year Established">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="company_address" label="Company Address">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="city" label="City">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="state" label="State">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="country"
-                label="Country"
-                rules={[{ required: true, message: "Country is required" }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="contact_person"
-                label="Contact Person"
-                rules={[{ required: true, message: "Contact person is required" }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="contact_full_name"
-                label="Contact Full Name"
-                rules={[{ required: true, message: "Full name is required" }]}
-              >
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="contact_designation" label="Designation">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="contact_work_email" label="Work Email">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="contact_mobile" label="Mobile">
-                <Input />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="contact_linkedin" label="LinkedIn">
-                <Input />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
+        {editingClient ? (
+          <AddClientForm
+            key={editingClient.id}
+            form={editForm}
+            mode="edit"
+            clientId={editingClient.id}
+            onUpdateSuccess={handleEditSuccess}
+            onCancel={closeEditDrawer}
+            showCancel
+          />
+        ) : null}
+      </Drawer>
     </>
   );
 }

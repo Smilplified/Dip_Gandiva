@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +25,19 @@ export async function GET() {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    const isOperationsManager = hasOperationsManagerAccess(roleNames);
+
+    let campaignsQuery = supabase
+      .from("campaigns")
+      .select("id, status")
+      .eq("organization_id", orgId);
+    if (!isOperationsManager) {
+      campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
+    }
+
     const [campaignsRes, leadsRes] = await Promise.all([
-      supabase
-        .from("campaigns")
-        .select("id, status")
-        .eq("organization_id", orgId),
+      campaignsQuery,
       supabase
         .from("leads")
         .select("id, status, campaign_id, created_at")
@@ -43,7 +53,10 @@ export async function GET() {
     };
 
     const campaigns = (campaignsRes.data ?? []) as CampaignRow[];
-    const leads = (leadsRes.data ?? []) as LeadRow[];
+    const assignedCampaignIds = new Set(campaigns.map((c) => c.id));
+    const leads = ((leadsRes.data ?? []) as LeadRow[]).filter((l) =>
+      l.campaign_id ? assignedCampaignIds.has(l.campaign_id) : false
+    );
 
     const totalCampaigns = campaigns.length;
     const activeCampaigns = campaigns.filter((c) => c.status === "active").length;

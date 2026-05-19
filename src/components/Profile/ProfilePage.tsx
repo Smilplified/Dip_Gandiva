@@ -15,6 +15,7 @@ import {
   Spin,
   message,
   Modal,
+  Tooltip,
 } from "antd";
 import {
   UserOutlined,
@@ -28,6 +29,7 @@ import {
   CameraOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeRoleName } from "@/lib/auth/config";
 import dayjs from "dayjs";
 import AvatarCropModal from "./AvatarCropModal";
 
@@ -57,11 +59,14 @@ const roleDisplayMap: Record<string, string> = {
   admin: "Admin",
   team_leader: "Team Leader",
   tl: "Team Leader",
+  operations_manager: "Operations Manager",
   sales: "Sales",
   agent: "Agent",
   qa: "QA",
   mis: "MIS",
 };
+
+const ASSIGNED_CAMPAIGNS_PAGE_SIZE = 8;
 
 export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps) {
   const { profile: authProfile, roles, refreshProfile } = useAuth();
@@ -73,6 +78,7 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string>("");
   const [avatarBust, setAvatarBust] = useState<string>("");
+  const [campaignsVisible, setCampaignsVisible] = useState(ASSIGNED_CAMPAIGNS_PAGE_SIZE);
   const [form] = Form.useForm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,6 +89,10 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
       /* ignore */
     }
   }, [data?.avatar_url]);
+
+  useEffect(() => {
+    setCampaignsVisible(ASSIGNED_CAMPAIGNS_PAGE_SIZE);
+  }, [data?.assigned_campaigns]);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -195,7 +205,9 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
   };
 
   const roleDisplay = roles.length
-    ? roles.map((r) => roleDisplayMap[r.role_name?.toLowerCase()] || r.role_name).join(", ")
+    ? roles
+        .map((r) => roleDisplayMap[normalizeRoleName(r.role_name)] || r.role_name)
+        .join(", ")
     : roleLabel;
 
   if (loading) {
@@ -224,6 +236,9 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
   };
 
   const joiningDate = p.joining_date || p.created_at;
+  const assignedCampaigns = p.assigned_campaigns ?? [];
+  const visibleCampaigns = assignedCampaigns.slice(0, campaignsVisible);
+  const remainingCampaigns = assignedCampaigns.length - visibleCampaigns.length;
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
@@ -231,11 +246,13 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
         Profile
       </Typography.Title>
 
-      <Row gutter={[24, 24]}>
+      <Row gutter={[24, 24]} align="stretch">
         {/* Profile card */}
-        <Col xs={24} md={10}>
+        <Col xs={24} md={10} style={{ display: "flex" }}>
           <Card
             style={{
+              flex: 1,
+              width: "100%",
               borderRadius: 12,
               boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
@@ -333,7 +350,7 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
         </Col>
 
         {/* Work Information */}
-        <Col xs={24} md={14}>
+        <Col xs={24} md={14} style={{ display: "flex" }}>
           <Card
             title={
               <span style={{ fontWeight: 600, fontSize: 16 }}>
@@ -341,9 +358,13 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
               </span>
             }
             style={{
+              flex: 1,
+              width: "100%",
               borderRadius: 12,
               boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
               border: "1px solid #f0f0f0",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             <Row gutter={[16, 16]}>
@@ -376,18 +397,87 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
               <Col span={24}>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   Assigned Campaigns
+                  {assignedCampaigns.length > 0 ? ` (${assignedCampaigns.length})` : ""}
                 </Typography.Text>
-                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {p.assigned_campaigns?.length ? (
-                    p.assigned_campaigns.map((c) => (
-                      <Tag key={c.id} icon={<FundProjectionScreenOutlined />}>
-                        {c.name}
-                      </Tag>
-                    ))
-                  ) : (
-                    <Typography.Text type="secondary">No campaigns assigned</Typography.Text>
-                  )}
-                </div>
+                {assignedCampaigns.length > 0 ? (
+                  <>
+                    <div
+                      className="profile-assigned-campaigns-list"
+                      style={{
+                        marginTop: 8,
+                        maxHeight: 280,
+                        overflowY: "auto",
+                        overflowX: "hidden",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        alignContent: "flex-start",
+                        paddingRight: 4,
+                      }}
+                    >
+                      {visibleCampaigns.map((c) => (
+                        <div
+                          key={c.id}
+                          style={{ flexShrink: 0, maxWidth: "100%", lineHeight: 1 }}
+                        >
+                          <Tooltip title={c.name} placement="topLeft">
+                            <Tag
+                            icon={<FundProjectionScreenOutlined />}
+                            style={{
+                              margin: 0,
+                              maxWidth: "100%",
+                              flexShrink: 0,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              overflow: "hidden",
+                              lineHeight: "22px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                maxWidth: 420,
+                              }}
+                            >
+                              {c.name}
+                            </span>
+                            </Tag>
+                          </Tooltip>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {remainingCampaigns > 0 && (
+                        <Button
+                          type="link"
+                          size="small"
+                          style={{ padding: 0, height: "auto" }}
+                          onClick={() =>
+                            setCampaignsVisible((n) => n + ASSIGNED_CAMPAIGNS_PAGE_SIZE)
+                          }
+                        >
+                          Load more ({remainingCampaigns} remaining)
+                        </Button>
+                      )}
+                      {campaignsVisible > ASSIGNED_CAMPAIGNS_PAGE_SIZE && (
+                        <Button
+                          type="link"
+                          size="small"
+                          style={{ padding: 0, height: "auto" }}
+                          onClick={() => setCampaignsVisible(ASSIGNED_CAMPAIGNS_PAGE_SIZE)}
+                        >
+                          Show less
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <Typography.Text type="secondary" style={{ marginTop: 8, display: "block" }}>
+                    No campaigns assigned
+                  </Typography.Text>
+                )}
               </Col>
               <Col span={24}>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>

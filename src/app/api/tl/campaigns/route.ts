@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +26,10 @@ export async function GET() {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    const { data: campaigns, error: campaignsError } = await supabase
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    const isOperationsManager = hasOperationsManagerAccess(roleNames);
+
+    let campaignsQuery = supabase
       .from("campaigns")
       .select(`
         id, campaign_id, campaign_code, name, client_name, client_id, description, industry, geography, lead_type, status,
@@ -31,8 +37,16 @@ export async function GET() {
         pending_allocation, region, weekly_call, weekly_report, additional_comments,
         assigned_team_leader_id, created_by, created_at
       `)
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: false });
+      .eq("organization_id", orgId);
+
+    if (!isOperationsManager) {
+      campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
+    }
+
+    const { data: campaigns, error: campaignsError } = await campaignsQuery.order(
+      "created_at",
+      { ascending: false }
+    );
 
     if (campaignsError) {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });
@@ -41,24 +55,11 @@ export async function GET() {
     type CampaignRow = { id: string; campaign_id: string; campaign_code: string | null; client_id: string | null; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; cpl: number | null; revenue: number | null; booked: number | null; total_allocation: number | null; post_qa: number | null; achieved: number | null; pending_allocation: number | null; region: string | null; weekly_call: string | null; weekly_report: string | null; additional_comments: string | null; assigned_team_leader_id: string | null; created_by: string | null; created_at: string };
     const campaignsList = (campaigns ?? []) as CampaignRow[];
 
-    // Fetch user names: assigned team leaders + creators (for fallback when no TL assigned)
-    const userIds = [
-      ...new Set(
-        campaignsList.flatMap((c) =>
-          [c.assigned_team_leader_id, c.created_by].filter(Boolean)
-        )
-      ),
+    // Resolve assigned team leader names only (no creator/client fallback)
+    const tlIds = [
+      ...new Set(campaignsList.map((c) => c.assigned_team_leader_id).filter(Boolean)),
     ] as string[];
-    const userNames: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: usersData } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .in("id", userIds);
-      ((usersData ?? []) as { id: string; full_name: string | null }[]).forEach((u) => {
-        userNames[u.id] = u.full_name ?? "";
-      });
-    }
+    const tlNames = tlIds.length > 0 ? await resolveUserDisplayNames(supabase, tlIds) : {};
 
     const campaignIds = campaignsList.map((c) => c.id);
     const [leadsRes, assignmentsRes] = await Promise.all([
@@ -96,12 +97,9 @@ export async function GET() {
     });
 
     const campaignsWithCounts = campaignsList.map((c) => {
-      // Prefer assigned team leader; fallback to creator when no TL assigned
       const tlName = c.assigned_team_leader_id
-        ? userNames[c.assigned_team_leader_id] || null
-        : c.created_by
-          ? userNames[c.created_by] || null
-          : null;
+        ? tlNames[c.assigned_team_leader_id] ?? null
+        : null;
       const leadCounts = leadsByCampaign[c.id];
       return {
         ...c,

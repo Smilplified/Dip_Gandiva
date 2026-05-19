@@ -21,7 +21,6 @@ import {
 import {
   CheckCircleOutlined,
   PercentageOutlined,
-  PlusOutlined,
   EyeOutlined,
   UserAddOutlined,
   PlayCircleOutlined,
@@ -56,13 +55,16 @@ type Stats = {
 
 export default function TLCampaignsPage() {
   const router = useRouter();
-  const { hasRole, isInitialized } = useAuth();
+  const { hasTLAccess, hasRole, isInitialized } = useAuth();
+  const isOperationsManager = hasRole("operations_manager");
   const [stats, setStats] = useState<Stats | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [campaignsPage, setCampaignsPage] = useState(1);
+  const [campaignsPageSize, setCampaignsPageSize] = useState(10);
 
   const fetchData = useCallback(async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -81,7 +83,11 @@ export default function TLCampaignsPage() {
       const statsData = await statsRes.json();
       const campaignsData = await campaignsRes.json();
       if (statsRes.ok) setStats(statsData);
-      if (campaignsRes.ok) setCampaigns(campaignsData.campaigns ?? []);
+      if (campaignsRes.ok) {
+        setCampaigns(campaignsData.campaigns ?? []);
+      } else {
+        message.error(campaignsData.error || "Failed to load campaigns");
+      }
     } catch {
       message.error("Failed to load campaigns");
     } finally {
@@ -91,12 +97,12 @@ export default function TLCampaignsPage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) {
+    if (!hasTLAccess()) {
       router.replace("/login");
       return;
     }
     fetchData();
-  }, [isInitialized, hasRole, router, fetchData]);
+  }, [isInitialized, hasTLAccess, router, fetchData]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -119,6 +125,10 @@ export default function TLCampaignsPage() {
       }
     };
   }, [fetchData]);
+
+  useEffect(() => {
+    setCampaignsPage(1);
+  }, [searchText, statusFilter]);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
@@ -144,7 +154,7 @@ export default function TLCampaignsPage() {
     );
   }
 
-  if (!hasRole("team_leader") && !hasRole("tl")) {
+  if (!hasTLAccess()) {
     return null;
   }
 
@@ -154,7 +164,8 @@ export default function TLCampaignsPage() {
       key: "sr",
       width: 72,
       fixed: "left" as const,
-      render: (_: unknown, __: CampaignRow, index: number) => index + 1,
+      render: (_: unknown, __: CampaignRow, index: number) =>
+        (campaignsPage - 1) * campaignsPageSize + index + 1,
     },
     {
       title: "Campaign Code",
@@ -206,7 +217,25 @@ export default function TLCampaignsPage() {
     },
     { title: "Total Leads", dataIndex: "total_leads", key: "total_leads", width: 100 },
     { title: "Agents", dataIndex: "total_agents", key: "total_agents", width: 80 },
-    { title: "Team Leader", dataIndex: "assigned_team_leader_name", key: "assigned_team_leader_name", width: 130, ellipsis: true, render: (v: string | null) => v || "—" },
+    {
+      title: "Team Leader",
+      dataIndex: "assigned_team_leader_name",
+      key: "assigned_team_leader_name",
+      width: 160,
+      ellipsis: true,
+      render: (v: string | null, r: CampaignRow) =>
+        v ? (
+          <Tag color="purple" style={{ margin: 0, maxWidth: "100%" }}>
+            {v}
+          </Tag>
+        ) : isOperationsManager ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Unassigned
+          </Typography.Text>
+        ) : (
+          "—"
+        ),
+    },
     {
       title: "Created",
       dataIndex: "created_at",
@@ -228,14 +257,25 @@ export default function TLCampaignsPage() {
               onClick={() => router.push(`/tl/campaigns/${r.id}`)}
             />
           </Tooltip>
-          <Tooltip title="Assign Agents">
-            <Button
-              type="text"
-              size="small"
-              icon={<UserAddOutlined />}
-              onClick={() => router.push(`/tl/campaigns/${r.id}?assign=1`)}
-            />
-          </Tooltip>
+          {isOperationsManager ? (
+            <Tooltip title="Assign Team Leader">
+              <Button
+                type="text"
+                size="small"
+                icon={<UserAddOutlined />}
+                onClick={() => router.push(`/tl/campaigns/${r.id}?assignTl=1`)}
+              />
+            </Tooltip>
+          ) : (
+            <Tooltip title="Assign Agents">
+              <Button
+                type="text"
+                size="small"
+                icon={<UserAddOutlined />}
+                onClick={() => router.push(`/tl/campaigns/${r.id}?assign=1`)}
+              />
+            </Tooltip>
+          )}
           {r.status === "draft" || r.status === "paused" ? (
             <Tooltip title="Activate">
               <Button
@@ -279,18 +319,15 @@ export default function TLCampaignsPage() {
 
   return (
     <>
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Campaigns
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            Manage your campaigns and assign agents
-          </Typography.Text>
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push("/tl/campaigns/create")}>
-          Create Campaign
-        </Button>
+      <div style={{ marginBottom: 24 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Campaigns
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          {isOperationsManager
+            ? "Manage campaigns and assign Team Leaders"
+            : "Manage your assigned campaigns and assign agents"}
+        </Typography.Text>
       </div>
 
       {isOffline && (
@@ -369,7 +406,17 @@ export default function TLCampaignsPage() {
               dataSource={filteredCampaigns}
               rowKey="id"
               scroll={{ x: 1150 }}
-              pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} campaigns` }}
+              pagination={{
+                current: campaignsPage,
+                pageSize: campaignsPageSize,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "15", "25", "50"],
+                showTotal: (t) => `Total ${t} campaigns`,
+                onChange: (page, size) => {
+                  setCampaignsPage(page);
+                  setCampaignsPageSize(size);
+                },
+              }}
               locale={{ emptyText: "No campaigns yet. Create your first campaign." }}
             />
           </Card>

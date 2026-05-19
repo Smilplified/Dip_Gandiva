@@ -29,11 +29,13 @@ type TLLeadRow = Lead & {
 };
 
 export default function TeamLeaderLeadsPage() {
-  const { hasRole, isInitialized } = useAuth();
+  const { hasTLAccess, isInitialized } = useAuth();
   const [leads, setLeads] = useState<TLLeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(10);
   const [isOffline, setIsOffline] = useState(false);
 
   const fetchLeads = useCallback(async () => {
@@ -59,9 +61,9 @@ export default function TeamLeaderLeadsPage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) return;
+    if (!hasTLAccess()) return;
     fetchLeads();
-  }, [isInitialized, hasRole, fetchLeads]);
+  }, [isInitialized, hasTLAccess, fetchLeads]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -109,7 +111,14 @@ export default function TeamLeaderLeadsPage() {
     });
   }, [leads, leadSearch, dateRange]);
 
-  const baseColumns = getLeadTableColumns({ showActions: false });
+  useEffect(() => {
+    setLeadsPage(1);
+  }, [leadSearch, dateRange]);
+
+  const baseColumns = getLeadTableColumns({
+    showActions: false,
+    pagination: { current: leadsPage, pageSize: leadsPageSize },
+  });
   const campaignColumn = {
     title: "Campaign",
     key: "campaign_name",
@@ -154,7 +163,7 @@ export default function TeamLeaderLeadsPage() {
     );
   }
 
-  if (!hasRole("team_leader") && !hasRole("tl")) {
+  if (!hasTLAccess()) {
     return null;
   }
 
@@ -265,7 +274,17 @@ export default function TeamLeaderLeadsPage() {
             rowKey="id"
             loading={loading}
             scroll={{ x: 3200 }}
-            pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
+            pagination={{
+              current: leadsPage,
+              pageSize: leadsPageSize,
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "15", "25", "50"],
+              showTotal: (t) => `Total ${t} leads`,
+              onChange: (page, size) => {
+                setLeadsPage(page);
+                setLeadsPageSize(size);
+              },
+            }}
             locale={{
               emptyText:
                 leadSearch || dateRange?.[0] || dateRange?.[1]

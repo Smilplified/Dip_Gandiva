@@ -1,19 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { isCampaignTeamLeaderRole } from "@/lib/auth/tl-access";
 
 export const dynamic = "force-dynamic";
-
-function isTeamLeaderRole(roleName: string | null | undefined): boolean {
-  if (!roleName || typeof roleName !== "string") return false;
-  const n = roleName.toLowerCase().trim().replace(/\s+/g, "_");
-  return (
-    n === "team_leader" ||
-    n === "tl" ||
-    n === "teamleader" ||
-    (n.includes("team") && n.includes("leader"))
-  );
-}
 
 export async function GET() {
   try {
@@ -57,7 +47,7 @@ export async function GET() {
     const teamLeaders = ((usersWithRoles ?? []) as UserWithRoles[]).filter((u) => {
       const ur = u.user_roles;
       if (!ur || !Array.isArray(ur)) return false;
-      return ur.some((r) => isTeamLeaderRole(r.roles?.name));
+      return ur.some((r) => isCampaignTeamLeaderRole(r.roles?.name));
     }).map((u) => ({
       id: u.id,
       full_name: u.full_name,

@@ -9,7 +9,6 @@ import {
   TeamOutlined,
   FileSearchOutlined,
   FundProjectionScreenOutlined,
-  UserOutlined,
 } from "@ant-design/icons";
 
 const { Sider } = Layout;
@@ -18,7 +17,6 @@ const tlMenuItems = [
   { key: "/tl/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/tl/dashboard" },
   { key: "/tl/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/tl/campaigns" },
   { key: "/tl/leads", icon: <FileSearchOutlined />, label: "Leads", href: "/tl/leads" },
-  { key: "/tl/users", icon: <UserOutlined />, label: "Users", href: "/tl/users" },
   { key: "/tl/team", icon: <TeamOutlined />, label: "Team", href: "/tl/team" },
 ];
 
@@ -28,8 +26,6 @@ export default function TLSidebar() {
   const selectedKey =
     pathname?.startsWith("/tl/campaigns")
       ? "/tl/campaigns"
-      : pathname?.startsWith("/tl/users")
-      ? "/tl/users"
       : pathname?.startsWith("/tl/team")
       ? "/tl/team"
       : pathname?.startsWith("/tl/leads")

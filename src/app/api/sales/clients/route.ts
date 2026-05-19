@@ -67,7 +67,7 @@ export async function GET(request: Request) {
 
     let clientsQuery = admin
       .from("clients")
-      .select("id, client_code, company_name, company_website, industry_type, company_size, year_established, company_address, city, state, country, contact_person, contact_full_name, contact_designation, contact_work_email, contact_mobile, contact_linkedin, created_at")
+      .select("id, client_code, company_name, company_website, industry_type, company_size, year_established, company_address, city, state, country, contact_person, contact_full_name, contact_designation, contact_work_email, contact_mobile, contact_linkedin, services_products_offered, target_market, target_geography, current_revenue_range, existing_crm, existing_crm_which, problem_solving, services_looking_for, budget_range, expected_start_date, created_at")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
 

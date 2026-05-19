@@ -34,6 +34,7 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 type CampaignRow = {
   id: string;
@@ -75,6 +76,8 @@ export default function SalesCampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [campaignsPage, setCampaignsPage] = useState(1);
+  const [campaignsPageSize, setCampaignsPageSize] = useState(10);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -102,6 +105,10 @@ export default function SalesCampaignsPage() {
     }
     fetchData();
   }, [isInitialized, hasSalesAccess, router, fetchData]);
+
+  useEffect(() => {
+    setCampaignsPage(1);
+  }, [searchText, statusFilter]);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
@@ -184,7 +191,8 @@ export default function SalesCampaignsPage() {
       key: "sr",
       width: 72,
       fixed: "left" as const,
-      render: (_: unknown, __: CampaignRow, index: number) => index + 1,
+      render: (_: unknown, __: CampaignRow, index: number) =>
+        tableSerialNumber(campaignsPage, campaignsPageSize, index),
     },
     {
       title: "Campaign Code",
@@ -471,7 +479,17 @@ export default function SalesCampaignsPage() {
               dataSource={filteredCampaigns}
               rowKey="id"
               scroll={{ x: 1920 }}
-              pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} campaigns` }}
+              pagination={{
+                current: campaignsPage,
+                pageSize: campaignsPageSize,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "15", "25", "50"],
+                showTotal: (t) => `Total ${t} campaigns`,
+                onChange: (page, size) => {
+                  setCampaignsPage(page);
+                  setCampaignsPageSize(size);
+                },
+              }}
               locale={{ emptyText: searchText || statusFilter ? "No campaigns match the filter." : "No campaigns yet. Create your first campaign." }}
               tableLayout="fixed"
             />

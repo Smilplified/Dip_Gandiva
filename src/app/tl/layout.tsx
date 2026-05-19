@@ -2,6 +2,7 @@
 
 import TLLayout from "@/components/TL/TLLayout";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { getTLGuardRoles } from "@/lib/auth/tl-access";
 import { Spin } from "antd";
 
 export default function TLRootLayout({
@@ -9,7 +10,7 @@ export default function TLRootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { status } = useRoleGuard(["team_leader", "tl"]);
+  const { status } = useRoleGuard(getTLGuardRoles());
 
   return (
     <TLLayout>

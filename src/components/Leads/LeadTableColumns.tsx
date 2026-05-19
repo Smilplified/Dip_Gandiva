@@ -6,6 +6,7 @@ import type { TableProps } from "antd";
 import { EditOutlined, CopyOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Lead } from "@/types/lead.types";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 const STATUS_COLORS: Record<string, string> = {
   new: "default",
@@ -22,6 +23,8 @@ type ColumnConfig = {
   showDeliveryStatus?: boolean;
   onMarkDelivered?: (lead: Lead) => void;
   markingDeliveredLeadId?: string | null;
+  /** Pass when the table uses pagination so Sr. No. continues across pages. */
+  pagination?: { current: number; pageSize: number };
 };
 
 export function getLeadTableColumns(config: ColumnConfig = {}) {
@@ -31,7 +34,11 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     showDeliveryStatus = false,
     onMarkDelivered,
     markingDeliveredLeadId,
+    pagination,
   } = config;
+
+  const page = pagination?.current ?? 1;
+  const pageSize = pagination?.pageSize ?? 10;
 
   const baseColumns: NonNullable<TableProps<Lead>["columns"]> = [
     {
@@ -39,7 +46,8 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       key: "sr",
       width: 72,
       fixed: "left" as const,
-      render: (_: unknown, __: Lead, index: number) => index + 1,
+      render: (_: unknown, __: Lead, index: number) =>
+        tableSerialNumber(page, pageSize, index),
     },
     {
       title: "Lead ID",

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createNotifications } from "@/lib/notifications";
+import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +37,31 @@ export async function POST(
     const body = await request.json();
     const agent_ids = Array.isArray(body?.agent_ids) ? body.agent_ids : [];
 
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    if (hasOperationsManagerAccess(roleNames)) {
+      return NextResponse.json(
+        { error: "Operations Manager assigns Team Leaders, not agents" },
+        { status: 403 }
+      );
+    }
+
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("id")
+      .select("id, assigned_team_leader_id")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
 
     if (!campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    const camp = campaign as { id: string; assigned_team_leader_id: string | null };
+    if (camp.assigned_team_leader_id !== user.id) {
+      return NextResponse.json(
+        { error: "You can only assign agents to campaigns assigned to you" },
+        { status: 403 }
+      );
     }
 
     const { data: existing } = await supabase

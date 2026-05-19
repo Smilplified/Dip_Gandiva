@@ -96,6 +96,8 @@ export default function AgentCampaignDetailPage() {
   const [form] = Form.useForm();
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(10);
   const [leadTaggingFilter, setLeadTaggingFilter] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -219,6 +221,10 @@ export default function AgentCampaignDetailPage() {
       return !leadDate.isBefore(start) && !leadDate.isAfter(end);
     });
   }, [leads, leadSearch, dateRange, leadTaggingFilter]);
+
+  useEffect(() => {
+    setLeadsPage(1);
+  }, [leadSearch, dateRange, leadTaggingFilter]);
 
   const openLeadDrawer = () => {
     setDrawerMode("create");
@@ -446,6 +452,7 @@ export default function AgentCampaignDetailPage() {
   const leadColumns = getLeadTableColumns({
     showActions: true,
     onEdit: openEditLeadDrawer,
+    pagination: { current: leadsPage, pageSize: leadsPageSize },
   });
 
   const overviewRowStyle = {
@@ -765,7 +772,17 @@ export default function AgentCampaignDetailPage() {
           dataSource={filteredLeads}
           rowKey="id"
           scroll={{ x: 2600 }}
-          pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
+          pagination={{
+            current: leadsPage,
+            pageSize: leadsPageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "15", "25", "50"],
+            showTotal: (t) => `Total ${t} leads`,
+            onChange: (page, size) => {
+              setLeadsPage(page);
+              setLeadsPageSize(size);
+            },
+          }}
           locale={{ emptyText: leadSearch || dateRange?.[0] || dateRange?.[1] || leadTaggingFilter ? "No leads match the filter." : "No leads yet. Use 'Add Lead' to create one." }}
           size="middle"
           onRow={(record) => ({

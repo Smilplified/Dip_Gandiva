@@ -54,6 +54,25 @@ function num(val: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function bool(val: unknown): boolean | null {
+  if (val == null) return null;
+  if (typeof val === "boolean") return val;
+  if (typeof val === "string") {
+    if (val === "true" || val === "1" || val === "yes") return true;
+    if (val === "false" || val === "0" || val === "no") return false;
+  }
+  return null;
+}
+
+function date(val: unknown): string | null {
+  if (val == null || val === "") return null;
+  if (typeof val === "string") return val;
+  if (typeof (val as { format?: (f: string) => string })?.format === "function") {
+    return (val as { format: (f: string) => string }).format("YYYY-MM-DD");
+  }
+  return null;
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
@@ -112,6 +131,16 @@ export async function PATCH(
       contact_work_email: str(body.contact_work_email),
       contact_mobile: str(body.contact_mobile),
       contact_linkedin: str(body.contact_linkedin),
+      services_products_offered: str(body.services_products_offered),
+      target_market: str(body.target_market),
+      target_geography: str(body.target_geography),
+      current_revenue_range: str(body.current_revenue_range),
+      existing_crm: bool(body.existing_crm),
+      existing_crm_which: str(body.existing_crm_which),
+      problem_solving: str(body.problem_solving),
+      services_looking_for: str(body.services_looking_for),
+      budget_range: str(body.budget_range),
+      expected_start_date: date(body.expected_start_date),
     };
 
     const { error } = await admin

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -23,6 +23,7 @@ import {
   Form,
   Upload,
   DatePicker,
+  Select,
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -103,7 +104,8 @@ export default function CampaignDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const id = params?.id as string | undefined;
-  const { hasRole, isInitialized } = useAuth();
+  const { hasRole, hasTLAccess, isInitialized } = useAuth();
+  const isOperationsManager = hasRole("operations_manager");
   const canEditQaAudit = hasRole("qa") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -111,10 +113,15 @@ export default function CampaignDetailPage() {
   const [files, setFiles] = useState<CampaignFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignTlModalOpen, setAssignTlModalOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
+  const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
+  const [teamLeadersLoading, setTeamLeadersLoading] = useState(false);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [selectedTeamLeaderId, setSelectedTeamLeaderId] = useState<string | null>(null);
   const [assigning, setAssigning] = useState(false);
+  const [assigningTl, setAssigningTl] = useState(false);
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [leadDrawerOpen, setLeadDrawerOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -125,7 +132,10 @@ export default function CampaignDetailPage() {
   const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(10);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const assignQueryHandledRef = useRef(false);
 
   const fetchCampaign = useCallback(async (id: string) => {
     setLoading(true);
@@ -152,21 +162,48 @@ export default function CampaignDetailPage() {
       return;
     }
     if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) {
+    if (!hasTLAccess()) {
       router.replace("/login");
       return;
     }
     fetchCampaign(id);
-  }, [id, isInitialized, hasRole, router, fetchCampaign]);
+  }, [id, isInitialized, hasTLAccess, router, fetchCampaign]);
 
   useEffect(() => {
-    if (searchParams.get("assign") === "1" && campaignId) {
-      setAssignModalOpen(true);
+    assignQueryHandledRef.current = false;
+  }, [id]);
+
+  useEffect(() => {
+    if (!campaignId || assignQueryHandledRef.current) return;
+
+    const openAssignTl = searchParams.get("assignTl") === "1" && isOperationsManager;
+    const openAssignAgents = searchParams.get("assign") === "1" && !isOperationsManager;
+
+    if (!openAssignTl && !openAssignAgents) return;
+
+    assignQueryHandledRef.current = true;
+    if (openAssignTl) setAssignTlModalOpen(true);
+    if (openAssignAgents) setAssignModalOpen(true);
+    router.replace(`/tl/campaigns/${campaignId}`, { scroll: false });
+  }, [searchParams, campaignId, isOperationsManager, router]);
+
+  useEffect(() => {
+    if (assignTlModalOpen && campaign) {
+      setSelectedTeamLeaderId(campaign.assigned_team_leader_id ?? null);
+      setTeamLeadersLoading(true);
+      fetch("/api/tl/team-leaders", { credentials: "include" })
+        .then((res) => res.json())
+        .then((data) => {
+          setTeamLeaders(data.team_leaders ?? []);
+          if (data.error) message.warning(data.error);
+        })
+        .catch(() => message.error("Failed to load team leaders"))
+        .finally(() => setTeamLeadersLoading(false));
     }
-  }, [searchParams, campaignId]);
+  }, [assignTlModalOpen, campaign]);
 
   useEffect(() => {
-    if (assignModalOpen) {
+    if (assignModalOpen && !isOperationsManager) {
       setSelectedAgentIds(assignments.map((a) => a.agent_id));
       setAgentsLoading(true);
       fetch("/api/tl/agents", { credentials: "include" })
@@ -178,9 +215,51 @@ export default function CampaignDetailPage() {
         .catch(() => message.error("Failed to load agents"))
         .finally(() => setAgentsLoading(false));
     }
-  }, [assignModalOpen, assignments]);
+  }, [assignModalOpen, assignments, isOperationsManager]);
 
   const openAssignModal = () => setAssignModalOpen(true);
+  const openAssignTlModal = () => setAssignTlModalOpen(true);
+
+  const handleAssignTeamLeader = async () => {
+    if (!campaignId) return;
+    setAssigningTl(true);
+    try {
+      const res = await fetch(`/api/tl/campaigns/${campaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          assigned_team_leader_id: selectedTeamLeaderId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to assign");
+      const assignedTl = teamLeaders.find((tl) => tl.id === selectedTeamLeaderId);
+      const tlLabel = assignedTl
+        ? (assignedTl.full_name || assignedTl.email || null)
+        : null;
+      setCampaign((prev) =>
+        prev
+          ? {
+              ...prev,
+              assigned_team_leader_id: selectedTeamLeaderId,
+              assigned_team_leader_name: selectedTeamLeaderId
+                ? data.campaign?.assigned_team_leader_name ?? tlLabel
+                : null,
+            }
+          : prev
+      );
+      message.success(
+        selectedTeamLeaderId ? "Team Leader assigned" : "Team Leader removed"
+      );
+      setAssignTlModalOpen(false);
+      void fetchCampaign(campaignId);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Failed to assign Team Leader");
+    } finally {
+      setAssigningTl(false);
+    }
+  };
 
   const transferData = useMemo(
     () =>
@@ -367,6 +446,10 @@ export default function CampaignDetailPage() {
     return !leadDate.isBefore(start) && !leadDate.isAfter(end);
   });
 
+  useEffect(() => {
+    setLeadsPage(1);
+  }, [leadSearch, dateRange]);
+
   if (!isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -395,6 +478,7 @@ export default function CampaignDetailPage() {
   const leadColumns = getLeadTableColumns({
     showActions: true,
     onEdit: openEditLeadDrawer,
+    pagination: { current: leadsPage, pageSize: leadsPageSize },
   });
 
   const overviewRowStyle = {
@@ -430,10 +514,10 @@ export default function CampaignDetailPage() {
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
       <div style={{ marginBottom: 20 }}>
         <Link
-          href="/tl/dashboard"
+          href="/tl/campaigns"
           style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
         >
-          <ArrowLeftOutlined /> Back to Dashboard
+          <ArrowLeftOutlined /> Back to Campaigns
         </Link>
       </div>
 
@@ -459,6 +543,13 @@ export default function CampaignDetailPage() {
                 {campaign.status}
               </Tag>
               {campaign.lead_type && <Tag style={{ margin: 0 }}>{campaign.lead_type}</Tag>}
+              {campaign.assigned_team_leader_name ? (
+                <Tag color="purple" style={{ margin: 0 }}>
+                  Team Leader: {campaign.assigned_team_leader_name}
+                </Tag>
+              ) : isOperationsManager ? (
+                <Tag style={{ margin: 0 }}>No Team Leader assigned</Tag>
+              ) : null}
               {(campaign.industry || campaign.geography) && (
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                   {[campaign.industry, campaign.geography].filter(Boolean).join(" · ")}
@@ -468,9 +559,15 @@ export default function CampaignDetailPage() {
           </Col>
           <Col>
             <Space size="small" wrap>
-              <Button icon={<UserAddOutlined />} onClick={openAssignModal}>
-                Assign Agents
-              </Button>
+              {isOperationsManager ? (
+                <Button icon={<UserAddOutlined />} onClick={openAssignTlModal}>
+                  Assign Team Leader
+                </Button>
+              ) : (
+                <Button icon={<UserAddOutlined />} onClick={openAssignModal}>
+                  Assign Agents
+                </Button>
+              )}
               {(campaign.status === "draft" || campaign.status === "paused") && (
                 <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => handleStatusChange("active")}>
                   Activate
@@ -573,6 +670,34 @@ export default function CampaignDetailPage() {
         </Col>
 
         <Col xs={24} lg={10}>
+          {isOperationsManager && (
+            <Card
+              title={
+                <span>
+                  <TeamOutlined style={{ marginRight: 8 }} />
+                  Assigned Team Leader
+                </span>
+              }
+              extra={
+                <Button type="link" onClick={openAssignTlModal} style={{ padding: 0 }}>
+                  {campaign.assigned_team_leader_name ? "Change" : "Assign"}
+                </Button>
+              }
+              style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+              bodyStyle={{ padding: "24px 28px" }}
+            >
+              {campaign.assigned_team_leader_name ? (
+                <Tag color="purple" style={{ fontSize: 14, padding: "4px 12px" }}>
+                  {campaign.assigned_team_leader_name}
+                </Tag>
+              ) : (
+                <Typography.Text type="secondary">
+                  No Team Leader assigned yet. Click Assign to assign one.
+                </Typography.Text>
+              )}
+            </Card>
+          )}
+
           <Card
             title={
               <Space>
@@ -623,38 +748,40 @@ export default function CampaignDetailPage() {
             )}
           </Card>
 
-          <Card
-            title={
-              <span>
-                <TeamOutlined style={{ marginRight: 8 }} />
-                Assigned Agents ({assignments.length})
-              </span>
-            }
-            extra={
-              <Button type="link" icon={<UserAddOutlined />} onClick={openAssignModal} style={{ padding: 0 }}>
-                {assignments.length > 0 ? "Edit" : "Assign"}
-              </Button>
-            }
-            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
-            bodyStyle={{ padding: "24px 28px" }}
-          >
-            {assignments.length === 0 ? (
-              <p style={{ color: "#8c8c8c", margin: 0 }}>
-                No agents assigned.{" "}
-                <Button type="link" onClick={openAssignModal} style={{ padding: 0 }}>
-                  Assign agents
+          {!isOperationsManager && (
+            <Card
+              title={
+                <span>
+                  <TeamOutlined style={{ marginRight: 8 }} />
+                  Assigned Agents ({assignments.length})
+                </span>
+              }
+              extra={
+                <Button type="link" icon={<UserAddOutlined />} onClick={openAssignModal} style={{ padding: 0 }}>
+                  {assignments.length > 0 ? "Edit" : "Assign"}
                 </Button>
-              </p>
-            ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {assignments.map((a) => (
-                  <Tag key={a.agent_id} color="blue">
-                    {a.agent_name ?? a.agent_id}
-                  </Tag>
-                ))}
-              </div>
-            )}
-          </Card>
+              }
+              style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+              bodyStyle={{ padding: "24px 28px" }}
+            >
+              {assignments.length === 0 ? (
+                <p style={{ color: "#8c8c8c", margin: 0 }}>
+                  No agents assigned.{" "}
+                  <Button type="link" onClick={openAssignModal} style={{ padding: 0 }}>
+                    Assign agents
+                  </Button>
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {assignments.map((a) => (
+                    <Tag key={a.agent_id} color="blue">
+                      {a.agent_name ?? a.agent_id}
+                    </Tag>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
         </Col>
       </Row>
 
@@ -715,7 +842,17 @@ export default function CampaignDetailPage() {
           dataSource={filteredLeads}
           rowKey="id"
           scroll={{ x: 2600 }}
-          pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
+          pagination={{
+            current: leadsPage,
+            pageSize: leadsPageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "15", "25", "50"],
+            showTotal: (t) => `Total ${t} leads`,
+            onChange: (page, size) => {
+              setLeadsPage(page);
+              setLeadsPageSize(size);
+            },
+          }}
           locale={{ emptyText: "No leads yet" }}
           size="middle"
           onRow={(record) => ({
@@ -763,10 +900,51 @@ export default function CampaignDetailPage() {
         title={
           <span>
             <TeamOutlined style={{ marginRight: 8 }} />
+            Assign Team Leader
+          </span>
+        }
+        open={assignTlModalOpen}
+        onCancel={() => setAssignTlModalOpen(false)}
+        onOk={handleAssignTeamLeader}
+        confirmLoading={assigningTl}
+        okText="Save"
+        width={480}
+      >
+        <p style={{ marginBottom: 16, color: "#595959" }}>
+          Select a Team Leader for this campaign. They will only see campaigns assigned to them.
+        </p>
+        {teamLeadersLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
+            <Spin size="large" tip="Loading team leaders..." />
+          </div>
+        ) : (
+          <Select
+            allowClear
+            showSearch
+            placeholder="Select Team Leader"
+            style={{ width: "100%" }}
+            value={selectedTeamLeaderId}
+            onChange={(val) => setSelectedTeamLeaderId(val ?? null)}
+            optionFilterProp="label"
+            options={teamLeaders.map((tl) => ({
+              value: tl.id,
+              label: tl.full_name || tl.email || tl.id,
+            }))}
+            notFoundContent={
+              teamLeaders.length === 0 ? "No Team Leaders found in your organization" : undefined
+            }
+          />
+        )}
+      </Modal>
+
+      <Modal
+        title={
+          <span>
+            <TeamOutlined style={{ marginRight: 8 }} />
             Assign Agents to Campaign
           </span>
         }
-        open={assignModalOpen}
+        open={assignModalOpen && !isOperationsManager}
         onCancel={() => setAssignModalOpen(false)}
         onOk={handleAssign}
         confirmLoading={assigning}

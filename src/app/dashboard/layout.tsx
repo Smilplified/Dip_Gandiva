@@ -20,6 +20,7 @@ const ALLOWED_ROLES = [
   "agent",
   "team_leader",
   "tl",
+  "operations_manager",
 ];
 
 export default function DashboardLayout({

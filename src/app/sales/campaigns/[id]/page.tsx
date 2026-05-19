@@ -43,6 +43,7 @@ import { ExpandableText } from "@/components/ExpandableText";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -150,6 +151,8 @@ export default function SalesCampaignDetailPage() {
     { value: "Whitepaper", label: "Whitepaper" },
   ]);
   const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(10);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -419,7 +422,8 @@ export default function SalesCampaignDetailPage() {
       key: "sr",
       width: 72,
       fixed: "left" as const,
-      render: (_: unknown, __: Lead, index: number) => index + 1,
+      render: (_: unknown, __: Lead, index: number) =>
+        tableSerialNumber(leadsPage, leadsPageSize, index),
     },
     {
       title: "Lead ID",
@@ -836,7 +840,17 @@ export default function SalesCampaignDetailPage() {
           dataSource={leads}
           rowKey="id"
           scroll={{ x: 1500 }}
-          pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
+          pagination={{
+            current: leadsPage,
+            pageSize: leadsPageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "15", "25", "50"],
+            showTotal: (t) => `Total ${t} leads`,
+            onChange: (page, size) => {
+              setLeadsPage(page);
+              setLeadsPageSize(size);
+            },
+          }}
           locale={{ emptyText: "No leads yet" }}
           size="middle"
         />

@@ -82,7 +82,10 @@ function useCategoriesForRole(): typeof ALL_CATEGORIES {
   );
 
   const isAdmin = normalized.includes("admin");
-  const isTL    = normalized.includes("team_leader") || normalized.includes("tl");
+  const isTL    =
+    normalized.includes("team_leader") ||
+    normalized.includes("tl") ||
+    normalized.includes("operations_manager");
 
   // Admin and TL see the Users category; everyone else doesn't
   if (isAdmin || isTL) return ALL_CATEGORIES;

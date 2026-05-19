@@ -65,8 +65,11 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.table-single-line .table-actions-cell {
-  min-width: 0;
+/* Client code column: full code visible (overrides table-single-line ellipsis) */
+.table-single-line .ant-table-cell.table-cell-client-code {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 /* Typography scale for dashboard */
@@ -303,4 +306,19 @@ button.crm-conversation-item::-moz-focus-inner {
 button.crm-conversation-item:focus,
 button.crm-conversation-item:focus-visible {
   outline: none;
+}
+
+/* Profile: assigned campaigns — prevent flex squashing on load more */
+.profile-assigned-campaigns-list {
+  width: 100%;
+}
+.profile-assigned-campaigns-list > div {
+  flex-shrink: 0;
+}
+.profile-assigned-campaigns-list .ant-tag {
+  margin-inline-end: 0;
+  height: auto;
+  min-height: 24px;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }

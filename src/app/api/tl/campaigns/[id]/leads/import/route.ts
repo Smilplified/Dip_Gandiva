@@ -69,6 +69,7 @@ export async function POST(
     const canImport =
       roleNames.includes("team_leader") ||
       roleNames.includes("tl") ||
+      roleNames.includes("operations_manager") ||
       roleNames.includes("qa") ||
       roleNames.includes("mis") ||
       roleNames.includes("admin");

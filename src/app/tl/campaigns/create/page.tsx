@@ -53,7 +53,7 @@ const DEFAULT_LEAD_TYPES = [
 
 export default function TLCampaignCreatePage() {
   const router = useRouter();
-  const { hasRole, isInitialized } = useAuth();
+  const { hasTLAccess, isInitialized } = useAuth();
   const [loading, setLoading] = useState(false);
   const [leadTypeOptions, setLeadTypeOptions] = useState(DEFAULT_LEAD_TYPES);
   const [teamLeaders, setTeamLeaders] = useState<
@@ -64,15 +64,15 @@ export default function TLCampaignCreatePage() {
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) {
+    if (!hasTLAccess()) {
       router.replace("/login");
       return;
     }
-  }, [isInitialized, hasRole, router]);
+  }, [isInitialized, hasTLAccess, router]);
 
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("team_leader") && !hasRole("tl")) return;
+    if (!hasTLAccess()) return;
     fetch("/api/tl/team-leaders", { credentials: "include" })
       .then((res) => res.json())
       .then((data) => {
@@ -85,7 +85,7 @@ export default function TLCampaignCreatePage() {
         setTeamLeaders(data.team_leaders ?? []);
       })
       .catch(() => message.warning("Could not load Team Leaders"));
-  }, [isInitialized, hasRole]);
+  }, [isInitialized, hasTLAccess]);
 
   const cpl = Form.useWatch("cpl", form);
   const totalAllocation = Form.useWatch("total_allocation", form);

@@ -121,6 +121,8 @@ export default function MISCampaignDetailPage() {
   const [savingDrawer, setSavingDrawer] = useState(false);
   const [form] = Form.useForm();
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(10);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [previousConfirmOpen, setPreviousConfirmOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -172,6 +174,10 @@ export default function MISCampaignDetailPage() {
     const end = dateRange[1].endOf("day");
     return !leadDate.isBefore(start) && !leadDate.isAfter(end);
   });
+  useEffect(() => {
+    setLeadsPage(1);
+  }, [leadSearch, dateRange]);
+
   const sortedFilteredLeads = [...filteredLeads].sort((a, b) => {
     const rank = (v: Lead["delivery_status"]) =>
       (v ?? "not_delivered") === "delivered" ? 0 : 1;
@@ -403,6 +409,7 @@ export default function MISCampaignDetailPage() {
     showDeliveryStatus: true,
     onMarkDelivered: handleMarkDelivered,
     markingDeliveredLeadId,
+    pagination: { current: leadsPage, pageSize: leadsPageSize },
   });
 
   const headerCode = campaignHeaderDisplayCode(campaign);
@@ -619,7 +626,17 @@ export default function MISCampaignDetailPage() {
           dataSource={sortedFilteredLeads}
           rowKey="id"
           scroll={{ x: 2600 }}
-          pagination={{ defaultPageSize: 10, showSizeChanger: true, showTotal: (t) => `Total ${t} leads` }}
+          pagination={{
+            current: leadsPage,
+            pageSize: leadsPageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "15", "25", "50"],
+            showTotal: (t) => `Total ${t} leads`,
+            onChange: (page, size) => {
+              setLeadsPage(page);
+              setLeadsPageSize(size);
+            },
+          }}
           locale={{ emptyText: "No leads yet" }}
           size="middle"
           onRow={(record) => ({

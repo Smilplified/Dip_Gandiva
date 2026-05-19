@@ -39,12 +39,25 @@ type AddClientFormValues = Record<string, unknown>;
 
 type AddClientFormProps = {
   form: FormInstance<AddClientFormValues>;
+  /** When `edit`, submits PATCH to `/api/sales/clients/[clientId]`. */
+  mode?: "create" | "edit";
+  clientId?: string;
   onSuccess?: (client: AddClientFormSuccess) => void;
+  /** Called after a successful update when `mode` is `edit`. */
+  onUpdateSuccess?: () => void;
   onCancel?: () => void;
   showCancel?: boolean;
 };
 
-export function AddClientForm({ form, onSuccess, onCancel, showCancel = true }: AddClientFormProps) {
+export function AddClientForm({
+  form,
+  mode = "create",
+  clientId,
+  onSuccess,
+  onUpdateSuccess,
+  onCancel,
+  showCancel = true,
+}: AddClientFormProps) {
   const [loading, setLoading] = useState(false);
 
   const onFinish = async (values: AddClientFormValues) => {
@@ -56,6 +69,25 @@ export function AddClientForm({ form, onSuccess, onCancel, showCancel = true }: 
           ? (values.expected_start_date as { format: (f: string) => string }).format("YYYY-MM-DD")
           : null,
       };
+
+      if (mode === "edit" && clientId) {
+        const res = await fetch(`/api/sales/clients/${clientId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          message.error(data.error || "Failed to update client");
+          return;
+        }
+        message.success("Client updated successfully.");
+        form.resetFields();
+        onUpdateSuccess?.();
+        return;
+      }
+
       const res = await fetch("/api/sales/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -245,7 +277,7 @@ export function AddClientForm({ form, onSuccess, onCancel, showCancel = true }: 
       <Divider style={{ margin: "8px 0 16px" }} />
       <Form.Item style={{ marginBottom: 0 }}>
         <Button type="primary" htmlType="submit" size="large" loading={loading}>
-          Save Client
+          {mode === "edit" ? "Save changes" : "Save Client"}
         </Button>
         {showCancel && (
           <Button type="default" size="large" style={{ marginLeft: 12 }} onClick={onCancel}>

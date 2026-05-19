@@ -11,6 +11,7 @@ import {
   normalizeRoleName,
   resolvePostLoginRedirect,
 } from "@/lib/auth/config";
+import { isTLAccessRole } from "@/lib/auth/tl-access";
 import { authDebug } from "@/lib/auth/debug";
 
 /** Cross-tab: any tab that signs out tells others to drop stale JS + cookies. */
@@ -52,6 +53,8 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   hasRole: (roleName: string) => boolean;
+  /** True when the user has Team Leader, TL, or Operations Manager access. */
+  hasTLAccess: () => boolean;
   getDefaultRedirect: () => string;
 }
 
@@ -968,6 +971,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [state.roles]
   );
 
+  const hasTLAccess = useCallback(
+    () => state.roles.some((r) => isTLAccessRole(r.role_name)),
+    [state.roles]
+  );
+
   const getDefaultRedirect = useCallback(() => {
     return getDefaultRedirectPath(getRoleNames(state.roles));
   }, [state.roles]);
@@ -978,6 +986,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     refreshProfile,
     hasRole,
+    hasTLAccess,
     getDefaultRedirect,
   };
 

@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export async function GET() {
   const supabase = await createClient();
@@ -13,7 +15,8 @@ export async function GET() {
     .select(`
       id, full_name, email, phone, employee_id, agent_code,
       date_of_birth, avatar_url, joining_date, status, created_at,
-      reporting_manager_id, designation, department, employment_type
+      reporting_manager_id, designation, department, employment_type,
+      organization_id
     `)
     .eq("id", user.id)
     .single();
@@ -38,6 +41,7 @@ export async function GET() {
     designation: string | null;
     department: string | null;
     employment_type: string | null;
+    organization_id: string | null;
   } | null;
 
   // Fetch roles
@@ -61,15 +65,28 @@ export async function GET() {
     managerName = m?.full_name || m?.email || null;
   }
 
-  // Assigned campaigns (for agents: campaign_assignments; for TL: campaigns where assigned_team_leader_id)
+  // Assigned campaigns (agents: assignments; TL: assigned_team_leader_id; OM: all org campaigns)
   let assignedCampaigns: { id: string; name: string }[] = [];
+  const roleNames = await fetchUserRoleNames(supabase, user.id);
+  if (hasOperationsManagerAccess(roleNames) && profile?.organization_id) {
+    const { data: allCampaigns } = await supabase
+      .from("campaigns")
+      .select("id, name")
+      .eq("organization_id", profile.organization_id)
+      .order("name");
+    assignedCampaigns = ((allCampaigns ?? []) as { id: string; name: string }[]).map((c) => ({
+      id: c.id,
+      name: c.name,
+    }));
+  }
+
   const { data: assignments } = await supabase
     .from("campaign_assignments")
     .select("campaign_id")
     .eq("agent_id", user.id)
     .eq("is_active", true);
   const assignmentsList = (assignments ?? []) as { campaign_id: string }[];
-  if (assignmentsList.length) {
+  if (!hasOperationsManagerAccess(roleNames) && assignmentsList.length) {
     const campaignIds = [...new Set(assignmentsList.map((a) => a.campaign_id))];
     const { data: campaigns } = await supabase
       .from("campaigns")
@@ -77,7 +94,7 @@ export async function GET() {
       .in("id", campaignIds);
     const campaignsList = (campaigns ?? []) as { id: string; name: string }[];
     assignedCampaigns = campaignsList.map((c) => ({ id: c.id, name: c.name }));
-  } else {
+  } else if (!hasOperationsManagerAccess(roleNames)) {
     const { data: tlCampaigns } = await supabase
       .from("campaigns")
       .select("id, name")

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
 export const dynamic = "force-dynamic";
 
@@ -42,16 +45,18 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
     const camp = campaign as { assigned_team_leader_id?: string | null; [k: string]: unknown };
+    if (
+      !hasOperationsManagerAccess(roleNames) &&
+      camp.assigned_team_leader_id !== user.id
+    ) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
     let assigned_team_leader_name: string | null = null;
     if (camp.assigned_team_leader_id) {
-      const { data: tlUser } = await supabase
-        .from("users")
-        .select("full_name, email")
-        .eq("id", camp.assigned_team_leader_id)
-        .single();
-      const u = tlUser as { full_name: string | null; email: string | null } | null;
-      assigned_team_leader_name = u ? (u.full_name || u.email || null) : null;
+      const names = await resolveUserDisplayNames(supabase, [camp.assigned_team_leader_id]);
+      assigned_team_leader_name = names[camp.assigned_team_leader_id] ?? null;
     }
     const campaignWithTlName = { ...(campaign as Record<string, unknown>), assigned_team_leader_name };
 
@@ -215,6 +220,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Campaign ID required" }, { status: 400 });
     }
 
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    const isOperationsManager = hasOperationsManagerAccess(roleNames);
+
     const body = await request.json();
     const {
       name,
@@ -281,7 +289,15 @@ export async function PATCH(
     if (weekly_call !== undefined) updates.weekly_call = weekly_call?.trim() || null;
     if (weekly_report !== undefined) updates.weekly_report = weekly_report?.trim() || null;
     if (additional_comments !== undefined) updates.additional_comments = additional_comments?.trim() || null;
-    if (assigned_team_leader_id !== undefined) updates.assigned_team_leader_id = assigned_team_leader_id || null;
+    if (assigned_team_leader_id !== undefined) {
+      if (!isOperationsManager) {
+        return NextResponse.json(
+          { error: "Only Operations Manager can assign Team Leaders" },
+          { status: 403 }
+        );
+      }
+      updates.assigned_team_leader_id = assigned_team_leader_id || null;
+    }
     if (employee_size !== undefined) updates.employee_size = Array.isArray(employee_size) && employee_size.length > 0 ? employee_size.filter((v) => v && typeof v === "string").map((v) => String(v).trim()) : null;
     if (abm !== undefined) updates.abm = abm === true || abm === "true" || abm === "yes" ? true : abm === false || abm === "false" || abm === "no" ? false : null;
     if (seniority !== undefined) updates.seniority = seniority != null && typeof seniority === "string" ? seniority.trim() || null : null;
@@ -307,7 +323,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ campaign });
+    const updated = campaign as { assigned_team_leader_id?: string | null; [k: string]: unknown };
+    let assigned_team_leader_name: string | null = null;
+    if (updated.assigned_team_leader_id) {
+      const names = await resolveUserDisplayNames(supabase, [updated.assigned_team_leader_id]);
+      assigned_team_leader_name = names[updated.assigned_team_leader_id] ?? null;
+    }
+
+    return NextResponse.json({
+      campaign: { ...updated, assigned_team_leader_name },
+    });
   } catch (err) {
     console.error("Update campaign error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

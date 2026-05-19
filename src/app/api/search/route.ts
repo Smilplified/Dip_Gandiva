@@ -63,7 +63,10 @@ export async function GET(request: Request) {
 
     const pattern = `%${q}%`;
     const isAdmin  = roleNames.includes("admin");
-    const isTL     = roleNames.includes("team_leader") || roleNames.includes("tl");
+    const isTL     =
+      roleNames.includes("team_leader") ||
+      roleNames.includes("tl") ||
+      roleNames.includes("operations_manager");
     const isQA     = roleNames.includes("qa");
     const isMIS    = roleNames.includes("mis");
     const isAgent  = roleNames.includes("agent");

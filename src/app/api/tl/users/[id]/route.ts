@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { hasTLAccess } from "@/lib/auth/tl-access";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ async function verifyTLOrAdmin(): Promise<{
   const roleNames = (roleRows ?? []).map(
     (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase().replace(/\s+/g, "_")
   );
-  const isTL = roleNames.includes("team_leader") || roleNames.includes("tl");
+  const isTL = hasTLAccess(roleNames);
   const isAdmin = roleNames.includes("admin");
 
   if (!isTL && !isAdmin) {

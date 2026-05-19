@@ -103,6 +103,7 @@ async function getLeadForUser(
   const isPrivileged =
     roleNames.includes("team_leader") ||
     roleNames.includes("tl") ||
+    roleNames.includes("operations_manager") ||
     roleNames.includes("qa") ||
     roleNames.includes("admin") ||
     roleNames.includes("sales");

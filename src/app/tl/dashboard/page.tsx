@@ -80,10 +80,10 @@ const statusColors: Record<string, string> = {
 
 export default function TeamLeaderDashboardPage() {
   const router = useRouter();
-  const { hasRole, isInitialized, profile } = useAuth();
+  const { hasTLAccess, isInitialized, profile } = useAuth();
   const [isOffline, setIsOffline] = useState(false);
 
-  const enabled = Boolean(isInitialized && (hasRole("team_leader") || hasRole("tl")));
+  const enabled = Boolean(isInitialized && hasTLAccess());
   const { stats, campaigns, refetch } = useTLDashboard(enabled);
 
   // Auth guard is handled by the layout (useRoleGuard). No redirect needed here.
@@ -187,7 +187,7 @@ export default function TeamLeaderDashboardPage() {
     ].filter((d) => d.value > 0);
   }, [statsData]);
 
-  if (!isInitialized || (!hasRole("team_leader") && !hasRole("tl"))) {
+  if (!isInitialized || !hasTLAccess()) {
     return null;
   }
 
@@ -393,11 +393,7 @@ export default function TeamLeaderDashboardPage() {
               style={cardStyle}
             >
               {recentCampaigns.length === 0 ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No campaigns yet">
-                  <Button type="primary" onClick={() => router.push("/tl/campaigns/create")}>
-                    Create Campaign
-                  </Button>
-                </Empty>
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No campaigns yet" />
               ) : (
                 <Table
                   dataSource={recentCampaigns}

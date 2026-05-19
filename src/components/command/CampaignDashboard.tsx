@@ -895,6 +895,7 @@ export default function CampaignDashboard({
     const misColumns = getLeadTableColumns({
       showActions: false,
       showDeliveryStatus: false,
+      pagination: { current: leadPage, pageSize: leadPageSize },
     }) as unknown as ColumnsType<LeadRow>;
     return [
       ...misColumns,
