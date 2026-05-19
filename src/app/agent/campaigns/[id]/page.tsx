@@ -35,7 +35,7 @@ import {
   InboxOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
-import { downloadCsv, downloadAgentExcel } from "@/lib/leadsExport";
+import { downloadAgentCsv, downloadAgentExcel } from "@/lib/leadsExport";
 import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
@@ -494,10 +494,10 @@ export default function AgentCampaignDetailPage() {
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
       <div style={{ marginBottom: 20 }}>
         <Link
-          href="/agent/dashboard"
+          href="/agent/campaigns"
           style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
         >
-          <ArrowLeftOutlined /> Back to Dashboard
+          <ArrowLeftOutlined /> Back to Campaigns
         </Link>
       </div>
 
@@ -690,7 +690,7 @@ export default function AgentCampaignDetailPage() {
                 const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
                 if (toExport.length === 0) message.warning("No leads to export");
                 else {
-                  downloadCsv(
+                  downloadAgentCsv(
                     toExport,
                     `leads-${
                       campaign?.name?.replace(/\s+/g, "-") ?? "export"
@@ -854,8 +854,8 @@ export default function AgentCampaignDetailPage() {
             download the Excel format
           </Typography.Link>{" "}
           (includes <strong>lead_id</strong> so edits update the same lead) or
-          upload your own CSV/Excel. Keep the <strong>lead_id</strong> or{" "}
-          <strong>id</strong> column when editing exported files.
+          upload your own CSV/Excel. Keep the <strong>lead_id</strong> column when
+          editing exported files (QA and system fields are not included in exports).
         </Typography.Paragraph>
         <Upload.Dragger
           accept=".csv,.xlsx,.xls"

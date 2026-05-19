@@ -18,6 +18,7 @@ import {
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { tableSerialNumber } from "@/lib/table-pagination";
+import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 
 type Campaign = {
   id: string;
@@ -228,9 +229,12 @@ export default function MISCampaignsPage() {
           style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         >
           <Table
+            className="table-single-line"
             size="middle"
             rowKey="id"
             dataSource={list}
+            scroll={{ x: 1200 }}
+            tableLayout="fixed"
             pagination={{
               current: campaignsPage,
               pageSize: campaignsPageSize,
@@ -292,19 +296,15 @@ export default function MISCampaignsPage() {
                 key: "lead_type",
                 width: 120,
                 ellipsis: true,
-                render: (v: string | null) => (
-                  <Typography.Text style={{ fontSize: 13 }}>{v || "—"}</Typography.Text>
-                ),
+                render: (v: string | null) => tableEllipsisCell(v),
               },
               {
                 title: "Industry",
                 dataIndex: "industry",
                 key: "industry",
-                width: 130,
+                width: 200,
                 ellipsis: true,
-                render: (v: string | null) => (
-                  <Typography.Text style={{ fontSize: 13 }}>{v || "—"}</Typography.Text>
-                ),
+                render: (v: string | null) => tableEllipsisCell(v),
               },
               {
                 title: "Geography",
@@ -312,9 +312,7 @@ export default function MISCampaignsPage() {
                 key: "geography",
                 width: 120,
                 ellipsis: true,
-                render: (v: string | null) => (
-                  <Typography.Text style={{ fontSize: 13 }}>{v || "—"}</Typography.Text>
-                ),
+                render: (v: string | null) => tableEllipsisCell(v),
               },
               {
                 title: "Start Date",

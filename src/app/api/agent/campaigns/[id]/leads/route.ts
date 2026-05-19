@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { AGENT_READONLY_LEAD_FIELD_SET } from "@/lib/agent-lead-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -390,7 +391,6 @@ export async function POST(
         call_notes: call_notes || null,
         primary_reason: primary_reason || null,
         secondary_reason: secondary_reason || null,
-        qa_comments: qa_comments || null,
         cq1: cq1 || null,
         cq2: cq2 || null,
         cq3: cq3 || null,
@@ -400,7 +400,6 @@ export async function POST(
         qa_name: qa_name || null,
         asset_title: asset_title || null,
         status: leadStatus,
-        lead_disposition: lead_disposition || null,
         followup_date: followup_date || null,
         notes: notes || null,
         created_by: user.id,
@@ -601,7 +600,6 @@ export async function PATCH(
     if (call_notes !== undefined) updates.call_notes = call_notes || null;
     if (primary_reason !== undefined) updates.primary_reason = primary_reason || null;
     if (secondary_reason !== undefined) updates.secondary_reason = secondary_reason || null;
-    if (qa_comments !== undefined) updates.qa_comments = qa_comments || null;
     if (cq1 !== undefined) updates.cq1 = cq1 || null;
     if (cq2 !== undefined) updates.cq2 = cq2 || null;
     if (cq3 !== undefined) updates.cq3 = cq3 || null;
@@ -611,9 +609,14 @@ export async function PATCH(
     if (qa_name !== undefined) updates.qa_name = qa_name || null;
     if (asset_title !== undefined) updates.asset_title = asset_title || null;
     if (status !== undefined && typeof status === "string" && status.length > 0) updates.status = status;
-    if (lead_disposition !== undefined) updates.lead_disposition = lead_disposition || null;
     if (followup_date !== undefined) updates.followup_date = followup_date || null;
     if (notes !== undefined) updates.notes = notes || null;
+
+    for (const key of Object.keys(updates)) {
+      if (AGENT_READONLY_LEAD_FIELD_SET.has(key)) {
+        delete updates[key];
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

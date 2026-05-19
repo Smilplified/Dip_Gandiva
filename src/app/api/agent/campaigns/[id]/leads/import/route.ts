@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { AGENT_READONLY_LEAD_FIELDS } from "@/lib/agent-lead-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +48,22 @@ const AGENT_IMPORT_FIELDS = [
   "special_comments",
   "call_back",
   "call_notes",
-  "lead_disposition",
   "followup_date",
   "notes",
   "status",
 ] as const;
+
+const AGENT_IMPORT_BLOCKED = new Set<string>(AGENT_READONLY_LEAD_FIELDS);
+
+function sanitizeAgentImportRow(
+  row: Record<string, unknown>
+): Record<string, unknown> {
+  const out = { ...row };
+  for (const key of AGENT_IMPORT_BLOCKED) {
+    delete out[key];
+  }
+  return out;
+}
 
 function pickAgentFields(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -143,7 +155,7 @@ export async function POST(
       const rowLeadId =
         rowLeadIdRaw != null ? String(rowLeadIdRaw).trim() : "";
 
-      const fields = pickAgentFields(row);
+      const fields = pickAgentFields(sanitizeAgentImportRow(row));
       const first_name = normalizeString(fields.first_name);
       const last_name = normalizeString(fields.last_name);
       const name = normalizeString(fields.name);
@@ -234,7 +246,6 @@ export async function POST(
         special_comments: fields.special_comments ?? null,
         call_back: fields.call_back ?? null,
         call_notes: fields.call_notes ?? null,
-        lead_disposition: fields.lead_disposition ?? null,
         followup_date: fields.followup_date ?? null,
         notes: fields.notes ?? null,
         status: leadStatus,

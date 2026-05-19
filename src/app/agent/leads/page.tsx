@@ -18,7 +18,7 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
-import { downloadCsv } from "@/lib/leadsExport";
+import { downloadAgentCsv } from "@/lib/leadsExport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import type { Lead } from "@/types/lead.types";
 
@@ -181,7 +181,7 @@ export default function AgentMyLeadsPage() {
                 const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
                 if (toExport.length === 0) message.warning("No leads to export");
                 else {
-                  downloadCsv(toExport, `my-leads-${new Date().toISOString().slice(0, 10)}.csv`);
+                  downloadAgentCsv(toExport, `my-leads-${new Date().toISOString().slice(0, 10)}.csv`);
                   message.success(`Exported ${toExport.length} leads`);
                 }
               }}

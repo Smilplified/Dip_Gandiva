@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import type { Lead } from "@/types/lead.types";
+import { isHiddenFromAgentExport } from "@/lib/agent-lead-fields";
 
 /**
  * All lead fields in export order (matches database / Lead type).
@@ -82,37 +83,8 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "updated_at", header: "updated_at" },
 ];
 
-/**
- * Columns that should be hidden from Agent Excel format downloads.
- *
- * - Lead ID, internal row id, and campaign id are system-managed identifiers
- * - QA-only fields are not relevant for Agent uploads
- * - Created By is auto-assigned from the authenticated Agent
- */
-const AGENT_HIDDEN_COLUMNS = new Set<string>([
-  "id",
-  "campaign_id",
-  "asset_title",
-  "qa_status",
-  "audit_date",
-  "qa_name",
-  "tenurity",
-  "vv_status",
-  "email_status",
-  "ev_tool",
-  "primary_reason",
-  "secondary_reason",
-  "qa_comments",
-  "disqualification_reasons",
-  "disqualification_reason",
-  "rectified_reason",
-  "lead_disposition",
-  "created_by",
-  "created_by_name",
-]);
-
-const AGENT_EXCEL_COLUMNS = CSV_COLUMNS.filter(
-  (c) => !AGENT_HIDDEN_COLUMNS.has(String(c.key))
+const AGENT_EXPORT_COLUMNS = CSV_COLUMNS.filter(
+  (c) => !isHiddenFromAgentExport(String(c.key))
 );
 
 function escapeCsvValue(val: string | number | null | undefined): string {
@@ -204,22 +176,49 @@ export function downloadExcel(leads: Lead[], filename?: string): void {
   URL.revokeObjectURL(url);
 }
 
-function leadsToAgentSheetData(leads: Lead[]): unknown[][] {
-  const headers = AGENT_EXCEL_COLUMNS.map((c) => c.header);
-  const rows = leads.map((lead) => {
+function leadsToAgentExportRows(leads: Lead[]): string[][] {
+  return leads.map((lead) => {
     const record = lead as Record<string, unknown>;
-    return AGENT_EXCEL_COLUMNS.map((c) => {
-      const v = record[c.key];
+    return AGENT_EXPORT_COLUMNS.map((c) => {
+      const v =
+        c.key === "channel"
+          ? ((record[c.key] as string | null | undefined) ?? null)
+          : record[c.key];
       if (v == null) return "";
-      return typeof v === "object" ? JSON.stringify(v) : v;
+      return typeof v === "object" ? JSON.stringify(v) : String(v);
     });
   });
+}
+
+export function leadsToAgentCsv(leads: Lead[]): string {
+  const headers = AGENT_EXPORT_COLUMNS.map((c) => c.header).join(",");
+  const rows = leadsToAgentExportRows(leads).map((row) =>
+    row.map((cell) => escapeCsvValue(cell)).join(",")
+  );
+  return [headers, ...rows].join("\n");
+}
+
+function leadsToAgentSheetData(leads: Lead[]): unknown[][] {
+  const headers = AGENT_EXPORT_COLUMNS.map((c) => c.header);
+  const rows = leadsToAgentExportRows(leads);
   return [headers, ...rows];
+}
+
+export function downloadAgentCsv(leads: Lead[], filename?: string): void {
+  const csv = leadsToAgentCsv(leads);
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download =
+    filename ?? `agent-leads-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /**
  * Download Agent-safe Excel: includes lead_id for re-import matching; hides
- * internal id, QA fields, and Created By.
+ * QA/system fields agents must not edit.
  */
 export function downloadAgentExcel(
   leads: Lead[],
@@ -227,10 +226,10 @@ export function downloadAgentExcel(
 ): void {
   const data = leadsToAgentSheetData(leads);
   const ws = XLSX.utils.aoa_to_sheet(data);
-  const colWidths = AGENT_EXCEL_COLUMNS.map((_, i) => {
+  const colWidths = AGENT_EXPORT_COLUMNS.map((_, i) => {
     const maxLen = Math.max(
       ...data.map((row) => String(row[i] ?? "").length),
-      (AGENT_EXCEL_COLUMNS[i]?.header ?? "").length,
+      (AGENT_EXPORT_COLUMNS[i]?.header ?? "").length,
       10
     );
     return { wch: Math.min(maxLen, 50) };

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Table, Tag, Button, Input, Select, Spin, Typography, message } from "antd";
+import { Table, Tag, Button, Input, Select, Spin, Typography, Tooltip, message } from "antd";
 import {
   EyeOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 
 type AgentCampaignRow = {
   id: string;
@@ -141,23 +142,31 @@ export default function AgentCampaignsPage() {
       title: "Campaign",
       dataIndex: "name",
       key: "name",
+      width: 160,
+      ellipsis: true,
       render: (val: string, r: AgentCampaignRow) => (
-        <Link href={`/agent/campaigns/${r.id}`} style={{ fontWeight: 600 }}>
-          {val}
-        </Link>
+        <Tooltip title={val}>
+          <Link href={`/agent/campaigns/${r.id}`} style={{ fontWeight: 600 }} className="table-text-ellipsis">
+            {val}
+          </Link>
+        </Tooltip>
       ),
     },
     {
       title: "Industry",
       dataIndex: "industry",
       key: "industry",
-      render: (v: string | null) => v || "—",
+      width: 200,
+      ellipsis: true,
+      render: (v: string | null) => tableEllipsisCell(v),
     },
     {
       title: "Region",
       dataIndex: "region",
       key: "region",
-      render: (v: string | null) => v || "—",
+      width: 120,
+      ellipsis: true,
+      render: (v: string | null) => tableEllipsisCell(v),
     },
     {
       title: "Status",
@@ -298,6 +307,7 @@ export default function AgentCampaignsPage() {
         rowKey="id"
         loading={loading}
         scroll={{ x: 1230 }}
+        tableLayout="fixed"
         pagination={{
           current: page,
           pageSize,
