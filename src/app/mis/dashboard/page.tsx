@@ -62,7 +62,9 @@ type DailyUploadPoint = {
 };
 
 type CampaignPerformanceRow = {
+  id: string;
   name: string;
+  campaign_code: string | null;
   totalLeads: number;
   closedWonLeads: number;
 };
@@ -620,15 +622,26 @@ export default function MISDashboardPage() {
               >
                 <Table
                   dataSource={campaignPerformanceData}
-                  rowKey={(r) => r.name}
+                  rowKey={(r) => r.id}
                   size="middle"
-                  scroll={{ x: 700 }}
+                  scroll={{ x: 830 }}
                   pagination={{
                     defaultPageSize: 10,
                     showSizeChanger: true,
                     showTotal: (t) => `Total ${t} campaigns`,
                   }}
                   columns={[
+                    {
+                      title: "Campaign Code",
+                      dataIndex: "campaign_code",
+                      key: "campaign_code",
+                      width: 130,
+                      render: (val: string | null) => (
+                        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                          {val || "—"}
+                        </Tag>
+                      ),
+                    },
                     {
                       title: "Campaign",
                       dataIndex: "name",

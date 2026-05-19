@@ -39,7 +39,7 @@ import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
-import { ExpandableText } from "@/components/ExpandableText";
+import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 
 type Campaign = {
@@ -93,7 +93,7 @@ function OverviewRow({ label, value }: { label: string; value: React.ReactNode }
   return (
     <div style={overviewRowStyle}>
       <span style={overviewLabelStyle}>{label}</span>
-      <span style={overviewValueStyle}>{value}</span>
+      <span style={overviewValueStyle}>{renderExpandableOverviewValue(value, overviewValueStyle)}</span>
     </div>
   );
 }
@@ -102,7 +102,9 @@ function OverviewRowOrEmpty({ label, value }: { label: string; value: React.Reac
   return (
     <div style={overviewRowStyle}>
       <span style={overviewLabelStyle}>{label}</span>
-      <span style={overviewValueStyle}>{value ?? "—"}</span>
+      <span style={overviewValueStyle}>
+        {renderExpandableOverviewValue(value ?? "—", overviewValueStyle)}
+      </span>
     </div>
   );
 }
@@ -483,6 +485,10 @@ export default function MISCampaignDetailPage() {
         )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
           <div>
+            <OverviewRowOrEmpty
+              label="Campaign Code"
+              value={headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id}
+            />
             <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
             <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
             <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />

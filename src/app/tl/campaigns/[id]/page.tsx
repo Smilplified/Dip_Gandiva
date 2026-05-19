@@ -45,7 +45,7 @@ import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { LeadDrawerContent, LEAD_DRAWER_WIDTH, LEAD_DRAWER_BODY_STYLE } from "@/components/Leads/LeadDrawerContent";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
-import { ExpandableText } from "@/components/ExpandableText";
+import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 
 type Campaign = {
@@ -497,14 +497,16 @@ export default function CampaignDetailPage() {
     return (
       <div style={overviewRowStyle}>
         <span style={overviewLabelStyle}>{label}</span>
-        <span style={overviewValueStyle}>{value}</span>
+        <span style={overviewValueStyle}>{renderExpandableOverviewValue(value, overviewValueStyle)}</span>
       </div>
     );
   };
   const OverviewRowOrEmpty = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <div style={overviewRowStyle}>
       <span style={overviewLabelStyle}>{label}</span>
-      <span style={overviewValueStyle}>{value ?? "—"}</span>
+      <span style={overviewValueStyle}>
+        {renderExpandableOverviewValue(value ?? "—", overviewValueStyle)}
+      </span>
     </div>
   );
 

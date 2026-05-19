@@ -39,7 +39,7 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
-import { ExpandableText } from "@/components/ExpandableText";
+import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
@@ -535,14 +535,16 @@ export default function SalesCampaignDetailPage() {
     return (
       <div style={overviewRowStyle}>
         <span style={overviewLabelStyle}>{label}</span>
-        <span style={overviewValueStyle}>{value}</span>
+        <span style={overviewValueStyle}>{renderExpandableOverviewValue(value, overviewValueStyle)}</span>
       </div>
     );
   };
   const OverviewRowOrEmpty = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <div style={overviewRowStyle}>
       <span style={overviewLabelStyle}>{label}</span>
-      <span style={overviewValueStyle}>{value ?? "—"}</span>
+      <span style={overviewValueStyle}>
+        {renderExpandableOverviewValue(value ?? "—", overviewValueStyle)}
+      </span>
     </div>
   );
 

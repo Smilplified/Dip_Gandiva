@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
+import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
@@ -27,7 +27,7 @@ export async function GET() {
     }
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
-    const isOperationsManager = hasOperationsManagerAccess(roleNames);
+    const seeAllOrgCampaigns = hasOrgWideCampaignAccess(roleNames);
 
     let campaignsQuery = supabase
       .from("campaigns")
@@ -39,7 +39,7 @@ export async function GET() {
       `)
       .eq("organization_id", orgId);
 
-    if (!isOperationsManager) {
+    if (!seeAllOrgCampaigns) {
       campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
     }
 

@@ -125,6 +125,7 @@ export default function MISCampaignsPage() {
       result = result.filter(
         (c) =>
           (c.name ?? "").toLowerCase().includes(q) ||
+          (c.campaign_code ?? "").toLowerCase().includes(q) ||
           (c.lead_type ?? "").toLowerCase().includes(q) ||
           (c.industry ?? "").toLowerCase().includes(q) ||
           (c.geography ?? "").toLowerCase().includes(q)
@@ -191,7 +192,7 @@ export default function MISCampaignsPage() {
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Input.Search
-          placeholder="Search campaigns (name, lead type, industry, geography)"
+          placeholder="Search campaigns (name, code, lead type, industry, geography)"
           allowClear
           value={search}
           onChange={(e) => setSearch(e.target.value)}

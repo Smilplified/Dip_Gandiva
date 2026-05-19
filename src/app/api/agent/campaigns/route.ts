@@ -45,7 +45,7 @@ export async function GET() {
     const { data: campaigns, error: campaignsError } = await supabase
       .from("campaigns")
       .select(
-        "id, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, region, created_at"
+        "id, campaign_id, campaign_code, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, region, created_at"
       )
       .eq("organization_id", orgId)
       .in("id", campaignIds)
@@ -83,7 +83,22 @@ export async function GET() {
       if (qa === "qualified" || qa === "approved" || qa === "pass") bucket.qualified += 1;
     });
 
-    type CampaignRow = { id: string; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; region: string | null; created_at: string };
+    type CampaignRow = {
+      id: string;
+      campaign_id: string | null;
+      campaign_code: string | null;
+      name: string;
+      client_name: string | null;
+      description: string | null;
+      industry: string | null;
+      geography: string | null;
+      lead_type: string | null;
+      status: string;
+      start_date: string | null;
+      end_date: string | null;
+      region: string | null;
+      created_at: string;
+    };
     const campaignsWithStats = ((campaigns ?? []) as CampaignRow[]).map((c) => ({
       ...c,
       total_leads: leadsByCampaign[c.id]?.total ?? 0,

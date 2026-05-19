@@ -31,6 +31,17 @@ export function hasOperationsManagerAccess(
   return roleNames.some((name) => isOperationsManagerRole(name));
 }
 
+/** See all org campaigns (not scoped to assigned_team_leader_id). */
+export function hasOrgWideCampaignAccess(
+  roleNames: Array<string | null | undefined>
+): boolean {
+  if (hasOperationsManagerAccess(roleNames)) return true;
+  return roleNames.some((name) => {
+    const n = normalizeRoleName(name);
+    return n === "sales" || n === "sales_manager" || n === "admin";
+  });
+}
+
 /** Team Leader / TL only — assignable on campaigns (not Operations Manager). */
 export function isCampaignTeamLeaderRole(roleName: string | null | undefined): boolean {
   if (isOperationsManagerRole(roleName)) return false;

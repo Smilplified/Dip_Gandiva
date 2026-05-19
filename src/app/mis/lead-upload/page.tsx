@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Typography, Card, Table, Spin, Empty, Button, message } from "antd";
+import { Typography, Card, Table, Spin, Empty, Button, message, Tag } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
@@ -10,6 +10,7 @@ const { Title, Text } = Typography;
 type DeliveredCampaignRow = {
   campaign_id: string;
   campaign_name: string;
+  campaign_code: string | null;
   delivered_leads_count: number;
 };
 
@@ -97,6 +98,17 @@ export default function MISLeadUploadPage() {
                 key: "sr_no",
                 width: 90,
                 align: "center" as const,
+              },
+              {
+                title: "Campaign Code",
+                dataIndex: "campaign_code",
+                key: "campaign_code",
+                width: 130,
+                render: (val: string | null) => (
+                  <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {val || "—"}
+                  </Tag>
+                ),
               },
               {
                 title: "Campaign Name",

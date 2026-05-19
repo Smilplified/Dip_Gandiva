@@ -18,6 +18,7 @@ type CampaignRow = {
   id: string;
   name: string;
   status: string;
+  campaign_code: string | null;
 };
 
 export async function GET() {
@@ -63,7 +64,7 @@ export async function GET() {
     const [campaignsRes, leadsRes] = await Promise.all([
       admin
         .from("campaigns")
-        .select("id, name, status")
+        .select("id, name, status, campaign_code")
         .eq("organization_id", orgId),
       admin
         .from("leads")
@@ -174,18 +175,21 @@ export async function GET() {
 
     const campaignPerformanceMap = new Map<
       string,
-      { name: string; totalLeads: number; closedWonLeads: number }
+      { id: string; name: string; campaign_code: string | null; totalLeads: number; closedWonLeads: number }
     >();
-    const campaignNameById = new Map<string, string>();
+    const campaignMetaById = new Map<string, { name: string; campaign_code: string | null }>();
     campaigns.forEach((c) => {
-      campaignNameById.set(c.id, c.name);
+      campaignMetaById.set(c.id, { name: c.name, campaign_code: c.campaign_code ?? null });
     });
 
     leads.forEach((l) => {
       const key = l.campaign_id;
       if (!campaignPerformanceMap.has(key)) {
+        const meta = campaignMetaById.get(key);
         campaignPerformanceMap.set(key, {
-          name: campaignNameById.get(key) ?? "Unnamed",
+          id: key,
+          name: meta?.name ?? "Unnamed",
+          campaign_code: meta?.campaign_code ?? null,
           totalLeads: 0,
           closedWonLeads: 0,
         });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
+import { hasOperationsManagerAccess, hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
@@ -48,7 +48,7 @@ export async function GET(
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const camp = campaign as { assigned_team_leader_id?: string | null; [k: string]: unknown };
     if (
-      !hasOperationsManagerAccess(roleNames) &&
+      !hasOrgWideCampaignAccess(roleNames) &&
       camp.assigned_team_leader_id !== user.id
     ) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });

@@ -120,6 +120,7 @@ export default function QADashboardPage() {
         .map((c) => ({
           id: c.id,
           name: (c as { name?: string }).name ?? `Campaign ${c.id.slice(0, 8)}`,
+          campaign_code: (c as { campaign_code?: string | null }).campaign_code ?? null,
           pending: c.leads?.filter((l) => !l.qa_status || String(l.qa_status).trim() === "").length ?? 0,
           total: c.leads?.length ?? 0,
         }))
@@ -435,6 +436,17 @@ export default function QADashboardPage() {
                   pagination={false}
                   size="middle"
                   columns={[
+                    {
+                      title: "Campaign Code",
+                      dataIndex: "campaign_code",
+                      key: "campaign_code",
+                      width: 130,
+                      render: (val: string | null) => (
+                        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                          {val || "—"}
+                        </Tag>
+                      ),
+                    },
                     {
                       title: "Campaign",
                       key: "name",

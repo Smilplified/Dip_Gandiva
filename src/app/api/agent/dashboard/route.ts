@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     const [campaignsRes, leadsRes] = await Promise.all([
       supabase
         .from("campaigns")
-        .select("id, name, client_name, industry, geography, status, start_date, end_date, region, created_at")
+        .select("id, campaign_id, campaign_code, name, client_name, industry, geography, status, start_date, end_date, region, created_at")
         .eq("organization_id", orgId)
         .in("id", campaignIds)
         .order("created_at", { ascending: false })

@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 
 type AgentCampaignRow = {
   id: string;
+  campaign_code: string | null;
   name: string;
   client_name: string | null;
   industry: string | null;
@@ -105,6 +106,7 @@ export default function AgentCampaignsPage() {
       result = result.filter(
         (c) =>
           (c.name ?? "").toLowerCase().includes(q) ||
+          (c.campaign_code ?? "").toLowerCase().includes(q) ||
           (c.client_name ?? "").toLowerCase().includes(q) ||
           (c.industry ?? "").toLowerCase().includes(q) ||
           (c.region ?? "").toLowerCase().includes(q)
@@ -123,6 +125,17 @@ export default function AgentCampaignsPage() {
       width: 80,
       render: (_: unknown, __: AgentCampaignRow, index: number) =>
         (page - 1) * pageSize + index + 1,
+    },
+    {
+      title: "Campaign Code",
+      dataIndex: "campaign_code",
+      key: "campaign_code",
+      width: 130,
+      render: (val: string | null) => (
+        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+          {val || "—"}
+        </Tag>
+      ),
     },
     {
       title: "Campaign",
@@ -284,7 +297,7 @@ export default function AgentCampaignsPage() {
         dataSource={filtered}
         rowKey="id"
         loading={loading}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1230 }}
         pagination={{
           current: page,
           pageSize,

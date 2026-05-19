@@ -34,7 +34,6 @@ export async function GET(
       return NextResponse.json({ error: "Campaign ID required" }, { status: 400 });
     }
 
-    // Ensure campaign exists (RLS will also enforce assignment)
     const { data: campaign } = await supabase
       .from("campaigns")
       .select("id")
@@ -43,6 +42,19 @@ export async function GET(
       .single();
 
     if (!campaign) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    const { data: assignment } = await supabase
+      .from("campaign_assignments")
+      .select("id")
+      .eq("campaign_id", campaignId)
+      .eq("agent_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!assignment) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 

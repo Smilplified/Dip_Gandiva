@@ -13,6 +13,8 @@ export type AgentDashboardSummary = {
 
 export type AgentDashboardCampaignRow = {
   id: string;
+  campaign_id?: string | null;
+  campaign_code?: string | null;
   name: string;
   client_name: string | null;
   industry: string | null;

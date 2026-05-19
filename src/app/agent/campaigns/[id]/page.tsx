@@ -41,11 +41,14 @@ import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
 import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
-import { ExpandableText } from "@/components/ExpandableText";
+import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
+import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 
 type Campaign = {
   id: string;
+  campaign_id?: string | null;
+  campaign_code?: string | null;
   name: string;
   description: string | null;
   industry: string | null;
@@ -117,9 +120,8 @@ export default function AgentCampaignDetailPage() {
     setIsOffline(false);
     setLoading(true);
     try {
-      // Reuse TL campaign API for metadata (RLS ensures only assigned campaigns are visible)
       const [campaignRes, leadsRes] = await Promise.all([
-        fetch(`/api/tl/campaigns/${id}`, { credentials: "include" }),
+        fetch(`/api/agent/campaigns/${id}`, { credentials: "include" }),
         fetch(`/api/agent/campaigns/${id}/leads`, { credentials: "include" }),
       ]);
 
@@ -131,6 +133,8 @@ export default function AgentCampaignDetailPage() {
 
       setCampaign({
         id: campaignJson.campaign.id,
+        campaign_id: campaignJson.campaign.campaign_id ?? null,
+        campaign_code: campaignJson.campaign.campaign_code ?? null,
         name: campaignJson.campaign.name,
         description: campaignJson.campaign.description,
         industry: campaignJson.campaign.industry,
@@ -471,16 +475,20 @@ export default function AgentCampaignDetailPage() {
     return (
       <div style={overviewRowStyle}>
         <span style={overviewLabelStyle}>{label}</span>
-        <span style={overviewValueStyle}>{value}</span>
+        <span style={overviewValueStyle}>{renderExpandableOverviewValue(value, overviewValueStyle)}</span>
       </div>
     );
   };
   const OverviewRowOrEmpty = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <div style={overviewRowStyle}>
       <span style={overviewLabelStyle}>{label}</span>
-      <span style={overviewValueStyle}>{value ?? "—"}</span>
+      <span style={overviewValueStyle}>
+        {renderExpandableOverviewValue(value ?? "—", overviewValueStyle)}
+      </span>
     </div>
   );
+
+  const headerCode = campaign ? campaignHeaderDisplayCode(campaign) : null;
 
   return (
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
@@ -503,6 +511,14 @@ export default function AgentCampaignDetailPage() {
               {campaign.name}
             </Typography.Title>
             <Space size="small" wrap>
+              {headerCode && (
+                <Tag
+                  color={headerCode.isStructuredCode ? "blue" : undefined}
+                  style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}
+                >
+                  {headerCode.text}
+                </Tag>
+              )}
               <Tag color={statusColors[campaign.status] ?? "default"} style={{ textTransform: "capitalize", margin: 0 }}>
                 {campaign.status}
               </Tag>
@@ -544,6 +560,10 @@ export default function AgentCampaignDetailPage() {
             )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
               <div>
+                <OverviewRowOrEmpty
+                  label="Campaign Code"
+                  value={headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id}
+                />
                 <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
                 <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
                 <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />

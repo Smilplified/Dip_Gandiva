@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 type DeliveredLeadAggRow = {
   campaign_id: string;
-  campaigns: { id: string; name: string } | null;
+  campaigns: { id: string; name: string; campaign_code: string | null } | null;
 };
 
 export async function GET() {
@@ -51,7 +51,7 @@ export async function GET() {
 
     const { data: deliveredRows, error: deliveredErr } = await admin
       .from("leads")
-      .select("campaign_id, campaigns(id, name)")
+      .select("campaign_id, campaigns(id, name, campaign_code)")
       .eq("organization_id", orgId)
       .eq("delivery_status", "delivered");
 
@@ -60,7 +60,10 @@ export async function GET() {
     }
 
     const rows = (deliveredRows ?? []) as DeliveredLeadAggRow[];
-    const grouped = new Map<string, { campaign_id: string; campaign_name: string; delivered_leads_count: number }>();
+    const grouped = new Map<
+      string,
+      { campaign_id: string; campaign_name: string; campaign_code: string | null; delivered_leads_count: number }
+    >();
 
     rows.forEach((row) => {
       const campaignKey = row.campaigns?.id ?? row.campaign_id;
@@ -73,6 +76,7 @@ export async function GET() {
       grouped.set(campaignKey, {
         campaign_id: campaignKey,
         campaign_name: row.campaigns?.name ?? "Unnamed Campaign",
+        campaign_code: row.campaigns?.campaign_code ?? null,
         delivered_leads_count: 1,
       });
     });

@@ -189,6 +189,7 @@ export default function AgentDashboardPage() {
       result = result.filter(
         (c) =>
           (c.name ?? "").toLowerCase().includes(q) ||
+          (c.campaign_code ?? "").toLowerCase().includes(q) ||
           (c.industry ?? "").toLowerCase().includes(q) ||
           (c.geography ?? "").toLowerCase().includes(q)
       );
@@ -442,7 +443,7 @@ export default function AgentDashboardPage() {
                   showTotal: (t) => `Total ${t} campaigns`,
                 }}
                 size="middle"
-                scroll={{ x: 900 }}
+                scroll={{ x: 1030 }}
                 locale={{
                   emptyText: "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
                 }}
@@ -453,6 +454,17 @@ export default function AgentDashboardPage() {
                     width: 56,
                     align: "center" as const,
                     render: (_: unknown, __: unknown, i: number) => i + 1,
+                  },
+                  {
+                    title: "Campaign Code",
+                    dataIndex: "campaign_code",
+                    key: "campaign_code",
+                    width: 130,
+                    render: (val: string | null) => (
+                      <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+                        {val || "—"}
+                      </Tag>
+                    ),
                   },
                   {
                     title: "Campaign",
