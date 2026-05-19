@@ -42,6 +42,13 @@ export function hasOrgWideCampaignAccess(
   });
 }
 
+/** Assign or reassign team leaders on campaigns (Sales, Sales Manager, Admin, Operations Manager). */
+export function canAssignCampaignTeamLeader(
+  roleNames: Array<string | null | undefined>
+): boolean {
+  return hasOrgWideCampaignAccess(roleNames);
+}
+
 /** Team Leader / TL only — assignable on campaigns (not Operations Manager). */
 export function isCampaignTeamLeaderRole(roleName: string | null | undefined): boolean {
   if (isOperationsManagerRole(roleName)) return false;

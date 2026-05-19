@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { hasOperationsManagerAccess, hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
+import {
+  canAssignCampaignTeamLeader,
+  hasOrgWideCampaignAccess,
+} from "@/lib/auth/tl-access";
+import { createNotification } from "@/lib/notifications";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
@@ -221,7 +225,31 @@ export async function PATCH(
     }
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
-    const isOperationsManager = hasOperationsManagerAccess(roleNames);
+    const canAssignTl = canAssignCampaignTeamLeader(roleNames);
+
+    const { data: existingCampaign, error: existingError } = await supabase
+      .from("campaigns")
+      .select("id, name, assigned_team_leader_id")
+      .eq("id", campaignId)
+      .eq("organization_id", orgId)
+      .single();
+
+    if (existingError || !existingCampaign) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    const existing = existingCampaign as {
+      id: string;
+      name: string;
+      assigned_team_leader_id: string | null;
+    };
+
+    if (
+      !hasOrgWideCampaignAccess(roleNames) &&
+      existing.assigned_team_leader_id !== user.id
+    ) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
 
     const body = await request.json();
     const {
@@ -290,13 +318,22 @@ export async function PATCH(
     if (weekly_report !== undefined) updates.weekly_report = weekly_report?.trim() || null;
     if (additional_comments !== undefined) updates.additional_comments = additional_comments?.trim() || null;
     if (assigned_team_leader_id !== undefined) {
-      if (!isOperationsManager) {
-        return NextResponse.json(
-          { error: "Only Operations Manager can assign Team Leaders" },
-          { status: 403 }
-        );
+      const newTlId = assigned_team_leader_id || null;
+      const currentTlId = existing.assigned_team_leader_id ?? null;
+
+      if (!canAssignTl) {
+        if (newTlId !== currentTlId) {
+          return NextResponse.json(
+            {
+              error:
+                "You do not have permission to assign Team Leaders. Contact Sales or Operations Manager.",
+            },
+            { status: 403 }
+          );
+        }
+      } else if (newTlId !== currentTlId) {
+        updates.assigned_team_leader_id = newTlId;
       }
-      updates.assigned_team_leader_id = assigned_team_leader_id || null;
     }
     if (employee_size !== undefined) updates.employee_size = Array.isArray(employee_size) && employee_size.length > 0 ? employee_size.filter((v) => v && typeof v === "string").map((v) => String(v).trim()) : null;
     if (abm !== undefined) updates.abm = abm === true || abm === "true" || abm === "yes" ? true : abm === false || abm === "false" || abm === "no" ? false : null;
@@ -323,11 +360,35 @@ export async function PATCH(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const updated = campaign as { assigned_team_leader_id?: string | null; [k: string]: unknown };
+    const updated = campaign as {
+      id: string;
+      name?: string;
+      assigned_team_leader_id?: string | null;
+      [k: string]: unknown;
+    };
     let assigned_team_leader_name: string | null = null;
     if (updated.assigned_team_leader_id) {
       const names = await resolveUserDisplayNames(supabase, [updated.assigned_team_leader_id]);
       assigned_team_leader_name = names[updated.assigned_team_leader_id] ?? null;
+    }
+
+    const newTlId = updated.assigned_team_leader_id ?? null;
+    if (
+      canAssignTl &&
+      newTlId &&
+      newTlId !== existing.assigned_team_leader_id &&
+      newTlId !== user.id
+    ) {
+      void createNotification({
+        title: "Campaign Assigned",
+        message: `Campaign "${String(updated.name ?? existing.name)}" has been assigned to you.`,
+        type: "campaign",
+        sender_id: user.id,
+        receiver_id: newTlId,
+        reference_type: "campaign",
+        reference_id: updated.id,
+        organization_id: orgId,
+      });
     }
 
     return NextResponse.json({

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import dayjs from "dayjs";
-import { useRouter, useSearchParams, useParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   Card,
@@ -62,6 +62,9 @@ const EMPLOYEE_SIZE_OPTIONS = [
 
 const ACCEPT_FILE_TYPES =
   ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,image/*";
+
+const salesCampaignOpenEditKey = (campaignId: string) =>
+  `gandiv:sales-campaign-open-edit:${campaignId}`;
 
 type Campaign = {
   id: string;
@@ -127,7 +130,6 @@ type CampaignFile = {
 export default function SalesCampaignDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
   const id = params?.id as string | undefined;
   const { hasRole, isInitialized } = useAuth();
   const hasSalesAccess =
@@ -197,11 +199,30 @@ export default function SalesCampaignDetailPage() {
     fetchCampaign(id);
   }, [id, isInitialized, hasSalesAccess, router, fetchCampaign]);
 
+  // Strip legacy ?edit=1 from URL (no longer used to open the modal).
   useEffect(() => {
-    if (searchParams.get("edit") === "1" && campaign) {
-      setEditModalOpen(true);
+    if (!id || typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("edit") === "1") {
+      url.searchParams.delete("edit");
+      const qs = url.searchParams.toString();
+      window.history.replaceState(null, "", `${url.pathname}${qs ? `?${qs}` : ""}`);
     }
-  }, [searchParams, campaign]);
+  }, [id]);
+
+  // Open edit modal once when navigating from the list "Edit" action (not on refresh or after save).
+  useEffect(() => {
+    if (!campaign || !id) return;
+    try {
+      const key = salesCampaignOpenEditKey(id);
+      if (sessionStorage.getItem(key) === "1") {
+        sessionStorage.removeItem(key);
+        setEditModalOpen(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [campaign, id]);
 
   useEffect(() => {
     if (campaign && editModalOpen) {
