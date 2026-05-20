@@ -126,13 +126,13 @@ function LoginContent() {
         <div className="flex flex-col flex-1 min-h-0">
           <div className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            CRM Platform
+            GTM OS
           </div>
           <h2 className="mt-12 text-3xl font-semibold tracking-tight text-slate-800 lg:text-4xl">
-            Welcome back
+            Go-to-market, orchestrated.
           </h2>
           <p className="mt-4 max-w-sm text-base text-slate-600 leading-relaxed">
-            Sign in to access your workspace and manage campaigns, contacts, and deals in one place.
+            Run campaigns, pipeline, and delivery from one operating system built for B2B revenue teams.
           </p>
           <div className="mt-8 relative w-full flex-1 min-h-0">
             <Image
@@ -164,10 +164,13 @@ function LoginContent() {
             />
           </div>
           <div className="md:hidden mb-6 text-center">
-              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
-                Welcome back
-              </h1>
-            <p className="mt-1 text-sm text-slate-600">Sign in to continue to your workspace</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">GTM OS</p>
+            <h1 className="mt-2 text-xl font-semibold text-slate-900 tracking-tight">
+              Sign in to Gandiv
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Your go-to-market workspace for campaigns and pipeline
+            </p>
           </div>
 
           <div
