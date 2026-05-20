@@ -65,19 +65,79 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get("q") ?? "").trim();
-    const category = searchParams.get("category") ?? "all"; // all | companies | contacts | deals | leads
+    const category = searchParams.get("category") ?? "all";
 
     if (!q || q.length < 1) {
-      return NextResponse.json({ results: { companies: [], contacts: [], deals: [], leads: [] } });
+      return NextResponse.json({
+        results: {
+          clients: [],
+          campaigns: [],
+          companies: [],
+          contacts: [],
+          deals: [],
+          leads: [],
+        },
+      });
     }
 
     const pattern = `%${q}%`;
     const results: {
+      clients: unknown[];
+      campaigns: unknown[];
       companies: unknown[];
       contacts: unknown[];
       deals: unknown[];
       leads: unknown[];
-    } = { companies: [], contacts: [], deals: [], leads: [] };
+    } = {
+      clients: [],
+      campaigns: [],
+      companies: [],
+      contacts: [],
+      deals: [],
+      leads: [],
+    };
+
+    // ── Clients (CRM clients table) ───────────────────────────────────────────
+    if (isManagerOrAdmin && (category === "all" || category === "clients")) {
+      const { data } = await admin
+        .from("clients")
+        .select("id, company_name, client_code, industry_type, contact_full_name, contact_work_email, city, country")
+        .eq("organization_id", orgId)
+        .or(
+          `company_name.ilike.${pattern},client_code.ilike.${pattern},industry_type.ilike.${pattern},contact_full_name.ilike.${pattern},contact_work_email.ilike.${pattern},contact_person.ilike.${pattern},city.ilike.${pattern},country.ilike.${pattern}`
+        )
+        .limit(LIMIT);
+
+      results.clients = (data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id,
+        title: (r.company_name as string) || (r.client_code as string) || "—",
+        subtitle: (r.contact_full_name as string) || (r.contact_work_email as string) || "—",
+        meta: [r.industry_type, r.city, r.country].filter(Boolean).join(" · ") || null,
+        type: "client",
+        url: "/sales/clients",
+      }));
+    }
+
+    // ── Campaigns ─────────────────────────────────────────────────────────────
+    if (category === "all" || category === "campaigns") {
+      const { data } = await admin
+        .from("campaigns")
+        .select("id, name, client_name, status, industry, campaign_id, campaign_code")
+        .eq("organization_id", orgId)
+        .or(
+          `name.ilike.${pattern},client_name.ilike.${pattern},industry.ilike.${pattern},campaign_id.ilike.${pattern},campaign_code.ilike.${pattern}`
+        )
+        .limit(LIMIT);
+
+      results.campaigns = (data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id,
+        title: (r.name as string) || "—",
+        subtitle: (r.client_name as string) || (r.industry as string) || "—",
+        meta: r.status ? String(r.status) : null,
+        type: "campaign",
+        url: `/sales/campaigns/${r.id}`,
+      }));
+    }
 
     // ── Companies / Accounts ─────────────────────────────────────────────────
     if (category === "all" || category === "companies") {

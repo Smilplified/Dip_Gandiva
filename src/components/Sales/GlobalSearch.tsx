@@ -11,7 +11,10 @@ import {
   FunnelPlotOutlined,
   CloseOutlined,
   ArrowRightOutlined,
+  RocketOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
+import { useAuth } from "@/context/AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type SearchResult = {
@@ -19,35 +22,66 @@ type SearchResult = {
   title: string;
   subtitle: string;
   meta?: string | null;
-  type: "company" | "contact" | "deal" | "lead";
+  type: "client" | "campaign" | "company" | "contact" | "deal" | "lead";
   url: string;
 };
 
 type SearchResults = {
+  clients: SearchResult[];
+  campaigns: SearchResult[];
   companies: SearchResult[];
   contacts: SearchResult[];
   deals: SearchResult[];
   leads: SearchResult[];
 };
 
-type Category = "all" | "companies" | "contacts" | "deals" | "leads";
+type Category =
+  | "all"
+  | "clients"
+  | "campaigns"
+  | "companies"
+  | "contacts"
+  | "deals"
+  | "leads";
 
-const CATEGORIES: { key: Category; label: string; icon: React.ReactNode; color: string; dot: string }[] = [
+const ALL_CATEGORIES: { key: Category; label: string; icon: React.ReactNode; color: string; dot: string }[] = [
   { key: "all",       label: "All",       icon: <SearchOutlined />,     color: "#1677ff", dot: "#1677ff" },
+  { key: "clients",   label: "Clients",   icon: <TeamOutlined />,     color: "#be185d", dot: "#be185d" },
+  { key: "campaigns", label: "Campaigns", icon: <RocketOutlined />,   color: "#7c3aed", dot: "#7c3aed" },
   { key: "companies", label: "Companies", icon: <BankOutlined />,       color: "#722ed1", dot: "#722ed1" },
-  { key: "contacts",  label: "Contacts",  icon: <UserOutlined />,       color: "#0891b2", dot: "#0891b2" },
-  { key: "deals",     label: "Deals",     icon: <RiseOutlined />,       color: "#16a34a", dot: "#16a34a" },
+  { key: "contacts",  label: "Contacts",  icon: <UserOutlined />,     color: "#0891b2", dot: "#0891b2" },
+  { key: "deals",     label: "Deals",     icon: <RiseOutlined />,     color: "#16a34a", dot: "#16a34a" },
   { key: "leads",     label: "Leads",     icon: <FunnelPlotOutlined />, color: "#ea580c", dot: "#ea580c" },
 ];
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  company: { label: "Company", color: "#6d28d9", bg: "#ede9fe", icon: <BankOutlined /> },
-  contact: { label: "Contact", color: "#0369a1", bg: "#e0f2fe", icon: <UserOutlined /> },
-  deal:    { label: "Deal",    color: "#15803d", bg: "#dcfce7", icon: <RiseOutlined /> },
-  lead:    { label: "Lead",    color: "#c2410c", bg: "#ffedd5", icon: <FunnelPlotOutlined /> },
+  client:   { label: "Client",   color: "#be185d", bg: "#fce7f3", icon: <TeamOutlined /> },
+  campaign: { label: "Campaign", color: "#6d28d9", bg: "#ede9fe", icon: <RocketOutlined /> },
+  company:  { label: "Company",  color: "#6d28d9", bg: "#ede9fe", icon: <BankOutlined /> },
+  contact:  { label: "Contact",  color: "#0369a1", bg: "#e0f2fe", icon: <UserOutlined /> },
+  deal:     { label: "Deal",     color: "#15803d", bg: "#dcfce7", icon: <RiseOutlined /> },
+  lead:     { label: "Lead",     color: "#c2410c", bg: "#ffedd5", icon: <FunnelPlotOutlined /> },
 };
 
-const SECTION_ORDER: (keyof SearchResults)[] = ["companies", "contacts", "deals", "leads"];
+const SECTION_ORDER: (keyof SearchResults)[] = [
+  "clients",
+  "campaigns",
+  "companies",
+  "contacts",
+  "deals",
+  "leads",
+];
+
+function useSalesSearchCategories() {
+  const { roles } = useAuth();
+  const normalized = roles.map((r) =>
+    (r.role_name || r.name || "").toLowerCase().trim().replace(/\s+/g, "_")
+  );
+  const canSearchClients =
+    normalized.includes("sales_manager") || normalized.includes("admin");
+  if (canSearchClients) return ALL_CATEGORIES;
+  return ALL_CATEGORIES.filter((c) => c.key !== "clients");
+}
 
 function flattenResults(r: SearchResults): SearchResult[] {
   return SECTION_ORDER.flatMap((k) => r[k] ?? []);
@@ -72,22 +106,41 @@ export default function GlobalSearch() {
   const [query,       setQuery]       = useState("");
   const [open,        setOpen]        = useState(false);
   const [category,    setCategory]    = useState<Category>("all");
-  const [results,     setResults]     = useState<SearchResults>({ companies: [], contacts: [], deals: [], leads: [] });
+  const [results,     setResults]     = useState<SearchResults>({
+    clients: [],
+    campaigns: [],
+    companies: [],
+    contacts: [],
+    deals: [],
+    leads: [],
+  });
   const [loading,     setLoading]     = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const debouncedQuery = useDebounce(query, 300);
+  const visibleCategories = useSalesSearchCategories();
 
   // ─── Fetch ─────────────────────────────────────────────────────────────────
   const fetchResults = useCallback(async (q: string, cat: Category) => {
-    if (!q.trim()) { setResults({ companies: [], contacts: [], deals: [], leads: [] }); return; }
+    const empty: SearchResults = {
+      clients: [],
+      campaigns: [],
+      companies: [],
+      contacts: [],
+      deals: [],
+      leads: [],
+    };
+    if (!q.trim()) {
+      setResults(empty);
+      return;
+    }
     setLoading(true);
     try {
       const res  = await fetch(`/api/sales/search?q=${encodeURIComponent(q)}&category=${cat}`, { credentials: "include" });
       const json = await res.json();
-      setResults(json.results ?? { companies: [], contacts: [], deals: [], leads: [] });
+      setResults({ ...empty, ...(json.results ?? {}) });
     } catch {
-      setResults({ companies: [], contacts: [], deals: [], leads: [] });
+      setResults(empty);
     } finally {
       setLoading(false);
     }
@@ -96,7 +149,15 @@ export default function GlobalSearch() {
 
   useEffect(() => {
     if (debouncedQuery) fetchResults(debouncedQuery, category);
-    else setResults({ companies: [], contacts: [], deals: [], leads: [] });
+    else
+      setResults({
+        clients: [],
+        campaigns: [],
+        companies: [],
+        contacts: [],
+        deals: [],
+        leads: [],
+      });
   }, [debouncedQuery, category, fetchResults]);
 
   // ─── Click outside ─────────────────────────────────────────────────────────
@@ -120,7 +181,18 @@ export default function GlobalSearch() {
   };
 
   const navigateTo = (item: SearchResult) => { router.push(item.url); setOpen(false); setQuery(""); };
-  const clearQuery  = () => { setQuery(""); setResults({ companies: [], contacts: [], deals: [], leads: [] }); inputRef.current?.focus(); };
+  const clearQuery = () => {
+    setQuery("");
+    setResults({
+      clients: [],
+      campaigns: [],
+      companies: [],
+      contacts: [],
+      deals: [],
+      leads: [],
+    });
+    inputRef.current?.focus();
+  };
 
   const visibleSections =
     category === "all"
@@ -134,8 +206,20 @@ export default function GlobalSearch() {
   const renderSection = (key: keyof SearchResults) => {
     const items = results[key];
     if (!items?.length) return null;
-    const cat    = CATEGORIES.find((c) => c.key === key)!;
-    const tc     = TYPE_CONFIG[key === "companies" ? "company" : key === "contacts" ? "contact" : key === "deals" ? "deal" : "lead"];
+    const cat = ALL_CATEGORIES.find((c) => c.key === key)!;
+    const typeKey =
+      key === "clients"
+        ? "client"
+        : key === "campaigns"
+        ? "campaign"
+        : key === "companies"
+        ? "company"
+        : key === "contacts"
+        ? "contact"
+        : key === "deals"
+        ? "deal"
+        : "lead";
+    const tc = TYPE_CONFIG[typeKey];
 
     return (
       <div key={key}>
@@ -228,6 +312,30 @@ export default function GlobalSearch() {
         }
         .gs-input::placeholder { color: #9ca3af; }
         .gs-cat-btn:hover { opacity: 0.85; }
+        .gs-cat-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          padding: 10px 12px;
+          border-bottom: 1px solid #f3f4f6;
+          flex-shrink: 0;
+        }
+        .gs-cat-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 10px;
+          border-radius: 8px;
+          border: none;
+          font-size: 11px;
+          font-weight: 500;
+          cursor: pointer;
+          white-space: nowrap;
+          outline: none;
+          transition: all 0.15s;
+          font-family: inherit;
+          line-height: 1.3;
+        }
       `}</style>
 
       <div ref={containerRef} style={{ position: "relative", width: 300, flexShrink: 0 }}>
@@ -273,7 +381,8 @@ export default function GlobalSearch() {
               position: "absolute",
               top: "calc(100% + 6px)",
               left: 0,
-              width: 420,
+              width: 480,
+              minWidth: 300,
               maxHeight: 520,
               background: "#fff",
               borderRadius: 14,
@@ -286,43 +395,24 @@ export default function GlobalSearch() {
               animation: "gs-enter 0.15s ease",
             }}
           >
-            {/* ── Category filter tabs ───────────────────────────────────────── */}
-            <div style={{
-              display: "flex",
-              gap: 4,
-              padding: "10px 12px",
-              borderBottom: "1px solid #f3f4f6",
-              overflowX: "auto",
-              flexShrink: 0,
-              scrollbarWidth: "none",
-            }}>
-              {CATEGORIES.map((cat) => {
+            {/* ── Category filter tabs (wrap so all labels stay visible) ─────── */}
+            <div className="gs-cat-row">
+              {visibleCategories.map((cat) => {
                 const isActive = category === cat.key;
                 return (
                   <button
                     key={cat.key}
+                    type="button"
                     className="gs-cat-btn"
+                    title={cat.label}
                     onMouseDown={(e) => { e.preventDefault(); setCategory(cat.key); }}
                     style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 5,
-                      padding: "4px 11px",
-                      borderRadius: 8,
-                      border: "none",
                       background: isActive ? cat.color : "#f3f4f6",
                       color: isActive ? "#fff" : "#4b5563",
-                      fontSize: 12,
                       fontWeight: isActive ? 600 : 500,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                      flexShrink: 0,
-                      outline: "none",
-                      transition: "all 0.15s",
-                      fontFamily: "inherit",
                     }}
                   >
-                    <span style={{ fontSize: 11, lineHeight: 1 }}>{cat.icon}</span>
+                    <span style={{ fontSize: 11, lineHeight: 1, display: "flex" }}>{cat.icon}</span>
                     {cat.label}
                   </button>
                 );
@@ -338,7 +428,9 @@ export default function GlobalSearch() {
                     <SearchOutlined style={{ fontSize: 20, color: "#9ca3af" }} />
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 4 }}>Start searching</div>
-                  <div style={{ fontSize: 12, color: "#9ca3af" }}>Search across Companies, Contacts, Deals and Leads</div>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                    Search Clients, Campaigns, Companies, Contacts, Deals and Leads
+                  </div>
                 </div>
               ) : loading ? (
                 /* Loading state */

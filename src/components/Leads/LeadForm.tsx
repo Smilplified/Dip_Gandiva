@@ -15,6 +15,7 @@ import {
   QA_AUDIT_DISQUALIFICATION_OPTIONS,
 } from "@/types/lead.types";
 import type { Lead } from "@/types/lead.types";
+import { useAuth } from "@/context/AuthContext";
 
 type LeadFormProps = {
   form: ReturnType<typeof Form.useForm>[0];
@@ -29,6 +30,9 @@ export function LeadForm({
   lead,
   canEditQaAudit = false,
 }: LeadFormProps) {
+  const { profile, hasRole, user } = useAuth();
+  const loggedInQaName =
+    profile?.full_name?.trim() || profile?.email?.trim() || user?.email?.trim() || "";
   const [showMoreCq, setShowMoreCq] = useState(false);
   const [voiceRecordings, setVoiceRecordings] = useState<
     { id: string; name: string; path: string; url: string | null }[]
@@ -48,6 +52,16 @@ export function LeadForm({
       setShowMoreCq(true);
     }
   }, [lead]);
+
+  // Show logged-in QA name when lead has no qa_name yet (saved on submit by API).
+  useEffect(() => {
+    if (!hasRole("qa") || !loggedInQaName) return;
+    const existing = (form.getFieldValue("qa_name") as string | undefined)?.trim()
+      || lead?.qa_name?.trim();
+    if (!existing) {
+      form.setFieldValue("qa_name", loggedInQaName);
+    }
+  }, [form, hasRole, lead?.qa_name, loggedInQaName]);
 
   useEffect(() => {
     const loadVoiceRecordings = async () => {
@@ -619,11 +633,11 @@ export function LeadForm({
                 <Col xs={24} sm={12}>
                   <Form.Item
                     label="QA Name"
-                    tooltip="Auto-filled when QA adds or edits lead status"
+                    name="qa_name"
+                    tooltip="Auto-filled with the logged-in QA user; saved when you update the lead"
                   >
                     <Input
-                      placeholder="—"
-                      value={lead?.qa_name ?? ""}
+                      placeholder={hasRole("qa") ? loggedInQaName || "QA user" : "—"}
                       disabled
                       style={{ color: "rgba(0,0,0,0.65)", backgroundColor: "#fafafa" }}
                     />
