@@ -15,6 +15,7 @@ import {
   message,
   Spin,
   Typography,
+  Divider,
 } from "antd";
 import {
   EditOutlined,
@@ -24,6 +25,7 @@ import {
   DeleteOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import AdminUserStats from "@/components/Admin/AdminUserStats";
 import type { Tables } from "@/types/database.types";
 
 type UserRow = Tables<"users"> & {
@@ -177,6 +179,8 @@ export default function AdminUsersPage() {
       designation: record.designation,
       role_id: currentRoleId,
       client_id: record.client_id ?? undefined,
+      new_password: "",
+      confirm_password: "",
     });
     setEditModalOpen(true);
   };
@@ -187,25 +191,37 @@ export default function AdminUsersPage() {
       const values = await editForm.validateFields();
       setSubmitting(true);
 
+      const newPassword =
+        typeof values.new_password === "string" ? values.new_password.trim() : "";
+
+      const payload: Record<string, unknown> = {
+        full_name: values.full_name || null,
+        department: values.department || null,
+        designation: values.designation || null,
+        role_id: values.role_id || null,
+        client_id:
+          editSelectedRoleName === "client_viewer"
+            ? (values.client_id || null)
+            : null,
+      };
+      if (newPassword) {
+        payload.password = newPassword;
+      }
+
       const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          full_name: values.full_name || null,
-          department: values.department || null,
-          designation: values.designation || null,
-          role_id: values.role_id || null,
-          client_id:
-            editSelectedRoleName === "client_viewer"
-              ? (values.client_id || null)
-              : null,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to update user");
 
-      message.success("User updated successfully");
+      message.success(
+        json.password_updated
+          ? "User updated and password changed successfully"
+          : "User updated successfully"
+      );
       setEditModalOpen(false);
       setSelectedUser(null);
       editForm.resetFields();
@@ -438,6 +454,8 @@ export default function AdminUsersPage() {
         </div>
       )}
 
+      {!loading && <AdminUserStats users={users} />}
+
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden" style={{ minHeight: 200 }}>
         {loading ? (
           <div className="flex justify-center items-center py-16">
@@ -605,6 +623,54 @@ export default function AdminUsersPage() {
                 />
               </Form.Item>
             )}
+
+            <Divider style={{ margin: "8px 0 16px" }}>Change password</Divider>
+            <Typography.Text type="secondary" style={{ display: "block", marginBottom: 12, fontSize: 13 }}>
+              Leave blank to keep the current password.
+            </Typography.Text>
+            <Form.Item
+              name="new_password"
+              label="New password"
+              rules={[
+                {
+                  validator: async (_, value) => {
+                    const pwd = typeof value === "string" ? value : "";
+                    const confirm = editForm.getFieldValue("confirm_password") as string | undefined;
+                    if (!pwd && !confirm) return;
+                    if (pwd && pwd.length < 6) {
+                      throw new Error("Password must be at least 6 characters");
+                    }
+                    if (confirm && !pwd) {
+                      throw new Error("Enter a new password");
+                    }
+                  },
+                },
+              ]}
+            >
+              <Input.Password placeholder="New password" autoComplete="new-password" />
+            </Form.Item>
+            <Form.Item
+              name="confirm_password"
+              label="Confirm password"
+              dependencies={["new_password"]}
+              rules={[
+                {
+                  validator: async (_, value) => {
+                    const confirm = typeof value === "string" ? value : "";
+                    const pwd = (editForm.getFieldValue("new_password") as string | undefined)?.trim() ?? "";
+                    if (!pwd && !confirm) return;
+                    if (pwd && !confirm) {
+                      throw new Error("Please confirm the new password");
+                    }
+                    if (pwd && confirm !== pwd) {
+                      throw new Error("Passwords do not match");
+                    }
+                  },
+                },
+              ]}
+            >
+              <Input.Password placeholder="Confirm new password" autoComplete="new-password" />
+            </Form.Item>
           </Form>
         )}
       </Modal>

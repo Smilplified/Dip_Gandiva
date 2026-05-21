@@ -57,13 +57,14 @@ export async function PATCH(
     }
 
     const body = await _request.json();
-    const { status } = body as {
+    const { status, password } = body as {
       status?: string;
       full_name?: string | null;
       department?: string | null;
       designation?: string | null;
       role_id?: string | null;
       client_id?: string | null;
+      password?: string;
     };
 
     const admin = getAdminClientSafe();
@@ -93,6 +94,28 @@ export async function PATCH(
 
     if (id === adminUser?.id && status === "inactive") {
       return NextResponse.json({ error: "You cannot deactivate your own account" }, { status: 400 });
+    }
+
+    if (password !== undefined && password !== null && String(password).trim() !== "") {
+      if (typeof password !== "string") {
+        return NextResponse.json({ error: "Invalid password" }, { status: 400 });
+      }
+      const trimmed = password.trim();
+      if (trimmed.length < 6) {
+        return NextResponse.json(
+          { error: "Password must be at least 6 characters" },
+          { status: 400 }
+        );
+      }
+      const { error: passwordError } = await admin.auth.admin.updateUserById(id, {
+        password: trimmed,
+      });
+      if (passwordError) {
+        return NextResponse.json(
+          { error: passwordError.message || "Failed to update password" },
+          { status: 400 }
+        );
+      }
     }
 
     const userUpdate: Record<string, unknown> = {};
@@ -157,7 +180,14 @@ export async function PATCH(
         }
       }
     }
-    return NextResponse.json({ success: true, status: status ?? null });
+    const passwordUpdated =
+      password !== undefined && password !== null && String(password).trim() !== "";
+
+    return NextResponse.json({
+      success: true,
+      status: status ?? null,
+      password_updated: passwordUpdated,
+    });
   } catch (err) {
     console.error("Update user status error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
