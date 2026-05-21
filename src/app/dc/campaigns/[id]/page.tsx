@@ -1,18 +1,16 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import {
-  Card, Table, Tag, Button, Spin, Typography,
-  message, Row, Col, Space, Input, Select,
+  Card, Button, Table, Tag, Input, message, Spin, Typography, Row, Col, Space,
 } from "antd";
-import {
-  ArrowLeftOutlined, FileOutlined, DownloadOutlined, SearchOutlined,
-} from "@ant-design/icons";
+import { ArrowLeftOutlined, FileOutlined, DownloadOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
-import type { ColumnsType } from "antd/es/table";
+import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
+import type { Lead } from "@/types/lead.types";
+import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 
@@ -57,30 +55,8 @@ type CampaignFile = {
   download_url: string | null;
 };
 
-type Lead = {
-  id: string;
-  lead_id: string | null;
-  name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-  company_name: string | null;
-  designation: string | null;
-  status: string | null;
-  qa_status: string | null;
-  delivery_status: string | null;
-  lead_tagging: string | null;
-  created_at: string;
-};
-
 const campaignStatusColors: Record<string, string> = {
   draft: "default", active: "green", paused: "orange", completed: "blue",
-};
-
-const leadStatusColors: Record<string, string> = {
-  new: "default", contacted: "processing", interested: "green",
-  followup: "gold", qualified: "blue", closed_won: "cyan", closed_lost: "red",
 };
 
 const overviewRowStyle = {
@@ -123,7 +99,6 @@ export default function DCCampaignDetailPage() {
   const [files, setFiles] = useState<CampaignFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [leadSearch, setLeadSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [leadsPage, setLeadsPage] = useState(1);
   const [leadsPageSize, setLeadsPageSize] = useState(10);
 
@@ -147,27 +122,32 @@ export default function DCCampaignDetailPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const filteredLeads = useMemo(() => {
-    return leads.filter((l) => {
-      const q = leadSearch.trim().toLowerCase();
-      const matchSearch = !q
-        ? true
-        : (l.lead_id ?? "").toLowerCase().includes(q) ||
-          (l.name ?? "").toLowerCase().includes(q) ||
-          ([l.first_name, l.last_name].filter(Boolean).join(" ")).toLowerCase().includes(q) ||
-          (l.company_name ?? "").toLowerCase().includes(q) ||
-          (l.email ?? "").toLowerCase().includes(q) ||
-          (l.phone ?? "").toLowerCase().includes(q);
-      const matchStatus =
-        statusFilter === "all" ||
-        (l.status ?? "").toLowerCase() === statusFilter ||
-        (l.qa_status ?? "").toLowerCase() === statusFilter ||
-        (statusFilter === "scored" && (l.lead_tagging ?? "").toLowerCase() === "scored");
-      return matchSearch && matchStatus;
-    });
-  }, [leads, leadSearch, statusFilter]);
+  const filteredLeads = leads.filter((l) => {
+    const q = leadSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (l.lead_id ?? "").toLowerCase().includes(q) ||
+      (l.name ?? "").toLowerCase().includes(q) ||
+      ([l.first_name, l.last_name].filter(Boolean).join(" ")).toLowerCase().includes(q) ||
+      (l.company_name ?? "").toLowerCase().includes(q) ||
+      (l.email ?? "").toLowerCase().includes(q) ||
+      (l.phone ?? "").toLowerCase().includes(q)
+    );
+  });
 
-  useEffect(() => { setLeadsPage(1); }, [leadSearch, statusFilter]);
+  useEffect(() => { setLeadsPage(1); }, [leadSearch]);
+
+  const sortedFilteredLeads = [...filteredLeads].sort((a, b) => {
+    const rank = (v: Lead["delivery_status"]) =>
+      (v ?? "not_delivered") === "delivered" ? 0 : 1;
+    const rankDiff = rank(a.delivery_status) - rank(b.delivery_status);
+    if (rankDiff !== 0) return rankDiff;
+    return dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf();
+  });
+
+  const deliveredCount = leads.filter(
+    (l) => (l.delivery_status ?? "not_delivered") === "delivered"
+  ).length;
 
   if (loading && !campaign) {
     return (
@@ -181,85 +161,23 @@ export default function DCCampaignDetailPage() {
 
   const headerCode = campaignHeaderDisplayCode(campaign);
 
-  const leadColumns: ColumnsType<Lead> = [
-    {
-      title: "Sr. No.",
-      key: "sr",
-      width: 72,
-      render: (_: unknown, __: Lead, index: number) =>
-        (leadsPage - 1) * leadsPageSize + index + 1,
-    },
-    {
-      title: "Lead ID",
-      dataIndex: "lead_id",
-      width: 120,
-      render: (v: string | null) => (
-        <Tag style={{ fontFamily: "monospace", fontSize: 12 }}>{v || "—"}</Tag>
-      ),
-    },
-    {
-      title: "Name",
-      key: "name",
-      width: 160,
-      ellipsis: true,
-      render: (_: unknown, r: Lead) =>
-        r.name || [r.first_name, r.last_name].filter(Boolean).join(" ") || "—",
-    },
-    { title: "Company", dataIndex: "company_name", width: 160, ellipsis: true, render: (v: string | null) => v || "—" },
-    { title: "Designation", dataIndex: "designation", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
-    { title: "Email", dataIndex: "email", width: 200, ellipsis: true, render: (v: string | null) => v || "—" },
-    { title: "Phone", dataIndex: "phone", width: 130, render: (v: string | null) => v || "—" },
-    {
-      title: "Status",
-      dataIndex: "status",
-      width: 110,
-      render: (v: string | null) => v ? <Tag color={leadStatusColors[v] ?? "default"}>{v}</Tag> : "—",
-    },
-    {
-      title: "QA Status",
-      dataIndex: "qa_status",
-      width: 110,
-      render: (v: string | null) => v ? <Tag color={leadStatusColors[v] ?? "default"}>{v}</Tag> : "—",
-    },
-    {
-      title: "Lead Tagging",
-      dataIndex: "lead_tagging",
-      width: 130,
-      render: (v: string | null) =>
-        v ? <Tag color={v.toLowerCase() === "scored" ? "gold" : "default"}>{v}</Tag> : "—",
-    },
-    {
-      title: "Delivery",
-      dataIndex: "delivery_status",
-      width: 130,
-      render: (v: string | null) =>
-        v ? <Tag color={v === "delivered" || v === "delivered_by_mis" ? "green" : "default"}>{v.replace(/_/g, " ")}</Tag> : "—",
-    },
-    {
-      title: "Created",
-      dataIndex: "created_at",
-      width: 110,
-      render: (v: string) => new Date(v).toLocaleDateString(),
-    },
-  ];
-
-  const qualifiedCount = leads.filter(
-    (l) =>
-      (l.status ?? "").toLowerCase() === "qualified" ||
-      (l.qa_status ?? "").toLowerCase() === "qualified" ||
-      (l.lead_tagging ?? "").toLowerCase() === "scored"
-  ).length;
+  const leadColumns = getLeadTableColumns({
+    showActions: false,
+    showDeliveryStatus: true,
+    pagination: { current: leadsPage, pageSize: leadsPageSize },
+  });
 
   return (
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
-      {/* Back link */}
       <div style={{ marginBottom: 20 }}>
-        <Link
-          href="/dc/campaigns"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
+        <Button
+          type="primary"
+          icon={<ArrowLeftOutlined />}
+          onClick={() => router.push("/dc/campaigns")}
+          style={{ marginBottom: 16 }}
         >
-          <ArrowLeftOutlined /> Back to Campaigns
-        </Link>
+          Back to Campaigns
+        </Button>
       </div>
 
       {/* Header card */}
@@ -293,6 +211,11 @@ export default function DCCampaignDetailPage() {
               )}
             </Space>
           </Col>
+          <Col>
+            <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
+              Refresh
+            </Button>
+          </Col>
         </Row>
       </Card>
 
@@ -317,7 +240,6 @@ export default function DCCampaignDetailPage() {
                 )}
               </div>
             )}
-
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
               <div>
                 <OverviewRowOrEmpty label="Campaign Code" value={headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id} />
@@ -337,7 +259,6 @@ export default function DCCampaignDetailPage() {
                 <OverviewRowOrEmpty label="Weekly Report" value={campaign.weekly_report} />
               </div>
             </div>
-
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>
@@ -357,12 +278,7 @@ export default function DCCampaignDetailPage() {
                         <span style={overviewLabelStyle}>Creatives URL</span>
                         <span style={{ ...overviewValueStyle, minWidth: 0, overflow: "hidden" }}>
                           {campaign.creatives_url.map((url, i) => (
-                            <a
-                              key={i}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={url}
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer" title={url}
                               style={{ display: "block", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#1677ff" }}
                             >
                               {url}
@@ -429,51 +345,29 @@ export default function DCCampaignDetailPage() {
 
       {/* Leads table */}
       <Card
-        title={
-          <span>
-            Leads ({filteredLeads.length}{filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})
-            {qualifiedCount > 0 && (
-              <Tag color="blue" style={{ marginLeft: 8 }}>{qualifiedCount} Qualified</Tag>
-            )}
-          </span>
-        }
-        extra={
-          <Space wrap>
-            <Input
-              prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
-              placeholder="Search leads…"
-              value={leadSearch}
-              onChange={(e) => setLeadSearch(e.target.value)}
-              allowClear
-              style={{ width: 220 }}
-            />
-            <Select
-              value={statusFilter}
-              onChange={setStatusFilter}
-              style={{ width: 150 }}
-              options={[
-                { value: "all", label: "All statuses" },
-                { value: "scored", label: "Scored (MIS Qualified)" },
-                { value: "qualified", label: "Qualified" },
-                { value: "interested", label: "Interested" },
-                { value: "new", label: "New" },
-                { value: "contacted", label: "Contacted" },
-                { value: "followup", label: "Follow-up" },
-                { value: "closed_won", label: "Closed Won" },
-                { value: "closed_lost", label: "Closed Lost" },
-              ]}
-            />
-          </Space>
-        }
+        title={`Leads (${leads.length})`}
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         styles={{ body: { padding: "24px 28px" } }}
+        extra={
+          <Input
+            prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+            placeholder="Search leads…"
+            value={leadSearch}
+            onChange={(e) => setLeadSearch(e.target.value)}
+            allowClear
+            style={{ width: 220 }}
+          />
+        }
       >
+        <Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
+          Delivered: {deliveredCount} / Total: {leads.length}. Showing {sortedFilteredLeads.length} of {leads.length} leads.
+        </Text>
         <Table
           className="table-single-line"
           columns={leadColumns}
-          dataSource={filteredLeads}
+          dataSource={sortedFilteredLeads}
           rowKey="id"
-          scroll={{ x: 1400 }}
+          scroll={{ x: 2600 }}
           size="middle"
           pagination={{
             current: leadsPage,
@@ -483,7 +377,7 @@ export default function DCCampaignDetailPage() {
             showTotal: (t) => `Total ${t} leads`,
             onChange: (page, size) => { setLeadsPage(page); setLeadsPageSize(size); },
           }}
-          locale={{ emptyText: leadSearch || statusFilter !== "all" ? "No leads match the filter." : "No leads yet for this campaign." }}
+          locale={{ emptyText: leadSearch ? "No leads match the search." : "No leads yet for this campaign." }}
         />
       </Card>
     </div>

@@ -85,13 +85,13 @@ export async function GET() {
       .from("leads")
       .select("id, campaign_id, status, qa_status, delivery_status, lead_tagging")
       .in("campaign_id", campaignIds)
-      .eq("organization_id", orgId);
+      .eq("lead_tagging", "Scored");
 
     type LeadRow = { id: string; campaign_id: string; status: string | null; qa_status: string | null; delivery_status: string | null; lead_tagging: string | null };
+
+    // qualified_leads = only when QA explicitly sets qa_status = 'qualified'
     const isQualified = (l: LeadRow) =>
-      (l.status ?? "").trim().toLowerCase() === "qualified" ||
-      (l.qa_status ?? "").trim().toLowerCase() === "qualified" ||
-      (l.lead_tagging ?? "").trim().toLowerCase() === "scored";
+      (l.qa_status ?? "").trim().toLowerCase() === "qualified";
 
     const isDelivered = (l: LeadRow) =>
       (l.delivery_status ?? "").trim().toLowerCase() === "delivered" ||

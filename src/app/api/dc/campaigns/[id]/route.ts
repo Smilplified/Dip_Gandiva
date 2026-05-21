@@ -41,44 +41,46 @@ export async function GET(
 
     const { id: campaignId } = await params;
 
-    const { data: campaign, error: campaignError } = await admin
-      .from("campaigns")
-      .select(
-        "id, campaign_id, campaign_code, name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, region, additional_comments, employee_size, abm, seniority, job_function, creatives_url, cpl, revenue, booked, weekly_call, weekly_report, client_name"
-      )
-      .eq("id", campaignId)
-      .eq("organization_id", orgId)
-      .single();
+    // Run all queries in parallel for performance
+    const [campaignResult, fileRowsResult, leadsResult] = await Promise.all([
+      admin
+        .from("campaigns")
+        .select("id, campaign_id, campaign_code, name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, region, additional_comments, employee_size, abm, seniority, job_function, creatives_url, cpl, revenue, booked, weekly_call, weekly_report, client_name")
+        .eq("id", campaignId)
+        .eq("organization_id", orgId)
+        .single(),
+      admin
+        .from("campaign_files")
+        .select("id, file_name, file_path, file_size, mime_type, created_at")
+        .eq("campaign_id", campaignId)
+        .order("created_at", { ascending: false }),
+      admin
+        .from("leads")
+        .select("id, lead_id, name, first_name, last_name, salutation, email, phone, direct_number, company_name, company_number, job_title, job_level, job_function, department, industry, employee_size, address, city, state, country, zip_code, status, qa_status, delivery_status, lead_tagging, followup_date, created_by, creator_display_name, created_at, updated_at, scored, appointment, revenue_range, contact_linkedin_url, company_linkedin_url, domain, ra_comment, special_comments, call_back, call_notes, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, asset_title, vv_status, email_status, ev_tool, tenurity, channel")
+        .eq("campaign_id", campaignId)
+        .eq("lead_tagging", "Scored")
+        .order("delivery_status", { ascending: true })
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (campaignError || !campaign) {
+    if (campaignResult.error || !campaignResult.data) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    // Files with signed download URLs
-    const { data: fileRows } = await admin
-      .from("campaign_files")
-      .select("id, file_name, file_path, file_size, mime_type, created_at")
-      .eq("campaign_id", campaignId)
-      .order("created_at", { ascending: false });
+    const campaign = campaignResult.data;
 
+    // Generate signed URLs for files in parallel
     type FileRow = { id: string; file_name: string; file_path: string; file_size: number | null; mime_type: string | null; created_at: string };
     const filesWithUrls = await Promise.all(
-      ((fileRows ?? []) as FileRow[]).map(async (f) => {
+      ((fileRowsResult.data ?? []) as FileRow[]).map(async (f) => {
         const { data: signed } = await admin.storage.from("campaign-files").createSignedUrl(f.file_path, 3600);
         return { ...f, download_url: signed?.signedUrl ?? null };
       })
     );
 
-    // DC only sees leads that MIS has delivered.
-    // Accept both standard delivered status and MIS-delivered status values.
-    const { data: leads } = await admin
-      .from("leads")
-      .select("id, lead_id, name, first_name, last_name, email, phone, company_name, designation, status, qa_status, delivery_status, lead_tagging, created_at, updated_at")
-      .eq("campaign_id", campaignId)
-      .in("delivery_status", ["delivered", "delivered_by_mis"])
-      .order("created_at", { ascending: false });
+    const leads = leadsResult.data ?? [];
 
-    return NextResponse.json({ campaign, files: filesWithUrls, leads: leads ?? [] });
+    return NextResponse.json({ campaign, files: filesWithUrls, leads });
   } catch (err) {
     console.error("DC campaign detail error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

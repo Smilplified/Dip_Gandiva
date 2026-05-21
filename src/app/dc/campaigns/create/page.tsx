@@ -6,7 +6,7 @@ import {
   Card, Form, Input, DatePicker, Select, Button, message,
   InputNumber, Row, Col, Upload, Space,
 } from "antd";
-import { InboxOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, InboxOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import type { UploadFile } from "antd";
 
@@ -110,6 +110,15 @@ export default function DCCampaignCreatePage() {
 
   return (
     <div style={{ padding: "0 24px 24px", maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{ marginBottom: 16 }}>
+        <Button
+          type="primary"
+          icon={<ArrowLeftOutlined />}
+          onClick={() => router.push("/dc/campaigns")}
+        >
+          Back to Campaigns
+        </Button>
+      </div>
       <Card title="Create Campaign" style={{ marginBottom: 24 }}>
         <Form form={form} layout="vertical" initialValues={{ status: "draft" }}>
           <Row gutter={24}>
