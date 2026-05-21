@@ -56,7 +56,6 @@ export async function PATCH(
       .from("campaigns")
       .select("id")
       .eq("id", campaignId)
-      .eq("organization_id", orgId)
       .single();
 
     if (!campaign) {
@@ -282,7 +281,6 @@ export async function PATCH(
         .select("id, delivery_status")
         .eq("id", leadRowId)
         .eq("campaign_id", campaignId)
-        .eq("organization_id", orgId)
         .maybeSingle()) as {
           data: { id: string; delivery_status: string | null } | null;
           error: { message: string } | null;
@@ -313,7 +311,6 @@ export async function PATCH(
       .update(updates as never)
       .eq("id", leadRowId)
       .eq("campaign_id", campaignId)
-      .eq("organization_id", orgId)
       .select("id, lead_id")
       .maybeSingle();
 

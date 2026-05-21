@@ -1,0 +1,491 @@
+"use client";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Card, Table, Tag, Button, Spin, Typography,
+  message, Row, Col, Space, Input, Select,
+} from "antd";
+import {
+  ArrowLeftOutlined, FileOutlined, DownloadOutlined, SearchOutlined,
+} from "@ant-design/icons";
+import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
+import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import type { ColumnsType } from "antd/es/table";
+
+const { Title, Text } = Typography;
+
+type Campaign = {
+  id: string;
+  campaign_id?: string | null;
+  campaign_code?: string | null;
+  name: string;
+  description: string | null;
+  industry: string | null;
+  geography: string | null;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  lead_type: string | null;
+  total_allocation: number | null;
+  post_qa: number | null;
+  achieved: number | null;
+  pending_allocation: number | null;
+  region: string | null;
+  additional_comments: string | null;
+  employee_size: string[] | null;
+  abm: boolean | null;
+  seniority: string | null;
+  job_function: string | null;
+  creatives_url: string[] | null;
+  cpl: number | null;
+  revenue: number | null;
+  booked: number | null;
+  weekly_call: string | null;
+  weekly_report: string | null;
+  client_name: string | null;
+};
+
+type CampaignFile = {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  download_url: string | null;
+};
+
+type Lead = {
+  id: string;
+  lead_id: string | null;
+  name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  company_name: string | null;
+  designation: string | null;
+  status: string | null;
+  qa_status: string | null;
+  delivery_status: string | null;
+  lead_tagging: string | null;
+  created_at: string;
+};
+
+const campaignStatusColors: Record<string, string> = {
+  draft: "default", active: "green", paused: "orange", completed: "blue",
+};
+
+const leadStatusColors: Record<string, string> = {
+  new: "default", contacted: "processing", interested: "green",
+  followup: "gold", qualified: "blue", closed_won: "cyan", closed_lost: "red",
+};
+
+const overviewRowStyle = {
+  display: "grid",
+  gridTemplateColumns: "160px 1fr",
+  gap: 16,
+  padding: "10px 0",
+  borderBottom: "1px solid #f0f0f0",
+  alignItems: "start",
+} as const;
+const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
+
+function OverviewRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (value == null || value === "") return null;
+  return (
+    <div style={overviewRowStyle}>
+      <span style={overviewLabelStyle}>{label}</span>
+      <span style={overviewValueStyle}>{renderExpandableOverviewValue(value, overviewValueStyle)}</span>
+    </div>
+  );
+}
+
+function OverviewRowOrEmpty({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={overviewRowStyle}>
+      <span style={overviewLabelStyle}>{label}</span>
+      <span style={overviewValueStyle}>{renderExpandableOverviewValue(value ?? "—", overviewValueStyle)}</span>
+    </div>
+  );
+}
+
+export default function DCCampaignDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params?.id as string | undefined;
+
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [files, setFiles] = useState<CampaignFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [leadSearch, setLeadSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [leadsPage, setLeadsPage] = useState(1);
+  const [leadsPageSize, setLeadsPageSize] = useState(10);
+
+  const fetchData = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/dc/campaigns/${id}`, { credentials: "include" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load campaign");
+      setCampaign(json.campaign);
+      setLeads(json.leads ?? []);
+      setFiles(json.files ?? []);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to load campaign");
+      router.replace("/dc/campaigns");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, router]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      const q = leadSearch.trim().toLowerCase();
+      const matchSearch = !q
+        ? true
+        : (l.lead_id ?? "").toLowerCase().includes(q) ||
+          (l.name ?? "").toLowerCase().includes(q) ||
+          ([l.first_name, l.last_name].filter(Boolean).join(" ")).toLowerCase().includes(q) ||
+          (l.company_name ?? "").toLowerCase().includes(q) ||
+          (l.email ?? "").toLowerCase().includes(q) ||
+          (l.phone ?? "").toLowerCase().includes(q);
+      const matchStatus =
+        statusFilter === "all" ||
+        (l.status ?? "").toLowerCase() === statusFilter ||
+        (l.qa_status ?? "").toLowerCase() === statusFilter ||
+        (statusFilter === "scored" && (l.lead_tagging ?? "").toLowerCase() === "scored");
+      return matchSearch && matchStatus;
+    });
+  }, [leads, leadSearch, statusFilter]);
+
+  useEffect(() => { setLeadsPage(1); }, [leadSearch, statusFilter]);
+
+  if (loading && !campaign) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", padding: 80 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!campaign) return null;
+
+  const headerCode = campaignHeaderDisplayCode(campaign);
+
+  const leadColumns: ColumnsType<Lead> = [
+    {
+      title: "Sr. No.",
+      key: "sr",
+      width: 72,
+      render: (_: unknown, __: Lead, index: number) =>
+        (leadsPage - 1) * leadsPageSize + index + 1,
+    },
+    {
+      title: "Lead ID",
+      dataIndex: "lead_id",
+      width: 120,
+      render: (v: string | null) => (
+        <Tag style={{ fontFamily: "monospace", fontSize: 12 }}>{v || "—"}</Tag>
+      ),
+    },
+    {
+      title: "Name",
+      key: "name",
+      width: 160,
+      ellipsis: true,
+      render: (_: unknown, r: Lead) =>
+        r.name || [r.first_name, r.last_name].filter(Boolean).join(" ") || "—",
+    },
+    { title: "Company", dataIndex: "company_name", width: 160, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Designation", dataIndex: "designation", width: 140, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Email", dataIndex: "email", width: 200, ellipsis: true, render: (v: string | null) => v || "—" },
+    { title: "Phone", dataIndex: "phone", width: 130, render: (v: string | null) => v || "—" },
+    {
+      title: "Status",
+      dataIndex: "status",
+      width: 110,
+      render: (v: string | null) => v ? <Tag color={leadStatusColors[v] ?? "default"}>{v}</Tag> : "—",
+    },
+    {
+      title: "QA Status",
+      dataIndex: "qa_status",
+      width: 110,
+      render: (v: string | null) => v ? <Tag color={leadStatusColors[v] ?? "default"}>{v}</Tag> : "—",
+    },
+    {
+      title: "Lead Tagging",
+      dataIndex: "lead_tagging",
+      width: 130,
+      render: (v: string | null) =>
+        v ? <Tag color={v.toLowerCase() === "scored" ? "gold" : "default"}>{v}</Tag> : "—",
+    },
+    {
+      title: "Delivery",
+      dataIndex: "delivery_status",
+      width: 130,
+      render: (v: string | null) =>
+        v ? <Tag color={v === "delivered" || v === "delivered_by_mis" ? "green" : "default"}>{v.replace(/_/g, " ")}</Tag> : "—",
+    },
+    {
+      title: "Created",
+      dataIndex: "created_at",
+      width: 110,
+      render: (v: string) => new Date(v).toLocaleDateString(),
+    },
+  ];
+
+  const qualifiedCount = leads.filter(
+    (l) =>
+      (l.status ?? "").toLowerCase() === "qualified" ||
+      (l.qa_status ?? "").toLowerCase() === "qualified" ||
+      (l.lead_tagging ?? "").toLowerCase() === "scored"
+  ).length;
+
+  return (
+    <div style={{ width: "100%", padding: "0 24px 32px" }}>
+      {/* Back link */}
+      <div style={{ marginBottom: 20 }}>
+        <Link
+          href="/dc/campaigns"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
+        >
+          <ArrowLeftOutlined /> Back to Campaigns
+        </Link>
+      </div>
+
+      {/* Header card */}
+      <Card
+        style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+        styles={{ body: { padding: "24px 28px" } }}
+      >
+        <Row gutter={24} align="middle" justify="space-between" wrap>
+          <Col flex="1" style={{ minWidth: 0 }}>
+            <Title level={3} style={{ margin: 0, marginBottom: 8, fontWeight: 600 }}>
+              {campaign.name}
+            </Title>
+            <Space size="small" wrap>
+              {headerCode && (
+                <Tag
+                  color={headerCode.isStructuredCode ? "blue" : undefined}
+                  style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}
+                >
+                  {headerCode.text}
+                </Tag>
+              )}
+              <Tag color={campaignStatusColors[campaign.status] ?? "default"} style={{ textTransform: "capitalize", margin: 0 }}>
+                {campaign.status}
+              </Tag>
+              {campaign.lead_type && <Tag style={{ margin: 0 }}>{campaign.lead_type}</Tag>}
+              {campaign.client_name && <Tag color="purple" style={{ margin: 0 }}>{campaign.client_name}</Tag>}
+              {(campaign.industry || campaign.geography) && (
+                <Text type="secondary" style={{ fontSize: 13 }}>
+                  {[campaign.industry, campaign.geography].filter(Boolean).join(" · ")}
+                </Text>
+              )}
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
+      {/* Overview + Files */}
+      <Row gutter={24}>
+        <Col xs={24} lg={14}>
+          <Card
+            title="Overview"
+            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+            styles={{ body: { padding: "24px 28px" } }}
+          >
+            {(campaign.description || campaign.additional_comments) && (
+              <div style={{ marginBottom: 20 }}>
+                {campaign.description && <OverviewRow label="Description" value={campaign.description} />}
+                {campaign.additional_comments && (
+                  <div style={overviewRowStyle}>
+                    <span style={overviewLabelStyle}>Additional Comments</span>
+                    <span style={overviewValueStyle}>
+                      <ExpandableText text={campaign.additional_comments} />
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
+              <div>
+                <OverviewRowOrEmpty label="Campaign Code" value={headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id} />
+                <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
+                <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
+                <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
+                <OverviewRowOrEmpty label="Region" value={campaign.region} />
+                <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
+                <OverviewRowOrEmpty label="CPL" value={campaign.cpl != null ? `$${campaign.cpl}` : null} />
+                <OverviewRowOrEmpty label="Revenue / Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
+              </div>
+              <div>
+                <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
+                <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
+                <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
+                <OverviewRowOrEmpty label="Weekly Call" value={campaign.weekly_call} />
+                <OverviewRowOrEmpty label="Weekly Report" value={campaign.weekly_report} />
+              </div>
+            </div>
+
+            {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Targeting
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
+                  <div>
+                    <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
+                    <OverviewRowOrEmpty label="Industry" value={campaign.industry} />
+                    <OverviewRowOrEmpty label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
+                  </div>
+                  <div>
+                    <OverviewRowOrEmpty label="Seniority" value={campaign.seniority} />
+                    <OverviewRowOrEmpty label="Job Function" value={campaign.job_function} />
+                    {campaign.creatives_url?.length ? (
+                      <div style={overviewRowStyle}>
+                        <span style={overviewLabelStyle}>Creatives URL</span>
+                        <span style={{ ...overviewValueStyle, minWidth: 0, overflow: "hidden" }}>
+                          {campaign.creatives_url.map((url, i) => (
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={url}
+                              style={{ display: "block", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#1677ff" }}
+                            >
+                              {url}
+                            </a>
+                          ))}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={10}>
+          <Card
+            title={
+              <Space>
+                <FileOutlined />
+                <span>Files</span>
+                <Tag style={{ marginLeft: 4 }}>{files.length}</Tag>
+              </Space>
+            }
+            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+            styles={{ body: { padding: "24px 28px" } }}
+          >
+            {files.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#8c8c8c", fontSize: 14 }}>
+                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+                No files uploaded for this campaign.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {files.map((f, idx) => (
+                  <div
+                    key={f.id}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "12px 0", borderBottom: idx < files.length - 1 ? "1px solid #f5f5f5" : "none", gap: 12,
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                      <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                      <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</span>
+                      {f.file_size != null && (
+                        <Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
+                          {(f.file_size / 1024).toFixed(1)} KB
+                        </Text>
+                      )}
+                    </span>
+                    {f.download_url && (
+                      <Button type="link" size="small" icon={<DownloadOutlined />} href={f.download_url} target="_blank" rel="noopener noreferrer" style={{ padding: "0 4px", flexShrink: 0 }}>
+                        Download
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Leads table */}
+      <Card
+        title={
+          <span>
+            Leads ({filteredLeads.length}{filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})
+            {qualifiedCount > 0 && (
+              <Tag color="blue" style={{ marginLeft: 8 }}>{qualifiedCount} Qualified</Tag>
+            )}
+          </span>
+        }
+        extra={
+          <Space wrap>
+            <Input
+              prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+              placeholder="Search leads…"
+              value={leadSearch}
+              onChange={(e) => setLeadSearch(e.target.value)}
+              allowClear
+              style={{ width: 220 }}
+            />
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              style={{ width: 150 }}
+              options={[
+                { value: "all", label: "All statuses" },
+                { value: "scored", label: "Scored (MIS Qualified)" },
+                { value: "qualified", label: "Qualified" },
+                { value: "interested", label: "Interested" },
+                { value: "new", label: "New" },
+                { value: "contacted", label: "Contacted" },
+                { value: "followup", label: "Follow-up" },
+                { value: "closed_won", label: "Closed Won" },
+                { value: "closed_lost", label: "Closed Lost" },
+              ]}
+            />
+          </Space>
+        }
+        style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+        styles={{ body: { padding: "24px 28px" } }}
+      >
+        <Table
+          className="table-single-line"
+          columns={leadColumns}
+          dataSource={filteredLeads}
+          rowKey="id"
+          scroll={{ x: 1400 }}
+          size="middle"
+          pagination={{
+            current: leadsPage,
+            pageSize: leadsPageSize,
+            showSizeChanger: true,
+            pageSizeOptions: ["10", "15", "25", "50"],
+            showTotal: (t) => `Total ${t} leads`,
+            onChange: (page, size) => { setLeadsPage(page); setLeadsPageSize(size); },
+          }}
+          locale={{ emptyText: leadSearch || statusFilter !== "all" ? "No leads match the filter." : "No leads yet for this campaign." }}
+        />
+      </Card>
+    </div>
+  );
+}
