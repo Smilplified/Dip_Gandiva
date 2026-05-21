@@ -4,6 +4,22 @@ import { getAdminClientSafe } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+type SupabaseRowResult<T> = {
+  data: T | null;
+  error: { message: string } | null;
+};
+
+type DcCampaignRow = Record<string, unknown>;
+type DcFileRow = {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+};
+type DcLeadRow = Record<string, unknown>;
+
 async function verifyDC(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -41,11 +57,15 @@ export async function GET(
 
     const { id: campaignId } = await params;
 
-    // Run all queries in parallel for performance
-    const [campaignResult, fileRowsResult, leadsResult] = await Promise.all([
+    const campaignSelect =
+      "id, campaign_id, campaign_code, name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, region, additional_comments, employee_size, abm, seniority, job_function, creatives_url, cpl, revenue, booked, weekly_call, weekly_report, client_name";
+    const leadsSelect =
+      "id, lead_id, name, first_name, last_name, salutation, email, phone, direct_number, company_name, company_number, job_title, job_level, job_function, department, industry, employee_size, address, city, state, country, zip_code, status, qa_status, delivery_status, lead_tagging, followup_date, created_by, creator_display_name, created_at, updated_at, scored, appointment, revenue_range, contact_linkedin_url, company_linkedin_url, domain, ra_comment, special_comments, call_back, call_notes, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, asset_title, vv_status, email_status, ev_tool, tenurity, channel";
+
+    const [campaignResult, fileRowsResult, leadsResult] = (await Promise.all([
       admin
         .from("campaigns")
-        .select("id, campaign_id, campaign_code, name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, region, additional_comments, employee_size, abm, seniority, job_function, creatives_url, cpl, revenue, booked, weekly_call, weekly_report, client_name")
+        .select(campaignSelect)
         .eq("id", campaignId)
         .eq("organization_id", orgId)
         .single(),
@@ -56,12 +76,16 @@ export async function GET(
         .order("created_at", { ascending: false }),
       admin
         .from("leads")
-        .select("id, lead_id, name, first_name, last_name, salutation, email, phone, direct_number, company_name, company_number, job_title, job_level, job_function, department, industry, employee_size, address, city, state, country, zip_code, status, qa_status, delivery_status, lead_tagging, followup_date, created_by, creator_display_name, created_at, updated_at, scored, appointment, revenue_range, contact_linkedin_url, company_linkedin_url, domain, ra_comment, special_comments, call_back, call_notes, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, asset_title, vv_status, email_status, ev_tool, tenurity, channel")
+        .select(leadsSelect)
         .eq("campaign_id", campaignId)
         .eq("lead_tagging", "Scored")
         .order("delivery_status", { ascending: true })
         .order("created_at", { ascending: false }),
-    ]);
+    ])) as [
+      SupabaseRowResult<DcCampaignRow>,
+      SupabaseRowResult<DcFileRow[]>,
+      SupabaseRowResult<DcLeadRow[]>,
+    ];
 
     if (campaignResult.error || !campaignResult.data) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
@@ -69,16 +93,14 @@ export async function GET(
 
     const campaign = campaignResult.data;
 
-    // Generate signed URLs for files in parallel
-    type FileRow = { id: string; file_name: string; file_path: string; file_size: number | null; mime_type: string | null; created_at: string };
     const filesWithUrls = await Promise.all(
-      ((fileRowsResult.data ?? []) as FileRow[]).map(async (f) => {
+      (fileRowsResult.data ?? []).map(async (f) => {
         const { data: signed } = await admin.storage.from("campaign-files").createSignedUrl(f.file_path, 3600);
         return { ...f, download_url: signed?.signedUrl ?? null };
       })
     );
 
-    const leads = leadsResult.data ?? [];
+    const leads = (leadsResult.data ?? []) as DcLeadRow[];
 
     return NextResponse.json({ campaign, files: filesWithUrls, leads });
   } catch (err) {
