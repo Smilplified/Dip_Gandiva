@@ -126,7 +126,8 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/tl") ||
       pathname.startsWith("/sales") ||
       pathname.startsWith("/qa") ||
-      pathname.startsWith("/mis");
+      pathname.startsWith("/mis") ||
+      pathname.startsWith("/dc");
 
     if (isRoleGatedPath) {
       try {

@@ -11,7 +11,7 @@ import {
   normalizeRoleName,
   resolvePostLoginRedirect,
 } from "@/lib/auth/config";
-import { isTLAccessRole } from "@/lib/auth/tl-access";
+import { TL_ACCESS_ROLES } from "@/lib/auth/tl-access";
 import { authDebug } from "@/lib/auth/debug";
 
 /** Cross-tab: any tab that signs out tells others to drop stale JS + cookies. */
@@ -53,9 +53,8 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   hasRole: (roleName: string) => boolean;
-  /** True when the user has Team Leader, TL, or Operations Manager access. */
-  hasTLAccess: () => boolean;
   getDefaultRedirect: () => string;
+  hasTLAccess: () => boolean;
 }
 
 /** If full `syncAuthState("init")` is slow, unblock UI so layouts/pages don't spin forever (cold tab / cookie hydration race). */
@@ -850,6 +849,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           getUserInFlightRef.current = null;
           await supabase.auth.getSession();
 
+          // Check if account is active before proceeding
+          try {
+            const profileCheck = await fetch("/api/profile", {
+              method: "GET",
+              credentials: "include",
+              cache: "no-store",
+            });
+            if (profileCheck.status === 403) {
+              const profileData = await profileCheck.json() as { error?: string };
+              await supabase.auth.signOut({ scope: "local" });
+              setState((current) => ({ ...current, isLoading: false, isInitialized: true }));
+              return {
+                error: new Error(
+                  profileData.error ?? "Your account has been deactivated. Contact your Team Leader."
+                ),
+              };
+            }
+          } catch {
+            // Non-fatal — proceed with normal sync
+          }
+
           const confirmedSession =
             data.session?.user?.id === data.user.id
               ? data.session
@@ -971,13 +991,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [state.roles]
   );
 
-  const hasTLAccess = useCallback(
-    () => state.roles.some((r) => isTLAccessRole(r.role_name)),
-    [state.roles]
-  );
-
   const getDefaultRedirect = useCallback(() => {
     return getDefaultRedirectPath(getRoleNames(state.roles));
+  }, [state.roles]);
+
+  const hasTLAccess = useCallback(() => {
+    return state.roles.some((r) =>
+      (TL_ACCESS_ROLES as readonly string[]).includes(normalizeRoleName(r.role_name))
+    );
   }, [state.roles]);
 
   const value: AuthContextValue = {
@@ -986,8 +1007,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     refreshProfile,
     hasRole,
-    hasTLAccess,
     getDefaultRedirect,
+    hasTLAccess,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
