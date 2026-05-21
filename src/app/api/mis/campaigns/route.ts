@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 
 export const dynamic = "force-dynamic";
 
@@ -154,11 +155,11 @@ export async function GET() {
     }
 
     const leadsSelectBase =
-      "id, lead_id, name, company_name, phone, email, city, status, qa_status, delivery_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, channel, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
+      "id, lead_id, name, company_name, phone, email, city, status, qa_status, delivery_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, channel, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
     const leadsSelectBaseNoDelivery =
-      "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, channel, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
+      "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, channel, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
     const leadsSelectBaseNoDeliveryNoChannel =
-      "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
+      "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
     const leadsSelectExtended =
       leadsSelectBase +
       ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
@@ -225,20 +226,7 @@ export async function GET() {
       disqualification_reason: (row.disqualification_reason as string | null) ?? null,
       rectified_reason: (row.rectified_reason as string | null) ?? null,
     })) as LeadRow[];
-    const userIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
-    let userNames: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: usersData } = await admin.from("users").select("id, full_name, email").in("id", userIds);
-      ((usersData ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
-        userNames[u.id] = u.full_name || u.email || "Unknown";
-      });
-    }
-
-    const leadsWithNames = leadsList.map((l) => ({
-      ...l,
-      assigned_agent_name: l.assigned_agent_id ? userNames[l.assigned_agent_id] ?? "—" : null,
-      created_by_name: l.created_by ? userNames[l.created_by] ?? "—" : null,
-    }));
+    const leadsWithNames = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
 
     const leadsByCampaign: Record<string, typeof leadsWithNames> = {};
     campaignsWithTlName.forEach((c) => {

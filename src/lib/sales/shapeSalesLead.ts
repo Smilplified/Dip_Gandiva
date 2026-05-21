@@ -1,3 +1,5 @@
+import { leadCreatedByName } from "@/lib/lead-display-names";
+
 export function shapeSalesLeadForApi(
   l: Record<string, unknown>,
   userNames: Record<string, string>,
@@ -71,7 +73,15 @@ export function shapeSalesLeadForApi(
       ? userNames[l.assigned_agent_id as string] ?? "—"
       : null,
     created_at: l.created_at,
-    created_by_name: l.created_by ? userNames[l.created_by as string] ?? null : null,
+    created_by_name: leadCreatedByName(
+      {
+        created_by: l.created_by as string | null,
+        assigned_agent_id: l.assigned_agent_id as string | null,
+        lead_id: l.lead_id as string | null,
+        creator_display_name: l.creator_display_name as string | null,
+      },
+      userNames
+    ),
     updated_at: l.updated_at ?? null,
     tags: l.tags ?? null,
     converted: l.status === "converted",

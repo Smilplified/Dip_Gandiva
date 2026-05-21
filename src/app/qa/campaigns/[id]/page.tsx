@@ -42,6 +42,8 @@ import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
+import { CampaignFilesCard, type CampaignFileItem } from "@/components/Campaigns/CampaignFilesCard";
 
 type Campaign = {
   id: string;
@@ -118,6 +120,7 @@ export default function QACampaignDetailPage() {
   const canEditQaAudit = hasRole("qa") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [files, setFiles] = useState<CampaignFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [leadDrawerOpen, setLeadDrawerOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -141,6 +144,7 @@ export default function QACampaignDetailPage() {
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setCampaign(data.campaign);
       setLeads(data.leads ?? []);
+      setFiles(data.files ?? []);
     } catch {
       message.error("Failed to load campaign");
       router.replace("/qa/campaigns");
@@ -432,97 +436,107 @@ export default function QACampaignDetailPage() {
         </Row>
       </Card>
 
-      <Card
-        title="Overview"
-        style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
-        bodyStyle={{ padding: "24px 28px" }}
-      >
-        {(campaign.description || campaign.target_designation) && (
-          <div style={{ marginBottom: 20 }}>
-            {campaign.description && <OverviewRow label="Description" value={campaign.description} />}
-            {campaign.target_designation && <OverviewRow label="Target Designation" value={campaign.target_designation} />}
-          </div>
-        )}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
-          <div>
-            <OverviewRowOrEmpty
-              label="Campaign Code"
-              value={headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id}
-            />
-            <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
-            <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
-            <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
-            <OverviewRowOrEmpty label="Region" value={campaign.region} />
-            <OverviewRowOrEmpty label="Assigned Team Leader" value={campaign.assigned_team_leader_name} />
-            <OverviewRowOrEmpty label="Weekly Call" value={campaign.weekly_call} />
-            <OverviewRowOrEmpty label="Weekly Report" value={campaign.weekly_report} />
-          </div>
-          <div>
-            <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
-            <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
-            <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
-            <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
-            <OverviewRowOrEmpty label="Industry" value={campaign.industry} />
-            <OverviewRowOrEmpty label="Geography" value={campaign.geography} />
-          </div>
-        </div>
-        {(campaign.employee_size?.length ||
-          campaign.abm != null ||
-          campaign.seniority ||
-          campaign.job_function ||
-          campaign.creatives_url?.length) ? (
-          <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
-              <div>
-                <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
-                <OverviewRowOrEmpty label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
-                <OverviewRowOrEmpty label="Seniority" value={campaign.seniority} />
-                <OverviewRowOrEmpty label="Job Function" value={campaign.job_function} />
-              </div>
-              <div>
-                {campaign.creatives_url?.length ? (
+      <Row gutter={24}>
+        <Col xs={24} lg={14}>
+          <Card
+            title="Overview"
+            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+            bodyStyle={{ padding: "24px 28px" }}
+          >
+            {(campaign.description || campaign.target_designation || campaign.additional_comments) && (
+              <div style={{ marginBottom: 20 }}>
+                {campaign.description && <OverviewRow label="Description" value={campaign.description} />}
+                {campaign.target_designation && <OverviewRow label="Target Designation" value={campaign.target_designation} />}
+                {campaign.additional_comments && (
                   <div style={overviewRowStyle}>
-                    <span style={overviewLabelStyle}>Creatives URL</span>
-                    <span style={{ ...overviewValueStyle, minWidth: 0, overflow: "hidden" }}>
-                      {campaign.creatives_url.map((url, i) => (
-                        <a
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={url}
-                          style={{
-                            display: "block",
-                            marginBottom: 4,
-                            minWidth: 0,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            color: "#1677ff",
-                          }}
-                        >
-                          {url}
-                        </a>
-                      ))}
+                    <span style={overviewLabelStyle}>Additional Comments</span>
+                    <span style={overviewValueStyle}>
+                      <ExpandableText text={campaign.additional_comments} />
                     </span>
                   </div>
-                ) : null}
+                )}
               </div>
-            </div>
-          </div>
-        ) : null}
-        {campaign.additional_comments ? (
-          <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
-            <div style={overviewRowStyle}>
-              <span style={overviewLabelStyle}>Additional Comments</span>
-              <span style={overviewValueStyle}>
-                <ExpandableText text={campaign.additional_comments} />
-              </span>
-            </div>
-          </div>
-        ) : null}
-      </Card>
+            )}
+            {(campaign.employee_size?.length ||
+              campaign.abm != null ||
+              campaign.seniority ||
+              campaign.job_function ||
+              campaign.creatives_url?.length) ? (
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
+                  <div>
+                    <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
+                    <OverviewRowOrEmpty label="ABM" value={campaign.abm === true ? "Yes" : campaign.abm === false ? "No" : null} />
+                    <OverviewRowOrEmpty label="Seniority" value={campaign.seniority} />
+                    <OverviewRowOrEmpty label="Job Function" value={campaign.job_function} />
+                  </div>
+                  <div>
+                    {campaign.creatives_url?.length ? (
+                      <div style={overviewRowStyle}>
+                        <span style={overviewLabelStyle}>Creatives URL</span>
+                        <span style={{ ...overviewValueStyle, minWidth: 0, overflow: "hidden" }}>
+                          {campaign.creatives_url.map((url, i) => (
+                            <a
+                              key={i}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={url}
+                              style={{
+                                display: "block",
+                                marginBottom: 4,
+                                minWidth: 0,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                color: "#1677ff",
+                              }}
+                            >
+                              {url}
+                            </a>
+                          ))}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={10}>
+          <CampaignDetailsCard
+            rows={[
+              {
+                label: "Campaign Code",
+                value: headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id,
+              },
+              { label: "Lead Type", value: campaign.lead_type },
+              {
+                label: "Start Date",
+                value: campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null,
+              },
+              {
+                label: "End Date",
+                value: campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null,
+              },
+              { label: "Region", value: campaign.region },
+              { label: "Assigned Team Leader", value: campaign.assigned_team_leader_name },
+              { label: "Weekly Call", value: campaign.weekly_call },
+              { label: "Weekly Report", value: campaign.weekly_report },
+              { label: "Total Allocation", value: campaign.total_allocation },
+              { label: "Post QA", value: campaign.post_qa },
+              { label: "Achieved", value: campaign.achieved },
+              { label: "Pending Allocation", value: campaign.pending_allocation },
+              { label: "Industry", value: campaign.industry },
+              { label: "Geography", value: campaign.geography },
+            ]}
+          />
+          <CampaignFilesCard files={files} />
+        </Col>
+      </Row>
 
       <Card
         title={`Leads (${leads.length})`}

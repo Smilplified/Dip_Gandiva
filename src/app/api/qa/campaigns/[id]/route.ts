@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 
 export const dynamic = "force-dynamic";
 
 const LEADS_SELECT =
-  "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
+  "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, asset_title";
 
 type LeadRow = {
   assigned_agent_id: string | null;
@@ -72,6 +73,12 @@ export async function GET(
     }
     const campaignWithTlName = { ...(campaign as Record<string, unknown>), assigned_team_leader_name };
 
+    const filesQuery = supabase
+      .from("campaign_files")
+      .select("id, file_name, file_path, file_size, mime_type, created_at")
+      .eq("campaign_id", campaignId)
+      .order("created_at", { ascending: false });
+
     let { data: leadsData, error: leadsError } = await supabase
       .from("leads")
       .select(LEADS_SELECT + ", disqualification_reasons, disqualification_reason, rectified_reason")
@@ -83,12 +90,17 @@ export async function GET(
       leadsError = null;
       const fallback = await supabase
         .from("leads")
-        .select("id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition, disqualification_reasons, disqualification_reason, rectified_reason")
+        .select("id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition, disqualification_reasons, disqualification_reason, rectified_reason")
         .eq("campaign_id", campaignId)
         .eq("lead_tagging", "Scored")
         .order("created_at", { ascending: false });
       leadsData = fallback.data;
       leadsError = fallback.error;
+    }
+
+    const { data: fileRows, error: filesError } = await filesQuery;
+    if (filesError) {
+      console.error("QA campaign files fetch error:", filesError.message);
     }
 
     if (leadsError) {
@@ -103,27 +115,35 @@ export async function GET(
       rectified_reason: row.rectified_reason ?? null,
     }));
 
-    const userIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
-    let userNames: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: usersData } = await supabase
-        .from("users")
-        .select("id, full_name, email")
-        .in("id", userIds);
-      ((usersData ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
-        userNames[u.id] = u.full_name || u.email || "Unknown";
-      });
-    }
+    const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
 
-    const leadsWithNames = leadsList.map((l: Record<string, unknown>) => ({
-      ...l,
-      assigned_agent_name: l.assigned_agent_id ? userNames[l.assigned_agent_id as string] ?? "—" : null,
-      created_by_name: l.created_by ? userNames[l.created_by as string] ?? "—" : null,
-    }));
+    type FileRow = {
+      id: string;
+      file_name: string;
+      file_path: string;
+      file_size: number | null;
+      mime_type: string | null;
+      created_at: string;
+    };
+    const filesWithUrls = await Promise.all(
+      ((fileRows ?? []) as FileRow[]).map(async (f) => {
+        const { data: signed } = await supabase.storage.from("campaign-files").createSignedUrl(f.file_path, 3600);
+        return {
+          id: f.id,
+          file_name: f.file_name,
+          file_path: f.file_path,
+          file_size: f.file_size,
+          mime_type: f.mime_type,
+          created_at: f.created_at,
+          download_url: signed?.signedUrl ?? null,
+        };
+      })
+    );
 
     return NextResponse.json({
       campaign: campaignWithTlName,
       leads: leadsWithNames,
+      files: filesWithUrls,
     });
   } catch (err) {
     console.error("QA campaign detail error:", err);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { normalizeExtraCq } from "@/lib/extra-cq";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,7 @@ export async function PATCH(
       cq3,
       cq4,
       cq5,
+      extra_cq,
       audit_date,
       qa_name,
       asset_title,
@@ -220,6 +222,7 @@ export async function PATCH(
     if (cq3 !== undefined) updates.cq3 = cq3 || null;
     if (cq4 !== undefined) updates.cq4 = cq4 || null;
     if (cq5 !== undefined) updates.cq5 = cq5 || null;
+    if (extra_cq !== undefined) updates.extra_cq = normalizeExtraCq(extra_cq) ?? {};
     if (audit_date !== undefined) updates.audit_date = audit_date || null;
     if (qa_name !== undefined) updates.qa_name = qa_name || null;
     if (asset_title !== undefined) updates.asset_title = asset_title || null;

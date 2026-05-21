@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 
 export const dynamic = "force-dynamic";
 
 const LEADS_SELECT_BASE =
-  "id, lead_id, campaign_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
+  "id, lead_id, campaign_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
 const LEADS_SELECT_EXTENDED =
   LEADS_SELECT_BASE +
   ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
@@ -66,20 +67,13 @@ export async function GET() {
       });
     }
 
-    const userIds = [...new Set(rawLeads.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
-    let userNames: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: users } = await supabase.from("users").select("id, full_name, email").in("id", userIds);
-      ((users ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
-        userNames[u.id] = u.full_name || u.email || "Unknown";
-      });
-    }
+    const enriched = await enrichLeadsWithCreatorNames(supabase, rawLeads, orgId);
 
-    const leads = rawLeads.map((row) => ({
+    const leads = enriched.map((row) => ({
       ...row,
-      campaign_name: row.campaign_id ? campaignNames[row.campaign_id] ?? "—" : null,
-      assigned_agent_name: row.assigned_agent_id ? userNames[row.assigned_agent_id as string] ?? "—" : null,
-      created_by_name: row.created_by ? userNames[row.created_by as string] ?? "—" : null,
+      campaign_name: row.campaign_id ? campaignNames[row.campaign_id as string] ?? "—" : null,
+      assigned_agent_name: row.assigned_agent_name ?? "—",
+      created_by_name: row.created_by_name,
       qa_status: (row.qa_status as string | null) ?? null,
       disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
       disqualification_reason: (row.disqualification_reason as string | null) ?? null,

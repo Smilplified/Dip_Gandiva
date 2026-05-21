@@ -43,6 +43,7 @@ import { ExpandableText, renderExpandableOverviewValue } from "@/components/Expa
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
 import { tableSerialNumber } from "@/lib/table-pagination";
 
 const { TextArea } = Input;
@@ -681,33 +682,6 @@ export default function SalesCampaignDetailPage() {
                 {campaign.target_designation && <OverviewRow label="Target Designation" value={campaign.target_designation} />}
               </div>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
-              <div>
-                <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
-                <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
-                <OverviewRowOrEmpty label="Region" value={campaign.region} />
-                <OverviewRowOrEmpty
-                  label="Assigned Team Leader"
-                  value={
-                    campaign.assigned_team_leader_id
-                      ? teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.full_name ||
-                        teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.email
-                      : null
-                  }
-                />
-                <OverviewRowOrEmpty label="Weekly Call" value={campaign.weekly_call} />
-                <OverviewRowOrEmpty label="Weekly Report" value={campaign.weekly_report} />
-              </div>
-              <div>
-                <OverviewRowOrEmpty label="CPL" value={campaign.cpl != null ? `$${Number(campaign.cpl).toLocaleString()}` : null} />
-                <OverviewRowOrEmpty label="Revenue" value={campaign.revenue != null ? `$${Number(campaign.revenue).toLocaleString()}` : null} />
-                <OverviewRowOrEmpty label="Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
-                <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
-                <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
-                <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
-                <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
-              </div>
-            </div>
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
@@ -765,6 +739,51 @@ export default function SalesCampaignDetailPage() {
         </Col>
 
         <Col xs={24} lg={10}>
+          <CampaignDetailsCard
+            rows={[
+              {
+                label: "Campaign Code",
+                value: headerCode?.text ?? campaign.campaign_id,
+              },
+              { label: "Lead Type", value: campaign.lead_type },
+              {
+                label: "Start Date",
+                value: campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null,
+              },
+              {
+                label: "End Date",
+                value: campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null,
+              },
+              { label: "Region", value: campaign.region },
+              {
+                label: "Assigned Team Leader",
+                value:
+                  campaign.assigned_team_leader_id
+                    ? teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.full_name ||
+                      teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.email
+                    : null,
+              },
+              { label: "Weekly Call", value: campaign.weekly_call },
+              { label: "Weekly Report", value: campaign.weekly_report },
+              {
+                label: "CPL",
+                value: campaign.cpl != null ? `$${Number(campaign.cpl).toLocaleString()}` : null,
+              },
+              {
+                label: "Revenue",
+                value: campaign.revenue != null ? `$${Number(campaign.revenue).toLocaleString()}` : null,
+              },
+              {
+                label: "Booked",
+                value: campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null,
+              },
+              { label: "Total Allocation", value: campaign.total_allocation },
+              { label: "Post QA", value: campaign.post_qa },
+              { label: "Achieved", value: campaign.achieved },
+              { label: "Pending Allocation", value: campaign.pending_allocation },
+            ]}
+          />
+
           <Card
             title={
               <Space>

@@ -7,6 +7,14 @@ import {
 import { createNotification } from "@/lib/notifications";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
+import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import {
+  fetchCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+  isUserAssignedToCampaignAsTeamLeader,
+  normalizeTeamLeaderAssignments,
+  syncCampaignTeamLeaderAssignments,
+} from "@/lib/campaign/team-leader-assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -51,24 +59,47 @@ export async function GET(
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const camp = campaign as { assigned_team_leader_id?: string | null; [k: string]: unknown };
-    if (
-      !hasOrgWideCampaignAccess(roleNames) &&
-      camp.assigned_team_leader_id !== user.id
-    ) {
+    const tlAssigned = await isUserAssignedToCampaignAsTeamLeader(
+      supabase,
+      campaignId,
+      user.id,
+      camp.assigned_team_leader_id ?? null
+    );
+    if (!hasOrgWideCampaignAccess(roleNames) && !tlAssigned) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
-    let assigned_team_leader_name: string | null = null;
-    if (camp.assigned_team_leader_id) {
-      const names = await resolveUserDisplayNames(supabase, [camp.assigned_team_leader_id]);
-      assigned_team_leader_name = names[camp.assigned_team_leader_id] ?? null;
+
+    let team_leader_assignments = await fetchCampaignTeamLeaderAssignments(
+      supabase,
+      campaignId,
+      camp.assigned_team_leader_id ?? null
+    );
+    const legacyTlId = camp.assigned_team_leader_id ?? null;
+    if (legacyTlId && !team_leader_assignments.some((a) => a.team_leader_id === legacyTlId)) {
+      const legacyNames = await resolveUserDisplayNames(supabase, [legacyTlId]);
+      team_leader_assignments = [
+        ...team_leader_assignments,
+        {
+          team_leader_id: legacyTlId,
+          team_leader_name: legacyNames[legacyTlId] ?? null,
+        },
+      ];
     }
-    const campaignWithTlName = { ...(campaign as Record<string, unknown>), assigned_team_leader_name };
+    team_leader_assignments = normalizeTeamLeaderAssignments(team_leader_assignments, {
+      assigned_team_leader_id: legacyTlId,
+    });
+    const assigned_team_leader_name = formatTeamLeaderAssignmentLabel(team_leader_assignments);
+    const campaignWithTlName = {
+      ...(campaign as Record<string, unknown>),
+      assigned_team_leader_name,
+      team_leader_assignments,
+    };
 
     const [leadsRes, assignmentsRes, filesRes] = await Promise.all([
       supabase
         .from("leads")
         .select(
-          "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title"
+          "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, asset_title"
         )
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false }),
@@ -150,22 +181,7 @@ export async function GET(
       qa_status: string | null;
     };
     const leadsList = (leadsRes.data ?? []) as LeadRow[];
-    const leadUserIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
-    let leadUserNames: Record<string, string> = {};
-    if (leadUserIds.length > 0) {
-      const { data: leadUsers } = await supabase
-        .from("users")
-        .select("id, full_name, email")
-        .in("id", leadUserIds);
-      ((leadUsers ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
-        leadUserNames[u.id] = u.full_name || u.email || "Unknown";
-      });
-    }
-    const leadsWithNames = leadsList.map((l) => ({
-      ...l,
-      assigned_agent_name: l.assigned_agent_id ? leadUserNames[l.assigned_agent_id] ?? "—" : null,
-      created_by_name: l.created_by ? leadUserNames[l.created_by] ?? "—" : null,
-    }));
+    const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
 
     type FileRow = { id: string; file_name: string; file_path: string; file_size: number | null; mime_type: string | null; created_at: string };
     const files = fileRows as FileRow[];
@@ -332,6 +348,15 @@ export async function PATCH(
           );
         }
       } else if (newTlId !== currentTlId) {
+        const { error: syncError } = await syncCampaignTeamLeaderAssignments(supabase, {
+          organizationId: orgId,
+          campaignId,
+          teamLeaderIds: newTlId ? [newTlId] : [],
+          assignedBy: user.id,
+        });
+        if (syncError) {
+          return NextResponse.json({ error: syncError }, { status: 500 });
+        }
         updates.assigned_team_leader_id = newTlId;
       }
     }
@@ -366,19 +391,15 @@ export async function PATCH(
       assigned_team_leader_id?: string | null;
       [k: string]: unknown;
     };
-    let assigned_team_leader_name: string | null = null;
-    if (updated.assigned_team_leader_id) {
-      const names = await resolveUserDisplayNames(supabase, [updated.assigned_team_leader_id]);
-      assigned_team_leader_name = names[updated.assigned_team_leader_id] ?? null;
-    }
+    const team_leader_assignments = await fetchCampaignTeamLeaderAssignments(
+      supabase,
+      campaignId,
+      updated.assigned_team_leader_id ?? null
+    );
+    const assigned_team_leader_name = formatTeamLeaderAssignmentLabel(team_leader_assignments);
 
     const newTlId = updated.assigned_team_leader_id ?? null;
-    if (
-      canAssignTl &&
-      newTlId &&
-      newTlId !== existing.assigned_team_leader_id &&
-      newTlId !== user.id
-    ) {
+    if (canAssignTl && newTlId && newTlId !== existing.assigned_team_leader_id && newTlId !== user.id) {
       void createNotification({
         title: "Campaign Assigned",
         message: `Campaign "${String(updated.name ?? existing.name)}" has been assigned to you.`,
@@ -392,7 +413,7 @@ export async function PATCH(
     }
 
     return NextResponse.json({
-      campaign: { ...updated, assigned_team_leader_name },
+      campaign: { ...updated, assigned_team_leader_name, team_leader_assignments },
     });
   } catch (err) {
     console.error("Update campaign error:", err);

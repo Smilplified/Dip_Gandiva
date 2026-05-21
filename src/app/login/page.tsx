@@ -289,7 +289,7 @@ function LoginContent() {
             </form>
 
             <p className="mt-6 text-center text-xs text-slate-400">
-              Secure login with Supabase Auth
+              Enterprise-grade sign-in · Role-based workspace access
             </p>
           </div>
         </div>

@@ -3,6 +3,7 @@
  */
 
 import dayjs from "dayjs";
+import { extraCqToFormValues, normalizeExtraCq } from "@/lib/extra-cq";
 
 export function leadToFormValues(lead: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -61,6 +62,7 @@ export function leadToFormValues(lead: Record<string, unknown>): Record<string, 
     cq3: lead.cq3 ?? undefined,
     cq4: lead.cq4 ?? undefined,
     cq5: lead.cq5 ?? undefined,
+    extra_cq: extraCqToFormValues(lead.extra_cq),
     audit_date: lead.audit_date ? dayjs(lead.audit_date as string) : undefined,
     qa_name: lead.qa_name ?? undefined,
     asset_title: lead.asset_title ?? undefined,
@@ -150,6 +152,7 @@ export function buildLeadPayload(values: Record<string, unknown>) {
     cq3: values.cq3 ?? null,
     cq4: values.cq4 ?? null,
     cq5: values.cq5 ?? null,
+    extra_cq: normalizeExtraCq(values.extra_cq),
     audit_date:
       values.audit_date && typeof (values.audit_date as { format?: (f: string) => string }).format === "function"
         ? (values.audit_date as { format: (f: string) => string }).format("YYYY-MM-DD")

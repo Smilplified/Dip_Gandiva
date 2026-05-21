@@ -16,6 +16,7 @@ import {
 } from "@/types/lead.types";
 import type { Lead } from "@/types/lead.types";
 import { useAuth } from "@/context/AuthContext";
+import { nextExtraCqIndex, parseExtraCqIndexes } from "@/lib/extra-cq";
 
 type LeadFormProps = {
   form: ReturnType<typeof Form.useForm>[0];
@@ -34,6 +35,7 @@ export function LeadForm({
   const loggedInQaName =
     profile?.full_name?.trim() || profile?.email?.trim() || user?.email?.trim() || "";
   const [showMoreCq, setShowMoreCq] = useState(false);
+  const [dynamicCqIndexes, setDynamicCqIndexes] = useState<number[]>([]);
   const [voiceRecordings, setVoiceRecordings] = useState<
     { id: string; name: string; path: string; url: string | null }[]
   >([]);
@@ -48,10 +50,31 @@ export function LeadForm({
   const lhoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (lead && (lead.cq3 || lead.cq4 || lead.cq5)) {
+    if (!lead) {
+      setShowMoreCq(false);
+      setDynamicCqIndexes([]);
+      return;
+    }
+    const extraIndexes = parseExtraCqIndexes(lead.extra_cq);
+    if (lead.cq3 || lead.cq4 || lead.cq5 || extraIndexes.length > 0) {
       setShowMoreCq(true);
     }
+    setDynamicCqIndexes(extraIndexes);
   }, [lead]);
+
+  const addDynamicCqField = () => {
+    setDynamicCqIndexes((prev) => {
+      const next = nextExtraCqIndex(prev);
+      return [...prev, next];
+    });
+  };
+
+  const removeDynamicCqField = (index: number) => {
+    setDynamicCqIndexes((prev) => prev.filter((n) => n !== index));
+    const extra = (form.getFieldValue("extra_cq") as Record<string, string> | undefined) ?? {};
+    const { [`cq${index}`]: _removed, ...rest } = extra;
+    form.setFieldValue("extra_cq", Object.keys(rest).length > 0 ? rest : undefined);
+  };
 
   // Show logged-in QA name when lead has no qa_name yet (saved on submit by API).
   useEffect(() => {
@@ -460,6 +483,35 @@ export function LeadForm({
                       <Form.Item label="CQ5" name="cq5">
                         <Input placeholder="CQ5" />
                       </Form.Item>
+                    </Col>
+                    {dynamicCqIndexes.map((cqIndex) => (
+                      <Col xs={24} sm={12} key={`extra-cq-${cqIndex}`}>
+                        <Form.Item label={`CQ${cqIndex}`} name={["extra_cq", `cq${cqIndex}`]}>
+                          <Input
+                            placeholder={`CQ${cqIndex}`}
+                            suffix={
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<DeleteOutlined />}
+                                aria-label={`Remove CQ${cqIndex}`}
+                                onClick={() => removeDynamicCqField(cqIndex)}
+                              />
+                            }
+                          />
+                        </Form.Item>
+                      </Col>
+                    ))}
+                    <Col xs={24} sm={12} style={{ marginBottom: 24 }}>
+                      <div style={{ paddingTop: 30 }}>
+                        <Button
+                          type="dashed"
+                          icon={<PlusOutlined />}
+                          onClick={addDynamicCqField}
+                          aria-label="Add another custom question"
+                          style={{ width: "100%", height: 32 }}
+                        />
+                      </div>
                     </Col>
                   </>
                 )}

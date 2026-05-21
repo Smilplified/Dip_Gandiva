@@ -558,24 +558,6 @@ export default function AgentCampaignDetailPage() {
                 )}
               </div>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
-              <div>
-                <OverviewRowOrEmpty
-                  label="Campaign Code"
-                  value={headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id}
-                />
-                <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
-                <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
-                <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
-                <OverviewRowOrEmpty label="Region" value={campaign.region} />
-                <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
-              </div>
-              <div>
-                <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
-                <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
-                <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
-              </div>
-            </div>
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
@@ -623,6 +605,31 @@ export default function AgentCampaignDetailPage() {
         </Col>
 
         <Col xs={24} lg={10}>
+          <Card
+            title="Campaign details"
+            style={{ marginBottom: 24, borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
+            bodyStyle={{ padding: "20px 24px" }}
+          >
+            <OverviewRowOrEmpty
+              label="Campaign Code"
+              value={headerCode?.text ?? campaign.campaign_code ?? campaign.campaign_id}
+            />
+            <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
+            <OverviewRowOrEmpty
+              label="Start Date"
+              value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null}
+            />
+            <OverviewRowOrEmpty
+              label="End Date"
+              value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null}
+            />
+            <OverviewRowOrEmpty label="Region" value={campaign.region} />
+            <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
+            <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
+            <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
+            <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
+          </Card>
+
           <Card
             title={
               <Space>

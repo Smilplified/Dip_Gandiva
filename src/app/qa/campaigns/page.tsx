@@ -54,6 +54,8 @@ type Campaign = {
   job_function?: string | null;
   creatives_url?: string[] | null;
   leads?: unknown[];
+  /** ISO timestamp — latest lead create/update on this campaign (agent uploads). */
+  last_lead_activity_at?: string | null;
 };
 
 export default function QACampaignsPage() {
@@ -91,6 +93,8 @@ export default function QACampaignsPage() {
   useEffect(() => {
     if (status !== "authorized") return;
     fetchDashboard();
+    const interval = window.setInterval(fetchDashboard, 60 * 60 * 1000);
+    return () => window.clearInterval(interval);
   }, [fetchDashboard, status]);
 
   useEffect(() => {
@@ -135,7 +139,14 @@ export default function QACampaignsPage() {
     if (statusFilter) {
       result = result.filter((c) => c.status === statusFilter);
     }
-    return result;
+    return [...result].sort((a, b) => {
+      const aMs = a.last_lead_activity_at ? new Date(a.last_lead_activity_at).getTime() : 0;
+      const bMs = b.last_lead_activity_at ? new Date(b.last_lead_activity_at).getTime() : 0;
+      if (bMs !== aMs) return bMs - aMs;
+      const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bCreated - aCreated;
+    });
   }, [campaigns, search, statusFilter]);
 
   if (status === "loading") {
@@ -233,7 +244,7 @@ export default function QACampaignsPage() {
             size="middle"
             rowKey="id"
             dataSource={list}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 1280 }}
             tableLayout="fixed"
             pagination={{
               current: campaignsPage,
@@ -262,6 +273,7 @@ export default function QACampaignsPage() {
                 key: "sr",
                 width: 72,
                 align: "center" as const,
+                fixed: "left" as const,
                 render: (_: unknown, __: Campaign, index: number) => (
                   <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                     {tableSerialNumber(campaignsPage, campaignsPageSize, index)}
@@ -273,6 +285,7 @@ export default function QACampaignsPage() {
                 dataIndex: "campaign_code",
                 key: "campaign_code",
                 width: 130,
+                fixed: "left" as const,
                 render: (val: string | null | undefined) => (
                   <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
                     {val || "—"}
@@ -353,6 +366,7 @@ export default function QACampaignsPage() {
                 key: "leads_count",
                 width: 80,
                 align: "center" as const,
+                fixed: "right" as const,
                 render: (_: unknown, rec: Campaign) => (
                   <Typography.Text style={{ fontSize: 13, fontWeight: 500 }}>
                     {rec.leads?.length ?? 0}

@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
-import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
+import {
+  fetchCampaignIdsForTeamLeader,
+  fetchCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+} from "@/lib/campaign/team-leader-assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +44,15 @@ export async function GET() {
       .eq("organization_id", orgId);
 
     if (!seeAllOrgCampaigns) {
-      campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
+      const junctionCampaignIds = await fetchCampaignIdsForTeamLeader(supabase, user.id, orgId);
+      if (junctionCampaignIds.length > 0) {
+        const idList = junctionCampaignIds.map((id) => `"${id}"`).join(",");
+        campaignsQuery = campaignsQuery.or(
+          `assigned_team_leader_id.eq.${user.id},id.in.(${idList})`
+        );
+      } else {
+        campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
+      }
     }
 
     const { data: campaigns, error: campaignsError } = await campaignsQuery.order(
@@ -55,13 +67,18 @@ export async function GET() {
     type CampaignRow = { id: string; campaign_id: string; campaign_code: string | null; client_id: string | null; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; cpl: number | null; revenue: number | null; booked: number | null; total_allocation: number | null; post_qa: number | null; achieved: number | null; pending_allocation: number | null; region: string | null; weekly_call: string | null; weekly_report: string | null; additional_comments: string | null; assigned_team_leader_id: string | null; created_by: string | null; created_at: string };
     const campaignsList = (campaigns ?? []) as CampaignRow[];
 
-    // Resolve assigned team leader names only (no creator/client fallback)
-    const tlIds = [
-      ...new Set(campaignsList.map((c) => c.assigned_team_leader_id).filter(Boolean)),
-    ] as string[];
-    const tlNames = tlIds.length > 0 ? await resolveUserDisplayNames(supabase, tlIds) : {};
-
     const campaignIds = campaignsList.map((c) => c.id);
+
+    const tlAssignmentsByCampaign: Record<string, Awaited<ReturnType<typeof fetchCampaignTeamLeaderAssignments>>> = {};
+    await Promise.all(
+      campaignsList.map(async (c) => {
+        tlAssignmentsByCampaign[c.id] = await fetchCampaignTeamLeaderAssignments(
+          supabase,
+          c.id,
+          c.assigned_team_leader_id
+        );
+      })
+    );
     const [leadsRes, assignmentsRes] = await Promise.all([
       campaignIds.length > 0
         ? supabase
@@ -97,13 +114,12 @@ export async function GET() {
     });
 
     const campaignsWithCounts = campaignsList.map((c) => {
-      const tlName = c.assigned_team_leader_id
-        ? tlNames[c.assigned_team_leader_id] ?? null
-        : null;
+      const tlAssignments = tlAssignmentsByCampaign[c.id] ?? [];
       const leadCounts = leadsByCampaign[c.id];
       return {
         ...c,
-        assigned_team_leader_name: tlName,
+        assigned_team_leader_name: formatTeamLeaderAssignmentLabel(tlAssignments),
+        team_leader_count: tlAssignments.length,
         total_leads: leadCounts?.total ?? 0,
         total_agents: agentsByCampaign[c.id] ?? 0,
         qualified_leads: leadCounts?.qualified ?? 0,

@@ -74,6 +74,8 @@ export type Lead = {
   cq3: string | null;
   cq4: string | null;
   cq5: string | null;
+  /** CQ6+ — keys cq6, cq7, … */
+  extra_cq?: Record<string, string> | null;
   // Audit
   audit_date: string | null;
   qa_name: string | null;

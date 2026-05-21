@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createNotifications } from "@/lib/notifications";
 import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { isUserAssignedToCampaignAsTeamLeader } from "@/lib/campaign/team-leader-assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,13 @@ export async function POST(
     }
 
     const camp = campaign as { id: string; assigned_team_leader_id: string | null };
-    if (camp.assigned_team_leader_id !== user.id) {
+    const tlAssigned = await isUserAssignedToCampaignAsTeamLeader(
+      supabase,
+      campaignId,
+      user.id,
+      camp.assigned_team_leader_id
+    );
+    if (!tlAssigned) {
       return NextResponse.json(
         { error: "You can only assign agents to campaigns assigned to you" },
         { status: 403 }

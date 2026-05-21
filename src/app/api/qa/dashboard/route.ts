@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +101,34 @@ export async function GET() {
       return NextResponse.json({ campaigns: campaignsWithTlName.map((c) => ({ ...c, leads: [] })) });
     }
 
-    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
+    /** Latest agent lead create/update per campaign — drives QA campaigns table order. */
+    const lastLeadActivityMs: Record<string, number> = {};
+    const { data: leadActivityRows, error: leadActivityError } = await supabase
+      .from("leads")
+      .select("campaign_id, created_at, updated_at")
+      .in("campaign_id", campaignIds);
+
+    if (leadActivityError) {
+      console.error("QA dashboard lead activity:", leadActivityError.message);
+    } else {
+      for (const row of (leadActivityRows ?? []) as {
+        campaign_id: string;
+        created_at: string;
+        updated_at: string;
+      }[]) {
+        const createdMs = new Date(row.created_at).getTime();
+        const updatedMs = new Date(row.updated_at).getTime();
+        const activityMs = Math.max(
+          Number.isFinite(createdMs) ? createdMs : 0,
+          Number.isFinite(updatedMs) ? updatedMs : 0
+        );
+        if (!activityMs) continue;
+        const prev = lastLeadActivityMs[row.campaign_id] ?? 0;
+        if (activityMs > prev) lastLeadActivityMs[row.campaign_id] = activityMs;
+      }
+    }
+
+    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
     const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
     let { data: leadsData, error: leadsError } = await supabase
       .from("leads")
@@ -132,23 +160,7 @@ export async function GET() {
       disqualification_reason: (row.disqualification_reason as string | null) ?? null,
       rectified_reason: (row.rectified_reason as string | null) ?? null,
     })) as LeadRow[];
-    const userIds = [...new Set(leadsList.flatMap((l) => [l.assigned_agent_id, l.created_by].filter(Boolean)))] as string[];
-    let userNames: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: usersData } = await supabase
-        .from("users")
-        .select("id, full_name, email")
-        .in("id", userIds);
-      ((usersData ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
-        userNames[u.id] = u.full_name || u.email || "Unknown";
-      });
-    }
-
-    const leadsWithNames = leadsList.map((l) => ({
-      ...l,
-      assigned_agent_name: l.assigned_agent_id ? userNames[l.assigned_agent_id] ?? "—" : null,
-      created_by_name: l.created_by ? userNames[l.created_by] ?? "—" : null,
-    }));
+    const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
 
     const leadsByCampaign: Record<string, typeof leadsWithNames> = {};
     campaignsWithTlName.forEach((c) => {
@@ -160,10 +172,21 @@ export async function GET() {
       }
     });
 
-    const campaignsWithLeads = campaignsWithTlName.map((c) => ({
-      ...c,
-      leads: leadsByCampaign[c.id] ?? [],
-    }));
+    const campaignsWithLeads = campaignsWithTlName
+      .map((c) => {
+        const activityMs = lastLeadActivityMs[c.id] ?? 0;
+        return {
+          ...c,
+          leads: leadsByCampaign[c.id] ?? [],
+          last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,
+        };
+      })
+      .sort((a, b) => {
+        const aMs = lastLeadActivityMs[a.id] ?? 0;
+        const bMs = lastLeadActivityMs[b.id] ?? 0;
+        if (bMs !== aMs) return bMs - aMs;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
 
     return NextResponse.json({ campaigns: campaignsWithLeads });
   } catch (err) {
