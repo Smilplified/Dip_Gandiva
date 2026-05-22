@@ -8,6 +8,7 @@ import { isHiddenFromAgentExport } from "@/lib/agent-lead-fields";
  */
 const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "id", header: "id" },
+  { key: "organization_id", header: "organization_id" },
   { key: "campaign_id", header: "campaign_id" },
   { key: "lead_id", header: "lead_id" },
   { key: "salutation", header: "salutation" },
@@ -77,11 +78,29 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "lead_disposition", header: "lead_disposition" },
   { key: "followup_date", header: "followup_date" },
   { key: "notes", header: "notes" },
+  { key: "assigned_agent_id", header: "assigned_agent_id" },
+  { key: "assigned_agent_name", header: "assigned_agent_name" },
   { key: "created_by", header: "created_by" },
   { key: "created_by_name", header: "created_by_name" },
+  { key: "creator_display_name", header: "creator_display_name" },
+  { key: "qa_name", header: "qa_name" },
+  { key: "extra_cq", header: "extra_cq" },
   { key: "created_at", header: "created_at" },
   { key: "updated_at", header: "updated_at" },
 ];
+
+function serializeExportCell(
+  key: string,
+  record: Record<string, unknown>
+): string | number {
+  const v = record[key];
+  if (v == null) {
+    if (key === "delivery_status") return "not_delivered";
+    return "";
+  }
+  if (typeof v === "object") return JSON.stringify(v);
+  return v as string | number;
+}
 
 const AGENT_EXPORT_COLUMNS = CSV_COLUMNS.filter(
   (c) => !isHiddenFromAgentExport(String(c.key))
@@ -101,11 +120,7 @@ export function leadsToCsv(leads: Lead[]): string {
   const rows = leads.map((lead) => {
     const record = lead as Record<string, unknown>;
     return CSV_COLUMNS.map((c) =>
-      escapeCsvValue(
-        c.key === "delivery_status"
-          ? ((record[c.key] as string | null | undefined) ?? "not_delivered")
-          : (record[c.key] as string | number | null | undefined)
-      )
+      escapeCsvValue(serializeExportCell(String(c.key), record))
     ).join(",");
   });
   return [headers, ...rows].join("\n");
@@ -131,16 +146,7 @@ function leadsToSheetData(leads: Lead[]): unknown[][] {
   const headers = CSV_COLUMNS.map((c) => c.header);
   const rows = leads.map((lead) => {
     const record = lead as Record<string, unknown>;
-    return CSV_COLUMNS.map((c) => {
-      const v =
-        c.key === "delivery_status"
-          ? ((record[c.key] as string | null | undefined) ?? "not_delivered")
-          : c.key === "channel"
-          ? ((record[c.key] as string | null | undefined) ?? null)
-          : record[c.key];
-      if (v == null) return "";
-      return typeof v === "object" ? JSON.stringify(v) : v;
-    });
+    return CSV_COLUMNS.map((c) => serializeExportCell(String(c.key), record));
   });
   return [headers, ...rows];
 }

@@ -5,7 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Card, Button, Table, Tag, Input, message, Spin, Typography, Row, Col, Space,
 } from "antd";
-import { ArrowLeftOutlined, FileOutlined, DownloadOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  ArrowLeftOutlined,
+  FileOutlined,
+  DownloadOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  ExportOutlined,
+} from "@ant-design/icons";
+import { downloadExcel } from "@/lib/leadsExport";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
@@ -148,6 +156,19 @@ export default function DCCampaignDetailPage() {
   const deliveredCount = leads.filter(
     (l) => (l.delivery_status ?? "not_delivered") === "delivered"
   ).length;
+
+  const handleExportLeads = () => {
+    if (leads.length === 0) {
+      message.warning("No leads to export");
+      return;
+    }
+    const slug = (campaign?.name ?? "campaign").replace(/[^\w-]+/g, "-").replace(/-+/g, "-");
+    downloadExcel(
+      leads,
+      `dc-leads-${slug}-${dayjs().format("YYYY-MM-DD")}.xlsx`
+    );
+    message.success(`Exported ${leads.length} leads with all database fields`);
+  };
 
   if (loading && !campaign) {
     return (
@@ -349,14 +370,23 @@ export default function DCCampaignDetailPage() {
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         styles={{ body: { padding: "24px 28px" } }}
         extra={
-          <Input
-            prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
-            placeholder="Search leads…"
-            value={leadSearch}
-            onChange={(e) => setLeadSearch(e.target.value)}
-            allowClear
-            style={{ width: 220 }}
-          />
+          <Space size="middle" wrap>
+            <Input
+              prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+              placeholder="Search leads…"
+              value={leadSearch}
+              onChange={(e) => setLeadSearch(e.target.value)}
+              allowClear
+              style={{ width: 220 }}
+            />
+            <Button
+              icon={<ExportOutlined />}
+              onClick={handleExportLeads}
+              disabled={leads.length === 0}
+            >
+              Export
+            </Button>
+          </Space>
         }
       >
         <Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
