@@ -5,8 +5,6 @@ import type { CSSProperties, Key } from "react";
 import {
   Tabs,
   Card,
-  Row,
-  Col,
   Tag,
   Table,
   message,
@@ -19,7 +17,6 @@ import {
   Button,
   Tooltip,
   DatePicker,
-  Segmented,
   Divider,
   Select,
   Input,
@@ -27,29 +24,12 @@ import {
 import dayjs from "dayjs";
 import type { ColumnsType } from "antd/es/table";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RTooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  Legend,
-  LineChart,
-  Line,
-  LabelList,
-} from "recharts";
-import {
   AlertOutlined,
   ExclamationCircleOutlined,
-  EyeOutlined,
   UnorderedListOutlined,
   HistoryOutlined,
+  BarChartOutlined,
+  FundProjectionScreenOutlined,
   DownloadOutlined,
   SearchOutlined,
   FileOutlined,
@@ -61,6 +41,8 @@ import {
 import AlertsPanel from "./AlertsPanel";
 import QAPanel from "./QAPanel";
 import LeadAuditPanel from "./LeadAuditPanel";
+import CampaignLeadMetricsTab from "./CampaignLeadMetricsTab";
+import CampaignAverageAnalysisTab from "./CampaignAverageAnalysisTab";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
@@ -118,13 +100,20 @@ interface CampaignAnalytics {
       dqRate: number | null;
       registrationRate: number;
     }[];
+    monthly: {
+      period: string;
+      month: string;
+      leadVolume: number;
+      qualificationRate: number | null;
+      dqRate: number | null;
+      registrationRate: number;
+    }[];
   };
   alerts: { id: string; severity: string; is_resolved: boolean }[];
 }
 
 type LeadPanelFilters = {
   channels: string[];
-  /** Set from Overview funnel clicks (no filter UI). */
   statuses: string[];
   dateFrom: string | null;
   dateTo: string | null;
@@ -256,29 +245,6 @@ function defaultLeadPanelFilters(): LeadPanelFilters {
   };
 }
 
-/** Merge status keys case-insensitively for KPI math. */
-function normalizeStatusBreakdown(bd: Record<string, number>): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(bd)) {
-    const key = k.toLowerCase();
-    out[key] = (out[key] ?? 0) + Number(v);
-  }
-  return out;
-}
-
-function sumStatusKeys(bd: Record<string, number>, keys: string[]): number {
-  let t = 0;
-  for (const k of keys) {
-    t += bd[k.toLowerCase()] ?? 0;
-  }
-  return t;
-}
-
-function pctFromPrev(curr: number, prev: number): number | null {
-  if (prev <= 0) return null;
-  return Math.round((curr / prev) * 1000) / 10;
-}
-
 function renderDescriptionWithLinks(raw: string) {
   const lines = raw
     .replace(/\r\n/g, "\n")
@@ -399,7 +365,6 @@ export default function CampaignDashboard({
   const [trendRangeOverride, setTrendRangeOverride] = useState<{ from: string; to: string } | null>(
     null
   );
-  const [trendGranularity, setTrendGranularity] = useState<"daily" | "weekly">("daily");
   const [leadPanelFilters, setLeadPanelFilters] = useState<LeadPanelFilters>(defaultLeadPanelFilters);
   const [leadSearchDraft, setLeadSearchDraft] = useState("");
   const [leadsTotal, setLeadsTotal] = useState(0);
@@ -425,7 +390,8 @@ export default function CampaignDashboard({
     const t = initialTab.toLowerCase();
     if ((t === "qa" || t === "alerts") && isClientViewer) return;
     const allowed = new Set([
-      "overview",
+      "metrics",
+      "average_analysis",
       "description",
       "leads",
       "files",
@@ -613,58 +579,6 @@ export default function CampaignDashboard({
     setSelectedLeadKeys([]);
   }, [leadPanelFilters]);
 
-  const applyFunnelStage = useCallback((stageKey: string) => {
-    setActiveTab("leads");
-    switch (stageKey) {
-      case "ingested":
-        setLeadPanelFilters((p) => ({ ...p, statuses: [] }));
-        break;
-      case "qa_verified":
-        setLeadPanelFilters((p) => ({
-          ...p,
-          statuses: ["qualified", "disqualified", "registered", "attended", "no_show"],
-        }));
-        break;
-      case "qualified":
-        setLeadPanelFilters((p) => ({
-          ...p,
-          statuses: ["qualified", "registered", "attended", "no_show"],
-        }));
-        break;
-      case "registered":
-        setLeadPanelFilters((p) => ({
-          ...p,
-          statuses: ["registered", "attended", "no_show"],
-        }));
-        break;
-      case "attended":
-        setLeadPanelFilters((p) => ({ ...p, statuses: ["attended"] }));
-        break;
-      default:
-        break;
-    }
-    setLeadPage(1);
-  }, []);
-
-  const funnelStages = useMemo(() => {
-    if (!analytics?.leads) return [];
-    const sb = normalizeStatusBreakdown(analytics.leads.statusBreakdown);
-    const total = analytics.leads.total;
-    const cQa = sumStatusKeys(sb, ["qualified", "disqualified", "registered", "attended", "no_show"]);
-    const cReg = sumStatusKeys(sb, ["registered", "attended", "no_show"]);
-    const cAtt = sb.attended ?? 0;
-    return [
-      { key: "ingested", label: "Leads Ingested", count: total, fromPrev: null as number | null },
-      { key: "registered", label: "Registered (Client LP)", count: cReg, fromPrev: pctFromPrev(cReg, cQa) },
-      { key: "attended", label: "Attended", count: cAtt, fromPrev: pctFromPrev(cAtt, cReg) },
-    ];
-  }, [analytics]);
-
-  const trendChartRows = useMemo(() => {
-    if (!analytics?.trends) return [];
-    return trendGranularity === "daily" ? analytics.trends.daily : analytics.trends.weekly;
-  }, [analytics, trendGranularity]);
-
   if (loading) {
     return (
       <div style={{ padding: 24 }}>
@@ -848,283 +762,41 @@ export default function CampaignDashboard({
     },
   ];
 
-  const maxFunnelCount = Math.max(1, funnelStages[0]?.count ?? 1);
-  const chTotalOverview = emailLeads + teleLeads;
-  const overviewChannelStack = [{ name: "Leads", email: emailLeads, tele: teleLeads }];
-
   const tabItems = [
     {
-      key: "overview",
+      key: "metrics",
       label: (
         <span>
-          <EyeOutlined /> Overview
+          <BarChartOutlined /> Metrics
         </span>
       ),
       children: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <Card
-            title="Lead funnel"
-            size="small"
-            bordered
-            style={{ borderRadius: 10 }}
-            extra={
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Click a stage to filter the Leads tab
-              </Text>
-            }
-          >
-            <div
-              style={{
-                width: "100%",
-                overflowX: "auto",
-                overflowY: "hidden",
-                WebkitOverflowScrolling: "touch",
-                paddingBottom: 4,
-                marginBottom: -4,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "row",
-                  alignItems: "flex-end",
-                  justifyContent: "space-between",
-                  gap: "clamp(4px, 1.5vw, 12px)",
-                  width: "100%",
-                  minWidth: "max(100%, 380px)",
-                  minHeight: 200,
-                  paddingTop: 8,
-                }}
-              >
-                {funnelStages.map((st) => {
-                  const barHeight = Math.max(
-                    56,
-                    Math.round((st.count / maxFunnelCount) * 172)
-                  );
-                  return (
-                    <div
-                      key={st.key}
-                      style={{
-                        flex: "1 1 0",
-                        minWidth: "clamp(72px, 14vw, 140px)",
-                        maxWidth: "20%",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => applyFunnelStage(st.key)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            applyFunnelStage(st.key);
-                          }
-                        }}
-                        style={{
-                          width: "100%",
-                          height: barHeight,
-                          minHeight: 56,
-                          borderRadius: 8,
-                          background: "linear-gradient(180deg, #40a9ff 0%, #096dd9 100%)",
-                          cursor: "pointer",
-                          boxShadow: "0 2px 8px rgba(24,144,255,0.22)",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "6px 4px",
-                          textAlign: "center",
-                        }}
-                      >
-                        <div
-                          style={{
-                            color: "#fff",
-                            fontSize: "clamp(16px, 4vw, 22px)",
-                            fontWeight: 700,
-                            lineHeight: 1.1,
-                          }}
-                        >
-                          {st.count}
-                        </div>
-                        {st.fromPrev != null && (
-                          <Text
-                            style={{
-                              color: "rgba(255,255,255,0.9)",
-                              fontSize: "clamp(9px, 2vw, 11px)",
-                              lineHeight: 1.2,
-                              marginTop: 2,
-                            }}
-                          >
-                            {st.fromPrev}%
-                          </Text>
-                        )}
-                      </div>
-                      <Text
-                        strong
-                        style={{
-                          marginTop: 8,
-                          fontSize: "clamp(10px, 2.2vw, 12px)",
-                          textAlign: "center",
-                          lineHeight: 1.25,
-                          display: "block",
-                          width: "100%",
-                          padding: "0 2px",
-                        }}
-                      >
-                        {st.label}
-                      </Text>
-                      <Text
-                        type="secondary"
-                        style={{
-                          fontSize: "clamp(9px, 1.8vw, 11px)",
-                          textAlign: "center",
-                          marginTop: 2,
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        {st.fromPrev != null ? "from previous" : "all ingested"}
-                      </Text>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </Card>
-
-          <Card title="Channel split" size="small" bordered style={{ borderRadius: 10 }}>
-            {chTotalOverview === 0 ? (
-              <Text type="secondary">No channel data</Text>
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart
-                    data={overviewChannelStack}
-                    layout="vertical"
-                    margin={{ left: 8, right: 24, top: 8, bottom: 8 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} stroke="#8c8c8c" />
-                    <YAxis type="category" dataKey="name" width={56} hide />
-                    <RTooltip
-                      formatter={(value: number, name: string) => {
-                        const pct = chTotalOverview ? ((value / chTotalOverview) * 100).toFixed(1) : "0";
-                        return [`${value} (${pct}%)`, name];
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="email" stackId="ch" fill="#1890ff" name="Email">
-                      <LabelList
-                        dataKey="email"
-                        position="center"
-                        fill="#fff"
-                        fontSize={12}
-                        formatter={(v: number) => (v > 0 ? String(v) : "")}
-                      />
-                    </Bar>
-                    <Bar dataKey="tele" stackId="ch" fill="#722ed1" name="Telemarketing">
-                      <LabelList
-                        dataKey="tele"
-                        position="center"
-                        fill="#fff"
-                        fontSize={12}
-                        formatter={(v: number) => (v > 0 ? String(v) : "")}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-                <div style={{ textAlign: "center", marginTop: 4 }}>
-                  <Text type="secondary">
-                    Email {emailLeads} (
-                    {chTotalOverview ? ((emailLeads / chTotalOverview) * 100).toFixed(1) : "0"}
-                    %) · Tele {teleLeads} (
-                    {chTotalOverview ? ((teleLeads / chTotalOverview) * 100).toFixed(1) : "0"}
-                    %) · Total {chTotalOverview}
-                  </Text>
-                </div>
-              </>
-            )}
-          </Card>
-
-          <Card
-            title="Trend charts"
-            size="small"
-            bordered
-            style={{ borderRadius: 10 }}
-            extra={
-              <Space wrap align="center">
-                <Segmented
-                  options={[
-                    { label: "Daily", value: "daily" },
-                    { label: "Weekly", value: "weekly" },
-                  ]}
-                  value={trendGranularity}
-                  onChange={(v) => setTrendGranularity(v as "daily" | "weekly")}
-                />
-                <RangePicker
-                  value={
-                    analytics?.trends
-                      ? [dayjs(analytics.trends.rangeStart), dayjs(analytics.trends.rangeEnd)]
-                      : undefined
-                  }
-                  onChange={(vals) => {
-                    if (!vals?.[0] || !vals?.[1]) return;
-                    setTrendRangeOverride({
-                      from: vals[0].format("YYYY-MM-DD"),
-                      to: vals[1].format("YYYY-MM-DD"),
-                    });
-                  }}
-                  allowClear={false}
-                  format="YYYY-MM-DD"
-                />
-                <Button type="link" size="small" onClick={() => setTrendRangeOverride(null)}>
-                  Reset range
-                </Button>
-              </Space>
-            }
-          >
-            {!analytics?.trends || trendChartRows.length === 0 ? (
-              <Text type="secondary">No trend data for this range.</Text>
-            ) : (
-              <>
-                <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 12 }}>
-                  Rates are cumulative snapshots by ingestion date (created_at) using current lead
-                  status. Range: {analytics.trends.rangeStart} — {analytics.trends.rangeEnd}
-                </Text>
-                <Row gutter={[16, 16]}>
-                  <Col xs={24}>
-                    <Text strong style={{ display: "block", marginBottom: 8 }}>
-                      Lead volume ({trendGranularity === "daily" ? "daily" : "weekly"} ingestions)
-                    </Text>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <LineChart data={trendChartRows} margin={{ left: 4, right: 8, top: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis
-                          dataKey={trendGranularity === "daily" ? "date" : "period"}
-                          tick={{ fontSize: 10 }}
-                          interval="preserveStartEnd"
-                          height={48}
-                        />
-                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                        <RTooltip />
-                        <Line
-                          type="monotone"
-                          dataKey="leadVolume"
-                          stroke="#1890ff"
-                          strokeWidth={2}
-                          dot={false}
-                          name="Ingested"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </Col>
-                </Row>
-              </>
-            )}
-          </Card>
-        </div>
+        <CampaignLeadMetricsTab
+          totalLeads={analytics?.leads.total ?? 0}
+          dailyLeads={analytics?.leads.dailyLeads ?? []}
+          trends={analytics?.trends}
+          campaignDateRange={formatCampaignDateRange(campaign.start_date, campaign.end_date)}
+          onRangeChange={(from, to) => setTrendRangeOverride({ from, to })}
+          onRangeReset={() => setTrendRangeOverride(null)}
+        />
+      ),
+    },
+    {
+      key: "average_analysis",
+      label: (
+        <span>
+          <FundProjectionScreenOutlined /> Average Analysis
+        </span>
+      ),
+      children: (
+        <CampaignAverageAnalysisTab
+          startDate={campaign.start_date}
+          endDate={campaign.end_date}
+          totalAllocation={allocationNow}
+          totalUploaded={totalLeadsKpi}
+          dailyLeads={analytics?.leads.dailyLeads ?? []}
+          campaignDateRange={formatCampaignDateRange(campaign.start_date, campaign.end_date)}
+        />
       ),
     },
     {
@@ -1417,7 +1089,8 @@ export default function CampaignDashboard({
 
   const TAB_DISPLAY_ORDER = [
     "leads",
-    "overview",
+    "metrics",
+    "average_analysis",
     "description",
     "files",
     "alerts",

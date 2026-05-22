@@ -74,7 +74,35 @@ function buildTrendSeries(typedLeads: LeadRow[], start: string, end: string) {
     });
   }
 
-  return { daily, weekly };
+  const monthSet = new Set<string>();
+  for (const d of days) monthSet.add(d.slice(0, 7));
+  for (const l of typedLeads) monthSet.add(l.created_at.slice(0, 7));
+
+  const monthly = [...monthSet]
+    .filter((mk) => mk >= start.slice(0, 7) && mk <= end.slice(0, 7))
+    .sort()
+    .map((monthKey) => {
+      const ingested = typedLeads.filter((l) => l.created_at.slice(0, 7) === monthKey).length;
+      const cum = typedLeads.filter((l) => l.created_at.slice(0, 7) <= monthKey);
+      const n = cum.length;
+      const q = cum.filter((l) => QUALIFIED_LIKE.has(normStatus(l.status))).length;
+      const dq = cum.filter((l) => normStatus(l.status) === "disqualified").length;
+      const reg = cum.filter((l) => REGISTERED_LIKE.has(normStatus(l.status))).length;
+      const qualDen = Math.max(1, q);
+      const label = dayjs(`${monthKey}-01`).isValid()
+        ? dayjs(`${monthKey}-01`).format("MMM YYYY")
+        : monthKey;
+      return {
+        period: label,
+        month: monthKey,
+        leadVolume: ingested,
+        qualificationRate: n > 0 ? Math.round((q / n) * 1000) / 10 : null,
+        dqRate: n > 0 ? Math.round((dq / n) * 1000) / 10 : null,
+        registrationRate: Math.round((reg / qualDen) * 1000) / 10,
+      };
+    });
+
+  return { daily, weekly, monthly };
 }
 
 export async function GET(
@@ -185,6 +213,7 @@ export async function GET(
         rangeEnd,
         daily: trends.daily,
         weekly: trends.weekly,
+        monthly: trends.monthly,
       },
       history,
       alerts,
