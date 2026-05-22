@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Layout, Avatar, Dropdown } from "antd";
 import { UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
@@ -10,6 +11,7 @@ import GlobalSearch from "@/components/shared/GlobalSearch";
 const { Header } = Layout;
 
 export default function DCHeader() {
+  const router = useRouter();
   const { user, profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const [avatarBust, setAvatarBust] = useState("");
@@ -19,6 +21,10 @@ export default function DCHeader() {
   }, [profile]);
 
   const handleMenuClick = ({ key }: { key: string }) => {
+    if (key === "profile") {
+      router.push("/dc/profile");
+      return;
+    }
     if (key === "logout") {
       setSigningOut(true);
       void signOut().catch(() => setSigningOut(false));
@@ -26,6 +32,8 @@ export default function DCHeader() {
   };
 
   const userMenuItems = [
+    { key: "profile", icon: <UserOutlined />, label: "Profile" },
+    { type: "divider" as const },
     { key: "logout", icon: <LogoutOutlined />, label: "Sign out", danger: true },
   ];
 

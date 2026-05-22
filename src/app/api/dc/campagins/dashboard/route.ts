@@ -27,9 +27,54 @@ async function verifyDC(
   return (ur ?? []).length > 0;
 }
 
+function normalizeDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildDailySeries<T>(
+  items: T[],
+  getDate: (item: T) => string | null | undefined,
+  startDate: Date,
+  days: number
+) {
+  const counts = new Map<string, number>();
+  for (let i = 0; i < days; i += 1) {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + i);
+    counts.set(normalizeDateKey(date), 0);
+  }
+
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + days);
+
+  items.forEach((item) => {
+    const created = getDate(item);
+    if (!created) return;
+    const parsed = new Date(created);
+    if (Number.isNaN(parsed.getTime())) return;
+    if (parsed < startDate || parsed >= endDate) return;
+    const key = normalizeDateKey(parsed);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  return Array.from(counts.entries()).map(([date, value]) => ({ date, value }));
+}
+
+function computeTrendLabel(previous: number, current: number) {
+  if (previous === 0) {
+    if (current === 0) return "0% from last 7 days";
+    return "+100% from last 7 days";
+  }
+  const diff = current - previous;
+  const pct = Math.round((Math.abs(diff) / previous) * 100);
+  return `${diff >= 0 ? "+" : "-"}${pct}% from last 7 days`;
+}
+
 export async function GET() {
   try {
-    // Auth check uses session client (RLS-aware)
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -45,11 +90,9 @@ export async function GET() {
     const isDC = await verifyDC(supabase, user.id, orgId);
     if (!isDC) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    // All data queries use admin client to bypass RLS
     const admin = getAdminClientSafe();
     if (!admin) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
 
-    // Fetch all campaigns in org with client info
     const { data: allCamps } = await admin
       .from("campaigns")
       .select("id, name, client_name, client_id")
@@ -58,7 +101,6 @@ export async function GET() {
     type CampRow = { id: string; name: string; client_name: string | null; client_id: string | null };
     const camps = (allCamps ?? []) as CampRow[];
 
-    // Resolve client names via client_id FK
     const clientIds = [...new Set(camps.map((c) => c.client_id).filter(Boolean))] as string[];
     const clientNameById: Record<string, string> = {};
     if (clientIds.length > 0) {
@@ -71,7 +113,6 @@ export async function GET() {
       });
     }
 
-    // Match campaigns where client_name OR company_name = "DC"
     const matched = camps.filter((c) => {
       const direct = (c.client_name ?? "").trim().toLowerCase() === DC_CLIENT_NAME.toLowerCase();
       const viaClient = c.client_id
@@ -82,7 +123,6 @@ export async function GET() {
 
     const campaignIds = matched.map((c) => c.id);
 
-    // Debug info
     const distinctClientNames = [
       ...new Set([
         ...camps.map((c) => c.client_name).filter(Boolean),
@@ -99,39 +139,145 @@ export async function GET() {
 
     if (campaignIds.length === 0) {
       return NextResponse.json({
-        totalCampaigns: 0, totalLeads: 0, qualifiedLeads: 0,
-        deliveredLeads: 0, deliveredToday: 0, _debug: debug,
+        totalCampaigns: 0,
+        totalLeads: 0,
+        qualifiedLeads: 0,
+        campaignStatus: { active: 0, completed: 0, paused: 0 },
+        trends: {
+          campaigns: { change: "0% from last 7 days", series: [] },
+          leads: { change: "0% from last 7 days", series: [] },
+          qualifiedLeads: { change: "0% from last 7 days", series: [] },
+        },
+        recentCampaigns: [],
+        _debug: debug,
       });
     }
 
-    const { data: leads } = await admin
-      .from("leads")
-      .select("id, status, qa_status, delivery_status, updated_at, created_at")
-      .in("campaign_id", campaignIds)
-      .eq("organization_id", orgId);
+    const { data: campaignsData } = await admin
+      .from("campaigns")
+      .select("id, campaign_id, name, status, created_at")
+      .in("id", campaignIds)
+      .order("created_at", { ascending: false });
 
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    type CampaignItem = {
+      id: string;
+      campaign_id: string | null;
+      name: string;
+      status: string;
+      created_at: string;
+    };
+    const campaignRows = (campaignsData ?? []) as CampaignItem[];
+
+    const { data: leadData } = await admin
+      .from("leads")
+      .select("id, campaign_id, status, qa_status, delivery_status, lead_tagging, created_at")
+      .in("campaign_id", campaignIds);
 
     type LeadRow = {
-      id: string; status: string | null; qa_status: string | null;
-      delivery_status: string | null; updated_at: string | null; created_at: string;
+      id: string;
+      campaign_id: string;
+      status: string | null;
+      qa_status: string | null;
+      delivery_status: string | null;
+      lead_tagging: string | null;
+      created_at: string | null;
     };
-    const leadList = (leads ?? []) as LeadRow[];
+    const leadRows = (leadData ?? []) as LeadRow[];
 
-    const isQualified = (l: LeadRow) =>
-      (l.status ?? "").trim().toLowerCase() === "qualified" ||
-      (l.qa_status ?? "").trim().toLowerCase() === "qualified";
+    const isQualified = (l: LeadRow) => {
+      const qa = (l.qa_status ?? "").trim().toLowerCase();
+      const status = (l.status ?? "").trim().toLowerCase();
+      return (
+        status === "qualified" ||
+        qa === "qualified" ||
+        qa === "approved" ||
+        qa === "pass"
+      );
+    };
+
+    const totalLeads = leadRows.length;
+    const qualifiedLeads = leadRows.filter(isQualified).length;
+
+    const campaignStatusCounts = campaignRows.reduce(
+      (acc, campaign) => {
+        const status = (campaign.status ?? "").trim().toLowerCase();
+        if (status === "active") acc.active += 1;
+        if (status === "completed") acc.completed += 1;
+        if (status === "paused") acc.paused += 1;
+        return acc;
+      },
+      { active: 0, completed: 0, paused: 0 }
+    );
+
+    const today = new Date();
+    const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const lookbackDays = 14;
+    const lookbackStart = new Date(dayStart);
+    lookbackStart.setDate(dayStart.getDate() - (lookbackDays - 1));
+
+    const campaignSeries = buildDailySeries(campaignRows, (item) => item.created_at, lookbackStart, lookbackDays);
+    const leadSeries = buildDailySeries(leadRows, (item) => item.created_at, lookbackStart, lookbackDays);
+    const qualifiedLeadSeries = buildDailySeries(
+      leadRows.filter(isQualified),
+      (item) => item.created_at,
+      lookbackStart,
+      lookbackDays
+    );
+
+    const seriesLast7 = (series: { date: string; value: number }[]) => series.slice(-7);
+    const seriesFirst7 = (series: { date: string; value: number }[]) => series.slice(0, 7);
+    const sumSeries = (series: { value: number }[]) => series.reduce((total, item) => total + item.value, 0);
+
+    const recentCampaignSeries = seriesLast7(campaignSeries);
+    const recentLeadSeries = seriesLast7(leadSeries);
+    const recentQualifiedSeries = seriesLast7(qualifiedLeadSeries);
+
+    const campaignsPrev7 = sumSeries(seriesFirst7(campaignSeries));
+    const campaignsLast7 = sumSeries(recentCampaignSeries);
+    const leadsPrev7 = sumSeries(seriesFirst7(leadSeries));
+    const leadsLast7 = sumSeries(recentLeadSeries);
+    const qualifiedPrev7 = sumSeries(seriesFirst7(qualifiedLeadSeries));
+    const qualifiedLast7 = sumSeries(recentQualifiedSeries);
+
+    const campaignStats: Record<string, { total: number; qualified: number }> = {};
+    leadRows.forEach((lead) => {
+      if (!campaignStats[lead.campaign_id]) {
+        campaignStats[lead.campaign_id] = { total: 0, qualified: 0 };
+      }
+      campaignStats[lead.campaign_id].total += 1;
+      if (isQualified(lead)) campaignStats[lead.campaign_id].qualified += 1;
+    });
+
+    const recentCampaigns = campaignRows.slice(0, 5).map((campaign) => ({
+      id: campaign.id,
+      campaign_id: campaign.campaign_id,
+      name: campaign.name,
+      status: campaign.status,
+      created_at: campaign.created_at,
+      total_leads: campaignStats[campaign.id]?.total ?? 0,
+      qualified_leads: campaignStats[campaign.id]?.qualified ?? 0,
+    }));
 
     return NextResponse.json({
       totalCampaigns: campaignIds.length,
-      totalLeads: leadList.length,
-      qualifiedLeads: leadList.filter(isQualified).length,
-      deliveredLeads: leadList.filter((l) => l.delivery_status === "delivered_by_mis").length,
-      deliveredToday: leadList.filter((l) => {
-        const d = new Date(l.updated_at ?? l.created_at);
-        return d >= todayStart && l.delivery_status === "delivered_by_mis";
-      }).length,
+      totalLeads,
+      qualifiedLeads,
+      campaignStatus: campaignStatusCounts,
+      trends: {
+        campaigns: {
+          change: computeTrendLabel(campaignsPrev7, campaignsLast7),
+          series: recentCampaignSeries,
+        },
+        leads: {
+          change: computeTrendLabel(leadsPrev7, leadsLast7),
+          series: recentLeadSeries,
+        },
+        qualifiedLeads: {
+          change: computeTrendLabel(qualifiedPrev7, qualifiedLast7),
+          series: recentQualifiedSeries,
+        },
+      },
+      recentCampaigns,
       _debug: debug,
     });
   } catch (err) {

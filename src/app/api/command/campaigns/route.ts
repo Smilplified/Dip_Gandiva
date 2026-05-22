@@ -132,12 +132,6 @@ async function sendClientViewerCampaignAlertEmail(args: {
   }
 }
 
-function listCompliance(L: CommandListLeadAgg, A: CommandListAlertAgg): "green" | "yellow" | "red" {
-  if (A.hasRed || L.disputedConsent > 0) return "red";
-  if (A.hasYellow || L.missingConsent > 0 || L.pendingConsent > 0) return "yellow";
-  return "green";
-}
-
 async function getClientViewerUserIdsForOrg(
   supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string
@@ -352,7 +346,6 @@ export async function GET(request: NextRequest) {
           consent_issues_count: consentIssues,
           dq_count: L.dq,
           unresolved_alerts: A.count,
-          compliance: listCompliance(L, A),
         },
       };
     });

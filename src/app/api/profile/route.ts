@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { getAdminClientSafe } from "@/lib/supabase/admin";
 
 export async function GET() {
   const supabase = await createClient();
@@ -16,7 +17,7 @@ export async function GET() {
       id, full_name, email, phone, employee_id, agent_code,
       date_of_birth, avatar_url, joining_date, status, created_at,
       reporting_manager_id, designation, department, employment_type,
-      organization_id
+      organization_id, client_id
     `)
     .eq("id", user.id)
     .single();
@@ -42,6 +43,7 @@ export async function GET() {
     department: string | null;
     employment_type: string | null;
     organization_id: string | null;
+    client_id: string | null;
   } | null;
 
   // Fetch roles
@@ -103,6 +105,20 @@ export async function GET() {
     assignedCampaigns = tlList.map((c) => ({ id: c.id, name: c.name }));
   }
 
+  let clientLogoUrl: string | null = null;
+  if (profile?.client_id && profile.organization_id) {
+    const admin = getAdminClientSafe();
+    if (admin) {
+      const { data: clientRow } = await admin
+        .from("clients")
+        .select("logo_url")
+        .eq("id", profile.client_id)
+        .eq("organization_id", profile.organization_id)
+        .maybeSingle();
+      clientLogoUrl = (clientRow as { logo_url: string | null } | null)?.logo_url ?? null;
+    }
+  }
+
   return NextResponse.json({
     profile: {
       ...profile,
@@ -110,6 +126,7 @@ export async function GET() {
       manager_name: managerName,
       assigned_campaigns: assignedCampaigns,
       joining_date: profile?.joining_date ?? profile?.created_at,
+      client_logo_url: clientLogoUrl,
     },
   });
 }

@@ -53,8 +53,72 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.table-single-line thead .ant-table-cell {
+  white-space: nowrap;
+}
+
+/* Campaign leads tab: filters + actions on one row */
+.lead-panel-filters-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+.lead-panel-filters-row__field {
+  flex: 0 0 auto;
+}
+.lead-panel-filters-row__search {
+  flex: 1 1 260px;
+  width: 260px;
+  max-width: 320px;
+  min-width: 200px;
+}
+.lead-panel-filters-row__channel {
+  width: 200px;
+  min-width: 160px;
+}
+.lead-panel-filters-row__date {
+  flex: 1 1 280px;
+  width: 280px;
+  max-width: 360px;
+  min-width: 240px;
+}
+.lead-panel-filters-row__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
 .table-single-line .ant-table-cell > * {
   min-width: 0;
+}
+
+/* Sortable headers: avoid title + sort icon overlap (table-single-line sets min-width: 0 on children) */
+.table-single-line th.ant-table-cell {
+  overflow: visible;
+  text-overflow: clip;
+}
+.table-single-line th.ant-table-cell .ant-table-column-sorters {
+  min-width: max-content;
+  overflow: visible;
+}
+.table-single-line th.ant-table-cell .ant-table-column-sorters > * {
+  min-width: auto;
+  flex-shrink: 0;
+}
+.table-single-line th.ant-table-cell.table-col-remaining-allocation {
+  min-width: 200px;
+}
+.table-single-line td.table-col-campaign-name a.table-text-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Table text columns: prevent overlap with ellipsis */

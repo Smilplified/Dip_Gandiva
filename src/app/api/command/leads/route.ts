@@ -54,6 +54,14 @@ function parseList(sp: URLSearchParams, key: string): string[] {
     .filter(Boolean);
 }
 
+/** PostgREST `.or()` ilike pattern; strips characters that break filter syntax. */
+function toLeadSearchPattern(raw: string): string {
+  const q = raw.trim().replace(/[,()]/g, " ").replace(/\s+/g, " ");
+  if (!q) return "";
+  const escaped = q.replace(/[%_\\]/g, (c) => `\\${c}`);
+  return `%${escaped}%`;
+}
+
 function expandChannels(values: string[]): string[] {
   const out = new Set<string>();
   for (const c of values) {
@@ -192,6 +200,7 @@ const SORT_FIELDS = new Set([
   "consent_status",
   "channel",
   "assigned_agent_id",
+  "appointment",
 ]);
 
 function escapeCsvCell(v: unknown): string {
@@ -281,6 +290,8 @@ export async function GET(request: NextRequest) {
   const consentTypeIn = parseList(sp, "consent_type_in");
   const riskActive = sp.get("risk_active") === "1" || sp.get("risk_active") === "true";
   const deliveryStatus = sp.get("delivery_status")?.trim().toLowerCase() || null;
+  const searchRaw = (sp.get("q") ?? sp.get("search") ?? "").trim();
+  const searchPattern = toLeadSearchPattern(searchRaw);
   const formatCsv = sp.get("format") === "csv";
 
   const cursor = sp.get("cursor");
@@ -383,6 +394,12 @@ export async function GET(request: NextRequest) {
     }
     if (dateTo) {
       x = x.lte("created_at", `${dateTo}T23:59:59.999Z`);
+    }
+
+    if (searchPattern) {
+      x = x.or(
+        `lead_id.ilike.${searchPattern},name.ilike.${searchPattern},first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},company_name.ilike.${searchPattern},email.ilike.${searchPattern},phone.ilike.${searchPattern}`
+      );
     }
 
     if (deliveryStatus === "delivered" || deliveryStatus === "not_delivered") {

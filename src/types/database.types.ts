@@ -376,6 +376,7 @@ export type Database = {
           services_looking_for: string | null;
           budget_range: string | null;
           expected_start_date: string | null;
+          logo_url: string | null;
         };
         Insert: {
           id?: string;
@@ -407,6 +408,7 @@ export type Database = {
           services_looking_for?: string | null;
           budget_range?: string | null;
           expected_start_date?: string | null;
+          logo_url?: string | null;
         };
         Update: {
           id?: string;
@@ -438,6 +440,7 @@ export type Database = {
           services_looking_for?: string | null;
           budget_range?: string | null;
           expected_start_date?: string | null;
+          logo_url?: string | null;
         };
       };
       leads: {

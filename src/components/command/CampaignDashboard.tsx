@@ -22,7 +22,7 @@ import {
   Segmented,
   Divider,
   Select,
-  Switch,
+  Input,
 } from "antd";
 import dayjs from "dayjs";
 import type { ColumnsType } from "antd/es/table";
@@ -46,18 +46,13 @@ import {
 } from "recharts";
 import {
   AlertOutlined,
-  CheckCircleOutlined,
   ExclamationCircleOutlined,
   EyeOutlined,
-  AppstoreOutlined,
   UnorderedListOutlined,
   HistoryOutlined,
-  SafetyOutlined,
-  MailOutlined,
-  PhoneOutlined,
   DownloadOutlined,
+  SearchOutlined,
   FileOutlined,
-  FlagOutlined,
   PlusOutlined,
   MinusOutlined,
   CaretUpOutlined,
@@ -70,29 +65,13 @@ import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
-import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
-import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
+import {
+  applyLeadTableHeaderCells,
+  getLeadTableColumns,
+} from "@/components/Leads/LeadTableColumns";
 
 const { Text, Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
-
-type ChannelSummaryMetrics = {
-  totalLeads: number;
-  qualified: number;
-  qualifiedPct: number;
-  dq: number;
-  dqPct: number;
-  registrations: number;
-  avgMsToQualify: number | null;
-};
-
-function formatAvgIngestToQualify(ms: number | null | undefined): string {
-  if (ms == null || !Number.isFinite(ms)) return "—";
-  const hours = ms / 3_600_000;
-  if (hours < 72) return `${Math.round(hours * 10) / 10} hours`;
-  const days = hours / 24;
-  return `${Math.round(days * 10) / 10} days`;
-}
 
 function formatCampaignDateRange(start: string | null, end: string | null): string {
   const s = start && dayjs(start).isValid() ? dayjs(start).format("MMM D, YYYY") : null;
@@ -102,16 +81,6 @@ function formatCampaignDateRange(start: string | null, end: string | null): stri
   if (e) return e;
   return "—";
 }
-
-const EMPTY_CHANNEL_SUMMARY: ChannelSummaryMetrics = {
-  totalLeads: 0,
-  qualified: 0,
-  qualifiedPct: 0,
-  dq: 0,
-  dqPct: 0,
-  registrations: 0,
-  avgMsToQualify: null,
-};
 
 interface CampaignAnalytics {
   metrics: {
@@ -151,46 +120,16 @@ interface CampaignAnalytics {
     }[];
   };
   alerts: { id: string; severity: string; is_resolved: boolean }[];
-  channelSummary?: {
-    email: ChannelSummaryMetrics;
-    telemarketing: ChannelSummaryMetrics;
-  };
-  compliance?: {
-    score: {
-      registeredTotal: number;
-      verifiedAmongRegistered: number;
-      percent: number | null;
-      summary: string;
-      band: "green" | "yellow" | "red" | "neutral";
-    };
-    consentTypes: {
-      landing_page: number;
-      tele_verbal: number;
-      missing: number;
-      disputed: number;
-    };
-    flaggedLeads: {
-      id: string;
-      fullName: string;
-      company_name: string | null;
-      channel: string | null;
-      created_at: string;
-      status: string;
-      daysSinceIngestion: number;
-    }[];
-  };
 }
 
 type LeadPanelFilters = {
-  leadTagging: string[];
   channels: string[];
+  /** Set from Overview funnel clicks (no filter UI). */
   statuses: string[];
-  repUserIds: string[];
   dateFrom: string | null;
   dateTo: string | null;
-  consentTypes: string[];
-  riskOnly: boolean;
-  consentStatuses: string[];
+  /** Lead ID, name, company, email, phone (server-side ilike). */
+  search: string;
 };
 
 interface LeadRow {
@@ -302,57 +241,18 @@ interface CampaignMetricsHistoryRow {
   created_at: string;
 }
 
-const STATUS_COLORS_PIE = [
-  "#1890ff", "#52c41a", "#faad14", "#ff4d4f",
-  "#722ed1", "#13c2c2", "#fa8c16", "#a0d911",
-];
-
-const CONSENT_COLORS: Record<string, string> = {
-  verified: "#52c41a",
-  missing: "#ff4d4f",
-  pending: "#faad14",
-  disputed: "#fa8c16",
-};
-
-const LEAD_STATUS_FILTER_OPTIONS = [
-  { value: "new", label: "New" },
-  { value: "qa_pending", label: "QA Pending" },
-  { value: "qualified", label: "Qualified" },
-  { value: "disqualified", label: "Disqualified" },
-  { value: "registered", label: "Registered" },
-  { value: "attended", label: "Attended" },
-  { value: "no_show", label: "No-Show" },
-];
-
 const CHANNEL_FILTER_OPTIONS = [
   { value: "email", label: "Email" },
   { value: "telemarketing", label: "Telemarketing" },
 ];
 
-const CONSENT_TYPE_FILTER_OPTIONS = [
-  { value: "landing_implicit", label: "Landing Page (implicit)" },
-  { value: "tele_verbal", label: "Telemarketing (verbal)" },
-  { value: "none", label: "None" },
-];
-
-const CONSENT_STATUS_FILTER_OPTIONS = [
-  { value: "verified", label: "Verified" },
-  { value: "pending", label: "Pending" },
-  { value: "missing", label: "Missing" },
-  { value: "disputed", label: "Disputed" },
-];
-
 function defaultLeadPanelFilters(): LeadPanelFilters {
   return {
-    leadTagging: [],
     channels: [],
     statuses: [],
-    repUserIds: [],
     dateFrom: null,
     dateTo: null,
-    consentTypes: [],
-    riskOnly: false,
-    consentStatuses: [],
+    search: "",
   };
 }
 
@@ -377,44 +277,6 @@ function sumStatusKeys(bd: Record<string, number>, keys: string[]): number {
 function pctFromPrev(curr: number, prev: number): number | null {
   if (prev <= 0) return null;
   return Math.round((curr / prev) * 1000) / 10;
-}
-
-function leadFullName(row: LeadRow): string {
-  const combined = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
-  return combined || row.name || "—";
-}
-
-function leadRepDisplay(row: LeadRow): string {
-  const ch = (row.channel ?? "email").toLowerCase();
-  if (ch !== "telemarketing") return "—";
-  return (
-    row.rep_id?.trim() ||
-    row.assigned_user?.agent_code?.trim() ||
-    row.assigned_user?.employee_id?.trim() ||
-    row.assigned_user?.full_name?.trim() ||
-    "—"
-  );
-}
-
-function riskFlagTooltip(flags: unknown): string {
-  if (!Array.isArray(flags) || flags.length === 0) return "";
-  return flags
-    .map((x) =>
-      typeof x === "object" && x !== null && "description" in x
-        ? String((x as { description: string }).description)
-        : JSON.stringify(x)
-    )
-    .join("\n");
-}
-
-function leadStatusTagColor(status: string): string {
-  const s = String(status ?? "").toLowerCase();
-  if (s === "qualified" || s === "registered" || s === "attended") return "success";
-  if (s === "disqualified") return "error";
-  if (s === "qa_pending") return "processing";
-  if (s === "new") return "default";
-  if (s === "no_show") return "volcano";
-  return "blue";
 }
 
 function renderDescriptionWithLinks(raw: string) {
@@ -533,20 +395,18 @@ export default function CampaignDashboard({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [metricsHistory, setMetricsHistory] = useState<CampaignMetricsHistoryRow[]>([]);
   const [auditLeadId, setAuditLeadId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("leads");
   const [trendRangeOverride, setTrendRangeOverride] = useState<{ from: string; to: string } | null>(
     null
   );
   const [trendGranularity, setTrendGranularity] = useState<"daily" | "weekly">("daily");
   const [leadPanelFilters, setLeadPanelFilters] = useState<LeadPanelFilters>(defaultLeadPanelFilters);
+  const [leadSearchDraft, setLeadSearchDraft] = useState("");
   const [leadsTotal, setLeadsTotal] = useState(0);
   const [leadPage, setLeadPage] = useState(1);
   const [leadPageSize, setLeadPageSize] = useState(25);
   const [leadSortField, setLeadSortField] = useState("created_at");
   const [leadSortOrder, setLeadSortOrder] = useState<"ascend" | "descend">("descend");
-  const [campaignReps, setCampaignReps] = useState<{ id: string; label: string; rep_id: string | null }[]>(
-    []
-  );
   const [selectedLeadKeys, setSelectedLeadKeys] = useState<Key[]>([]);
   const [allocationSaving, setAllocationSaving] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
@@ -563,17 +423,14 @@ export default function CampaignDashboard({
   useEffect(() => {
     if (!initialTab) return;
     const t = initialTab.toLowerCase();
-    if (t === "qa" && isClientViewer) return;
+    if ((t === "qa" || t === "alerts") && isClientViewer) return;
     const allowed = new Set([
       "overview",
       "description",
-      "channels",
       "leads",
       "files",
-      "compliance",
-      "alerts",
+      ...(isClientViewer ? [] : (["alerts", "qa"] as const)),
       "history",
-      "qa",
     ]);
     if (allowed.has(t)) setActiveTab(t);
   }, [initialTab, isClientViewer]);
@@ -670,13 +527,9 @@ export default function CampaignDashboard({
       const f = leadPanelFilters;
       if (f.statuses.length > 0) sp.set("status_in", f.statuses.join(","));
       if (f.channels.length > 0) sp.set("channel_in", f.channels.join(","));
-      if (f.leadTagging.length > 0) sp.set("lead_tagging_in", f.leadTagging.join(","));
-      if (f.repUserIds.length > 0) sp.set("rep_user_ids_in", f.repUserIds.join(","));
       if (f.dateFrom) sp.set("date_from", f.dateFrom);
       if (f.dateTo) sp.set("date_to", f.dateTo);
-      if (f.consentTypes.length > 0) sp.set("consent_type_in", f.consentTypes.join(","));
-      if (f.riskOnly) sp.set("risk_active", "1");
-      if (f.consentStatuses.length > 0) sp.set("consent_status_in", f.consentStatuses.join(","));
+      if (f.search) sp.set("q", f.search);
       if (initialDeliveryStatus === "delivered" || initialDeliveryStatus === "not_delivered") {
         sp.set("delivery_status", initialDeliveryStatus);
       }
@@ -700,16 +553,6 @@ export default function CampaignDashboard({
     leadPanelFilters,
   ]);
 
-  const fetchCampaignReps = useCallback(async () => {
-    try {
-      const res = await fetchWithAuthRetry(`/api/command/campaigns/${campaignId}/reps`);
-      const data = (await res.json()) as { reps?: { id: string; label: string; rep_id: string | null }[] };
-      setCampaignReps(data.reps ?? []);
-    } catch {
-      setCampaignReps([]);
-    }
-  }, [campaignId]);
-
   const exportLeadsCsv = useCallback(() => {
     const sp = new URLSearchParams();
     sp.set("campaign_id", campaignId);
@@ -719,13 +562,9 @@ export default function CampaignDashboard({
     const f = leadPanelFilters;
     if (f.statuses.length > 0) sp.set("status_in", f.statuses.join(","));
     if (f.channels.length > 0) sp.set("channel_in", f.channels.join(","));
-    if (f.leadTagging.length > 0) sp.set("lead_tagging_in", f.leadTagging.join(","));
-    if (f.repUserIds.length > 0) sp.set("rep_user_ids_in", f.repUserIds.join(","));
     if (f.dateFrom) sp.set("date_from", f.dateFrom);
     if (f.dateTo) sp.set("date_to", f.dateTo);
-    if (f.consentTypes.length > 0) sp.set("consent_type_in", f.consentTypes.join(","));
-    if (f.riskOnly) sp.set("risk_active", "1");
-    if (f.consentStatuses.length > 0) sp.set("consent_status_in", f.consentStatuses.join(","));
+    if (f.search) sp.set("q", f.search);
     if (initialDeliveryStatus === "delivered" || initialDeliveryStatus === "not_delivered") {
       sp.set("delivery_status", initialDeliveryStatus);
     }
@@ -762,11 +601,12 @@ export default function CampaignDashboard({
   }, [authReady, authVersion, activeTab, fetchLeads, fetchMetricsHistory]);
 
   useEffect(() => {
-    if (!authReady) return;
-    if (activeTab === "leads") {
-      void fetchCampaignReps();
-    }
-  }, [authReady, authVersion, activeTab, fetchCampaignReps]);
+    const handle = window.setTimeout(() => {
+      const next = leadSearchDraft.trim();
+      setLeadPanelFilters((p) => (p.search === next ? p : { ...p, search: next }));
+    }, 350);
+    return () => window.clearTimeout(handle);
+  }, [leadSearchDraft]);
 
   useEffect(() => {
     setLeadPage(1);
@@ -848,23 +688,17 @@ export default function CampaignDashboard({
       ? (metrics.channel_split as Record<string, number>)
       : {};
 
-  const openAlerts = analytics?.alerts.filter((a) => !a.is_resolved).length ?? 0;
-  const criticalAlerts = analytics?.alerts.filter(
-    (a) => !a.is_resolved && a.severity === "critical"
-  ).length ?? 0;
-
-  const statusData = Object.entries(analytics?.leads.statusBreakdown ?? {}).map(
-    ([name, value]) => ({ name, value })
-  );
+  const openAlerts = isClientViewer
+    ? 0
+    : (analytics?.alerts.filter((a) => !a.is_resolved).length ?? 0);
+  const criticalAlerts = isClientViewer
+    ? 0
+    : (analytics?.alerts.filter((a) => !a.is_resolved && a.severity === "critical").length ?? 0);
 
   const channelSource =
     Object.keys(channelSplitFromMetrics).length > 0
       ? channelSplitFromMetrics
       : (analytics?.leads.channelBreakdown ?? {});
-  const channelData = Object.entries(channelSource).map(([name, value]) => ({
-    name: name.charAt(0).toUpperCase() + name.slice(1).replace("_", " "),
-    value: Number(value) || 0,
-  }));
 
   const emailLeads = Number(
     (channelSource as Record<string, unknown>).email ??
@@ -891,84 +725,15 @@ export default function CampaignDashboard({
   /** Remaining lead quota vs delivered: total allocation − total leads in scope. */
   const deficitLeadsKpi = allocationNow - totalLeadsKpi;
 
-  const leadColumns: ColumnsType<LeadRow> = (() => {
-    const misColumns = getLeadTableColumns({
+  const leadColumns: ColumnsType<LeadRow> = applyLeadTableHeaderCells(
+    getLeadTableColumns({
       showActions: false,
       showDeliveryStatus: false,
+      showQaStatus: false,
+      showLhoFile: true,
       pagination: { current: leadPage, pageSize: leadPageSize },
-    }) as unknown as ColumnsType<LeadRow>;
-    return [
-      ...misColumns,
-      {
-        title: <span style={{ whiteSpace: "nowrap" }}>Consent Status</span>,
-        dataIndex: "consent_status",
-        key: "consent_status",
-        width: 150,
-        sorter: true,
-        sortOrder: leadSortField === "consent_status" ? leadSortOrder : null,
-        render: (cs: string | null) => {
-          const key = (cs ?? "pending").toLowerCase();
-          return (
-            <Tag
-              style={
-                key === "verified"
-                  ? { background: CONSENT_COLORS.verified, color: "#fff", borderColor: CONSENT_COLORS.verified }
-                  : key === "missing"
-                  ? { background: CONSENT_COLORS.missing, color: "#fff", borderColor: CONSENT_COLORS.missing }
-                  : key === "disputed"
-                  ? { background: CONSENT_COLORS.disputed, color: "#fff", borderColor: CONSENT_COLORS.disputed }
-                  : { background: CONSENT_COLORS.pending, color: "#262626", borderColor: CONSENT_COLORS.pending }
-              }
-            >
-              {key}
-            </Tag>
-          );
-        },
-      },
-      {
-        title: "Rep ID",
-        key: "assigned_agent_id",
-        width: 110,
-        sorter: true,
-        sortOrder: leadSortField === "assigned_agent_id" ? leadSortOrder : null,
-        render: (_, row) => <span style={{ fontSize: 12 }}>{leadRepDisplay(row)}</span>,
-      },
-      {
-        title: "Last Action",
-        dataIndex: "last_action",
-        key: "last_action",
-        width: 160,
-        ellipsis: true,
-        render: (v: string | null) => v ?? "—",
-      },
-      {
-        title: "Last Action Date",
-        dataIndex: "last_action_at",
-        key: "last_action_at",
-        width: 160,
-        render: (v: string | null) => (v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"),
-      },
-      {
-        title: "Risk",
-        key: "risk",
-        width: 56,
-        align: "center",
-        render: (_, row) => {
-          const flags = (row.risk_flags as unknown[]) ?? [];
-          const has = Array.isArray(flags) && flags.length > 0;
-          const tip = riskFlagTooltip(row.risk_flags);
-          if (!has) {
-            return <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />;
-          }
-          return (
-            <Tooltip title={tip || "Active risk flags"}>
-              <FlagOutlined style={{ color: "#ff4d4f", fontSize: 16 }} />
-            </Tooltip>
-          );
-        },
-      },
-    ];
-  })();
+    }) as unknown as ColumnsType<LeadRow>
+  );
 
   const historyColumns: ColumnsType<CampaignMetricsHistoryRow> = [
     {
@@ -1082,114 +847,6 @@ export default function CampaignDashboard({
         ),
     },
   ];
-
-  type ComplianceFlaggedRow = {
-    id: string;
-    fullName: string;
-    company_name: string | null;
-    channel: string | null;
-    created_at: string;
-    status: string;
-    daysSinceIngestion: number;
-  };
-
-  const complianceFlaggedColumns: ColumnsType<ComplianceFlaggedRow> = [
-    {
-      title: "Name",
-      dataIndex: "fullName",
-      key: "fullName",
-      width: 160,
-      ellipsis: true,
-    },
-    {
-      title: "Company",
-      dataIndex: "company_name",
-      key: "company_name",
-      width: 160,
-      ellipsis: true,
-      render: (v: string | null) => v ?? "—",
-    },
-    {
-      title: "Channel",
-      dataIndex: "channel",
-      key: "channel",
-      width: 100,
-      render: (ch: string | null) => {
-        const c = (ch ?? "email").toLowerCase();
-        const isTele = c === "telemarketing" || c === "tele";
-        return <Tag color={isTele ? "purple" : "blue"}>{isTele ? "Tele" : "Email"}</Tag>;
-      },
-    },
-    {
-      title: "Ingestion date",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 120,
-      render: (v: string) => dayjs(v).format("YYYY-MM-DD"),
-    },
-    {
-      title: "Current status",
-      dataIndex: "status",
-      key: "status",
-      width: 120,
-      render: (s: string) => <Tag>{String(s ?? "").replace(/_/g, " ")}</Tag>,
-    },
-    {
-      title: "Days since ingestion",
-      dataIndex: "daysSinceIngestion",
-      key: "daysSinceIngestion",
-      width: 140,
-      align: "right",
-    },
-  ];
-
-  const comp = analytics?.compliance;
-  const compScore = comp?.score;
-  const compTypes = comp?.consentTypes;
-  const compliancePieChartData = compTypes
-    ? [
-        {
-          name: "Landing page",
-          value: compTypes.landing_page,
-          fill: "#1890ff",
-          hint: "Digital/written consent with IP address and timestamp captured.",
-        },
-        {
-          name: "Telemarketing (verbal)",
-          value: compTypes.tele_verbal,
-          fill: "#722ed1",
-          hint: "Verbal consent with call recording reference stored.",
-        },
-        {
-          name: "Missing",
-          value: compTypes.missing,
-          fill: "#ff4d4f",
-          hint: "No consent record, incomplete capture, or incomplete landing/tele evidence.",
-        },
-        {
-          name: "Disputed",
-          value: compTypes.disputed,
-          fill: "#fa8c16",
-          hint: "Consent has been challenged (lead consent status Disputed).",
-        },
-      ]
-    : [];
-
-  const complianceStackTotal =
-    (compTypes?.landing_page ?? 0) +
-    (compTypes?.tele_verbal ?? 0) +
-    (compTypes?.missing ?? 0) +
-    (compTypes?.disputed ?? 0);
-
-  const scoreCardPalette: Record<
-    NonNullable<CampaignAnalytics["compliance"]>["score"]["band"],
-    { border: string; bg: string; accent: string }
-  > = {
-    green: { border: "#b7eb8f", bg: "#f6ffed", accent: "#52c41a" },
-    yellow: { border: "#ffe58f", bg: "#fffbe6", accent: "#faad14" },
-    red: { border: "#ffccc7", bg: "#fff2f0", accent: "#ff4d4f" },
-    neutral: { border: "#d9d9d9", bg: "#fafafa", accent: "#8c8c8c" },
-  };
 
   const maxFunnelCount = Math.max(1, funnelStages[0]?.count ?? 1);
   const chTotalOverview = emailLeads + teleLeads;
@@ -1517,173 +1174,6 @@ export default function CampaignDashboard({
       ),
     },
     {
-      key: "channels",
-      label: (
-        <span>
-          <AppstoreOutlined /> Channels
-        </span>
-      ),
-      children: (
-        <>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={12}>
-              <Card
-                title="Email"
-                extra={<MailOutlined style={{ color: "#1890ff" }} />}
-                size="small"
-                bordered
-                style={{ borderRadius: 10 }}
-              >
-                {(() => {
-                  const s = analytics?.channelSummary?.email ?? EMPTY_CHANNEL_SUMMARY;
-                  return (
-                    <Space direction="vertical" size={10} style={{ width: "100%" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Total leads</Text>
-                        <Text strong>{s.totalLeads}</Text>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Qualified</Text>
-                        <Text strong>
-                          {s.qualified}{" "}
-                          <Text type="secondary" style={{ fontWeight: 400 }}>
-                            ({s.qualifiedPct}%)
-                          </Text>
-                        </Text>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Disqualified</Text>
-                        <Text strong>
-                          {s.dq}{" "}
-                          <Text type="secondary" style={{ fontWeight: 400 }}>
-                            ({s.dqPct}%)
-                          </Text>
-                        </Text>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Registrations</Text>
-                        <Text strong>{s.registrations}</Text>
-                      </div>
-                      <Divider style={{ margin: "4px 0" }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Avg. time to qualification</Text>
-                        <Text strong>{formatAvgIngestToQualify(s.avgMsToQualify)}</Text>
-                      </div>
-                    </Space>
-                  );
-                })()}
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card
-                title="Telemarketing"
-                extra={<PhoneOutlined style={{ color: "#52c41a" }} />}
-                size="small"
-                bordered
-                style={{ borderRadius: 10 }}
-              >
-                {(() => {
-                  const s = analytics?.channelSummary?.telemarketing ?? EMPTY_CHANNEL_SUMMARY;
-                  return (
-                    <Space direction="vertical" size={10} style={{ width: "100%" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Total leads</Text>
-                        <Text strong>{s.totalLeads}</Text>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Qualified</Text>
-                        <Text strong>
-                          {s.qualified}{" "}
-                          <Text type="secondary" style={{ fontWeight: 400 }}>
-                            ({s.qualifiedPct}%)
-                          </Text>
-                        </Text>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Disqualified</Text>
-                        <Text strong>
-                          {s.dq}{" "}
-                          <Text type="secondary" style={{ fontWeight: 400 }}>
-                            ({s.dqPct}%)
-                          </Text>
-                        </Text>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Registrations</Text>
-                        <Text strong>{s.registrations}</Text>
-                      </div>
-                      <Divider style={{ margin: "4px 0" }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                        <Text type="secondary">Avg. time to qualification</Text>
-                        <Text strong>{formatAvgIngestToQualify(s.avgMsToQualify)}</Text>
-                      </div>
-                    </Space>
-                  );
-                })()}
-              </Card>
-            </Col>
-          </Row>
-          <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 16 }}>
-            Average time to qualification is from lead ingestion to the first &quot;qualified&quot;
-            status in history; leads without that event are excluded from the average.
-          </Text>
-          <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <Card title="Lead Status Breakdown" size="small" bordered style={{ borderRadius: 10 }}>
-                {statusData.length === 0 ? (
-                  <div style={{ padding: 32, textAlign: "center" }}>
-                    <Text type="secondary">No status data available</Text>
-                  </div>
-                ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {statusData.map((_, i) => (
-                      <Cell key={i} fill={STATUS_COLORS_PIE[i % STATUS_COLORS_PIE.length]} />
-                    ))}
-                  </Pie>
-                  <RTooltip />
-                  <Legend />
-                </PieChart>
-                </ResponsiveContainer>
-                )}
-            </Card>
-          </Col>
-          <Col xs={24} md={12}>
-            <Card title="Channel Split" size="small" bordered style={{ borderRadius: 10 }}>
-              {channelData.length === 0 ? (
-                <div style={{ padding: 32, textAlign: "center" }}>
-                  <Text type="secondary">No channel data available</Text>
-                </div>
-              ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={channelData} margin={{ left: -15 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="name" stroke="#8c8c8c" fontSize={12} />
-                  <YAxis stroke="#8c8c8c" fontSize={12} />
-                  <RTooltip />
-                  <Bar dataKey="value" fill="#1890ff" radius={[6, 6, 0, 0]} name="Leads" />
-                </BarChart>
-              </ResponsiveContainer>
-              )}
-            </Card>
-          </Col>
-        </Row>
-        </>
-      ),
-    },
-    {
       key: "leads",
       label: (
         <span>
@@ -1692,24 +1182,31 @@ export default function CampaignDashboard({
       ),
       children: (
         <div>
-          <Card size="small" title="Filters" style={{ marginBottom: 16, borderRadius: 10 }}>
-            <Row gutter={[12, 12]}>
-              <Col xs={24} sm={12} lg={6}>
+          <Card
+            size="small"
+            title="Filters"
+            style={{ marginBottom: 16, borderRadius: 10 }}
+            styles={{ body: { padding: "12px 16px" } }}
+          >
+            <div className="lead-panel-filters-row">
+              <div className="lead-panel-filters-row__field lead-panel-filters-row__search">
                 <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
-                  Type (tagging)
+                  Search
                 </Text>
-                <Select
-                  mode="multiple"
+                <Input
                   allowClear
-                  placeholder="All"
-                  style={{ width: "100%" }}
-                  options={LEAD_TAGGING_OPTIONS}
-                  value={leadPanelFilters.leadTagging}
-                  onChange={(v) => setLeadPanelFilters((p) => ({ ...p, leadTagging: v }))}
-                  maxTagCount="responsive"
+                  placeholder="Lead ID, name, company, email, phone"
+                  prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                  value={leadSearchDraft}
+                  onChange={(e) => setLeadSearchDraft(e.target.value)}
+                  onPressEnter={() => {
+                    const next = leadSearchDraft.trim();
+                    setLeadPanelFilters((p) => ({ ...p, search: next }));
+                    setLeadPage(1);
+                  }}
                 />
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
+              </div>
+              <div className="lead-panel-filters-row__field lead-panel-filters-row__channel">
                 <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
                   Channel
                 </Text>
@@ -1723,40 +1220,8 @@ export default function CampaignDashboard({
                   onChange={(v) => setLeadPanelFilters((p) => ({ ...p, channels: v }))}
                   maxTagCount="responsive"
                 />
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
-                  Lead status
-                </Text>
-                <Select
-                  mode="multiple"
-                  allowClear
-                  placeholder="All"
-                  style={{ width: "100%" }}
-                  options={LEAD_STATUS_FILTER_OPTIONS}
-                  value={leadPanelFilters.statuses}
-                  onChange={(v) => setLeadPanelFilters((p) => ({ ...p, statuses: v }))}
-                  maxTagCount="responsive"
-                />
-              </Col>
-              <Col xs={24} sm={12} lg={6}>
-                <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
-                  Rep
-                </Text>
-                <Select
-                  mode="multiple"
-                  allowClear
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder="All reps"
-                  style={{ width: "100%" }}
-                  options={campaignReps.map((r) => ({ value: r.id, label: r.label }))}
-                  value={leadPanelFilters.repUserIds}
-                  onChange={(v) => setLeadPanelFilters((p) => ({ ...p, repUserIds: v }))}
-                  maxTagCount="responsive"
-                />
-              </Col>
-              <Col xs={24} sm={12} lg={8}>
+              </div>
+              <div className="lead-panel-filters-row__field lead-panel-filters-row__date">
                 <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
                   Ingestion date
                 </Text>
@@ -1779,58 +1244,21 @@ export default function CampaignDashboard({
                     }
                   }}
                 />
-              </Col>
-              <Col xs={24} sm={12} lg={8}>
-                <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
-                  Consent type
-                </Text>
-                <Select
-                  mode="multiple"
-                  allowClear
-                  placeholder="All"
-                  style={{ width: "100%" }}
-                  options={CONSENT_TYPE_FILTER_OPTIONS}
-                  value={leadPanelFilters.consentTypes}
-                  onChange={(v) => setLeadPanelFilters((p) => ({ ...p, consentTypes: v }))}
-                  maxTagCount="responsive"
-                />
-              </Col>
-              <Col xs={24} sm={12} lg={8}>
-                <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
-                  Consent status
-                </Text>
-                <Select
-                  mode="multiple"
-                  allowClear
-                  placeholder="All"
-                  style={{ width: "100%" }}
-                  options={CONSENT_STATUS_FILTER_OPTIONS}
-                  value={leadPanelFilters.consentStatuses}
-                  onChange={(v) => setLeadPanelFilters((p) => ({ ...p, consentStatuses: v }))}
-                  maxTagCount="responsive"
-                />
-              </Col>
-              <Col xs={24} sm={12} lg={8}>
-                <Text type="secondary" style={{ display: "block", marginBottom: 4, fontSize: 12 }}>
-                  Risk flags
-                </Text>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 32 }}>
-                  <Switch
-                    checked={leadPanelFilters.riskOnly}
-                    onChange={(v) => setLeadPanelFilters((p) => ({ ...p, riskOnly: v }))}
-                  />
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Only leads with active risk
-                  </Text>
-                </div>
-              </Col>
-              <Col xs={24} style={{ display: "flex", alignItems: "flex-end", gap: 8, flexWrap: "wrap" }}>
-                <Button onClick={() => setLeadPanelFilters(defaultLeadPanelFilters())}>Clear filters</Button>
+              </div>
+              <div className="lead-panel-filters-row__actions">
+                <Button
+                  onClick={() => {
+                    setLeadSearchDraft("");
+                    setLeadPanelFilters(defaultLeadPanelFilters());
+                  }}
+                >
+                  Clear filters
+                </Button>
                 <Button icon={<DownloadOutlined />} onClick={() => exportLeadsCsv()}>
                   Export CSV
                 </Button>
-              </Col>
-            </Row>
+              </div>
+            </div>
           </Card>
 
           {canBulkSelect && selectedLeadKeys.length > 0 && (
@@ -1846,15 +1274,12 @@ export default function CampaignDashboard({
           <div style={{ marginBottom: 10 }}>
             <Text type="secondary" style={{ fontSize: 13 }}>
               {leadsTotal} lead{leadsTotal !== 1 ? "s" : ""} match filters
-              {leadPanelFilters.statuses.length > 0 && (
-                <Tag color="processing" style={{ marginLeft: 8 }}>
-                  Status filter active
-                </Tag>
-              )}
             </Text>
           </div>
 
           <Table<LeadRow>
+            className="table-single-line"
+            tableLayout="fixed"
             rowSelection={
               canBulkSelect
                 ? {
@@ -1925,250 +1350,31 @@ export default function CampaignDashboard({
         </Card>
       ),
     },
-    {
-      key: "compliance",
-      label: (
-        <span>
-          <SafetyOutlined /> Compliance
-        </span>
-      ),
-      children: (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <Card
-            size="small"
-            bordered
-            style={{
-              borderRadius: 12,
-              borderWidth: 2,
-              borderColor: scoreCardPalette[compScore?.band ?? "neutral"].border,
-              background: scoreCardPalette[compScore?.band ?? "neutral"].bg,
-            }}
-            title={
-              <Space>
-                <SafetyOutlined style={{ color: scoreCardPalette[compScore?.band ?? "neutral"].accent }} />
-                <span style={{ fontWeight: 700 }}>Compliance score</span>
-              </Space>
-            }
-          >
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
-              <div
-                style={{
-                  minWidth: 120,
-                  textAlign: "center",
-                  padding: "8px 16px",
-                }}
-              >
-                {compScore?.percent != null ? (
-                  <Title
-                    level={2}
+    ...(!isClientViewer
+      ? [
+          {
+            key: "alerts",
+            label: (
+              <span>
+                <AlertOutlined />
+                {" "}Alerts
+                {openAlerts > 0 && (
+                  <Badge
+                    count={openAlerts}
                     style={{
-                      margin: 0,
-                      color: scoreCardPalette[compScore.band].accent,
-                      fontSize: 42,
-                      lineHeight: 1.1,
+                      marginLeft: 8,
+                      backgroundColor: criticalAlerts > 0 ? "#ff4d4f" : "#faad14",
                     }}
-                  >
-                    {compScore.percent}%
-                  </Title>
-                ) : (
-                  <Title level={4} type="secondary" style={{ margin: 0 }}>
-                    N/A
-                  </Title>
+                  />
                 )}
-                <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 4 }}>
-                  Verified consent ÷ registered leads
-                </Text>
-              </div>
-              <div style={{ flex: 1, minWidth: 260 }}>
-                <Paragraph style={{ marginBottom: 0, fontSize: 15, lineHeight: 1.6 }}>
-                  {compScore?.summary ?? "Loading compliance metrics…"}
-                </Paragraph>
-                <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 8 }}>
-                  Green: all registered leads verified · Yellow: 95–99% · Red: below 95%
-                </Text>
-              </div>
-            </div>
-          </Card>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={14}>
-              <Card title="Consent evidence (all leads)" size="small" bordered style={{ borderRadius: 10 }}>
-                {complianceStackTotal > 0 ? (
-                  <>
-                    <ResponsiveContainer width="100%" height={280}>
-                      <PieChart>
-                        <Pie
-                          data={compliancePieChartData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={56}
-                          outerRadius={100}
-                          paddingAngle={2}
-                          dataKey="value"
-                          nameKey="name"
-                          labelLine={false}
-                          label={({ name, percent, value }) => {
-                            const p = Number(percent ?? 0);
-                            const v = Number(value ?? 0);
-                            if (v <= 0 || p < 0.01) return "";
-                            return `${name} ${(p * 100).toFixed(0)}%`;
-                          }}
-                        >
-                          {compliancePieChartData.map((entry, i) => (
-                            <Cell key={i} fill={entry.fill} />
-                          ))}
-                        </Pie>
-                        <RTooltip
-                          content={({ payload }) => {
-                            if (!payload?.length) return null;
-                            const p = payload[0].payload as { name?: string; value?: number; hint?: string };
-                            return (
-                              <div
-                                style={{
-                                  background: "#fff",
-                                  border: "1px solid #f0f0f0",
-                                  borderRadius: 8,
-                                  padding: "8px 12px",
-                                  maxWidth: 280,
-                                  fontSize: 12,
-                                  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                                }}
-                              >
-                                <div style={{ fontWeight: 600 }}>{p.name}</div>
-                                <div>{p.value ?? 0} leads</div>
-                                {p.hint ? (
-                                  <div style={{ marginTop: 6, color: "#8c8c8c" }}>{p.hint}</div>
-                                ) : null}
-                              </div>
-                            );
-                          }}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 8 }}>
-                      Landing page: IP + timestamp (user agent when available in your capture flow).
-                      Telemarketing: verbal method with recording URL. Missing: no usable consent record.
-                    </Text>
-                  </>
-                ) : (
-                  <div style={{ padding: 48, textAlign: "center" }}>
-                    <Text type="secondary">No leads in this campaign yet.</Text>
-                  </div>
-                )}
-              </Card>
-            </Col>
-            <Col xs={24} lg={10}>
-              <Card title="Segmented view" size="small" bordered style={{ borderRadius: 10 }}>
-                {complianceStackTotal > 0 ? (
-                  <ResponsiveContainer width="100%" height={72}>
-                    <BarChart
-                      layout="vertical"
-                      data={[
-                        {
-                          id: "all",
-                          landing_page: compTypes?.landing_page ?? 0,
-                          tele_verbal: compTypes?.tele_verbal ?? 0,
-                          missing: compTypes?.missing ?? 0,
-                          disputed: compTypes?.disputed ?? 0,
-                        },
-                      ]}
-                      margin={{ top: 8, right: 16, left: 16, bottom: 8 }}
-                    >
-                      <XAxis type="number" domain={[0, complianceStackTotal]} hide />
-                      <YAxis type="category" dataKey="id" hide />
-                      <RTooltip />
-                      <Bar dataKey="landing_page" stackId="c" fill="#1890ff" name="Landing page" />
-                      <Bar dataKey="tele_verbal" stackId="c" fill="#722ed1" name="Tele (verbal)" />
-                      <Bar dataKey="missing" stackId="c" fill="#ff4d4f" name="Missing" />
-                      <Bar dataKey="disputed" stackId="c" fill="#fa8c16" name="Disputed" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : null}
-                <div style={{ marginTop: complianceStackTotal > 0 ? 16 : 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[
-                    { label: "Landing page", c: "#1890ff", n: compTypes?.landing_page ?? 0 },
-                    { label: "Telemarketing (verbal)", c: "#722ed1", n: compTypes?.tele_verbal ?? 0 },
-                    { label: "Missing", c: "#ff4d4f", n: compTypes?.missing ?? 0 },
-                    { label: "Disputed", c: "#fa8c16", n: compTypes?.disputed ?? 0 },
-                  ].map((row) => (
-                    <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Space size={8}>
-                        <span
-                          style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: 2,
-                            background: row.c,
-                            display: "inline-block",
-                          }}
-                        />
-                        <Text style={{ fontSize: 13 }}>{row.label}</Text>
-                      </Space>
-                      <Text strong>{row.n}</Text>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </Col>
-          </Row>
-
-          <Card
-            title="Leads without compliant consent (Missing or Disputed)"
-            size="small"
-            bordered
-            style={{ borderRadius: 10 }}
-          >
-            <Table<ComplianceFlaggedRow>
-              rowKey="id"
-              columns={complianceFlaggedColumns}
-              dataSource={comp?.flaggedLeads ?? []}
-              size="small"
-              pagination={{ pageSize: 10, showTotal: (t) => `${t} lead${t !== 1 ? "s" : ""}` }}
-              locale={{
-                emptyText: (
-                  <div style={{ padding: "24px 16px", textAlign: "center" }}>
-                    <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 28, marginBottom: 8 }} />
-                    <div>
-                      <Text strong>No issues found</Text>
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 13, display: "block", marginTop: 4 }}>
-                      No leads with Missing or Disputed consent status.
-                    </Text>
-                  </div>
-                ),
-              }}
-              onRow={(row) => ({
-                onClick: (e) => {
-                  const t = e.target as HTMLElement;
-                  if (t.closest?.("button, a, .ant-checkbox-wrapper")) return;
-                  setAuditLeadId(row.id);
-                },
-                style: { cursor: "pointer" },
-              })}
-            />
-          </Card>
-        </div>
-      ),
-    },
-    {
-      key: "alerts",
-      label: (
-        <span>
-          <AlertOutlined />
-          {" "}Alerts
-          {openAlerts > 0 && (
-            <Badge
-              count={openAlerts}
-              style={{ marginLeft: 8, backgroundColor: criticalAlerts > 0 ? "#ff4d4f" : "#faad14" }}
-            />
-          )}
-        </span>
-      ),
-      children: (
-        <AlertsPanel campaignId={campaignId} onOpenLeadAudit={(id) => setAuditLeadId(id)} />
-      ),
-    },
+              </span>
+            ),
+            children: (
+              <AlertsPanel campaignId={campaignId} onOpenLeadAudit={(id) => setAuditLeadId(id)} />
+            ),
+          },
+        ]
+      : []),
     {
       key: "history",
       label: (
@@ -2208,6 +1414,20 @@ export default function CampaignDashboard({
         ]
       : []),
   ];
+
+  const TAB_DISPLAY_ORDER = [
+    "leads",
+    "overview",
+    "description",
+    "files",
+    "alerts",
+    "history",
+    "qa",
+  ] as const;
+
+  const orderedTabItems = TAB_DISPLAY_ORDER.map((key) =>
+    tabItems.find((item) => item.key === key)
+  ).filter((item): item is (typeof tabItems)[number] => item != null);
 
   const kpiCardStyle: CSSProperties = {
     flex: "1 1 160px",
@@ -2415,7 +1635,7 @@ export default function CampaignDashboard({
           </div>
 
           <Space>
-            {criticalAlerts > 0 && (
+            {!isClientViewer && criticalAlerts > 0 && (
               <Tag color="red" icon={<AlertOutlined />}>
                 {criticalAlerts} CRITICAL
               </Tag>
@@ -2443,59 +1663,61 @@ export default function CampaignDashboard({
             <ChannelSplitMiniBar email={emailLeads} tele={teleLeads} />
           </Card>
 
-          <Card
-            size="small"
-            bordered
-            hoverable
-            role="button"
-            tabIndex={0}
-            onClick={() => setActiveTab("alerts")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setActiveTab("alerts");
-              }
-            }}
-            styles={{ body: { padding: "14px 16px" } }}
-            style={{
-              ...kpiCardStyle,
-              cursor: "pointer",
-              borderColor: openAlerts > 0 ? "#ffccc7" : undefined,
-            }}
-          >
-            <div
+          {!isClientViewer && (
+            <Card
+              size="small"
+              bordered
+              hoverable
+              role="button"
+              tabIndex={0}
+              onClick={() => setActiveTab("alerts")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setActiveTab("alerts");
+                }
+              }}
+              styles={{ body: { padding: "14px 16px" } }}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 6,
+                ...kpiCardStyle,
+                cursor: "pointer",
+                borderColor: openAlerts > 0 ? "#ffccc7" : undefined,
               }}
             >
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Alerts
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 6,
+                }}
+              >
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Alerts
+                </Text>
+                {openAlerts > 0 && (
+                  <Badge count={openAlerts} style={{ backgroundColor: "#ff4d4f" }} />
+                )}
+              </div>
+              <div
+                style={{
+                  fontSize: 28,
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  color: openAlerts > 0 ? "#cf1322" : "#262626",
+                }}
+              >
+                {openAlerts}
+              </div>
+              <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
+                {criticalAlerts > 0
+                  ? `${criticalAlerts} critical`
+                  : openAlerts === 0
+                    ? "No open alerts"
+                    : "Tap to review"}
               </Text>
-              {openAlerts > 0 && (
-                <Badge count={openAlerts} style={{ backgroundColor: "#ff4d4f" }} />
-              )}
-            </div>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                lineHeight: 1.2,
-                color: openAlerts > 0 ? "#cf1322" : "#262626",
-              }}
-            >
-              {openAlerts}
-            </div>
-            <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-              {criticalAlerts > 0
-                ? `${criticalAlerts} critical`
-                : openAlerts === 0
-                  ? "No open alerts"
-                  : "Tap to review"}
-            </Text>
-          </Card>
+            </Card>
+          )}
 
           <Card size="small" bordered styles={{ body: { padding: "14px 16px" } }} style={kpiCardStyle}>
             <div
@@ -2609,7 +1831,7 @@ export default function CampaignDashboard({
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
-          items={tabItems}
+          items={orderedTabItems}
           size="small"
           type="card"
         />

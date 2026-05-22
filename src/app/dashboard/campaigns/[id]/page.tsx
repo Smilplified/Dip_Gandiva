@@ -62,7 +62,7 @@ export default function CampaignDetailPage() {
   const campaignId = params.id as string;
   const shouldEditOnMount = searchParams.get("edit") === "true";
 
-  const [editDrawer, setEditDrawer] = useState(shouldEditOnMount);
+  const [editDrawer, setEditDrawer] = useState(false);
   const [campaignBasic, setCampaignBasic] = useState<CampaignBasic | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const metrics = campaignBasic
@@ -88,8 +88,16 @@ export default function CampaignDetailPage() {
   const canEdit =
     hasRole("internal_operator") ||
     hasRole("internal_admin") ||
-    hasRole("admin") ||
-    hasRole("client_viewer");
+    hasRole("admin");
+
+  useEffect(() => {
+    if (authReady && canEdit && shouldEditOnMount) {
+      setEditDrawer(true);
+    }
+    if (authReady && !canEdit) {
+      setEditDrawer(false);
+    }
+  }, [authReady, canEdit, shouldEditOnMount]);
 
   useEffect(() => {
     if (!editDrawer || !authReady) return;

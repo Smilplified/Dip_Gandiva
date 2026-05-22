@@ -1,9 +1,11 @@
 "use client";
 
 import React from "react";
+import type { HTMLAttributes } from "react";
 import { Table, Tag, Button, message, Select } from "antd";
 import type { TableProps } from "antd";
-import { EditOutlined, CopyOutlined } from "@ant-design/icons";
+import type { ColumnsType, ColumnType } from "antd/es/table";
+import { EditOutlined, CopyOutlined, DownloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Lead } from "@/types/lead.types";
 import { tableSerialNumber } from "@/lib/table-pagination";
@@ -21,17 +23,154 @@ type ColumnConfig = {
   showActions?: boolean;
   onEdit?: (lead: Lead) => void;
   showDeliveryStatus?: boolean;
+  /** When false, shows Appointment (timestamptz) instead of QA Status. */
+  showQaStatus?: boolean;
+  /** Download LHO file column (beside Appointment); uses command LHO API. */
+  showLhoFile?: boolean;
+  /** API prefix for LHO list, e.g. `/api/command/leads`. */
+  lhoApiPrefix?: string;
   onMarkDelivered?: (lead: Lead) => void;
   markingDeliveredLeadId?: string | null;
   /** Pass when the table uses pagination so Sr. No. continues across pages. */
   pagination?: { current: number; pageSize: number };
 };
 
+function formatLeadAppointment(value: string | null | undefined): string {
+  if (!value?.trim()) return "—";
+  const d = dayjs(value);
+  if (!d.isValid()) return "—";
+  return d.format("MMM D, YYYY, h:mm A");
+}
+
+function leadDisplayNameForFile(lead: Lead): string {
+  const full = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim();
+  if (full) return full;
+  const name = lead.name?.trim();
+  if (name) return name;
+  const company = lead.company_name?.trim();
+  if (company) return company;
+  return lead.lead_id?.trim() || lead.id;
+}
+
+function sanitizeDownloadFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._\-\s]/g, "_").replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+function fileExtensionFromStorageName(storageName: string): string {
+  const base = storageName.includes("/") ? storageName.split("/").pop()! : storageName;
+  const stripped = base.replace(/^[0-9a-f-]{36}_/i, "");
+  const dot = stripped.lastIndexOf(".");
+  return dot >= 0 ? stripped.slice(dot) : "";
+}
+
+async function downloadLeadLhoFile(
+  lead: Lead,
+  apiPrefix: string
+): Promise<void> {
+  const hide = message.loading("Preparing download…", 0);
+  try {
+    const res = await fetch(`${apiPrefix}/${lead.id}/lho`);
+    const json = (await res.json()) as {
+      error?: string;
+      files?: { name: string; url: string | null }[];
+    };
+    if (!res.ok) {
+      message.error(json.error ?? "Failed to load LHO file");
+      return;
+    }
+    const file = json.files?.find((f) => f.url);
+    if (!file?.url) {
+      message.warning("No LHO file uploaded for this lead");
+      return;
+    }
+    const blobRes = await fetch(file.url);
+    if (!blobRes.ok) {
+      message.error("Failed to download LHO file");
+      return;
+    }
+    const blob = await blobRes.blob();
+    const ext = fileExtensionFromStorageName(file.name);
+    const base = sanitizeDownloadFileName(leadDisplayNameForFile(lead)) || "lead";
+    const filename = ext ? `${base}${ext}` : base;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    message.error("Failed to download LHO file");
+  } finally {
+    hide();
+  }
+}
+
+function LeadLhoDownloadButton({
+  lead,
+  apiPrefix,
+}: {
+  lead: Lead;
+  apiPrefix: string;
+}) {
+  const [loading, setLoading] = React.useState(false);
+  return (
+    <Button
+      type="text"
+      size="small"
+      icon={<DownloadOutlined />}
+      loading={loading}
+      title="Download LHO file"
+      aria-label="Download LHO file"
+      onClick={async () => {
+        setLoading(true);
+        try {
+          await downloadLeadLhoFile(lead, apiPrefix);
+        } finally {
+          setLoading(false);
+        }
+      }}
+    />
+  );
+}
+
+/** Keeps column titles on one line (use with `table-single-line` on Table). */
+export function applyLeadTableHeaderCells<T extends object>(columns: ColumnsType<T>): ColumnsType<T> {
+  return columns.map((col) => {
+    if (!col || typeof col !== "object") return col;
+    const typed = col as ColumnType<T>;
+    const width = typeof typed.width === "number" ? typed.width : undefined;
+    const prevOnHeaderCell = typed.onHeaderCell;
+    return {
+      ...typed,
+      onHeaderCell: (...args: Parameters<NonNullable<ColumnType<T>["onHeaderCell"]>>) => {
+        const prev =
+          typeof prevOnHeaderCell === "function"
+            ? (prevOnHeaderCell(...args) as HTMLAttributes<HTMLTableCellElement>)
+            : {};
+        return {
+          ...prev,
+          style: {
+            whiteSpace: "nowrap",
+            ...(width != null ? { minWidth: width } : {}),
+            ...prev.style,
+          },
+        };
+      },
+    };
+  });
+}
+
 export function getLeadTableColumns(config: ColumnConfig = {}) {
   const {
     showActions = true,
     onEdit,
     showDeliveryStatus = false,
+    showQaStatus = true,
+    showLhoFile = false,
+    lhoApiPrefix = "/api/command/leads",
     onMarkDelivered,
     markingDeliveredLeadId,
     pagination,
@@ -212,63 +351,98 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
           } as NonNullable<TableProps<Lead>["columns"]>[number],
         ]
       : []),
-    {
-      title: "QA Status",
-      dataIndex: "qa_status",
-      key: "qa_status",
-      width: 110,
-      fixed: "right" as const,
-      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
-        <div style={{ padding: 8 }}>
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="Filter QA status"
-            style={{ width: 180, marginBottom: 8, display: "block" }}
-            value={(selectedKeys as string[]) ?? []}
-            options={[
-              { value: "qualified", label: "Qualified" },
-              { value: "disqualified", label: "Disqualified" },
-              { value: "rectified", label: "Rectified" },
-            ]}
-            onChange={(values) => {
-              if (values && values.length > 0) {
-                setSelectedKeys(values);
-              } else {
-                setSelectedKeys([]);
-              }
-              confirm({ closeDropdown: false });
-            }}
-          />
-          {clearFilters && (
-            <Button
-              onClick={() => {
-                clearFilters();
-                confirm({ closeDropdown: false });
-              }}
-              size="small"
-              style={{ width: "100%" }}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
-      ),
-      onFilter: (value, record) =>
-        (record.qa_status ?? "").toLowerCase() === String(value).toLowerCase(),
-      render: (v: string | null | undefined) =>
-        v ? (
-          <Tag
-            color={
-              v === "qualified" ? "green" : v === "disqualified" ? "red" : "blue"
-            }
-          >
-            {v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()}
-          </Tag>
-        ) : (
-          "—"
-        ),
-    },
+    ...(showQaStatus
+      ? [
+          {
+            title: "QA Status",
+            dataIndex: "qa_status",
+            key: "qa_status",
+            width: 110,
+            fixed: "right" as const,
+            filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+              <div style={{ padding: 8 }}>
+                <Select
+                  mode="multiple"
+                  allowClear
+                  placeholder="Filter QA status"
+                  style={{ width: 180, marginBottom: 8, display: "block" }}
+                  value={(selectedKeys as string[]) ?? []}
+                  options={[
+                    { value: "qualified", label: "Qualified" },
+                    { value: "disqualified", label: "Disqualified" },
+                    { value: "rectified", label: "Rectified" },
+                  ]}
+                  onChange={(values) => {
+                    if (values && values.length > 0) {
+                      setSelectedKeys(values);
+                    } else {
+                      setSelectedKeys([]);
+                    }
+                    confirm({ closeDropdown: false });
+                  }}
+                />
+                {clearFilters && (
+                  <Button
+                    onClick={() => {
+                      clearFilters();
+                      confirm({ closeDropdown: false });
+                    }}
+                    size="small"
+                    style={{ width: "100%" }}
+                  >
+                    Reset
+                  </Button>
+                )}
+              </div>
+            ),
+            onFilter: (value, record) =>
+              (record.qa_status ?? "").toLowerCase() === String(value).toLowerCase(),
+            render: (v: string | null | undefined) =>
+              v ? (
+                <Tag
+                  color={
+                    v === "qualified" ? "green" : v === "disqualified" ? "red" : "blue"
+                  }
+                >
+                  {v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()}
+                </Tag>
+              ) : (
+                "—"
+              ),
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : [
+          {
+            title: "Appointment",
+            dataIndex: "appointment",
+            key: "appointment",
+            width: 172,
+            fixed: "right" as const,
+            sorter: true,
+            render: (v: string | null | undefined) => {
+              const text = formatLeadAppointment(v);
+              return (
+                <span className="table-text-ellipsis" style={{ whiteSpace: "nowrap" }} title={text}>
+                  {text}
+                </span>
+              );
+            },
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+          ...(showLhoFile
+            ? [
+                {
+                  title: "LHO file",
+                  key: "lho_file",
+                  width: 88,
+                  fixed: "right" as const,
+                  align: "center" as const,
+                  render: (_: unknown, record: Lead) => (
+                    <LeadLhoDownloadButton lead={record} apiPrefix={lhoApiPrefix} />
+                  ),
+                } as NonNullable<TableProps<Lead>["columns"]>[number],
+              ]
+            : []),
+        ]),
     {
       title: "Follow-up",
       dataIndex: "followup_date",
@@ -332,7 +506,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       title: "Direct Number",
       dataIndex: "direct_number",
       key: "direct_number",
-      width: 120,
+      width: 128,
       render: (v: string | null) => (
         <span className="lead-phone-cell" data-no-dialer="true">{v || "—"}</span>
       ),
@@ -342,7 +516,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       title: "Corporate Number",
       dataIndex: "company_number",
       key: "company_number",
-      width: 120,
+      width: 148,
       render: (v: string | null) => (
         <span className="lead-phone-cell" data-no-dialer="true">{v || "—"}</span>
       ),
@@ -442,5 +616,5 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     } as never);
   }
 
-  return extendedColumns;
+  return applyLeadTableHeaderCells(extendedColumns);
 }

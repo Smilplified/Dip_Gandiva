@@ -66,6 +66,12 @@ export default function CampaignsPage() {
     hasRole("admin") ||
     hasRole("client_viewer");
 
+  const isClientViewerTable =
+    hasRole("client_viewer") &&
+    !hasRole("internal_operator") &&
+    !hasRole("internal_admin") &&
+    !hasRole("admin");
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
     return () => clearTimeout(t);
@@ -193,7 +199,7 @@ export default function CampaignsPage() {
             Campaign Command Center
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            Analytics · Compliance · Lead Audit · Alerts
+            Analytics · Lead Audit · Alerts
           </Text>
         </div>
 
@@ -332,7 +338,11 @@ export default function CampaignsPage() {
         </Card>
       ) : (
         <Card style={{ ...cardStyle, padding: 0 }} styles={{ body: { padding: 0 } }}>
-          <CampaignTable campaigns={campaigns} loading={loading} />
+          <CampaignTable
+            campaigns={campaigns}
+            loading={loading}
+            clientViewer={isClientViewerTable}
+          />
         </Card>
       )}
 

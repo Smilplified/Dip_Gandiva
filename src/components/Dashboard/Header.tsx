@@ -20,6 +20,9 @@ export default function DashboardHeader() {
   const [signingOut, setSigningOut] = useState(false);
 
   const roleNames = roles.map((r) => r.role_name?.toLowerCase() ?? "");
+  const isClientViewer = roleNames.includes("client_viewer");
+  const clientLogoUrl =
+    (profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null;
   const roleLabel = roleNames.includes("internal_admin")
     ? "Internal Admin"
     : roleNames.includes("internal_operator")
@@ -73,6 +76,19 @@ export default function DashboardHeader() {
           flexShrink: 0,
         }}
       >
+        {isClientViewer && clientLogoUrl ? (
+          <img
+            src={clientLogoUrl}
+            alt="Client logo"
+            style={{
+              height: 40,
+              maxWidth: 180,
+              width: "auto",
+              objectFit: "contain",
+              flexShrink: 0,
+            }}
+          />
+        ) : null}
         <NotificationBell />
         <Dropdown
           menu={{ items: userMenuItems, onClick: handleMenuClick }}

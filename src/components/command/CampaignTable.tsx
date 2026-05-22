@@ -1,9 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { HTMLAttributes } from "react";
 import { Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { SafetyOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
@@ -34,7 +34,6 @@ export interface CampaignListStats {
   consent_issues_count: number;
   dq_count: number;
   unresolved_alerts: number;
-  compliance: "green" | "yellow" | "red";
 }
 
 export interface CommandCampaignRow {
@@ -51,6 +50,7 @@ export interface CommandCampaignRow {
   cpl: number | null;
   total_allocation: number | null;
   achieved: number | null;
+  pending_allocation?: number | null;
   industry: string | null;
   geography: string | null;
   campaign_metrics?: CampaignMetrics | CampaignMetrics[];
@@ -60,6 +60,17 @@ export interface CommandCampaignRow {
 interface CampaignTableProps {
   campaigns: CommandCampaignRow[];
   loading?: boolean;
+  /** Simplified columns for Client Viewer on /dashboard/campaigns */
+  clientViewer?: boolean;
+}
+
+function remainingAllocation(row: CommandCampaignRow): number {
+  if (row.pending_allocation != null && !Number.isNaN(Number(row.pending_allocation))) {
+    return Number(row.pending_allocation);
+  }
+  const total = row.total_allocation ?? 0;
+  const achieved = row.achieved ?? 0;
+  return Math.max(0, total - achieved);
 }
 
 const STATUS_TAG_PROPS: Record<string, { color: string }> = {
@@ -78,49 +89,173 @@ function formatLocalDate(iso: string | null): string {
 }
 
 /** Keeps sortable headers on one line; minWidth stops flex layout from crushing columns. */
-function headerCellProps(minWidth: number) {
+function headerCellProps(minWidth: number, fixedBg = false) {
   return (): HTMLAttributes<HTMLTableCellElement> => ({
-    style: { whiteSpace: "nowrap", minWidth },
+    style: {
+      whiteSpace: "nowrap",
+      minWidth,
+      ...(fixedBg ? { background: "#fafafa" } : {}),
+    },
   });
 }
 
-function complianceShieldColor(level: "green" | "yellow" | "red") {
-  if (level === "green") return "#52c41a";
-  if (level === "yellow") return "#faad14";
-  return "#ff4d4f";
+function fixedBodyCellProps(minWidth: number) {
+  return (): HTMLAttributes<HTMLTableCellElement> => ({
+    style: { minWidth, whiteSpace: "nowrap", background: "#fff" },
+  });
 }
 
-function formatComplianceTooltip(stats: CampaignListStats | undefined): string {
-  const q = stats?.qa_verified_pct ?? 0;
-  const o = stats?.override_count ?? 0;
-  const c = stats?.consent_issues_count ?? 0;
-  return `${q}% QA verified | ${o} overrides | ${c} consent issues`;
-}
+/** Min scroll width for Client Viewer columns (enables horizontal scroll + fixed columns). */
+const CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH = 180;
+const REMAINING_ALLOCATION_COL_WIDTH = 200;
 
-function ComplianceShieldCell({ row }: { row: CommandCampaignRow }) {
-  const stats = row.list_stats;
-  const level = stats?.compliance ?? "green";
-  return (
-    <Tooltip title={formatComplianceTooltip(stats)} placement="topLeft">
-      <Link
-        href={`/dashboard/campaigns/${row.id}?tab=compliance`}
-        prefetch={false}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "inherit",
-        }}
-        aria-label="Open campaign compliance"
-      >
-        <SafetyOutlined style={{ fontSize: 18, color: complianceShieldColor(level) }} />
-      </Link>
-    </Tooltip>
-  );
-}
+const CLIENT_VIEWER_SCROLL_X =
+  72 +
+  CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH +
+  180 +
+  124 +
+  136 +
+  136 +
+  130 +
+  110 +
+  REMAINING_ALLOCATION_COL_WIDTH;
 
-export default function CampaignTable({ campaigns, loading }: CampaignTableProps) {
-  const columns: ColumnsType<CommandCampaignRow> = [
+export default function CampaignTable({ campaigns, loading, clientViewer }: CampaignTableProps) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const clientViewerColumns: ColumnsType<CommandCampaignRow> = [
+    {
+      title: "Sr. No.",
+      key: "sr",
+      width: 72,
+      align: "center",
+      fixed: "left",
+      onHeaderCell: headerCellProps(72, true),
+      onCell: fixedBodyCellProps(72),
+      render: (_: unknown, __: CommandCampaignRow, index: number) =>
+        (page - 1) * pageSize + index + 1,
+    },
+    {
+      title: "Campaign Name",
+      key: "name",
+      width: CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH,
+      ellipsis: { showTitle: false },
+      fixed: "left",
+      className: "table-col-campaign-name",
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      onHeaderCell: headerCellProps(CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH, true),
+      onCell: fixedBodyCellProps(CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH),
+      render: (_, row) => {
+        const name = row.name?.trim() || "—";
+        if (name === "—") return name;
+        return (
+          <Tooltip title={name}>
+            <Link
+              href={`/dashboard/campaigns/${row.id}`}
+              className="table-text-ellipsis"
+              style={{ fontWeight: 600, display: "block", maxWidth: "100%" }}
+            >
+              {name}
+            </Link>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: "Created By",
+      dataIndex: "created_by_name",
+      key: "created_by_name",
+      width: 180,
+      ellipsis: true,
+      sorter: (a, b) => (a.created_by_name ?? "").localeCompare(b.created_by_name ?? ""),
+      onHeaderCell: headerCellProps(180),
+      onCell: () => ({ style: { minWidth: 180, whiteSpace: "nowrap" } }),
+      render: (name: string | null | undefined) => name || "—",
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 124,
+      sorter: (a, b) => a.status.localeCompare(b.status),
+      onHeaderCell: headerCellProps(124),
+      onCell: () => ({ style: { minWidth: 124 } }),
+      render: (status: string) => {
+        const s = String(status ?? "").toLowerCase();
+        const tag = STATUS_TAG_PROPS[s] ?? { color: "default" };
+        const label = s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
+        return (
+          <Tag color={tag.color} style={s === "completed" ? { color: "#595959", borderColor: "#d9d9d9" } : undefined}>
+            {label}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Start Date",
+      dataIndex: "start_date",
+      key: "start_date",
+      width: 136,
+      sorter: (a, b) => (a.start_date ?? "").localeCompare(b.start_date ?? ""),
+      onHeaderCell: headerCellProps(136),
+      onCell: () => ({ style: { minWidth: 136, whiteSpace: "nowrap" } }),
+      render: (d: string | null) => (
+        <span style={{ fontSize: 13 }}>{formatLocalDate(d)}</span>
+      ),
+    },
+    {
+      title: "End Date",
+      dataIndex: "end_date",
+      key: "end_date",
+      width: 136,
+      sorter: (a, b) => (a.end_date ?? "").localeCompare(b.end_date ?? ""),
+      onHeaderCell: headerCellProps(136),
+      onCell: () => ({ style: { minWidth: 136, whiteSpace: "nowrap" } }),
+      render: (d: string | null) => (
+        <span style={{ fontSize: 13 }}>{formatLocalDate(d)}</span>
+      ),
+    },
+    {
+      title: "Total Allocation",
+      dataIndex: "total_allocation",
+      key: "total_allocation",
+      width: 130,
+      align: "right",
+      sorter: (a, b) => (a.total_allocation ?? 0) - (b.total_allocation ?? 0),
+      onHeaderCell: headerCellProps(130),
+      onCell: () => ({ style: { minWidth: 130, whiteSpace: "nowrap" } }),
+      render: (v: number | null) => (v != null ? v.toLocaleString() : "—"),
+    },
+    {
+      title: "Achieved",
+      dataIndex: "achieved",
+      key: "achieved",
+      width: 110,
+      align: "right",
+      sorter: (a, b) => (a.achieved ?? 0) - (b.achieved ?? 0),
+      onHeaderCell: headerCellProps(110),
+      onCell: () => ({ style: { minWidth: 110, whiteSpace: "nowrap" } }),
+      render: (v: number | null) => (v != null ? v.toLocaleString() : "—"),
+    },
+    {
+      title: "Remaining Allocation",
+      key: "remaining_allocation",
+      width: REMAINING_ALLOCATION_COL_WIDTH,
+      align: "right",
+      fixed: "right",
+      className: "table-col-remaining-allocation",
+      sorter: (a, b) => remainingAllocation(a) - remainingAllocation(b),
+      onHeaderCell: headerCellProps(REMAINING_ALLOCATION_COL_WIDTH, true),
+      onCell: fixedBodyCellProps(REMAINING_ALLOCATION_COL_WIDTH),
+      render: (_, row) => {
+        const n = remainingAllocation(row);
+        return <span style={{ fontWeight: 500 }}>{n.toLocaleString()}</span>;
+      },
+    },
+  ];
+
+  const commandColumns: ColumnsType<CommandCampaignRow> = [
     {
       title: "Campaign Code",
       dataIndex: "campaign_code",
@@ -269,31 +404,30 @@ export default function CampaignTable({ campaigns, loading }: CampaignTableProps
         );
       },
     },
-    {
-      title: "Compliance",
-      key: "compliance",
-      width: 104,
-      align: "center",
-      onHeaderCell: headerCellProps(104),
-      onCell: () => ({ style: { minWidth: 104 } }),
-      render: (_, row) => <ComplianceShieldCell row={row} />,
-    },
   ];
+
+  const columns = clientViewer ? clientViewerColumns : commandColumns;
 
   return (
     <Table<CommandCampaignRow>
+      className={clientViewer ? "table-single-line" : undefined}
       columns={columns}
       dataSource={campaigns}
       rowKey="id"
-      loading={false}
+      loading={loading ?? false}
       size="middle"
       tableLayout="fixed"
-      scroll={{ x: "max-content" }}
+      scroll={{ x: clientViewer ? CLIENT_VIEWER_SCROLL_X : "max-content" }}
       pagination={{
-        defaultPageSize: 25,
+        current: page,
+        pageSize,
         showSizeChanger: true,
         pageSizeOptions: [10, 25, 50, 100],
         showTotal: (t) => `${t} campaigns`,
+        onChange: (nextPage, nextSize) => {
+          setPage(nextPage);
+          setPageSize(nextSize ?? 25);
+        },
       }}
       style={{ background: "#fff", borderRadius: 8 }}
     />

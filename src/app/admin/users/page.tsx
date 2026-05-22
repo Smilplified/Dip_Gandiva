@@ -26,6 +26,7 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import AdminUserStats from "@/components/Admin/AdminUserStats";
+import ClientLogoUpload from "@/components/Admin/ClientLogoUpload";
 import type { Tables } from "@/types/database.types";
 
 type UserRow = Tables<"users"> & {
@@ -53,6 +54,8 @@ export default function AdminUsersPage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [createSelectedRoleName, setCreateSelectedRoleName] = useState<string>("");
   const [editSelectedRoleName, setEditSelectedRoleName] = useState<string>("");
+  const createClientId = Form.useWatch("client_id", createForm);
+  const editClientId = Form.useWatch("client_id", editForm);
 
   // Redirect if not admin
   useEffect(() => {
@@ -541,18 +544,21 @@ export default function AdminUsersPage() {
             />
           </Form.Item>
           {createSelectedRoleName === "client_viewer" && (
-            <Form.Item
-              name="client_id"
-              label="Select Client"
-              rules={[{ required: true, message: "Client selection is required for client users" }]}
-            >
-              <Select
-                showSearch
-                optionFilterProp="label"
-                placeholder="Search and select client"
-                options={clients.map((c) => ({ label: c.name, value: c.id }))}
-              />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="client_id"
+                label="Select Client"
+                rules={[{ required: true, message: "Client selection is required for client users" }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Search and select client"
+                  options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                />
+              </Form.Item>
+              <ClientLogoUpload clientId={createClientId} />
+            </>
           )}
           <Form.Item name="department" label="Department">
             <Input placeholder="Sales, Marketing, etc." />
@@ -610,18 +616,21 @@ export default function AdminUsersPage() {
               />
             </Form.Item>
             {editSelectedRoleName === "client_viewer" && (
-              <Form.Item
-                name="client_id"
-                label="Select Client"
-                rules={[{ required: true, message: "Client selection is required for client users" }]}
-              >
-                <Select
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder="Search and select client"
-                  options={clients.map((c) => ({ label: c.name, value: c.id }))}
-                />
-              </Form.Item>
+              <>
+                <Form.Item
+                  name="client_id"
+                  label="Select Client"
+                  rules={[{ required: true, message: "Client selection is required for client users" }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Search and select client"
+                    options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                  />
+                </Form.Item>
+                <ClientLogoUpload clientId={editClientId} />
+              </>
             )}
 
             <Divider style={{ margin: "8px 0 16px" }}>Change password</Divider>
