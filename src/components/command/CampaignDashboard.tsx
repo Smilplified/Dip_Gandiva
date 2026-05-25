@@ -1472,17 +1472,66 @@ export default function CampaignDashboard({
               >
                 {allocationNow.toLocaleString()}
               </span>
-              <span style={{ fontSize: 15, color: "#262626", fontWeight: 500 }}>
-                ({allocationTrendPct}%
-                {allocationDelta > 0 ? (
-                  <CaretUpOutlined style={{ color: "#52c41a", fontSize: 15, marginLeft: 2 }} />
-                ) : allocationDelta < 0 ? (
-                  <CaretDownOutlined style={{ color: "#ff4d4f", fontSize: 15, marginLeft: 2 }} />
-                ) : (
-                  <MinusOutlined style={{ color: "#8c8c8c", fontSize: 15, marginLeft: 2 }} />
-                )}
-                )
-              </span>
+              {allocationNow > 0 && (() => {
+                const filledPct = Math.min(
+                  100,
+                  Math.round((totalLeadsKpi / allocationNow) * 1000) / 10
+                );
+                const tone =
+                  filledPct >= 100
+                    ? { color: "#389e0d", bg: "#f6ffed", border: "#b7eb8f" }
+                    : filledPct >= 60
+                      ? { color: "#1677ff", bg: "#e6f4ff", border: "#91caff" }
+                      : { color: "#d4380d", bg: "#fff2e8", border: "#ffbb96" };
+                return (
+                  <Tooltip title={`${totalLeadsKpi.toLocaleString()} of ${allocationNow.toLocaleString()} leads delivered`}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: tone.color,
+                        background: tone.bg,
+                        border: `1px solid ${tone.border}`,
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        lineHeight: 1.4,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {filledPct}% filled
+                    </span>
+                  </Tooltip>
+                );
+              })()}
+              {allocationDelta !== 0 && (
+                <Tooltip
+                  title={`Allocation changed by ${allocationDelta > 0 ? "+" : ""}${allocationDelta} this session`}
+                >
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: allocationDelta > 0 ? "#389e0d" : "#cf1322",
+                      background: allocationDelta > 0 ? "#f6ffed" : "#fff1f0",
+                      border: `1px solid ${allocationDelta > 0 ? "#b7eb8f" : "#ffa39e"}`,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 2,
+                      lineHeight: 1.4,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {allocationDelta > 0 ? (
+                      <CaretUpOutlined style={{ fontSize: 11 }} />
+                    ) : (
+                      <CaretDownOutlined style={{ fontSize: 11 }} />
+                    )}
+                    {allocationTrendPct}%
+                  </span>
+                </Tooltip>
+              )}
             </div>
             <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
               Lead quota (campaign)

@@ -332,11 +332,16 @@ export async function GET(request: NextRequest) {
       const qaVerifiedPct = L.total > 0 ? Math.round((L.qa_verified / L.total) * 100) : 0;
       const consentIssues = L.missingConsent + L.disputedConsent;
       const overrideCount = dqOverrideAgg[id] ?? 0;
+      const totalAllocation = Number(c.total_allocation ?? 0) || 0;
+      const achievedCount = L.total;
+      const remainingAllocation = Math.max(0, totalAllocation - achievedCount);
       return {
         ...c,
         created_by_name:
           creatorNameById[(c.created_by as string | undefined) ?? ""] ??
           ((c.created_by as string | undefined) ? "Unknown" : null),
+        achieved: achievedCount,
+        pending_allocation: remainingAllocation,
         list_stats: {
           total_leads: L.total,
           qualified_count: L.qualified,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import type { HTMLAttributes } from "react";
 import { Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -64,13 +64,32 @@ interface CampaignTableProps {
   clientViewer?: boolean;
 }
 
-function remainingAllocation(row: CommandCampaignRow): number {
-  if (row.pending_allocation != null && !Number.isNaN(Number(row.pending_allocation))) {
-    return Number(row.pending_allocation);
+function achievedLeadCount(row: CommandCampaignRow): number {
+  if (row.achieved != null && !Number.isNaN(Number(row.achieved))) {
+    return Number(row.achieved);
   }
+  return row.list_stats?.total_leads ?? 0;
+}
+
+function remainingAllocation(row: CommandCampaignRow): number {
   const total = row.total_allocation ?? 0;
-  const achieved = row.achieved ?? 0;
-  return Math.max(0, total - achieved);
+  return Math.max(0, total - achievedLeadCount(row));
+}
+
+function countPillStyle(color: string, bg: string): React.CSSProperties {
+  return {
+    display: "inline-block",
+    minWidth: 56,
+    padding: "4px 12px",
+    borderRadius: 999,
+    background: bg,
+    color,
+    fontWeight: 700,
+    fontSize: 14,
+    lineHeight: 1.2,
+    border: `1px solid ${color}33`,
+    textAlign: "center",
+  };
 }
 
 const STATUS_TAG_PROPS: Record<string, { color: string }> = {
@@ -116,8 +135,8 @@ const CLIENT_VIEWER_SCROLL_X =
   124 +
   136 +
   136 +
-  130 +
-  110 +
+  140 +
+  120 +
   REMAINING_ALLOCATION_COL_WIDTH;
 
 export default function CampaignTable({ campaigns, loading, clientViewer }: CampaignTableProps) {
@@ -220,37 +239,67 @@ export default function CampaignTable({ campaigns, loading, clientViewer }: Camp
       title: "Total Allocation",
       dataIndex: "total_allocation",
       key: "total_allocation",
-      width: 130,
-      align: "right",
+      width: 140,
+      align: "center",
       sorter: (a, b) => (a.total_allocation ?? 0) - (b.total_allocation ?? 0),
-      onHeaderCell: headerCellProps(130),
-      onCell: () => ({ style: { minWidth: 130, whiteSpace: "nowrap" } }),
-      render: (v: number | null) => (v != null ? v.toLocaleString() : "—"),
+      onHeaderCell: headerCellProps(140),
+      onCell: () => ({ style: { minWidth: 140, whiteSpace: "nowrap", textAlign: "center" } }),
+      render: (v: number | null) => (
+        <span style={countPillStyle("#1677ff", "#e6f4ff")}>
+          {v != null ? v.toLocaleString() : "—"}
+        </span>
+      ),
     },
     {
       title: "Achieved",
       dataIndex: "achieved",
       key: "achieved",
-      width: 110,
-      align: "right",
-      sorter: (a, b) => (a.achieved ?? 0) - (b.achieved ?? 0),
-      onHeaderCell: headerCellProps(110),
-      onCell: () => ({ style: { minWidth: 110, whiteSpace: "nowrap" } }),
-      render: (v: number | null) => (v != null ? v.toLocaleString() : "—"),
+      width: 120,
+      align: "center",
+      sorter: (a, b) => achievedLeadCount(a) - achievedLeadCount(b),
+      onHeaderCell: headerCellProps(120),
+      onCell: () => ({ style: { minWidth: 120, whiteSpace: "nowrap", textAlign: "center" } }),
+      render: (_v: number | null, row) => {
+        const n = achievedLeadCount(row);
+        const hasValue = n > 0 || row.achieved === 0 || row.list_stats != null;
+        return (
+          <span style={countPillStyle("#389e0d", "#f6ffed")}>
+            {hasValue ? n.toLocaleString() : "—"}
+          </span>
+        );
+      },
     },
     {
       title: "Remaining Allocation",
       key: "remaining_allocation",
       width: REMAINING_ALLOCATION_COL_WIDTH,
-      align: "right",
+      align: "center",
       fixed: "right",
       className: "table-col-remaining-allocation",
       sorter: (a, b) => remainingAllocation(a) - remainingAllocation(b),
       onHeaderCell: headerCellProps(REMAINING_ALLOCATION_COL_WIDTH, true),
-      onCell: fixedBodyCellProps(REMAINING_ALLOCATION_COL_WIDTH),
+      onCell: () => ({
+        style: {
+          minWidth: REMAINING_ALLOCATION_COL_WIDTH,
+          whiteSpace: "nowrap",
+          background: "#fff",
+          textAlign: "center",
+        },
+      }),
       render: (_, row) => {
         const n = remainingAllocation(row);
-        return <span style={{ fontWeight: 500 }}>{n.toLocaleString()}</span>;
+        const total = row.total_allocation ?? 0;
+        const exhausted = total > 0 && n === 0;
+        return (
+          <span
+            style={countPillStyle(
+              exhausted ? "#52c41a" : "#d4380d",
+              exhausted ? "#f6ffed" : "#fff2e8"
+            )}
+          >
+            {n.toLocaleString()}
+          </span>
+        );
       },
     },
   ];
