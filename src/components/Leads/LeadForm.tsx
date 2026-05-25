@@ -3,7 +3,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Form, Input, Select, DatePicker, Row, Col, Collapse, Typography, Button, Spin, message } from "antd";
 import { PlusOutlined, PlayCircleOutlined, DeleteOutlined, UploadOutlined, FileOutlined, FilePdfOutlined } from "@ant-design/icons";
+import type { Dayjs } from "dayjs";
 import { generateLhoPdf } from "@/lib/generateLhoPdf";
+import {
+  DEFAULT_TIMEZONE,
+  TIMEZONE_OPTIONS,
+  translateWallClockDayjs,
+} from "@/lib/timezones";
 import {
   STATUS_OPTIONS,
   QA_STATUS_OPTIONS,
@@ -42,6 +48,8 @@ export function LeadForm({
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceUploading, setVoiceUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const previousAppointmentTzRef = useRef<string>(DEFAULT_TIMEZONE);
+  const previousScoredTzRef = useRef<string>(DEFAULT_TIMEZONE);
   const [lhoFiles, setLhoFiles] = useState<
     { id: string; name: string; path: string; url: string | null; size: number | null }[]
   >([]);
@@ -53,6 +61,8 @@ export function LeadForm({
     if (!lead) {
       setShowMoreCq(false);
       setDynamicCqIndexes([]);
+      previousAppointmentTzRef.current = DEFAULT_TIMEZONE;
+      previousScoredTzRef.current = DEFAULT_TIMEZONE;
       return;
     }
     const extraIndexes = parseExtraCqIndexes(lead.extra_cq);
@@ -60,6 +70,11 @@ export function LeadForm({
       setShowMoreCq(true);
     }
     setDynamicCqIndexes(extraIndexes);
+    const leadRecord = lead as unknown as Record<string, unknown>;
+    previousAppointmentTzRef.current =
+      (leadRecord.appointment_timezone as string) || DEFAULT_TIMEZONE;
+    previousScoredTzRef.current =
+      (leadRecord.scored_timezone as string) || DEFAULT_TIMEZONE;
   }, [lead]);
 
   const addDynamicCqField = () => {
@@ -899,14 +914,94 @@ export function LeadForm({
                     <Input placeholder="https://linkedin.com/company/..." />
                   </Form.Item>
                 </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item label="Scored" name="scored">
-                    <DatePicker showTime style={{ width: "100%" }} format="YYYY-MM-DD HH:mm" />
+                <Col xs={24}>
+                  <Form.Item
+                    label="Scored"
+                    tooltip="The time you enter is interpreted in the selected time zone and stored in UTC."
+                    style={{ marginBottom: 16 }}
+                  >
+                    <Row gutter={8} wrap={false}>
+                      <Col flex="auto">
+                        <Form.Item name="scored" noStyle>
+                          <DatePicker
+                            showTime
+                            style={{ width: "100%" }}
+                            format="YYYY-MM-DD HH:mm"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col flex="220px">
+                        <Form.Item
+                          name="scored_timezone"
+                          noStyle
+                          initialValue={DEFAULT_TIMEZONE}
+                        >
+                          <Select
+                            showSearch
+                            placeholder="Time zone"
+                            optionFilterProp="label"
+                            options={TIMEZONE_OPTIONS}
+                            onChange={(newTz: string) => {
+                              const oldTz =
+                                previousScoredTzRef.current || DEFAULT_TIMEZONE;
+                              const current = form.getFieldValue("scored") as
+                                | Dayjs
+                                | undefined;
+                              const next = translateWallClockDayjs(current, oldTz, newTz);
+                              if (next) {
+                                form.setFieldValue("scored", next);
+                              }
+                              previousScoredTzRef.current = newTz;
+                            }}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
                   </Form.Item>
                 </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item label="Appointment" name="appointment">
-                    <DatePicker showTime style={{ width: "100%" }} format="YYYY-MM-DD HH:mm" />
+                <Col xs={24}>
+                  <Form.Item
+                    label="Appointment"
+                    tooltip="The time you enter is interpreted in the selected time zone and stored in UTC."
+                    style={{ marginBottom: 16 }}
+                  >
+                    <Row gutter={8} wrap={false}>
+                      <Col flex="auto">
+                        <Form.Item name="appointment" noStyle>
+                          <DatePicker
+                            showTime
+                            style={{ width: "100%" }}
+                            format="YYYY-MM-DD HH:mm"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col flex="220px">
+                        <Form.Item
+                          name="appointment_timezone"
+                          noStyle
+                          initialValue={DEFAULT_TIMEZONE}
+                        >
+                          <Select
+                            showSearch
+                            placeholder="Time zone"
+                            optionFilterProp="label"
+                            options={TIMEZONE_OPTIONS}
+                            onChange={(newTz: string) => {
+                              const oldTz =
+                                previousAppointmentTzRef.current || DEFAULT_TIMEZONE;
+                              const current = form.getFieldValue("appointment") as
+                                | Dayjs
+                                | undefined;
+                              const next = translateWallClockDayjs(current, oldTz, newTz);
+                              if (next) {
+                                form.setFieldValue("appointment", next);
+                              }
+                              previousAppointmentTzRef.current = newTz;
+                            }}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
@@ -1074,9 +1169,24 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
   const handleGenerate = async () => {
     const v = form.getFieldsValue() as Record<string, any>;
     const str = (val: unknown) => (val != null ? String(val).trim() : "");
+    const formatDateTimeWithTz = (val: unknown, tz: unknown): string => {
+      if (!val || typeof (val as { format?: unknown }).format !== "function") return "";
+      const wall = (val as { format: (f: string) => string }).format("YYYY-MM-DD HH:mm");
+      const tzLabel = typeof tz === "string" && tz.trim() ? ` (${tz})` : "";
+      return `${wall}${tzLabel}`;
+    };
+    const normalizeExtraCqMap = (raw: unknown): Record<string, string> => {
+      if (!raw || typeof raw !== "object") return {};
+      const out: Record<string, string> = {};
+      for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (value != null && String(value).trim()) {
+          out[key] = String(value).trim();
+        }
+      }
+      return out;
+    };
 
     const data = {
-      // Prospect
       salutation: str(v.salutation),
       firstName: str(v.first_name),
       lastName: str(v.last_name),
@@ -1089,7 +1199,6 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
       jobFunction: str(v.job_function),
       jobTitleLink: str(v.job_title_link),
       contactLinkedIn: str(v.contact_linkedin_url),
-      // Company
       companyName: str(v.company_name),
       domain: str(v.domain),
       companyNumber: str(v.company_number),
@@ -1112,7 +1221,6 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
       naicsCodeLink: str(v.naics_code_link),
       foundedYears: str(v.founded_years),
       foundedYearsLink: str(v.founded_years_link),
-      // Custom
       callBack: str(v.call_back),
       callNotes: str(v.call_notes),
       cq1: str(v.cq1),
@@ -1120,9 +1228,28 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
       cq3: str(v.cq3),
       cq4: str(v.cq4),
       cq5: str(v.cq5),
+      extraCq: normalizeExtraCqMap(v.extra_cq),
+      leadStatus: str(v.status),
+      leadTagging: str(v.lead_tagging),
+      assetTitle: str(v.asset_title),
+      status: str(v.status),
+      qaStatus: str(v.qa_status),
+      auditDate:
+        v.audit_date && typeof v.audit_date.format === "function"
+          ? v.audit_date.format("YYYY-MM-DD")
+          : "",
+      qaName: str(v.qa_name),
+      tenurity: str(v.tenurity),
+      vvStatus: str(v.vv_status),
+      emailStatus: str(v.email_status),
+      evTool: str(v.ev_tool),
+      primaryReason: str(v.primary_reason),
+      secondaryReason: str(v.secondary_reason),
+      qaComments: str(v.qa_comments),
+      scored: formatDateTimeWithTz(v.scored, v.scored_timezone),
+      appointment: formatDateTimeWithTz(v.appointment, v.appointment_timezone),
       raComment: str(v.ra_comment),
       specialComments: str(v.special_comments),
-      // Notes
       notes: str(v.notes),
     };
 

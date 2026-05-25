@@ -57,7 +57,9 @@ export type Lead = {
   contact_linkedin_url: string | null;
   company_linkedin_url: string | null;
   scored: string | null;
+  scored_timezone: string | null;
   appointment: string | null;
+  appointment_timezone: string | null;
   lead_tagging: string | null;
   job_function: string | null;
   // QA & Call

@@ -11,7 +11,7 @@ const LEAD_FIELDS = [
   "address", "city", "state", "country", "zip_code", "employee_size", "see_all_employees",
   "industry", "channel", "employee_size_link", "company_website_link", "revenue_range", "revenue_link",
   "sic_code", "sic_code_link", "naics_code", "naics_code_link", "founded_years", "founded_years_link",
-  "contact_linkedin_url", "company_linkedin_url", "scored", "appointment", "lead_tagging", "ra_comment", "special_comments", "call_back",
+  "contact_linkedin_url", "company_linkedin_url", "scored", "scored_timezone", "appointment", "appointment_timezone", "lead_tagging", "ra_comment", "special_comments", "call_back",
   "call_notes", "primary_reason", "secondary_reason", "qa_comments", "cq1", "cq2", "cq3", "cq4", "cq5",
   "audit_date", "qa_name", "asset_title", "status", "qa_status", "disqualification_reasons",
   "disqualification_reason", "rectified_reason", "lead_disposition", "followup_date", "notes", "delivery_status",

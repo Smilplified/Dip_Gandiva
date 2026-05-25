@@ -61,7 +61,7 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, appointment, lead_tagging, lead_disposition";
+    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition";
     const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, asset_title";
     let leadsList: unknown[] | null = null;
     let leadsError: { message?: string } | null = null;
@@ -236,7 +236,9 @@ export async function POST(
       contact_linkedin_url,
       company_linkedin_url,
       scored,
+      scored_timezone,
       appointment,
+      appointment_timezone,
       lead_tagging,
       ra_comment,
       special_comments,
@@ -374,7 +376,9 @@ export async function POST(
         contact_linkedin_url: contact_linkedin_url || null,
         company_linkedin_url: company_linkedin_url || null,
         scored: scored || null,
+        scored_timezone: scored_timezone || null,
         appointment: appointment || null,
+        appointment_timezone: appointment_timezone || null,
         lead_tagging: lead_tagging || null,
         ra_comment: ra_comment || null,
         special_comments: special_comments || null,
@@ -506,7 +510,9 @@ export async function PATCH(
       contact_linkedin_url,
       company_linkedin_url,
       scored,
+      scored_timezone,
       appointment,
+      appointment_timezone,
       lead_tagging,
       ra_comment,
       special_comments,
@@ -585,7 +591,9 @@ export async function PATCH(
     if (contact_linkedin_url !== undefined) updates.contact_linkedin_url = contact_linkedin_url || null;
     if (company_linkedin_url !== undefined) updates.company_linkedin_url = company_linkedin_url || null;
     if (scored !== undefined) updates.scored = scored || null;
+    if (scored_timezone !== undefined) updates.scored_timezone = scored_timezone || null;
     if (appointment !== undefined) updates.appointment = appointment || null;
+    if (appointment_timezone !== undefined) updates.appointment_timezone = appointment_timezone || null;
     if (lead_tagging !== undefined) updates.lead_tagging = lead_tagging || null;
     if (ra_comment !== undefined) updates.ra_comment = ra_comment || null;
     if (special_comments !== undefined) updates.special_comments = special_comments || null;

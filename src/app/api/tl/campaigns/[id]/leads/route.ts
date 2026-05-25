@@ -111,7 +111,9 @@ export async function PATCH(
       contact_linkedin_url,
       company_linkedin_url,
       scored,
+      scored_timezone,
       appointment,
+      appointment_timezone,
       lead_tagging,
       ra_comment,
       special_comments,
@@ -207,7 +209,9 @@ export async function PATCH(
     if (contact_linkedin_url !== undefined) updates.contact_linkedin_url = contact_linkedin_url || null;
     if (company_linkedin_url !== undefined) updates.company_linkedin_url = company_linkedin_url || null;
     if (scored !== undefined) updates.scored = scored || null;
+    if (scored_timezone !== undefined) updates.scored_timezone = scored_timezone || null;
     if (appointment !== undefined) updates.appointment = appointment || null;
+    if (appointment_timezone !== undefined) updates.appointment_timezone = appointment_timezone || null;
     if (lead_tagging !== undefined) updates.lead_tagging = lead_tagging || null;
     if (ra_comment !== undefined) updates.ra_comment = ra_comment || null;
     if (special_comments !== undefined) updates.special_comments = special_comments || null;

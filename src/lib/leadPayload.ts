@@ -4,8 +4,20 @@
 
 import dayjs from "dayjs";
 import { extraCqToFormValues, normalizeExtraCq } from "@/lib/extra-cq";
+import {
+  DEFAULT_TIMEZONE,
+  utcIsoToWallClockDayjs,
+  wallClockDayjsToUtcIso,
+} from "@/lib/timezones";
 
 export function leadToFormValues(lead: Record<string, unknown>): Record<string, unknown> {
+  const appointmentTz =
+    (typeof lead.appointment_timezone === "string" && lead.appointment_timezone) ||
+    DEFAULT_TIMEZONE;
+  const scoredTz =
+    (typeof lead.scored_timezone === "string" && lead.scored_timezone) ||
+    DEFAULT_TIMEZONE;
+
   return {
     name: lead.name ?? undefined,
     first_name: lead.first_name ?? undefined,
@@ -47,8 +59,10 @@ export function leadToFormValues(lead: Record<string, unknown>): Record<string, 
     founded_years_link: lead.founded_years_link ?? undefined,
     contact_linkedin_url: lead.contact_linkedin_url ?? undefined,
     company_linkedin_url: lead.company_linkedin_url ?? undefined,
-    scored: lead.scored ? dayjs(lead.scored as string) : undefined,
-    appointment: lead.appointment ? dayjs(lead.appointment as string) : undefined,
+    scored: utcIsoToWallClockDayjs(lead.scored as string | null | undefined, scoredTz),
+    scored_timezone: scoredTz,
+    appointment: utcIsoToWallClockDayjs(lead.appointment as string | null | undefined, appointmentTz),
+    appointment_timezone: appointmentTz,
     lead_tagging: lead.lead_tagging ?? undefined,
     ra_comment: lead.ra_comment ?? undefined,
     special_comments: lead.special_comments ?? undefined,
@@ -131,13 +145,25 @@ export function buildLeadPayload(values: Record<string, unknown>) {
     founded_years_link: values.founded_years_link ?? null,
     contact_linkedin_url: values.contact_linkedin_url ?? null,
     company_linkedin_url: values.company_linkedin_url ?? null,
-    scored:
+    scored: wallClockDayjsToUtcIso(
+      values.scored as dayjs.Dayjs | null | undefined,
+      (typeof values.scored_timezone === "string" && values.scored_timezone) ||
+        DEFAULT_TIMEZONE,
+    ),
+    scored_timezone:
       values.scored != null && dayjs.isDayjs(values.scored)
-        ? (values.scored as dayjs.Dayjs).toISOString()
+        ? (typeof values.scored_timezone === "string" && values.scored_timezone) ||
+          DEFAULT_TIMEZONE
         : null,
-    appointment:
+    appointment: wallClockDayjsToUtcIso(
+      values.appointment as dayjs.Dayjs | null | undefined,
+      (typeof values.appointment_timezone === "string" && values.appointment_timezone) ||
+        DEFAULT_TIMEZONE,
+    ),
+    appointment_timezone:
       values.appointment != null && dayjs.isDayjs(values.appointment)
-        ? (values.appointment as dayjs.Dayjs).toISOString()
+        ? (typeof values.appointment_timezone === "string" && values.appointment_timezone) ||
+          DEFAULT_TIMEZONE
         : null,
     lead_tagging: values.lead_tagging ?? null,
     ra_comment: values.ra_comment ?? null,
