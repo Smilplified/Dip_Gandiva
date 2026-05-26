@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import {
+  BarChartOutlined,
   DashboardOutlined,
-  TeamOutlined,
   FileSearchOutlined,
   FundProjectionScreenOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 
 const { Sider } = Layout;
@@ -18,13 +19,16 @@ const tlMenuItems = [
   { key: "/tl/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/tl/campaigns" },
   { key: "/tl/leads", icon: <FileSearchOutlined />, label: "Leads", href: "/tl/leads" },
   { key: "/tl/team", icon: <TeamOutlined />, label: "Team", href: "/tl/team" },
+  { key: "/tl/team-performance", icon: <BarChartOutlined />, label: "Performance", href: "/tl/team-performance" },
 ];
 
 export default function TLSidebar() {
   const pathname = usePathname();
 
   const selectedKey =
-    pathname?.startsWith("/tl/campaigns")
+    pathname?.startsWith("/tl/team-performance")
+      ? "/tl/team-performance"
+      : pathname?.startsWith("/tl/campaigns")
       ? "/tl/campaigns"
       : pathname?.startsWith("/tl/team")
       ? "/tl/team"

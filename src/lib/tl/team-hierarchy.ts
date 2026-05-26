@@ -110,17 +110,31 @@ export function buildTeamHierarchy(
   const agentById = new Map(agents.map((a) => [a.id, a]));
   const assignedAgentIds = new Set<string>();
 
+  // Build a lookup: agentId → tlId based on reporting_manager_id alone.
+  // This is the "canonical" assignment and takes full priority over campaign links.
+  const reportingManagerTlByAgent = new Map<string, string>();
+  for (const agent of agents) {
+    if (agent.reporting_manager_id) {
+      reportingManagerTlByAgent.set(agent.id, agent.reporting_manager_id);
+    }
+  }
+
   const team_leader_nodes: TeamLeaderNode[] = teamLeaders.map((tl) => {
     const agentIdSet = new Set<string>();
 
+    // 1. Direct reporting line — highest priority.
     for (const agent of agents) {
       if (agent.reporting_manager_id === tl.id) {
         agentIdSet.add(agent.id);
       }
     }
 
+    // 2. Campaign membership — only for agents that do NOT already have a
+    //    reporting_manager_id pointing to any (possibly different) TL.
     for (const agentId of agentsByTlFromCampaigns.get(tl.id) ?? []) {
-      agentIdSet.add(agentId);
+      if (!reportingManagerTlByAgent.has(agentId)) {
+        agentIdSet.add(agentId);
+      }
     }
 
     const tlAgents: TeamMember[] = [...agentIdSet]
