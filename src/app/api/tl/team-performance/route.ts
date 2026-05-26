@@ -36,6 +36,9 @@ export type CampaignPerformance = {
   total_uploaded: number;
   progress_pct: number;
   agents_count: number;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
 };
 
 export type DailyTrend = {
@@ -62,9 +65,13 @@ export type TeamPerformanceResponse = {
     week_leads: number;
     month_leads: number;
     active_campaigns: number;
+    total_campaigns: number;
     avg_per_day: number;
     top_performer: { name: string; total: number } | null;
     pending_allocation: number;
+    active_tl_count: number;
+    active_agent_count: number;
+    completion_pct: number;
   };
   agents: AgentPerformance[];
   campaigns: CampaignPerformance[];
@@ -197,7 +204,7 @@ export async function GET(request: Request) {
     // ── Fetch campaigns ──────────────────────────────────────────────────────
     let campaignsQuery = admin
       .from("campaigns")
-      .select("id, name, campaign_code, total_allocation, pending_allocation, status, assigned_team_leader_id")
+      .select("id, name, campaign_code, total_allocation, pending_allocation, status, assigned_team_leader_id, start_date, end_date")
       .eq("organization_id", orgId);
 
     if (campaignIdFilter) {
@@ -215,6 +222,8 @@ export async function GET(request: Request) {
       pending_allocation: number | null;
       status: string;
       assigned_team_leader_id: string | null;
+      start_date: string | null;
+      end_date: string | null;
     };
 
     let scopedCampaigns = (campaigns ?? []) as CampaignRow[];
@@ -437,6 +446,9 @@ export async function GET(request: Request) {
         total_uploaded: uploaded,
         progress_pct: alloc > 0 ? Math.min(100, Math.round((uploaded / alloc) * 100)) : 0,
         agents_count: campAgentMap.get(c.id)?.size ?? 0,
+        status: c.status,
+        start_date: c.start_date ?? null,
+        end_date: c.end_date ?? null,
       };
     });
 
@@ -474,10 +486,20 @@ export async function GET(request: Request) {
       (s, c) => s + (c.pending_allocation ?? c.total_allocation ?? 0),
       0
     );
+    const totalAlloc = scopedCampaigns.reduce((s, c) => s + (c.total_allocation ?? 0), 0);
+    const totalUploaded = campaignPerf.reduce((s, c) => s + c.total_uploaded, 0);
+    const completionPct =
+      totalAlloc > 0 ? Math.min(100, Math.round((totalUploaded / totalAlloc) * 100)) : 0;
+
     const topPerformer =
       agentRows.length > 0 && agentRows[0].total_leads > 0
         ? { name: agentRows[0].agent_name, total: agentRows[0].total_leads }
         : null;
+
+    // Active TLs = TLs with at least 1 agent (OM scope)
+    const activeTlCount = isOM
+      ? tlSummaries.filter((t) => t.agent_count > 0).length
+      : 0;
 
     const response: TeamPerformanceResponse = {
       scope: isOM ? "organization" : "team",
@@ -488,9 +510,13 @@ export async function GET(request: Request) {
         week_leads: weekLeads,
         month_leads: monthLeads,
         active_campaigns: activeCampaigns,
+        total_campaigns: scopedCampaigns.length,
         avg_per_day: Number((totalLeads / totalDays).toFixed(2)),
         top_performer: topPerformer,
         pending_allocation: pendingAlloc,
+        active_tl_count: activeTlCount,
+        active_agent_count: scopedAgentIdArr.length,
+        completion_pct: completionPct,
       },
       agents: agentRows,
       campaigns: campaignPerf,

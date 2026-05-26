@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import { useRouter } from "next/navigation";
@@ -10,9 +10,6 @@ import {
   Col,
   Typography,
   Tag,
-  Avatar,
-  Badge,
-  Checkbox,
   Table,
   Button,
   Empty,
@@ -21,10 +18,8 @@ import {
   FundProjectionScreenOutlined,
   RiseOutlined,
   TeamOutlined,
-  CheckCircleOutlined,
   PercentageOutlined,
   ArrowUpOutlined,
-  ClockCircleOutlined,
   RightOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
@@ -54,22 +49,6 @@ const statCardHover = (e: React.MouseEvent<HTMLDivElement>, enter: boolean) => {
   el.style.boxShadow = enter ? "0 4px 16px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.04)";
   el.style.transform = enter ? "translateY(-2px)" : "translateY(0)";
 };
-
-const tasksData = [
-  { id: 1, task: "Review Campaign A performance", dueTime: "10:00 AM", priority: "high", completed: false },
-  { id: 2, task: "Assign new agents to Campaign B", dueTime: "11:30 AM", priority: "high", completed: false },
-  { id: 3, task: "Export weekly lead report", dueTime: "02:00 PM", priority: "medium", completed: false },
-  { id: 4, task: "Update pipeline stages", dueTime: "03:30 PM", priority: "medium", completed: true },
-  { id: 5, task: "Sync with QA on quality scores", dueTime: "04:00 PM", priority: "low", completed: false },
-];
-
-const activityFeedData = [
-  { id: 1, user: "System", action: "Campaign", target: "Enterprise Q1", value: "activated", time: "5 mins ago", type: "success" },
-  { id: 2, user: "Agent", action: "moved lead in", target: "Campaign B", value: "to Qualified", time: "12 mins ago", type: "info" },
-  { id: 3, user: "You", action: "created", target: "Campaign C", value: "", time: "25 mins ago", type: "info" },
-  { id: 4, user: "QA", action: "approved", target: "12 leads", value: "in Campaign A", time: "45 mins ago", type: "default" },
-  { id: 5, user: "Agent", action: "closed", target: "3 deals", value: "Campaign B", time: "1 hour ago", type: "default" },
-];
 
 const statusColors: Record<string, string> = {
   draft: "default",
@@ -264,114 +243,6 @@ export default function TeamLeaderDashboardPage() {
         </Col>
         <Col xs={24} xl={8}>
           <TLCampaignStatusPieChart data={campaignStatusPie} />
-        </Col>
-      </Row>
-
-      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
-        <Col xs={24} xl={12}>
-          <Card
-            title={
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Text strong style={{ fontSize: 16 }}>
-                  My Tasks
-                </Text>
-                <Badge count={tasksData.filter((t) => !t.completed).length} style={{ backgroundColor: "#1890ff" }} />
-              </div>
-            }
-            bordered={false}
-            style={cardStyle}
-            styles={{ body: { padding: "20px 24px" } }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {tasksData.map((task) => (
-                <div
-                  key={task.id}
-                  style={{
-                    padding: "14px 16px",
-                    backgroundColor: task.completed ? "#fafafa" : "#fff",
-                    border: "1px solid #f0f0f0",
-                    borderRadius: 10,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <Checkbox checked={task.completed} />
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 500,
-                        color: task.completed ? "#8c8c8c" : "#1f1f1f",
-                        textDecoration: task.completed ? "line-through" : "none",
-                      }}
-                    >
-                      {task.task}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      <ClockCircleOutlined style={{ marginRight: 4 }} />
-                      {task.dueTime}
-                    </Text>
-                  </div>
-                  <Tag
-                    color={task.priority === "high" ? "red" : task.priority === "medium" ? "orange" : "default"}
-                    style={{ fontSize: 11, margin: 0 }}
-                  >
-                    {task.priority.toUpperCase()}
-                  </Tag>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} xl={12}>
-          <Card
-            title={<Text strong style={{ fontSize: 16 }}>Activity Feed</Text>}
-            bordered={false}
-            style={cardStyle}
-            styles={{ body: { padding: "20px 24px" } }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {activityFeedData.map((activity) => (
-                <div key={activity.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <Avatar
-                    size={36}
-                    style={{
-                      backgroundColor: activity.type === "success" ? "#52c41a" : "#1890ff",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {activity.user[0]}
-                  </Avatar>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, lineHeight: 1.6, color: "#1f1f1f" }}>
-                      <Text strong style={{ fontSize: 13 }}>
-                        {activity.user}
-                      </Text>{" "}
-                      <Text type="secondary" style={{ fontSize: 13 }}>
-                        {activity.action}
-                      </Text>{" "}
-                      <Text strong style={{ fontSize: 13 }}>
-                        {activity.target}
-                      </Text>
-                      {activity.value && (
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          {" "}
-                          {activity.value}
-                        </Text>
-                      )}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-                      {activity.time}
-                    </Text>
-                  </div>
-                  {activity.type === "success" && (
-                    <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16, marginTop: 4 }} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
         </Col>
       </Row>
 

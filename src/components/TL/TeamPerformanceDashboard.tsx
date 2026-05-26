@@ -2,8 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Avatar,
-  Badge,
   Button,
   Card,
   Col,
@@ -14,7 +14,6 @@ import {
   Select,
   Skeleton,
   Space,
-  Statistic,
   Table,
   Tag,
   Tooltip,
@@ -22,14 +21,17 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
+  AlertOutlined,
   BarChartOutlined,
-  CalendarOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
   CrownOutlined,
   FireOutlined,
   FundProjectionScreenOutlined,
   ReloadOutlined,
   RiseOutlined,
   TeamOutlined,
+  ThunderboltOutlined,
   TrophyOutlined,
   UserOutlined,
   WarningOutlined,
@@ -41,7 +43,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
+  Line,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
@@ -58,58 +62,77 @@ import type {
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 
-// Matches the channel name in TeamBuilderDnDView
 const TEAM_ASSIGNMENT_CHANNEL = "team-assignment-updated";
-// How often the performance page silently re-polls (ms)
 const PERF_REFRESH_MS = 90_000;
 
-// ─── Design tokens ─────────────────────────────────────────────────────────
+// ─── Design tokens ──────────────────────────────────────────────────────────
 
-const cardStyle: React.CSSProperties = {
+const card: React.CSSProperties = {
   borderRadius: 16,
   border: "1px solid #f0f0f0",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
 };
 
-const CHART_COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#722ed1", "#eb2f96", "#13c2c2"];
+const PALETTE = ["#1677ff", "#52c41a", "#fa8c16", "#722ed1", "#eb2f96", "#13c2c2", "#faad14", "#ff4d4f"];
 
-function sectionTitle(title: string, icon: React.ReactNode) {
-  return (
-    <Space size={8} style={{ marginBottom: 16 }}>
-      <span style={{ color: "#1677ff", fontSize: 18 }}>{icon}</span>
-      <Title level={5} style={{ margin: 0 }}>
-        {title}
-      </Title>
-    </Space>
-  );
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function initials(name: string) {
+  return name.split(" ").slice(0, 2).map((p) => p[0] ?? "").join("").toUpperCase() || "?";
 }
 
-// ─── Stat card ─────────────────────────────────────────────────────────────
+// Returns actual signed days (b - a). Negative means b is in the past.
+function daysBetween(a: string, b: string) {
+  return Math.ceil((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000);
+}
+
+// Format a list of names: "A, B, C and 8 more"
+function fmtNames(names: string[], max = 3) {
+  if (names.length <= max) return names.join(", ");
+  return `${names.slice(0, max).join(", ")} and ${names.length - max} more`;
+}
+
+function fmtDate(d: string | null) {
+  return d ? dayjs(d).format("DD MMM YY") : "—";
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function SectionHeader({ icon, title, extra }: { icon: React.ReactNode; title: string; extra?: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <Space size={8}>
+        <span style={{ color: "#1677ff", fontSize: 18 }}>{icon}</span>
+        <Title level={5} style={{ margin: 0, fontWeight: 700 }}>{title}</Title>
+      </Space>
+      {extra}
+    </div>
+  );
+}
 
 function KpiCard({
   icon,
   title,
   value,
-  subtitle,
+  sub,
   color,
   loading,
+  badge,
 }: {
   icon: React.ReactNode;
   title: string;
   value: React.ReactNode;
-  subtitle?: React.ReactNode;
+  sub?: React.ReactNode;
   color: string;
   loading?: boolean;
+  badge?: React.ReactNode;
 }) {
   return (
-    <Card
-      style={{ ...cardStyle, height: "100%" }}
-      styles={{ body: { padding: "20px 22px" } }}
-    >
+    <Card style={{ ...card, height: "100%" }} styles={{ body: { padding: "18px 20px" } }}>
       {loading ? (
         <Skeleton active paragraph={{ rows: 2 }} />
       ) : (
-        <Space size={14} align="start">
+        <Space size={14} align="start" style={{ width: "100%" }}>
           <div
             style={{
               width: 48,
@@ -126,48 +149,232 @@ function KpiCard({
           >
             {icon}
           </div>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12, display: "block" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Text type="secondary" style={{ fontSize: 11, display: "block", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               {title}
             </Text>
-            <div
-              style={{ fontSize: 26, fontWeight: 700, color: "#0f172a", lineHeight: 1.2 }}
-            >
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#0f172a", lineHeight: 1.2, marginTop: 2 }}>
               {value}
             </div>
-            {subtitle && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {subtitle}
-              </Text>
-            )}
+            {sub && <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: "block" }}>{sub}</Text>}
           </div>
+          {badge && <div style={{ flexShrink: 0 }}>{badge}</div>}
         </Space>
       )}
     </Card>
   );
 }
 
-// ─── Ranking badge ─────────────────────────────────────────────────────────
-
 function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1)
-    return (
-      <span style={{ fontSize: 18 }}>🥇</span>
-    );
+  if (rank === 1) return <span style={{ fontSize: 18 }}>🥇</span>;
   if (rank === 2) return <span style={{ fontSize: 18 }}>🥈</span>;
   if (rank === 3) return <span style={{ fontSize: 18 }}>🥉</span>;
+  return <Tag style={{ minWidth: 28, textAlign: "center", borderRadius: 20, margin: 0 }}>{rank}</Tag>;
+}
+
+// ─── Alerts bar ──────────────────────────────────────────────────────────────
+
+function AlertsBar({ data, today }: { data: TeamPerformanceResponse; today: string }) {
+  const alerts: { type: "warning" | "error" | "info"; msg: string }[] = [];
+
+  const zeroToday = data.agents.filter((a) => a.today_leads === 0 && a.total_leads > 0).length;
+  if (zeroToday > 0)
+    alerts.push({ type: "warning", msg: `${zeroToday} agent${zeroToday > 1 ? "s" : ""} with 0 uploads today` });
+
+  // Only future end_dates that are within the next 7 days (strictly > today)
+  const nearing = data.campaigns.filter((c) => {
+    if (!c.end_date || c.status !== "active" || c.progress_pct >= 100) return false;
+    if (c.end_date <= today) return false; // past/today = overdue, handled separately
+    const daysLeft = daysBetween(today, c.end_date);
+    return daysLeft > 0 && daysLeft <= 7;
+  });
+  if (nearing.length > 0)
+    alerts.push({
+      type: "warning",
+      msg: `${nearing.length} active campaign${nearing.length > 1 ? "s" : ""} due within 7 days — ${fmtNames(nearing.map((c) => c.campaign_name))}`,
+    });
+
+  // Past end_date and not complete
+  const overdue = data.campaigns.filter(
+    (c) => c.end_date && c.end_date < today && c.status === "active" && c.progress_pct < 100
+  );
+  if (overdue.length > 0)
+    alerts.push({
+      type: "error",
+      msg: `${overdue.length} overdue campaign${overdue.length > 1 ? "s" : ""} (past deadline, still active) — ${fmtNames(overdue.map((c) => c.campaign_name))}`,
+    });
+
+  const lowPerf = data.agents.filter((a) => a.avg_per_day < 0.5 && a.total_leads > 0).length;
+  if (lowPerf > 0)
+    alerts.push({ type: "info", msg: `${lowPerf} agent${lowPerf > 1 ? "s" : ""} with low avg upload rate (< 0.5/day)` });
+
+  if (alerts.length === 0) return null;
+
   return (
-    <Tag style={{ minWidth: 28, textAlign: "center", borderRadius: 20 }}>{rank}</Tag>
+    <Space direction="vertical" style={{ width: "100%", marginBottom: 20 }} size={8}>
+      {alerts.map((a, i) => (
+        <Alert
+          key={i}
+          type={a.type}
+          showIcon
+          message={a.msg}
+          style={{ borderRadius: 10, padding: "8px 16px" }}
+        />
+      ))}
+    </Space>
   );
 }
 
-// ─── Main component ─────────────────────────────────────────────────────────
+// ─── Leaderboard cards ───────────────────────────────────────────────────────
+
+function LeaderboardCard({
+  title,
+  icon,
+  color,
+  rows,
+  loading,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  color: string;
+  rows: { name: string; value: number; sub?: string }[];
+  loading?: boolean;
+}) {
+  return (
+    <Card style={{ ...card, height: "100%" }} styles={{ body: { padding: "18px 20px" } }}>
+      <SectionHeader icon={icon} title={title} />
+      {loading ? (
+        <Skeleton active paragraph={{ rows: 4 }} />
+      ) : rows.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No data" style={{ margin: "20px 0" }} />
+      ) : (
+        <Space direction="vertical" style={{ width: "100%" }} size={10}>
+          {rows.map((r, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <RankBadge rank={i + 1} />
+              <Avatar
+                size={32}
+                style={{ background: PALETTE[i % PALETTE.length], flexShrink: 0, fontSize: 12 }}
+              >
+                {initials(r.name)}
+              </Avatar>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Text strong style={{ fontSize: 13, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {r.name}
+                </Text>
+                {r.sub && <Text type="secondary" style={{ fontSize: 11 }}>{r.sub}</Text>}
+              </div>
+              <span
+                style={{
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color,
+                  background: `${color}14`,
+                  borderRadius: 8,
+                  padding: "2px 10px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {r.value.toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </Space>
+      )}
+    </Card>
+  );
+}
+
+// ─── Campaign prediction card ─────────────────────────────────────────────────
+
+function PredictionCard({ c, today }: { c: CampaignPerformance; today: string }) {
+  const remaining = Math.max(0, c.total_allocation - c.total_uploaded);
+  const daysLeft = c.end_date ? Math.max(0, daysBetween(today, c.end_date)) : null;
+  const requiredPerDay = daysLeft && daysLeft > 0 ? Math.ceil(remaining / daysLeft) : null;
+
+  const isOverdue = c.end_date && c.end_date < today && c.progress_pct < 100;
+  const isNearing = !isOverdue && daysLeft !== null && daysLeft <= 7 && c.progress_pct < 100;
+  const isComplete = c.progress_pct >= 100;
+
+  const borderColor = isComplete ? "#52c41a" : isOverdue ? "#ff4d4f" : isNearing ? "#fa8c16" : "#1677ff";
+
+  return (
+    <Card
+      style={{ ...card, borderLeft: `4px solid ${borderColor}` }}
+      styles={{ body: { padding: "16px 18px" } }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Text strong style={{ fontSize: 13, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {c.campaign_name}
+          </Text>
+          {c.campaign_code && <Text type="secondary" style={{ fontSize: 11 }}>{c.campaign_code}</Text>}
+        </div>
+        <Tag
+          color={isComplete ? "success" : isOverdue ? "error" : isNearing ? "warning" : "processing"}
+          style={{ margin: 0, borderRadius: 20, fontSize: 11 }}
+        >
+          {isComplete ? "Complete" : isOverdue ? "Overdue" : isNearing ? "Due Soon" : "On Track"}
+        </Tag>
+      </div>
+
+      <Progress
+        percent={c.progress_pct}
+        size="small"
+        strokeColor={isComplete ? "#52c41a" : isOverdue ? "#ff4d4f" : isNearing ? "#fa8c16" : "#1677ff"}
+        style={{ marginBottom: 10 }}
+      />
+
+      <Row gutter={8}>
+        <Col span={8}>
+          <Text type="secondary" style={{ fontSize: 10, display: "block" }}>Uploaded</Text>
+          <Text strong style={{ fontSize: 13 }}>{c.total_uploaded.toLocaleString()}</Text>
+        </Col>
+        <Col span={8}>
+          <Text type="secondary" style={{ fontSize: 10, display: "block" }}>Remaining</Text>
+          <Text strong style={{ fontSize: 13, color: remaining > 0 ? "#fa8c16" : "#52c41a" }}>
+            {remaining.toLocaleString()}
+          </Text>
+        </Col>
+        <Col span={8}>
+          <Text type="secondary" style={{ fontSize: 10, display: "block" }}>Days Left</Text>
+          <Text strong style={{ fontSize: 13, color: isOverdue ? "#ff4d4f" : "#0f172a" }}>
+            {daysLeft !== null ? (isOverdue ? "Overdue" : `${daysLeft}d`) : "—"}
+          </Text>
+        </Col>
+      </Row>
+
+      {requiredPerDay !== null && !isComplete && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "6px 10px",
+            background: "#f0f5ff",
+            borderRadius: 8,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <ThunderboltOutlined style={{ color: "#1677ff", fontSize: 13 }} />
+          <Text style={{ fontSize: 12, color: "#1677ff", fontWeight: 600 }}>
+            Need {requiredPerDay} uploads/day to finish by {fmtDate(c.end_date)}
+          </Text>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TeamPerformanceDashboard() {
   const [data, setData] = useState<TeamPerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const today = dayjs().format("YYYY-MM-DD");
 
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
     dayjs().subtract(3, "month"),
@@ -177,12 +384,12 @@ export default function TeamPerformanceDashboard() {
   const [userFilter, setUserFilter] = useState<string | null>(null);
 
   const buildUrl = useCallback(() => {
-    const params = new URLSearchParams();
-    params.set("start_date", dateRange[0].format("YYYY-MM-DD"));
-    params.set("end_date", dateRange[1].format("YYYY-MM-DD"));
-    if (campaignFilter) params.set("campaign_id", campaignFilter);
-    if (userFilter) params.set("user_id", userFilter);
-    return `/api/tl/team-performance?${params.toString()}`;
+    const p = new URLSearchParams();
+    p.set("start_date", dateRange[0].format("YYYY-MM-DD"));
+    p.set("end_date", dateRange[1].format("YYYY-MM-DD"));
+    if (campaignFilter) p.set("campaign_id", campaignFilter);
+    if (userFilter) p.set("user_id", userFilter);
+    return `/api/tl/team-performance?${p.toString()}`;
   }, [dateRange, campaignFilter, userFilter]);
 
   const load = useCallback(
@@ -193,7 +400,7 @@ export default function TeamPerformanceDashboard() {
       try {
         const res = await fetch(buildUrl(), { credentials: "include" });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? "Failed to load performance data");
+        if (!res.ok) throw new Error(json.error ?? "Failed to load");
         setData(json);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load");
@@ -205,706 +412,645 @@ export default function TeamPerformanceDashboard() {
     [buildUrl]
   );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  // Silent refresh on a polling interval
   useEffect(() => {
     const id = window.setInterval(() => void load(true), PERF_REFRESH_MS);
     return () => window.clearInterval(id);
   }, [load]);
 
-  // Listen for team assignment changes broadcast from the Team Builder page
   useEffect(() => {
-    let channel: BroadcastChannel | null = null;
+    let ch: BroadcastChannel | null = null;
     try {
-      channel = new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL);
-      channel.onmessage = () => void load(true);
-    } catch {
-      // BroadcastChannel not supported — fall back to polling only
-    }
-    return () => {
-      if (channel) {
-        channel.onmessage = null;
-        channel.close();
-      }
-    };
+      ch = new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL);
+      ch.onmessage = () => void load(true);
+    } catch { /* ignore */ }
+    return () => { if (ch) { ch.onmessage = null; ch.close(); } };
   }, [load]);
 
-  // ── Campaign & user options for filters ────────────────────────────────────
+  const isOM = data?.scope === "organization";
+
+  // ── Options ─────────────────────────────────────────────────────────────────
   const campaignOptions = useMemo(
-    () =>
-      (data?.campaigns ?? []).map((c) => ({
-        value: c.campaign_id,
-        label: c.campaign_name,
-      })),
+    () => (data?.campaigns ?? []).map((c) => ({ value: c.campaign_id, label: c.campaign_name })),
     [data]
   );
-
   const userOptions = useMemo(
-    () =>
-      (data?.agents ?? []).map((a) => ({
-        value: a.agent_id,
-        label: a.agent_name,
-      })),
+    () => (data?.agents ?? []).map((a) => ({ value: a.agent_id, label: a.agent_name })),
     [data]
   );
 
-  // ── Agent table columns ────────────────────────────────────────────────────
-  const agentColumns: ColumnsType<AgentPerformance> = [
+  // ── Derived data ─────────────────────────────────────────────────────────────
+  const top5Agents = useMemo(() => (data?.agents ?? []).slice(0, 5), [data]);
+  const bottom5Agents = useMemo(
+    () =>
+      [...(data?.agents ?? [])]
+        .filter((a) => a.total_leads >= 0)
+        .sort((a, b) => a.total_leads - b.total_leads)
+        .slice(0, 5),
+    [data]
+  );
+  const top5TLs = useMemo(() => (data?.tl_summaries ?? []).slice(0, 5), [data]);
+
+  const activeCampaignPredictions = useMemo(
+    () =>
+      (data?.campaigns ?? [])
+        .filter((c) => c.status === "active" && c.progress_pct < 100)
+        .sort((a, b) => {
+          if (!a.end_date && !b.end_date) return 0;
+          if (!a.end_date) return 1;
+          if (!b.end_date) return -1;
+          return a.end_date.localeCompare(b.end_date);
+        })
+        .slice(0, 6),
+    [data]
+  );
+
+  // ── Expected vs Actual ───────────────────────────────────────────────────────
+  const expectedVsActual = useMemo(() => {
+    if (!data) return [];
+    const trend = data.daily_trend;
+    if (trend.length === 0) return [];
+
+    const totalAlloc = data.campaigns
+      .filter((c) => c.status === "active")
+      .reduce((s, c) => s + c.total_allocation, 0);
+    if (totalAlloc === 0 || trend.length < 2) return [];
+
+    const perDay = totalAlloc / trend.length;
+    let cumActual = 0;
+    let cumExpected = 0;
+    return trend.map((t, i) => {
+      cumActual += t.leads;
+      cumExpected = Math.round(perDay * (i + 1));
+      return {
+        date: dayjs(t.date).format("DD MMM"),
+        actual: cumActual,
+        expected: cumExpected,
+        daily: t.leads,
+      };
+    });
+  }, [data]);
+
+  // ── TL comparison chart ──────────────────────────────────────────────────────
+  const tlChartData = useMemo(
+    () =>
+      (data?.tl_summaries ?? [])
+        .slice(0, 8)
+        .map((t) => ({ name: t.tl_name.split(" ")[0], total: t.total_leads, today: t.today_leads })),
+    [data]
+  );
+
+  // ── Agent comparison chart ───────────────────────────────────────────────────
+  const agentChartData = useMemo(
+    () =>
+      (data?.agents ?? [])
+        .slice(0, 8)
+        .map((a) => ({ name: a.agent_name.split(" ")[0], total: a.total_leads, today: a.today_leads })),
+    [data]
+  );
+
+  // ── Campaign progress chart ──────────────────────────────────────────────────
+  const campProgressData = useMemo(
+    () =>
+      (data?.campaigns ?? [])
+        .slice(0, 8)
+        .map((c) => ({
+          name: c.campaign_name.length > 14 ? `${c.campaign_name.slice(0, 13)}…` : c.campaign_name,
+          uploaded: c.total_uploaded,
+          remaining: Math.max(0, c.total_allocation - c.total_uploaded),
+          pct: c.progress_pct,
+        })),
+    [data]
+  );
+
+  // ── Table columns ────────────────────────────────────────────────────────────
+  const agentCols: ColumnsType<AgentPerformance> = [
     {
-      title: "Rank",
+      title: "#",
       key: "rank",
-      width: 60,
+      width: 52,
       render: (_: unknown, __: AgentPerformance, i: number) => <RankBadge rank={i + 1} />,
     },
     {
       title: "Agent",
       key: "agent",
-      render: (_: unknown, row: AgentPerformance) => (
+      render: (_: unknown, r: AgentPerformance) => (
         <Space size={10}>
-          <Avatar
-            size={34}
-            style={{ background: "#52c41a", flexShrink: 0, fontSize: 13 }}
-          >
-            {row.agent_name
-              .split(" ")
-              .slice(0, 2)
-              .map((p) => p[0])
-              .join("")
-              .toUpperCase()}
-          </Avatar>
+          <Avatar size={32} style={{ background: "#1677ff", fontSize: 12 }}>{initials(r.agent_name)}</Avatar>
           <div>
-            <Text strong style={{ fontSize: 13 }}>
-              {row.agent_name}
-            </Text>
-            {row.agent_code && (
-              <Text type="secondary" style={{ display: "block", fontSize: 11 }}>
-                {row.agent_code}
-              </Text>
-            )}
+            <Text strong style={{ fontSize: 13 }}>{r.agent_name}</Text>
+            {r.agent_code && <Text type="secondary" style={{ display: "block", fontSize: 11 }}>{r.agent_code}</Text>}
           </div>
         </Space>
       ),
     },
+    ...(isOM
+      ? [{
+          title: "TL",
+          dataIndex: "tl_name" as keyof AgentPerformance,
+          key: "tl_name",
+          render: (v: unknown) =>
+            v ? <Tag color="blue" style={{ borderRadius: 20 }}>{String(v)}</Tag> : <Text type="secondary">—</Text>,
+        }]
+      : []),
     {
-      title: "TL",
-      dataIndex: "tl_name",
-      key: "tl_name",
-      render: (v: string | null) =>
-        v ? (
-          <Tag color="blue" style={{ borderRadius: 20 }}>
-            {v}
-          </Tag>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
-    },
-    {
-      title: "Campaigns",
-      dataIndex: "campaigns_worked",
-      key: "campaigns_worked",
-      sorter: (a: AgentPerformance, b: AgentPerformance) =>
-        a.campaigns_worked - b.campaigns_worked,
-      render: (v: number) => (
-        <Tag style={{ borderRadius: 20, minWidth: 28, textAlign: "center" }}>{v}</Tag>
-      ),
-      align: "center",
-    },
-    {
-      title: "Total Uploaded",
+      title: "Total",
       dataIndex: "total_leads",
       key: "total_leads",
       sorter: (a: AgentPerformance, b: AgentPerformance) => a.total_leads - b.total_leads,
-      defaultSortOrder: "descend",
+      defaultSortOrder: "descend" as const,
+      align: "center" as const,
       render: (v: number) => (
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 15,
-            color: "#1677ff",
-            background: "#e6f4ff",
-            borderRadius: 8,
-            padding: "2px 10px",
-          }}
-        >
+        <span style={{ fontWeight: 700, fontSize: 14, color: "#1677ff", background: "#e6f4ff", borderRadius: 8, padding: "2px 10px" }}>
           {v.toLocaleString()}
         </span>
       ),
-      align: "center",
     },
     {
       title: "Today",
       dataIndex: "today_leads",
       key: "today_leads",
-      sorter: (a: AgentPerformance, b: AgentPerformance) =>
-        a.today_leads - b.today_leads,
+      align: "center" as const,
       render: (v: number) => (
-        <span
-          style={{
-            fontWeight: 600,
-            color: v > 0 ? "#52c41a" : "#bfbfbf",
-            background: v > 0 ? "#f6ffed" : "transparent",
-            borderRadius: 8,
-            padding: "2px 10px",
-          }}
-        >
+        <span style={{ fontWeight: 600, color: v > 0 ? "#52c41a" : "#bfbfbf", background: v > 0 ? "#f6ffed" : "transparent", borderRadius: 8, padding: "2px 10px" }}>
           {v}
         </span>
       ),
-      align: "center",
     },
+    { title: "This Week", dataIndex: "week_leads", key: "week_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
+    { title: "This Month", dataIndex: "month_leads", key: "month_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
     {
-      title: "This Week",
-      dataIndex: "week_leads",
-      key: "week_leads",
-      align: "center",
-      render: (v: number) => v.toLocaleString(),
-    },
-    {
-      title: "This Month",
-      dataIndex: "month_leads",
-      key: "month_leads",
-      align: "center",
-      render: (v: number) => v.toLocaleString(),
-    },
-    {
-      title: "Avg / Day",
+      title: "Avg/Day",
       dataIndex: "avg_per_day",
       key: "avg_per_day",
-      sorter: (a: AgentPerformance, b: AgentPerformance) =>
-        a.avg_per_day - b.avg_per_day,
-      align: "center",
-      render: (v: number) => v.toFixed(1),
+      align: "center" as const,
+      sorter: (a: AgentPerformance, b: AgentPerformance) => a.avg_per_day - b.avg_per_day,
+      render: (v: number) => (
+        <Tag color={v >= 2 ? "success" : v >= 1 ? "warning" : "default"} style={{ borderRadius: 20 }}>
+          {v.toFixed(1)}
+        </Tag>
+      ),
     },
     {
       title: "Last Upload",
       dataIndex: "last_upload_date",
       key: "last_upload_date",
       render: (v: string | null) =>
-        v ? (
-          <Text style={{ fontSize: 12 }}>
-            {dayjs(v).format("DD MMM YYYY")}
-          </Text>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
+        v ? <Text style={{ fontSize: 12 }}>{dayjs(v).format("DD MMM YY")}</Text> : <Text type="secondary">—</Text>,
     },
   ];
 
-  // ── Campaign table columns ─────────────────────────────────────────────────
-  const campaignColumns: ColumnsType<CampaignPerformance> = [
+  const tlCols: ColumnsType<TLSummary> = [
+    {
+      title: "#",
+      key: "rank",
+      width: 52,
+      render: (_: unknown, __: TLSummary, i: number) => <RankBadge rank={i + 1} />,
+    },
+    {
+      title: "Team Leader",
+      key: "tl",
+      render: (_: unknown, r: TLSummary) => (
+        <Space size={10}>
+          <Avatar size={32} style={{ background: "#722ed1", fontSize: 12 }}>{initials(r.tl_name)}</Avatar>
+          <Text strong style={{ fontSize: 13 }}>{r.tl_name}</Text>
+        </Space>
+      ),
+    },
+    { title: "Agents", dataIndex: "agent_count", key: "agent_count", align: "center" as const,
+      render: (v: number) => <Tag style={{ borderRadius: 20 }}>{v}</Tag> },
+    { title: "Total", dataIndex: "total_leads", key: "total_leads", align: "center" as const, defaultSortOrder: "descend" as const,
+      sorter: (a: TLSummary, b: TLSummary) => a.total_leads - b.total_leads,
+      render: (v: number) => <span style={{ fontWeight: 700, color: "#1677ff" }}>{v.toLocaleString()}</span> },
+    { title: "Today", dataIndex: "today_leads", key: "today_leads", align: "center" as const,
+      render: (v: number) => <span style={{ color: v > 0 ? "#52c41a" : "#bfbfbf", fontWeight: 600 }}>{v}</span> },
+    { title: "This Week", dataIndex: "week_leads", key: "week_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
+    { title: "This Month", dataIndex: "month_leads", key: "month_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
+  ];
+
+  const campCols: ColumnsType<CampaignPerformance> = [
     {
       title: "Campaign",
       key: "campaign",
-      render: (_: unknown, row: CampaignPerformance) => (
+      render: (_: unknown, r: CampaignPerformance) => (
         <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 13 }}>
-            {row.campaign_name}
-          </Text>
-          {row.campaign_code && (
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {row.campaign_code}
-            </Text>
-          )}
+          <Text strong style={{ fontSize: 13 }}>{r.campaign_name}</Text>
+          {r.campaign_code && <Text type="secondary" style={{ fontSize: 11 }}>{r.campaign_code}</Text>}
         </Space>
       ),
     },
     {
-      title: "Allocation",
-      dataIndex: "total_allocation",
-      key: "total_allocation",
-      align: "center",
-      render: (v: number) => v.toLocaleString(),
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (s: string) => (
+        <Tag color={s === "active" ? "green" : s === "completed" ? "blue" : s === "paused" ? "orange" : "default"} style={{ borderRadius: 20 }}>
+          {s}
+        </Tag>
+      ),
     },
+    { title: "Allocation", dataIndex: "total_allocation", key: "total_allocation", align: "center" as const, render: (v: number) => v.toLocaleString() },
     {
       title: "Uploaded",
       dataIndex: "total_uploaded",
       key: "total_uploaded",
-      align: "center",
-      sorter: (a: CampaignPerformance, b: CampaignPerformance) =>
-        a.total_uploaded - b.total_uploaded,
-      defaultSortOrder: "descend",
+      align: "center" as const,
+      defaultSortOrder: "descend" as const,
+      sorter: (a: CampaignPerformance, b: CampaignPerformance) => a.total_uploaded - b.total_uploaded,
       render: (v: number) => (
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 14,
-            color: "#1677ff",
-            background: "#e6f4ff",
-            borderRadius: 8,
-            padding: "2px 10px",
-          }}
-        >
+        <span style={{ fontWeight: 700, color: "#1677ff", background: "#e6f4ff", borderRadius: 8, padding: "2px 10px" }}>
           {v.toLocaleString()}
         </span>
       ),
     },
     {
       title: "Progress",
-      key: "progress",
-      width: 180,
-      render: (_: unknown, row: CampaignPerformance) => (
+      dataIndex: "progress_pct",
+      key: "progress_pct",
+      width: 160,
+      render: (v: number) => (
         <Space direction="vertical" size={2} style={{ width: "100%" }}>
-          <Progress
-            percent={row.progress_pct}
-            size="small"
-            strokeColor={
-              row.progress_pct >= 100
-                ? "#52c41a"
-                : row.progress_pct >= 60
-                  ? "#1677ff"
-                  : "#fa8c16"
-            }
-          />
-          <Text type="secondary" style={{ fontSize: 11 }}>
-            {row.progress_pct}% of allocation
-          </Text>
+          <Progress percent={v} size="small" strokeColor={v >= 100 ? "#52c41a" : v >= 50 ? "#1677ff" : "#fa8c16"} />
         </Space>
       ),
     },
+    { title: "Agents", dataIndex: "agents_count", key: "agents_count", align: "center" as const },
     {
-      title: "Agents",
-      dataIndex: "agents_count",
-      key: "agents_count",
-      align: "center",
-      render: (v: number) => v,
+      title: "Deadline",
+      dataIndex: "end_date",
+      key: "end_date",
+      render: (v: string | null) => {
+        if (!v) return <Text type="secondary">—</Text>;
+        const past = v < today;
+        return <Text style={{ fontSize: 12, color: past ? "#ff4d4f" : "#0f172a" }}>{fmtDate(v)}</Text>;
+      },
     },
   ];
 
-  // ── TL summary columns ────────────────────────────────────────────────────
-  const tlColumns: ColumnsType<TLSummary> = [
-    {
-      title: "Rank",
-      key: "rank",
-      width: 60,
-      render: (_: unknown, __: TLSummary, i: number) => <RankBadge rank={i + 1} />,
-    },
-    {
-      title: "Team Leader",
-      key: "tl",
-      render: (_: unknown, row: TLSummary) => (
-        <Space size={10}>
-          <Avatar
-            size={34}
-            style={{
-              background: "linear-gradient(135deg,#1677ff,#4096ff)",
-              fontSize: 13,
-            }}
-            icon={<CrownOutlined />}
-          />
-          <Text strong>{row.tl_name}</Text>
-        </Space>
-      ),
-    },
-    {
-      title: "Agents",
-      dataIndex: "agent_count",
-      key: "agent_count",
-      align: "center",
-      render: (v: number) => <Tag color="blue">{v}</Tag>,
-    },
-    {
-      title: "Total Leads",
-      dataIndex: "total_leads",
-      key: "total_leads",
-      sorter: (a: TLSummary, b: TLSummary) => a.total_leads - b.total_leads,
-      defaultSortOrder: "descend",
-      align: "center",
-      render: (v: number) => (
-        <span
-          style={{
-            fontWeight: 700,
-            fontSize: 14,
-            color: "#1677ff",
-            background: "#e6f4ff",
-            borderRadius: 8,
-            padding: "2px 10px",
-          }}
-        >
-          {v.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      title: "Today",
-      dataIndex: "today_leads",
-      key: "today_leads",
-      align: "center",
-      render: (v: number) => (
-        <span style={{ color: v > 0 ? "#52c41a" : "#bfbfbf", fontWeight: 600 }}>
-          {v}
-        </span>
-      ),
-    },
-    {
-      title: "This Week",
-      dataIndex: "week_leads",
-      key: "week_leads",
-      align: "center",
-      render: (v: number) => v.toLocaleString(),
-    },
-    {
-      title: "This Month",
-      dataIndex: "month_leads",
-      key: "month_leads",
-      align: "center",
-      render: (v: number) => v.toLocaleString(),
-    },
-  ];
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  const sum = data?.summary;
-  const isOM = data?.scope === "organization";
+  const s = data?.summary;
 
   return (
-    <Space direction="vertical" size={28} style={{ width: "100%" }}>
+    <div style={{ padding: "0 4px" }}>
       {/* ── Filters ── */}
-      <Card style={{ ...cardStyle, background: "#fafafa" }} styles={{ body: { padding: "14px 18px" } }}>
-        <Space wrap size={12}>
+      <Row gutter={[12, 12]} style={{ marginBottom: 20 }} align="middle">
+        <Col xs={24} sm={12} md={8} lg={6}>
           <RangePicker
             value={dateRange}
-            onChange={(vals) => {
-              if (vals?.[0] && vals?.[1])
-                setDateRange([vals[0], vals[1]]);
-            }}
-            presets={[
-              { label: "Last 7 days", value: [dayjs().subtract(7, "d"), dayjs()] },
-              { label: "Last 30 days", value: [dayjs().subtract(30, "d"), dayjs()] },
-              { label: "Last 3 months", value: [dayjs().subtract(3, "month"), dayjs()] },
-              { label: "This month", value: [dayjs().startOf("month"), dayjs()] },
-            ]}
+            onChange={(v) => { if (v?.[0] && v?.[1]) setDateRange([v[0], v[1]]); }}
+            style={{ width: "100%", borderRadius: 10 }}
             allowClear={false}
-            style={{ width: 280 }}
           />
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={6}>
           <Select
-            placeholder="All campaigns"
+            placeholder="All Campaigns"
             allowClear
-            style={{ width: 220 }}
+            style={{ width: "100%", borderRadius: 10 }}
             options={campaignOptions}
             value={campaignFilter}
-            onChange={(v) => setCampaignFilter(v ?? null)}
-            showSearch
-            optionFilterProp="label"
+            onChange={setCampaignFilter}
           />
+        </Col>
+        <Col xs={24} sm={12} md={8} lg={6}>
           <Select
-            placeholder="All agents"
+            placeholder="All Agents"
             allowClear
-            style={{ width: 200 }}
+            style={{ width: "100%", borderRadius: 10 }}
             options={userOptions}
             value={userFilter}
-            onChange={(v) => setUserFilter(v ?? null)}
-            showSearch
-            optionFilterProp="label"
+            onChange={setUserFilter}
           />
-          <Button
-            type="primary"
-            icon={<BarChartOutlined />}
-            onClick={() => void load()}
-            loading={loading || refreshing}
-          >
-            Apply
-          </Button>
+        </Col>
+        <Col xs={24} sm={12} md={24} lg={6}>
           <Button
             icon={<ReloadOutlined spin={refreshing} />}
             onClick={() => void load(true)}
-            loading={refreshing}
+            style={{ borderRadius: 10, width: "100%" }}
           >
             Refresh
           </Button>
-        </Space>
-      </Card>
+        </Col>
+      </Row>
 
-      {/* ── KPI cards ── */}
-      {loading && !data ? (
-        <Row gutter={[16, 16]}>
-          {[1, 2, 3, 4, 5, 6].map((k) => (
-            <Col xs={12} sm={8} lg={4} key={k}>
-              <Card style={cardStyle}>
-                <Skeleton active paragraph={{ rows: 2 }} />
-              </Card>
+      {/* ── Error ── */}
+      {error && (
+        <Alert type="error" message={error} showIcon style={{ borderRadius: 10, marginBottom: 20 }} />
+      )}
+
+      {/* ── Alerts ── */}
+      {data && <AlertsBar data={data} today={today} />}
+
+      {/* ── OM KPI Cards ── */}
+      {loading ? (
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          {Array.from({ length: isOM || !data ? 8 : 6 }).map((_, i) => (
+            <Col xs={24} sm={12} md={8} xl={6} key={i}>
+              <Card style={card}><Skeleton active paragraph={{ rows: 2 }} /></Card>
             </Col>
           ))}
         </Row>
-      ) : error ? (
-        <Card style={cardStyle}>
-          <Empty description={error}>
-            <Button type="primary" icon={<ReloadOutlined />} onClick={() => void load()}>
-              Retry
-            </Button>
-          </Empty>
-        </Card>
+      ) : isOM ? (
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<FundProjectionScreenOutlined />} title="Total Campaigns" value={s?.total_campaigns ?? 0}
+              sub={`${s?.active_campaigns ?? 0} active`} color="#1677ff" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<RiseOutlined />} title="Total Leads Uploaded" value={(s?.total_leads ?? 0).toLocaleString()}
+              sub={`${(s?.week_leads ?? 0).toLocaleString()} this week`} color="#52c41a" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<FireOutlined />} title="Today Uploads" value={(s?.today_leads ?? 0).toLocaleString()}
+              sub={`${(s?.month_leads ?? 0).toLocaleString()} this month`} color="#fa8c16"
+              badge={s?.today_leads === 0 ? <Tag color="error">No uploads</Tag> : undefined} />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<CrownOutlined />} title="Active Team Leaders" value={s?.active_tl_count ?? 0}
+              sub="With assigned agents" color="#722ed1" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<TeamOutlined />} title="Active Agents" value={s?.active_agent_count ?? 0}
+              sub="In scope" color="#13c2c2" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<BarChartOutlined />} title="Avg Upload / Day" value={(s?.avg_per_day ?? 0).toFixed(1)}
+              sub="Across all agents" color="#1677ff" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<AlertOutlined />} title="Pending Allocation" value={(s?.pending_allocation ?? 0).toLocaleString()}
+              sub="Leads not yet uploaded" color="#ff4d4f" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard
+              icon={<CheckCircleOutlined />}
+              title="Overall Completion"
+              value={`${s?.completion_pct ?? 0}%`}
+              sub={
+                <Progress percent={s?.completion_pct ?? 0} size="small" showInfo={false}
+                  strokeColor={s?.completion_pct && s.completion_pct >= 80 ? "#52c41a" : "#1677ff"}
+                  style={{ marginTop: 4 }} />
+              }
+              color="#52c41a"
+            />
+          </Col>
+        </Row>
       ) : (
-        <>
-          <Row gutter={[16, 16]}>
-            <Col xs={12} sm={8} lg={4}>
-              <KpiCard
-                icon={<TeamOutlined />}
-                color="#1677ff"
-                title="Total Leads Uploaded"
-                value={(sum?.total_leads ?? 0).toLocaleString()}
-                subtitle={`in date range`}
-              />
-            </Col>
-            <Col xs={12} sm={8} lg={4}>
-              <KpiCard
-                icon={<FireOutlined />}
-                color="#52c41a"
-                title="Leads Today"
-                value={(sum?.today_leads ?? 0).toLocaleString()}
-                subtitle="uploaded today"
-              />
-            </Col>
-            <Col xs={12} sm={8} lg={4}>
-              <KpiCard
-                icon={<CalendarOutlined />}
-                color="#722ed1"
-                title="This Week"
-                value={(sum?.week_leads ?? 0).toLocaleString()}
-                subtitle="last 7 days"
-              />
-            </Col>
-            <Col xs={12} sm={8} lg={4}>
-              <KpiCard
-                icon={<FundProjectionScreenOutlined />}
-                color="#fa8c16"
-                title="Active Campaigns"
-                value={sum?.active_campaigns ?? 0}
-              />
-            </Col>
-            <Col xs={12} sm={8} lg={4}>
-              <KpiCard
-                icon={<RiseOutlined />}
-                color="#13c2c2"
-                title="Avg Upload / Day"
-                value={sum?.avg_per_day?.toFixed(1) ?? "0"}
-              />
-            </Col>
-            <Col xs={12} sm={8} lg={4}>
-              <KpiCard
-                icon={<WarningOutlined />}
-                color="#eb2f96"
-                title="Pending Allocation"
-                value={(sum?.pending_allocation ?? 0).toLocaleString()}
-              />
-            </Col>
-          </Row>
-
-          {/* Top performer banner */}
-          {sum?.top_performer && (
-            <Card
-              style={{
-                ...cardStyle,
-                background: "linear-gradient(135deg,#fff7e6 0%,#fffbf0 100%)",
-                borderColor: "#ffd591",
-              }}
-              styles={{ body: { padding: "14px 20px" } }}
-            >
-              <Space size={12}>
-                <span style={{ fontSize: 28 }}>🏆</span>
-                <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Top Performer
-                  </Text>
-                  <Title level={5} style={{ margin: 0 }}>
-                    {sum.top_performer.name}
-                    <Tag
-                      color="gold"
-                      style={{ marginLeft: 10, borderRadius: 20, fontSize: 13 }}
-                    >
-                      {sum.top_performer.total.toLocaleString()} leads
-                    </Tag>
-                  </Title>
-                </div>
-              </Space>
-            </Card>
-          )}
-
-          {/* ── Charts row ── */}
-          <Row gutter={[20, 20]}>
-            {/* Daily upload trend */}
-            <Col xs={24} xl={isOM ? 14 : 24}>
-              <Card style={cardStyle} styles={{ body: { padding: "20px 20px 10px" } }}>
-                {sectionTitle("Daily Upload Trend", <BarChartOutlined />)}
-                {(data?.daily_trend ?? []).length === 0 ? (
-                  <Empty description="No data in range" />
-                ) : (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <AreaChart
-                      data={data?.daily_trend ?? []}
-                      margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-                    >
-                      <defs>
-                        <linearGradient id="tpGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#1677ff" stopOpacity={0.18} />
-                          <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(d) => dayjs(d).format("DD MMM")}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                      <RTooltip
-                        labelFormatter={(l) => dayjs(l as string).format("DD MMM YYYY")}
-                        formatter={(v) => [`${v} leads`, "Uploaded"]}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="leads"
-                        stroke="#1677ff"
-                        strokeWidth={2}
-                        fill="url(#tpGrad)"
-                        dot={false}
-                        activeDot={{ r: 5 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </Card>
-            </Col>
-
-            {/* TL comparison chart (OM only) */}
-            {isOM && (data?.tl_summaries ?? []).length > 0 && (
-              <Col xs={24} xl={10}>
-                <Card style={cardStyle} styles={{ body: { padding: "20px 20px 10px" } }}>
-                  {sectionTitle("Team Comparison", <TeamOutlined />)}
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart
-                      data={(data?.tl_summaries ?? []).slice(0, 8)}
-                      layout="vertical"
-                      margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                      <YAxis
-                        type="category"
-                        dataKey="tl_name"
-                        tick={{ fontSize: 11 }}
-                        width={90}
-                      />
-                      <RTooltip formatter={(v) => [`${v} leads`, "Total"]} />
-                      <Bar dataKey="total_leads" radius={[0, 6, 6, 0]} maxBarSize={22}>
-                        {(data?.tl_summaries ?? []).slice(0, 8).map((_, i) => (
-                          <Cell
-                            key={i}
-                            fill={CHART_COLORS[i % CHART_COLORS.length]}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Card>
-              </Col>
-            )}
-          </Row>
-
-          {/* ── Campaign performance chart ── */}
-          {(data?.campaigns ?? []).length > 0 && (
-            <Card style={cardStyle} styles={{ body: { padding: "20px 20px 10px" } }}>
-              {sectionTitle("Campaign Performance", <FundProjectionScreenOutlined />)}
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={(data?.campaigns ?? []).slice(0, 12)}
-                  margin={{ top: 4, right: 8, bottom: 40, left: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="campaign_name"
-                    tick={{ fontSize: 11 }}
-                    angle={-28}
-                    textAnchor="end"
-                    interval={0}
-                  />
-                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                  <RTooltip />
-                  <Legend
-                    verticalAlign="top"
-                    wrapperStyle={{ fontSize: 12, paddingBottom: 6 }}
-                  />
-                  <Bar
-                    dataKey="total_allocation"
-                    name="Allocation"
-                    fill="#e5e7eb"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={32}
-                  />
-                  <Bar
-                    dataKey="total_uploaded"
-                    name="Uploaded"
-                    fill="#1677ff"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={32}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          )}
-
-          {/* ── TL Summary table (OM only) ── */}
-          {isOM && (data?.tl_summaries ?? []).length > 0 && (
-            <Card style={cardStyle} styles={{ body: { padding: "20px 20px 8px" } }}>
-              {sectionTitle("TL-wise Summary", <CrownOutlined />)}
-              <Table<TLSummary>
-                columns={tlColumns}
-                dataSource={data?.tl_summaries ?? []}
-                rowKey="tl_id"
-                pagination={false}
-                size="small"
-                scroll={{ x: 640 }}
-              />
-            </Card>
-          )}
-
-          {/* ── Agent performance table ── */}
-          <Card style={cardStyle} styles={{ body: { padding: "20px 20px 8px" } }}>
-            {sectionTitle("Agent-wise Performance", <UserOutlined />)}
-            {(data?.agents ?? []).length === 0 ? (
-              <Empty description="No agent data for selected filters" />
-            ) : (
-              <Table<AgentPerformance>
-                columns={agentColumns}
-                dataSource={data?.agents ?? []}
-                rowKey="agent_id"
-                pagination={{ pageSize: 20, showSizeChanger: false, hideOnSinglePage: true }}
-                size="small"
-                scroll={{ x: 960 }}
-                rowClassName={(_, i) =>
-                  i < 3 ? "top-performer-row" : ""
-                }
-              />
-            )}
-          </Card>
-
-          {/* ── Campaign table ── */}
-          <Card style={cardStyle} styles={{ body: { padding: "20px 20px 8px" } }}>
-            {sectionTitle("Campaign-wise Performance", <FundProjectionScreenOutlined />)}
-            {(data?.campaigns ?? []).length === 0 ? (
-              <Empty description="No campaign data" />
-            ) : (
-              <Table<CampaignPerformance>
-                columns={campaignColumns}
-                dataSource={data?.campaigns ?? []}
-                rowKey="campaign_id"
-                pagination={{ pageSize: 15, showSizeChanger: false, hideOnSinglePage: true }}
-                size="small"
-                scroll={{ x: 700 }}
-              />
-            )}
-          </Card>
-        </>
+        /* TL KPI Cards */
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<TeamOutlined />} title="Assigned Agents" value={s?.active_agent_count ?? 0}
+              sub="In your team" color="#722ed1" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<FireOutlined />} title="Today Uploads" value={(s?.today_leads ?? 0).toLocaleString()}
+              color="#fa8c16" sub="By your agents today"
+              badge={s?.today_leads === 0 ? <Tag color="error">0</Tag> : undefined} />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<RiseOutlined />} title="Monthly Uploads" value={(s?.month_leads ?? 0).toLocaleString()}
+              sub={`${(s?.week_leads ?? 0).toLocaleString()} this week`} color="#52c41a" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<FundProjectionScreenOutlined />} title="Active Campaigns" value={s?.active_campaigns ?? 0}
+              sub={`${s?.total_campaigns ?? 0} total`} color="#1677ff" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<BarChartOutlined />} title="Avg Upload / Day" value={(s?.avg_per_day ?? 0).toFixed(1)}
+              sub="Team average" color="#13c2c2" />
+          </Col>
+          <Col xs={24} sm={12} md={8} xl={6}>
+            <KpiCard icon={<AlertOutlined />} title="Pending Leads" value={(s?.pending_allocation ?? 0).toLocaleString()}
+              sub="Allocation remaining" color="#ff4d4f" />
+          </Col>
+        </Row>
       )}
 
-      <style jsx global>{`
-        .top-performer-row td {
-          background: #fffbe6 !important;
-        }
+      {/* ── Daily Trend + TL Comparison ── */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} xl={isOM ? 14 : 24}>
+          <Card style={card} styles={{ body: { padding: "20px 22px" } }}>
+            <SectionHeader icon={<RiseOutlined />} title="Daily Upload Trend" />
+            {loading ? <Skeleton active paragraph={{ rows: 4 }} /> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={data?.daily_trend.map((d) => ({ ...d, date: dayjs(d.date).format("DD MMM") })) ?? []}>
+                  <defs>
+                    <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1677ff" stopOpacity={0.18} />
+                      <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <RTooltip contentStyle={{ borderRadius: 10 }} />
+                  <Area type="monotone" dataKey="leads" stroke="#1677ff" strokeWidth={2} fill="url(#trendGrad)" name="Uploads" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </Col>
+
+        {isOM && (
+          <Col xs={24} xl={10}>
+            <Card style={card} styles={{ body: { padding: "20px 22px" } }}>
+              <SectionHeader icon={<CrownOutlined />} title="TL Performance" />
+              {loading ? <Skeleton active paragraph={{ rows: 4 }} /> : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={tlChartData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={70} />
+                    <RTooltip contentStyle={{ borderRadius: 10 }} />
+                    <Legend />
+                    <Bar dataKey="total" name="Total" fill="#1677ff" radius={[0, 6, 6, 0]}>
+                      {tlChartData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </Card>
+          </Col>
+        )}
+      </Row>
+
+      {/* ── Expected vs Actual + Campaign Progress ── */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} xl={14}>
+          <Card style={card} styles={{ body: { padding: "20px 22px" } }}>
+            <SectionHeader icon={<FundProjectionScreenOutlined />} title="Expected vs Actual Progress" />
+            {loading ? <Skeleton active paragraph={{ rows: 4 }} /> : expectedVsActual.length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Not enough data" style={{ margin: "40px 0" }} />
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <ComposedChart data={expectedVsActual}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <RTooltip contentStyle={{ borderRadius: 10 }} />
+                  <Legend />
+                  <Area type="monotone" dataKey="actual" stroke="#52c41a" strokeWidth={2} fill="#f6ffed" name="Actual (cumulative)" dot={false} />
+                  <Line type="monotone" dataKey="expected" stroke="#faad14" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Expected (linear)" />
+                  <Bar dataKey="daily" fill="#1677ff" opacity={0.4} name="Daily uploads" radius={[3, 3, 0, 0]} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} xl={10}>
+          <Card style={card} styles={{ body: { padding: "20px 22px" } }}>
+            <SectionHeader icon={<BarChartOutlined />} title="Campaign Progress" />
+            {loading ? <Skeleton active paragraph={{ rows: 4 }} /> : campProgressData.length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No campaigns" style={{ margin: "40px 0" }} />
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={campProgressData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={80} />
+                  <RTooltip contentStyle={{ borderRadius: 10 }} />
+                  <Legend />
+                  <Bar dataKey="uploaded" name="Uploaded" fill="#1677ff" stackId="a" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="remaining" name="Remaining" fill="#f0f0f0" stackId="a" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ── Agent Performance Chart ── */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24}>
+          <Card style={card} styles={{ body: { padding: "20px 22px" } }}>
+            <SectionHeader icon={<UserOutlined />} title="Agent Performance Graph (Top 8)" />
+            {loading ? <Skeleton active paragraph={{ rows: 4 }} /> : agentChartData.length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No agents" style={{ margin: "40px 0" }} />
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={agentChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <RTooltip contentStyle={{ borderRadius: 10 }} />
+                  <Legend />
+                  <Bar dataKey="total" name="Total Uploads" radius={[6, 6, 0, 0]}>
+                    {agentChartData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                  </Bar>
+                  <Bar dataKey="today" name="Today" fill="#52c41a" opacity={0.7} radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ── Leaderboard ── */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} md={isOM ? 8 : 12}>
+          <LeaderboardCard
+            title="Top Agents"
+            icon={<TrophyOutlined />}
+            color="#52c41a"
+            loading={loading}
+            rows={top5Agents.map((a) => ({ name: a.agent_name, value: a.total_leads, sub: a.tl_name ?? undefined }))}
+          />
+        </Col>
+        {isOM && (
+          <Col xs={24} md={8}>
+            <LeaderboardCard
+              title="Top Team Leaders"
+              icon={<CrownOutlined />}
+              color="#722ed1"
+              loading={loading}
+              rows={top5TLs.map((t) => ({ name: t.tl_name, value: t.total_leads, sub: `${t.agent_count} agents` }))}
+            />
+          </Col>
+        )}
+        <Col xs={24} md={isOM ? 8 : 12}>
+          <LeaderboardCard
+            title="Lowest Performers"
+            icon={<WarningOutlined />}
+            color="#ff4d4f"
+            loading={loading}
+            rows={bottom5Agents.map((a) => ({ name: a.agent_name, value: a.total_leads, sub: `Avg ${a.avg_per_day.toFixed(1)}/day` }))}
+          />
+        </Col>
+      </Row>
+
+      {/* ── Predictions ── */}
+      {activeCampaignPredictions.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <SectionHeader icon={<ClockCircleOutlined />} title="Campaign Completion Predictions" />
+          <Row gutter={[16, 16]}>
+            {activeCampaignPredictions.map((c) => (
+              <Col xs={24} sm={12} xl={8} key={c.campaign_id}>
+                <PredictionCard c={c} today={today} />
+              </Col>
+            ))}
+          </Row>
+        </div>
+      )}
+
+      {/* ── Agent Table ── */}
+      <Card style={{ ...card, marginBottom: 24 }} styles={{ body: { padding: "0" } }}>
+        <div style={{ padding: "18px 20px 12px" }}>
+          <SectionHeader icon={<UserOutlined />} title="Agent-wise Performance" />
+        </div>
+        <Table<AgentPerformance>
+          dataSource={data?.agents ?? []}
+          columns={agentCols}
+          rowKey="agent_id"
+          size="small"
+          loading={loading}
+          pagination={{ pageSize: 10, size: "small", showSizeChanger: false }}
+          rowClassName={(_, i) => (i < 3 ? "top-performer-row" : "")}
+          style={{ borderRadius: "0 0 16px 16px", overflow: "hidden" }}
+          scroll={{ x: "max-content" }}
+        />
+      </Card>
+
+      {/* ── TL Table (OM only) ── */}
+      {isOM && (
+        <Card style={{ ...card, marginBottom: 24 }} styles={{ body: { padding: "0" } }}>
+          <div style={{ padding: "18px 20px 12px" }}>
+            <SectionHeader icon={<CrownOutlined />} title="TL-wise Summary" />
+          </div>
+          <Table<TLSummary>
+            dataSource={data?.tl_summaries ?? []}
+            columns={tlCols}
+            rowKey="tl_id"
+            size="small"
+            loading={loading}
+            pagination={{ pageSize: 10, size: "small", showSizeChanger: false }}
+            style={{ borderRadius: "0 0 16px 16px", overflow: "hidden" }}
+            scroll={{ x: "max-content" }}
+          />
+        </Card>
+      )}
+
+      {/* ── Campaign Table ── */}
+      <Card style={card} styles={{ body: { padding: "0" } }}>
+        <div style={{ padding: "18px 20px 12px" }}>
+          <SectionHeader icon={<FundProjectionScreenOutlined />} title="Campaign-wise Performance" />
+        </div>
+        <Table<CampaignPerformance>
+          dataSource={data?.campaigns ?? []}
+          columns={campCols}
+          rowKey="campaign_id"
+          size="small"
+          loading={loading}
+          pagination={{ pageSize: 10, size: "small", showSizeChanger: false }}
+          style={{ borderRadius: "0 0 16px 16px", overflow: "hidden" }}
+        />
+      </Card>
+
+      <style>{`
+        .top-performer-row { background: #fffbe6 !important; }
+        .top-performer-row:hover td { background: #fff7cc !important; }
       `}</style>
-    </Space>
+    </div>
   );
 }
