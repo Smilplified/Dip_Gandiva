@@ -84,17 +84,18 @@ export function buildTeamHierarchy(
 
   const agents = activeUsers.filter((u) => userHasRole(u, isAgentRole));
 
+  // Only treat campaigns as "under a TL" when the assigned user actually has the TL role.
+  // OMs, Admins, etc. who are set as assigned_team_leader_id must not be treated as TLs here.
+  const tlIdSet = new Set(teamLeaders.map((tl) => tl.id));
+
   const campaignCountByTl = new Map<string, number>();
-  const campaignTlById = new Map<string, string | null>();
+  const campaignTlById = new Map<string, string>();
 
   for (const c of campaigns) {
-    campaignTlById.set(c.id, c.assigned_team_leader_id);
-    if (c.assigned_team_leader_id) {
-      campaignCountByTl.set(
-        c.assigned_team_leader_id,
-        (campaignCountByTl.get(c.assigned_team_leader_id) ?? 0) + 1
-      );
-    }
+    const tlId = c.assigned_team_leader_id;
+    if (!tlId || !tlIdSet.has(tlId)) continue; // skip non-TL assigned campaigns
+    campaignTlById.set(c.id, tlId);
+    campaignCountByTl.set(tlId, (campaignCountByTl.get(tlId) ?? 0) + 1);
   }
 
   const agentsByTlFromCampaigns = new Map<string, Set<string>>();

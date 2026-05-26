@@ -58,6 +58,11 @@ import type {
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 
+// Matches the channel name in TeamBuilderDnDView
+const TEAM_ASSIGNMENT_CHANNEL = "team-assignment-updated";
+// How often the performance page silently re-polls (ms)
+const PERF_REFRESH_MS = 90_000;
+
 // ─── Design tokens ─────────────────────────────────────────────────────────
 
 const cardStyle: React.CSSProperties = {
@@ -202,6 +207,29 @@ export default function TeamPerformanceDashboard() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // Silent refresh on a polling interval
+  useEffect(() => {
+    const id = window.setInterval(() => void load(true), PERF_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  // Listen for team assignment changes broadcast from the Team Builder page
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL);
+      channel.onmessage = () => void load(true);
+    } catch {
+      // BroadcastChannel not supported — fall back to polling only
+    }
+    return () => {
+      if (channel) {
+        channel.onmessage = null;
+        channel.close();
+      }
+    };
   }, [load]);
 
   // ── Campaign & user options for filters ────────────────────────────────────

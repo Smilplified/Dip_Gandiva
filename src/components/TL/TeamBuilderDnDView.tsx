@@ -53,6 +53,8 @@ const { Text, Title } = Typography;
 
 const REFRESH_MS = 60_000;
 const UNASSIGNED_DROPPABLE_ID = "__unassigned__";
+// Channel name shared with TeamPerformanceDashboard so it can reload on change
+const TEAM_ASSIGNMENT_CHANNEL = "team-assignment-updated";
 
 const cardStyle: React.CSSProperties = {
   borderRadius: 16,
@@ -596,6 +598,12 @@ export default function TeamBuilderDnDView() {
             )
           : "Unassigned";
         message.success(`${getTeamMemberLabel(agent)} → ${targetLabel}`);
+        // Notify the Team Performance dashboard (same or other tabs) to refresh
+        try {
+          new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL).postMessage({ ts: Date.now() });
+        } catch {
+          // BroadcastChannel not available in all envs — silently ignore
+        }
       } catch (e) {
         setData(previous); // rollback
         message.error(e instanceof Error ? e.message : "Failed to update assignment");

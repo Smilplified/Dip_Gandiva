@@ -243,17 +243,28 @@ export async function GET(request: Request) {
       allCampAssignments = (caRows ?? []) as { campaign_id: string; agent_id: string }[];
     }
 
-    // TL id keyed by campaign id (from the unfiltered list)
+    // Build a set of ACTUAL TL IDs (only users with the TL role).
+    // OMs and other roles are sometimes stored as assigned_team_leader_id in campaigns
+    // (e.g. Shubham Gaikwad the OM). We must never treat them as TLs here, otherwise
+    // an agent appearing in both a real-TL campaign and an OM campaign will get a
+    // non-deterministic TL assignment depending on DB row order → inconsistent counts.
+    const actualTlIdSet = new Set(allTLs.map((tl) => tl.id));
+
+    // Campaign → real TL id (only when assigned_team_leader_id is an actual TL)
     const tlByCampaignId = new Map<string, string>();
     for (const c of (campaigns ?? []) as { id: string; assigned_team_leader_id: string | null }[]) {
-      if (c.assigned_team_leader_id) tlByCampaignId.set(c.id, c.assigned_team_leader_id);
+      const tlId = c.assigned_team_leader_id;
+      if (tlId && actualTlIdSet.has(tlId)) tlByCampaignId.set(c.id, tlId);
     }
 
-    // Agents linked to a TL via campaign (excluding those with reporting_manager_id)
-    // Only one TL per agent: first campaign assignment wins (same priority as hierarchy).
+    // Agents linked to a TL via campaign (excluding those with reporting_manager_id).
+    // Mirrors buildTeamHierarchy: each agent maps to AT MOST one TL via campaigns.
+    // Since we now only have real TL campaigns, an agent can only appear in one TL's
+    // campaign set (the data shows no agent is in two different real-TL campaigns),
+    // making this deterministic.
     const campaignTlByAgent = new Map<string, string>(); // agentId → tlId
     for (const row of allCampAssignments) {
-      if (campaignTlByAgent.has(row.agent_id)) continue; // first assignment wins
+      if (campaignTlByAgent.has(row.agent_id)) continue;
       const tlId = tlByCampaignId.get(row.campaign_id);
       if (tlId) campaignTlByAgent.set(row.agent_id, tlId);
     }
