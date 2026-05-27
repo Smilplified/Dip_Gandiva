@@ -58,11 +58,10 @@ import type {
   TeamPerformanceResponse,
   TLSummary,
 } from "@/app/api/tl/team-performance/route";
+import { TEAM_ASSIGNMENT_CHANNEL } from "@/lib/tl/team-sync";
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
-
-const TEAM_ASSIGNMENT_CHANNEL = "team-assignment-updated";
 const PERF_REFRESH_MS = 90_000;
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
@@ -177,9 +176,17 @@ function RankBadge({ rank }: { rank: number }) {
 function AlertsBar({ data, today }: { data: TeamPerformanceResponse; today: string }) {
   const alerts: { type: "warning" | "error" | "info"; msg: string }[] = [];
 
-  const zeroToday = data.agents.filter((a) => a.today_leads === 0 && a.total_leads > 0).length;
-  if (zeroToday > 0)
-    alerts.push({ type: "warning", msg: `${zeroToday} agent${zeroToday > 1 ? "s" : ""} with 0 uploads today` });
+  // Only flag agents who uploaded at least once in the last 7 days (actively working)
+  // but have 0 uploads today. Avoids false alerts for agents inactive for weeks/months.
+  const sevenDaysAgo = dayjs().subtract(7, "day").format("YYYY-MM-DD");
+  const zeroToday = data.agents.filter(
+    (a) => a.today_leads === 0 && a.last_upload_date && a.last_upload_date >= sevenDaysAgo
+  );
+  if (zeroToday.length > 0)
+    alerts.push({
+      type: "warning",
+      msg: `${zeroToday.length} active agent${zeroToday.length > 1 ? "s" : ""} with 0 uploads today — ${fmtNames(zeroToday.map((a) => a.agent_name))}`,
+    });
 
   // Only future end_dates that are within the next 7 days (strictly > today)
   const nearing = data.campaigns.filter((c) => {
@@ -470,23 +477,50 @@ export default function TeamPerformanceDashboard() {
   const expectedVsActual = useMemo(() => {
     if (!data) return [];
     const trend = data.daily_trend;
-    if (trend.length === 0) return [];
+    if (trend.length < 2) return [];
 
-    const totalAlloc = data.campaigns
-      .filter((c) => c.status === "active")
-      .reduce((s, c) => s + c.total_allocation, 0);
-    if (totalAlloc === 0 || trend.length < 2) return [];
+    // Campaigns that have both start_date and end_date → can calculate daily rate
+    const datedCampaigns = data.campaigns.filter(
+      (c) => c.start_date && c.end_date && c.total_allocation > 0
+    );
 
-    const perDay = totalAlloc / trend.length;
     let cumActual = 0;
     let cumExpected = 0;
+
+    if (datedCampaigns.length > 0) {
+      // For each day, sum the daily allocation rate of campaigns whose window
+      // covers that day (total_allocation ÷ campaign_duration_days)
+      return trend.map((t) => {
+        cumActual += t.leads;
+        let dailyTarget = 0;
+        for (const c of datedCampaigns) {
+          const start = c.start_date!;
+          const end = c.end_date!;
+          if (t.date < start || t.date > end) continue;
+          const campDays = Math.max(1, daysBetween(start, end));
+          dailyTarget += c.total_allocation / campDays;
+        }
+        cumExpected += dailyTarget;
+        return {
+          date: dayjs(t.date).format("DD MMM"),
+          actual: Math.round(cumActual),
+          expected: Math.round(cumExpected),
+          daily: t.leads,
+        };
+      });
+    }
+
+    // Fallback (no campaign dates): show even distribution of actual uploads
+    // as the "ideal baseline" — both lines end at the same total.
+    const totalActual = trend.reduce((s, t) => s + t.leads, 0);
+    if (totalActual === 0) return [];
+    const perDay = totalActual / trend.length;
     return trend.map((t, i) => {
       cumActual += t.leads;
-      cumExpected = Math.round(perDay * (i + 1));
       return {
         date: dayjs(t.date).format("DD MMM"),
-        actual: cumActual,
-        expected: cumExpected,
+        actual: Math.round(cumActual),
+        expected: Math.round(perDay * (i + 1)),
         daily: t.leads,
       };
     });
@@ -559,7 +593,6 @@ export default function TeamPerformanceDashboard() {
       dataIndex: "total_leads",
       key: "total_leads",
       sorter: (a: AgentPerformance, b: AgentPerformance) => a.total_leads - b.total_leads,
-      defaultSortOrder: "descend" as const,
       align: "center" as const,
       render: (v: number) => (
         <span style={{ fontWeight: 700, fontSize: 14, color: "#1677ff", background: "#e6f4ff", borderRadius: 8, padding: "2px 10px" }}>
@@ -572,6 +605,8 @@ export default function TeamPerformanceDashboard() {
       dataIndex: "today_leads",
       key: "today_leads",
       align: "center" as const,
+      sorter: (a: AgentPerformance, b: AgentPerformance) => a.today_leads - b.today_leads,
+      defaultSortOrder: "descend" as const,
       render: (v: number) => (
         <span style={{ fontWeight: 600, color: v > 0 ? "#52c41a" : "#bfbfbf", background: v > 0 ? "#f6ffed" : "transparent", borderRadius: 8, padding: "2px 10px" }}>
           {v}
@@ -618,8 +653,26 @@ export default function TeamPerformanceDashboard() {
         </Space>
       ),
     },
-    { title: "Agents", dataIndex: "agent_count", key: "agent_count", align: "center" as const,
-      render: (v: number) => <Tag style={{ borderRadius: 20 }}>{v}</Tag> },
+    {
+      title: "Agents",
+      dataIndex: "agent_count",
+      key: "agent_count",
+      align: "center" as const,
+      sorter: (a: TLSummary, b: TLSummary) => a.agent_count - b.agent_count,
+      render: (v: number) => <Tag style={{ borderRadius: 20, minWidth: 32, textAlign: "center" }}>{v}</Tag>,
+    },
+    {
+      title: "Campaigns",
+      dataIndex: "campaign_count",
+      key: "campaign_count",
+      align: "center" as const,
+      sorter: (a: TLSummary, b: TLSummary) => a.campaign_count - b.campaign_count,
+      render: (v: number) => (
+        <Tag color="blue" style={{ borderRadius: 20, minWidth: 32, textAlign: "center" }}>
+          {v}
+        </Tag>
+      ),
+    },
     { title: "Total", dataIndex: "total_leads", key: "total_leads", align: "center" as const, defaultSortOrder: "descend" as const,
       sorter: (a: TLSummary, b: TLSummary) => a.total_leads - b.total_leads,
       render: (v: number) => <span style={{ fontWeight: 700, color: "#1677ff" }}>{v.toLocaleString()}</span> },
@@ -965,7 +1018,11 @@ export default function TeamPerformanceDashboard() {
               icon={<CrownOutlined />}
               color="#722ed1"
               loading={loading}
-              rows={top5TLs.map((t) => ({ name: t.tl_name, value: t.total_leads, sub: `${t.agent_count} agents` }))}
+              rows={top5TLs.map((t) => ({
+                name: t.tl_name,
+                value: t.total_leads,
+                sub: `${t.agent_count} agents · ${t.campaign_count} campaigns`,
+              }))}
             />
           </Col>
         )}

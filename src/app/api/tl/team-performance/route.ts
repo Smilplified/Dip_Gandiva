@@ -6,7 +6,11 @@ import {
   hasTLAccess,
   isCampaignTeamLeaderRole,
 } from "@/lib/auth/tl-access";
-import { isAgentRole } from "@/lib/tl/team-hierarchy";
+import {
+  buildTeamHierarchy,
+  getPrimaryTlIdForAgent,
+  isAgentRole,
+} from "@/lib/tl/team-hierarchy";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +54,7 @@ export type TLSummary = {
   tl_id: string;
   tl_name: string;
   agent_count: number;
+  campaign_count: number;
   total_leads: number;
   today_leads: number;
   week_leads: number;
@@ -252,48 +257,23 @@ export async function GET(request: Request) {
       allCampAssignments = (caRows ?? []) as { campaign_id: string; agent_id: string }[];
     }
 
-    // Build a set of ACTUAL TL IDs (only users with the TL role).
-    // OMs and other roles are sometimes stored as assigned_team_leader_id in campaigns
-    // (e.g. Shubham Gaikwad the OM). We must never treat them as TLs here, otherwise
-    // an agent appearing in both a real-TL campaign and an OM campaign will get a
-    // non-deterministic TL assignment depending on DB row order → inconsistent counts.
     const actualTlIdSet = new Set(allTLs.map((tl) => tl.id));
 
-    // Campaign → real TL id (only when assigned_team_leader_id is an actual TL)
-    const tlByCampaignId = new Map<string, string>();
-    for (const c of (campaigns ?? []) as { id: string; assigned_team_leader_id: string | null }[]) {
-      const tlId = c.assigned_team_leader_id;
-      if (tlId && actualTlIdSet.has(tlId)) tlByCampaignId.set(c.id, tlId);
-    }
+    // Same roster as /tl/team (reporting_manager + campaign assignments, real TLs only)
+    const teamHierarchy = buildTeamHierarchy(
+      orgUsers as Parameters<typeof buildTeamHierarchy>[0],
+      (campaigns ?? []) as { id: string; assigned_team_leader_id: string | null }[],
+      allCampAssignments
+    );
+    const hierarchyByTlId = new Map(
+      teamHierarchy.team_leaders.map((tl) => [tl.id, tl])
+    );
 
-    // Agents linked to a TL via campaign (excluding those with reporting_manager_id).
-    // Mirrors buildTeamHierarchy: each agent maps to AT MOST one TL via campaigns.
-    // Since we now only have real TL campaigns, an agent can only appear in one TL's
-    // campaign set (the data shows no agent is in two different real-TL campaigns),
-    // making this deterministic.
-    const campaignTlByAgent = new Map<string, string>(); // agentId → tlId
-    for (const row of allCampAssignments) {
-      if (campaignTlByAgent.has(row.agent_id)) continue;
-      const tlId = tlByCampaignId.get(row.campaign_id);
-      if (tlId) campaignTlByAgent.set(row.agent_id, tlId);
-    }
-
-    // Effective TL for any agent:
-    //   reporting_manager_id wins → else campaign-derived TL → else null
-    const allAgents = orgUsers.filter(userIsAgent);
-    const effectiveTlByAgent = new Map<string, string | null>();
-    for (const ag of allAgents) {
-      if (ag.reporting_manager_id) {
-        effectiveTlByAgent.set(ag.id, ag.reporting_manager_id);
-      } else {
-        effectiveTlByAgent.set(ag.id, campaignTlByAgent.get(ag.id) ?? null);
-      }
-    }
-
-    // Widen scopedAgentIds for TL: include campaign-linked agents too
+    // TL scope: agents on this TL's team card (matches /tl/team)
     if (isTL) {
-      for (const [agId, tlId] of effectiveTlByAgent) {
-        if (tlId === user.id) scopedAgentIds.add(agId);
+      const myNode = hierarchyByTlId.get(user.id);
+      for (const ag of myNode?.agents ?? []) {
+        scopedAgentIds.add(ag.id);
       }
     }
 
@@ -379,8 +359,12 @@ export async function GET(request: Request) {
     const agentRows: AgentPerformance[] = scopedAgentIdArr.map((agId) => {
       const u = orgUsers.find((x) => x.id === agId)!;
       const agg = agentLeadMap.get(agId) ?? initAgent();
-      // Use the effective TL (reporting_manager_id wins, campaign fallback)
-      const effTlId = effectiveTlByAgent.get(agId) ?? null;
+      const effTlId = getPrimaryTlIdForAgent(
+        agId,
+        u.reporting_manager_id,
+        teamHierarchy,
+        actualTlIdSet
+      );
       const tlRow = effTlId ? tlById.get(effTlId) : undefined;
       return {
         agent_id: agId,
@@ -400,22 +384,18 @@ export async function GET(request: Request) {
 
     agentRows.sort((a, b) => b.total_leads - a.total_leads);
 
-    // ── TL summaries ─────────────────────────────────────────────────────────
-    // Use effectiveTlByAgent (reporting_manager_id wins, campaign fallback)
-    // so agents that are only campaign-linked are included correctly.
+    // ── TL summaries (agent + campaign counts match /tl/team hierarchy) ───────
     const tlSummaries: TLSummary[] = [];
     if (isOM) {
       for (const tl of allTLs) {
-        // All agents (not just scoped) whose effective TL is this one
-        const tlAgentIds = allAgents
-          .filter((u) => effectiveTlByAgent.get(u.id) === tl.id)
-          .map((u) => u.id);
-
-        const sub = agentRows.filter((a) => tlAgentIds.includes(a.agent_id));
+        const node = hierarchyByTlId.get(tl.id);
+        const tlAgentIdSet = new Set((node?.agents ?? []).map((a) => a.id));
+        const sub = agentRows.filter((a) => tlAgentIdSet.has(a.agent_id));
         tlSummaries.push({
           tl_id: tl.id,
           tl_name: userLabel(tl),
-          agent_count: tlAgentIds.length,
+          agent_count: node?.agent_count ?? 0,
+          campaign_count: node?.campaign_count ?? 0,
           total_leads: sub.reduce((s, a) => s + a.total_leads, 0),
           today_leads: sub.reduce((s, a) => s + a.today_leads, 0),
           week_leads: sub.reduce((s, a) => s + a.week_leads, 0),

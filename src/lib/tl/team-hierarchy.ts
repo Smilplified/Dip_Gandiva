@@ -192,3 +192,24 @@ export function buildTeamHierarchy(
     },
   };
 }
+
+/**
+ * Primary TL for an agent (analytics / table display).
+ * Matches /tl/team: reporting line to a TL wins; else first TL card that lists the agent.
+ */
+export function getPrimaryTlIdForAgent(
+  agentId: string,
+  reportingManagerId: string | null,
+  hierarchy: TeamHierarchyData,
+  tlIdSet: Set<string>
+): string | null {
+  if (reportingManagerId && tlIdSet.has(reportingManagerId)) {
+    return reportingManagerId;
+  }
+  for (const tl of hierarchy.team_leaders) {
+    if (tl.agents.some((a) => a.id === agentId)) {
+      return tl.id;
+    }
+  }
+  return null;
+}

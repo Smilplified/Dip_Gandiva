@@ -54,7 +54,10 @@ const { Text, Title } = Typography;
 const REFRESH_MS = 60_000;
 const UNASSIGNED_DROPPABLE_ID = "__unassigned__";
 // Channel name shared with TeamPerformanceDashboard so it can reload on change
-const TEAM_ASSIGNMENT_CHANNEL = "team-assignment-updated";
+import {
+  TEAM_ASSIGNMENT_CHANNEL,
+  broadcastTeamAssignmentUpdated,
+} from "@/lib/tl/team-sync";
 
 const cardStyle: React.CSSProperties = {
   borderRadius: 16,
@@ -462,6 +465,26 @@ export default function TeamBuilderDnDView() {
     return () => window.clearInterval(id);
   }, [load, savingAgentId]);
 
+  // Reload when team assignments change (e.g. from another tab or Team Performance page)
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL);
+      channel.onmessage = () => {
+        if (dragLockRef.current || savingAgentId) return;
+        void load(true);
+      };
+    } catch {
+      // ignore
+    }
+    return () => {
+      if (channel) {
+        channel.onmessage = null;
+        channel.close();
+      }
+    };
+  }, [load, savingAgentId]);
+
   const stats = useMemo(() => {
     if (!data) {
       return {
@@ -598,12 +621,7 @@ export default function TeamBuilderDnDView() {
             )
           : "Unassigned";
         message.success(`${getTeamMemberLabel(agent)} → ${targetLabel}`);
-        // Notify the Team Performance dashboard (same or other tabs) to refresh
-        try {
-          new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL).postMessage({ ts: Date.now() });
-        } catch {
-          // BroadcastChannel not available in all envs — silently ignore
-        }
+        broadcastTeamAssignmentUpdated();
       } catch (e) {
         setData(previous); // rollback
         message.error(e instanceof Error ? e.message : "Failed to update assignment");
