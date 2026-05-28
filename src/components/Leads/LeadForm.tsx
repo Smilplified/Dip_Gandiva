@@ -23,6 +23,22 @@ import {
 import type { Lead } from "@/types/lead.types";
 import { useAuth } from "@/context/AuthContext";
 import { nextExtraCqIndex, parseExtraCqIndexes } from "@/lib/extra-cq";
+import { normalizeRoleName } from "@/lib/auth/config";
+
+const NON_CLIENT_VIEWER_ROLES = new Set([
+  "agent",
+  "team_leader",
+  "tl",
+  "operations_manager",
+  "admin",
+  "qa",
+  "mis",
+  "sales",
+  "sales_manager",
+  "dc",
+  "internal_operator",
+  "internal_admin",
+]);
 
 type LeadFormProps = {
   form: ReturnType<typeof Form.useForm>[0];
@@ -1156,6 +1172,7 @@ export function LeadForm({
 
 function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
   const [generating, setGenerating] = useState(false);
+  const { roles, profile } = useAuth();
 
   const firstName = Form.useWatch("first_name", form);
   const lastName = Form.useWatch("last_name", form);
@@ -1255,7 +1272,17 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
 
     setGenerating(true);
     try {
-      await generateLhoPdf(data);
+      const normalizedRoles = roles.map((r) => normalizeRoleName(r.role_name));
+      const hasClientViewerRole = normalizedRoles.includes("client_viewer");
+      const hasNonClientViewerBusinessRole = normalizedRoles.some((r) =>
+        NON_CLIENT_VIEWER_ROLES.has(r)
+      );
+      const shouldUseClientLogo = hasClientViewerRole && !hasNonClientViewerBusinessRole;
+      const clientLogoUrl =
+        shouldUseClientLogo
+          ? ((profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null)
+          : null;
+      await generateLhoPdf(data, { logoSrc: clientLogoUrl });
       message.success("LHO PDF downloaded successfully");
     } catch (err) {
       console.error("LHO generation error:", err);

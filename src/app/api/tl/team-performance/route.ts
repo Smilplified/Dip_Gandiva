@@ -289,7 +289,8 @@ export async function GET(request: Request) {
     const scopedAgentIdArr = [...scopedAgentIds];
 
     // ── Fetch leads ──────────────────────────────────────────────────────────
-    // Get all leads in the org created between start & end by scoped agents
+    // Get all leads in scoped campaigns between start & end.
+    // Agent-level stats are still derived from assigned_agent_id where available.
     let leadsInRange: {
       id: string;
       campaign_id: string;
@@ -297,12 +298,12 @@ export async function GET(request: Request) {
       created_at: string;
     }[] = [];
 
-    if (scopedAgentIdArr.length > 0) {
+    if (scopedCampaignIds.length > 0) {
       const { data: leadsData, error: leadsErr } = await admin
         .from("leads")
         .select("id, campaign_id, assigned_agent_id, created_at")
         .eq("organization_id", orgId)
-        .in("assigned_agent_id", scopedAgentIdArr)
+        .in("campaign_id", scopedCampaignIds)
         .gte("created_at", `${startDate}T00:00:00.000Z`)
         .lte("created_at", `${endDate}T23:59:59.999Z`)
         .order("created_at", { ascending: true });
@@ -312,6 +313,9 @@ export async function GET(request: Request) {
 
       if (campaignIdFilter) {
         leadsInRange = leadsInRange.filter((l) => l.campaign_id === campaignIdFilter);
+      }
+      if (userIdFilter) {
+        leadsInRange = leadsInRange.filter((l) => l.assigned_agent_id === userIdFilter);
       }
     }
 
@@ -343,6 +347,7 @@ export async function GET(request: Request) {
     for (const l of leadsInRange) {
       const agId = l.assigned_agent_id;
       if (!agId) continue;
+      if (!scopedAgentIds.has(agId)) continue;
       if (!agentLeadMap.has(agId)) agentLeadMap.set(agId, initAgent());
       const agg = agentLeadMap.get(agId)!;
       agg.total++;

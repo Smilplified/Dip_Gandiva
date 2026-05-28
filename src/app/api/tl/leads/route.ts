@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { fetchCampaignIdsForTeamLeader } from "@/lib/campaign/team-leader-assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -33,11 +36,27 @@ export async function GET() {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    const { data: campaigns, error: campaignsError } = await supabase
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    const seeAllOrgCampaigns = hasOrgWideCampaignAccess(roleNames);
+
+    let campaignsQuery = supabase
       .from("campaigns")
       .select("id, name")
-      .eq("organization_id", orgId)
-      .eq("assigned_team_leader_id", user.id);
+      .eq("organization_id", orgId);
+
+    if (!seeAllOrgCampaigns) {
+      const junctionCampaignIds = await fetchCampaignIdsForTeamLeader(supabase, user.id, orgId);
+      if (junctionCampaignIds.length > 0) {
+        const idList = junctionCampaignIds.map((id) => `"${id}"`).join(",");
+        campaignsQuery = campaignsQuery.or(
+          `assigned_team_leader_id.eq.${user.id},id.in.(${idList})`
+        );
+      } else {
+        campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
+      }
+    }
+
+    const { data: campaigns, error: campaignsError } = await campaignsQuery;
 
     if (campaignsError) {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });

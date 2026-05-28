@@ -104,10 +104,12 @@ export default function TeamLeaderLeadsPage() {
       if (!matchesSearch) return false;
       if (!dateRange?.[0] || !dateRange?.[1]) return true;
 
-      const leadDate = dayjs(lead.created_at).startOf("day");
-      const start = dateRange[0].startOf("day");
-      const end = dateRange[1].endOf("day");
-      return !leadDate.isBefore(start) && !leadDate.isAfter(end);
+      const leadTs = dayjs(lead.created_at).valueOf();
+      if (Number.isNaN(leadTs)) return false;
+
+      const startTs = dateRange[0].startOf("day").valueOf();
+      const endTs = dateRange[1].endOf("day").valueOf();
+      return leadTs >= startTs && leadTs <= endTs;
     });
   }, [leads, leadSearch, dateRange]);
 
@@ -227,7 +229,12 @@ export default function TeamLeaderLeadsPage() {
           style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
           bodyStyle={{ padding: "24px 28px" }}
         >
-          <Row gutter={12} wrap align="middle" style={{ marginBottom: 16 }}>
+          <Row
+            gutter={[12, 12]}
+            wrap
+            align="middle"
+            style={{ marginBottom: 16, marginInline: 0 }}
+          >
             <Col>
               <Typography.Text type="secondary" style={{ marginRight: 8 }}>
                 Date range (created):
