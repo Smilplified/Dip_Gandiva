@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import type { HTMLAttributes } from "react";
 import { Table, Tag, Tooltip } from "antd";
+import CampaignPerformancePredictionBar from "@/components/command/CampaignPerformancePredictionBar";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -126,7 +127,8 @@ function fixedBodyCellProps(minWidth: number) {
 
 /** Min scroll width for Client Viewer columns (enables horizontal scroll + fixed columns). */
 const CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH = 180;
-const REMAINING_ALLOCATION_COL_WIDTH = 200;
+const REMAINING_ALLOCATION_COL_WIDTH = 140;
+const CAMPAIGN_HEALTH_COL_WIDTH = 160;
 
 const CLIENT_VIEWER_SCROLL_X =
   72 +
@@ -137,6 +139,7 @@ const CLIENT_VIEWER_SCROLL_X =
   136 +
   140 +
   120 +
+  CAMPAIGN_HEALTH_COL_WIDTH +
   REMAINING_ALLOCATION_COL_WIDTH;
 
 export default function CampaignTable({ campaigns, loading, clientViewer }: CampaignTableProps) {
@@ -266,6 +269,31 @@ export default function CampaignTable({ campaigns, loading, clientViewer }: Camp
           <span style={countPillStyle("#389e0d", "#f6ffed")}>
             {hasValue ? n.toLocaleString() : "—"}
           </span>
+        );
+      },
+    },
+    {
+      title: "Campaign Health",
+      key: "campaign_health",
+      width: CAMPAIGN_HEALTH_COL_WIDTH,
+      align: "center",
+      fixed: "right",
+      className: "table-col-campaign-health",
+      onHeaderCell: headerCellProps(CAMPAIGN_HEALTH_COL_WIDTH, true),
+      onCell: () => ({
+        style: {
+          minWidth: CAMPAIGN_HEALTH_COL_WIDTH,
+          whiteSpace: "nowrap",
+          background: "#fff",
+          textAlign: "center",
+        },
+      }),
+      render: (_, row) => {
+        if ((row.total_allocation ?? 0) <= 0) return "—";
+        return (
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <CampaignPerformancePredictionBar row={row} />
+          </div>
         );
       },
     },
