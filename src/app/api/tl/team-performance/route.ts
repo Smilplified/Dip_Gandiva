@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import {
@@ -14,6 +17,9 @@ import {
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,24 +92,34 @@ export type TeamPerformanceResponse = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function toDateStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+function isValidTimeZone(tz: string | null): tz is string {
+  if (!tz) return false;
+  try {
+    Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function todayUTC(): string {
-  return toDateStr(new Date());
+function todayInTz(tz: string): string {
+  return dayjs().tz(tz).format("YYYY-MM-DD");
 }
 
-function weeksAgoUTC(n: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n * 7);
-  return toDateStr(d);
+function weeksAgoInTz(tz: string, n: number): string {
+  return dayjs().tz(tz).subtract(n * 7, "day").format("YYYY-MM-DD");
 }
 
-function monthsAgoUTC(n: number): string {
-  const d = new Date();
-  d.setUTCMonth(d.getUTCMonth() - n);
-  return toDateStr(d);
+function monthsAgoInTz(tz: string, n: number): string {
+  return dayjs().tz(tz).subtract(n, "month").format("YYYY-MM-DD");
+}
+
+function utcStartOfDayInTz(dateStr: string, tz: string): string {
+  return dayjs.tz(`${dateStr} 00:00:00.000`, "YYYY-MM-DD HH:mm:ss.SSS", tz).utc().toISOString();
+}
+
+function utcEndOfDayInTz(dateStr: string, tz: string): string {
+  return dayjs.tz(`${dateStr} 23:59:59.999`, "YYYY-MM-DD HH:mm:ss.SSS", tz).utc().toISOString();
 }
 
 function daysBetween(a: string, b: string): number {
@@ -151,12 +167,16 @@ export async function GET(request: Request) {
 
     // Parse query params
     const url = new URL(request.url);
-    const today = todayUTC();
-    const defaultStart = monthsAgoUTC(3);
+    const tzParam = url.searchParams.get("tz");
+    const appTz = isValidTimeZone(tzParam) ? tzParam : "UTC";
+    const today = todayInTz(appTz);
+    const defaultStart = monthsAgoInTz(appTz, 3);
     const startDate = url.searchParams.get("start_date") || defaultStart;
     const endDate = url.searchParams.get("end_date") || today;
     const campaignIdFilter = url.searchParams.get("campaign_id") || null;
     const userIdFilter = url.searchParams.get("user_id") || null;
+    const startUtc = utcStartOfDayInTz(startDate, appTz);
+    const endUtc = utcEndOfDayInTz(endDate, appTz);
 
     // ── Fetch all org users with roles ──────────────────────────────────────
     const { data: allUsers, error: usersErr } = await admin
@@ -304,8 +324,8 @@ export async function GET(request: Request) {
         .select("id, campaign_id, assigned_agent_id, created_at")
         .eq("organization_id", orgId)
         .in("campaign_id", scopedCampaignIds)
-        .gte("created_at", `${startDate}T00:00:00.000Z`)
-        .lte("created_at", `${endDate}T23:59:59.999Z`)
+        .gte("created_at", startUtc)
+        .lte("created_at", endUtc)
         .order("created_at", { ascending: true });
 
       if (leadsErr) return NextResponse.json({ error: leadsErr.message }, { status: 500 });
@@ -320,7 +340,8 @@ export async function GET(request: Request) {
     }
 
     // Key date boundaries
-    const weekStart = weeksAgoUTC(1);
+    const weekStart = weeksAgoInTz(appTz, 1);
+    const monthStart = monthsAgoInTz(appTz, 1);
 
     // ── Aggregate per-agent ──────────────────────────────────────────────────
     const agentLeadMap = new Map<
@@ -351,10 +372,10 @@ export async function GET(request: Request) {
       if (!agentLeadMap.has(agId)) agentLeadMap.set(agId, initAgent());
       const agg = agentLeadMap.get(agId)!;
       agg.total++;
-      const d = l.created_at.slice(0, 10);
+      const d = dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD");
       if (d === today) agg.today++;
       if (d >= weekStart) agg.week++;
-      if (d >= monthsAgoUTC(1)) agg.month++;
+      if (d >= monthStart) agg.month++;
       agg.campaignSet.add(l.campaign_id);
       if (!agg.lastDate || d > agg.lastDate) agg.lastDate = d;
     }
@@ -440,12 +461,12 @@ export async function GET(request: Request) {
     campaignPerf.sort((a, b) => b.total_uploaded - a.total_uploaded);
 
     // ── Daily trend (last 30 days within range) ──────────────────────────────
-    const trendStart =
-      startDate < monthsAgoUTC(1) ? monthsAgoUTC(1) : startDate;
+    const oneMonthAgo = monthsAgoInTz(appTz, 1);
+    const trendStart = startDate < oneMonthAgo ? oneMonthAgo : startDate;
 
     const dailyMap = new Map<string, number>();
     for (const l of leadsInRange) {
-      const d = l.created_at.slice(0, 10);
+      const d = dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD");
       if (d >= trendStart) {
         dailyMap.set(d, (dailyMap.get(d) ?? 0) + 1);
       }
@@ -453,19 +474,25 @@ export async function GET(request: Request) {
 
     // Fill gaps with 0
     const dailyTrend: DailyTrend[] = [];
-    const cur = new Date(trendStart);
-    const endDt = new Date(endDate);
-    while (cur <= endDt) {
-      const ds = toDateStr(cur);
+    let cursor = dayjs(trendStart);
+    const endCursor = dayjs(endDate);
+    while (cursor.isBefore(endCursor) || cursor.isSame(endCursor, "day")) {
+      const ds = cursor.format("YYYY-MM-DD");
       dailyTrend.push({ date: ds, leads: dailyMap.get(ds) ?? 0 });
-      cur.setUTCDate(cur.getUTCDate() + 1);
+      cursor = cursor.add(1, "day");
     }
 
     // ── Summary ──────────────────────────────────────────────────────────────
-    const totalLeads = agentRows.reduce((s, a) => s + a.total_leads, 0);
-    const todayLeads = agentRows.reduce((s, a) => s + a.today_leads, 0);
-    const weekLeads = agentRows.reduce((s, a) => s + a.week_leads, 0);
-    const monthLeads = agentRows.reduce((s, a) => s + a.month_leads, 0);
+    const totalLeads = leadsInRange.length;
+    const todayLeads = leadsInRange.filter(
+      (l) => dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD") === today
+    ).length;
+    const weekLeads = leadsInRange.filter(
+      (l) => dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD") >= weekStart
+    ).length;
+    const monthLeads = leadsInRange.filter(
+      (l) => dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD") >= monthStart
+    ).length;
     const activeCampaigns = scopedCampaigns.filter((c) => c.status === "active").length;
     const pendingAlloc = scopedCampaigns.reduce(
       (s, c) => s + (c.pending_allocation ?? c.total_allocation ?? 0),

@@ -389,15 +389,20 @@ export default function TeamPerformanceDashboard() {
   ]);
   const [campaignFilter, setCampaignFilter] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState<string | null>(null);
+  const clientTimeZone = useMemo(() => {
+    if (typeof Intl === "undefined") return "UTC";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  }, []);
 
   const buildUrl = useCallback(() => {
     const p = new URLSearchParams();
     p.set("start_date", dateRange[0].format("YYYY-MM-DD"));
     p.set("end_date", dateRange[1].format("YYYY-MM-DD"));
+    p.set("tz", clientTimeZone);
     if (campaignFilter) p.set("campaign_id", campaignFilter);
     if (userFilter) p.set("user_id", userFilter);
     return `/api/tl/team-performance?${p.toString()}`;
-  }, [dateRange, campaignFilter, userFilter]);
+  }, [dateRange, clientTimeZone, campaignFilter, userFilter]);
 
   const load = useCallback(
     async (silent = false) => {
