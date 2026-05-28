@@ -279,6 +279,15 @@ export async function GET(request: Request) {
 
     const actualTlIdSet = new Set(allTLs.map((tl) => tl.id));
 
+    // Campaigns owned by each TL (assigned_team_leader_id must be a real TL role).
+    const campaignIdsByTl = new Map<string, Set<string>>();
+    for (const c of (campaigns ?? []) as CampaignRow[]) {
+      const tlId = c.assigned_team_leader_id;
+      if (!tlId || !actualTlIdSet.has(tlId)) continue;
+      if (!campaignIdsByTl.has(tlId)) campaignIdsByTl.set(tlId, new Set());
+      campaignIdsByTl.get(tlId)!.add(c.id);
+    }
+
     // Same roster as /tl/team (reporting_manager + campaign assignments, real TLs only)
     const teamHierarchy = buildTeamHierarchy(
       orgUsers as Parameters<typeof buildTeamHierarchy>[0],
@@ -411,21 +420,40 @@ export async function GET(request: Request) {
     agentRows.sort((a, b) => b.total_leads - a.total_leads);
 
     // ── TL summaries (agent + campaign counts match /tl/team hierarchy) ───────
+    // Lead totals: only this TL's campaigns + this TL's team agents (not all org
+    // campaigns those agents worked on elsewhere).
     const tlSummaries: TLSummary[] = [];
     if (isOM) {
       for (const tl of allTLs) {
         const node = hierarchyByTlId.get(tl.id);
         const tlAgentIdSet = new Set((node?.agents ?? []).map((a) => a.id));
-        const sub = agentRows.filter((a) => tlAgentIdSet.has(a.agent_id));
+        const tlCampIds = campaignIdsByTl.get(tl.id) ?? new Set<string>();
+
+        let totalLeads = 0;
+        let todayLeads = 0;
+        let weekLeads = 0;
+        let monthLeads = 0;
+
+        for (const l of leadsInRange) {
+          if (!tlCampIds.has(l.campaign_id)) continue;
+          const agId = l.assigned_agent_id;
+          if (!agId || !tlAgentIdSet.has(agId)) continue;
+          totalLeads++;
+          const d = dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD");
+          if (d === today) todayLeads++;
+          if (d >= weekStart) weekLeads++;
+          if (d >= monthStart) monthLeads++;
+        }
+
         tlSummaries.push({
           tl_id: tl.id,
           tl_name: userLabel(tl),
           agent_count: node?.agent_count ?? 0,
           campaign_count: node?.campaign_count ?? 0,
-          total_leads: sub.reduce((s, a) => s + a.total_leads, 0),
-          today_leads: sub.reduce((s, a) => s + a.today_leads, 0),
-          week_leads: sub.reduce((s, a) => s + a.week_leads, 0),
-          month_leads: sub.reduce((s, a) => s + a.month_leads, 0),
+          total_leads: totalLeads,
+          today_leads: todayLeads,
+          week_leads: weekLeads,
+          month_leads: monthLeads,
         });
       }
       tlSummaries.sort((a, b) => b.total_leads - a.total_leads);
