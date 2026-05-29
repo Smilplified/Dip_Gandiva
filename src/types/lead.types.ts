@@ -83,6 +83,8 @@ export type Lead = {
   qa_name: string | null;
   qa_status: string | null;
   delivery_status: "not_delivered" | "delivered" | null;
+  delivered_at: string | null;
+  delivered_by: string | null;
   disqualification_reasons: string | null;
   disqualification_reason: string | null;
   rectified_reason: string | null;

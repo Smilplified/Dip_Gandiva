@@ -128,7 +128,7 @@ export default function CampaignAverageAnalysisTab({
     ? dayjs(analysis.predictedCompletionDate).format("MMM D, YYYY")
     : "—";
 
-  const recentTrend = analysis.uploadTrend.slice(-14);
+  const recentTrend = analysis.uploadTrend;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -270,7 +270,7 @@ export default function CampaignAverageAnalysisTab({
         <Col xs={24} lg={12}>
           <Card title="Daily upload trend" size="small" bordered style={{ borderRadius: 10 }}>
             {recentTrend.length === 0 ? (
-              <Text type="secondary">No uploads recorded yet.</Text>
+              <Text type="secondary">No campaign dates set.</Text>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={recentTrend} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>

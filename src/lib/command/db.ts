@@ -503,6 +503,7 @@ interface LeadAnalyticsRow {
   channel: string | null;
   delivery_status: string | null;
   created_at: string;
+  delivered_at: string | null;
 }
 
 interface AlertAnalyticsRow {
@@ -528,7 +529,7 @@ export async function getCampaignAnalytics(supabase: Client, campaignId: string)
 
   const leadsResult = (await supabase
     .from("leads")
-    .select("id, status, consent_status, channel, delivery_status, created_at")
+    .select("id, status, consent_status, channel, delivery_status, created_at, delivered_at")
     .eq("campaign_id", campaignId)) as unknown as {
     data: LeadAnalyticsRow[] | null;
   };

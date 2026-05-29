@@ -25,6 +25,8 @@ type MetricsRow = {
 
 type LeadChannelRow = {
   created_at: string;
+  delivered_at: string | null;
+  delivery_status: string | null;
   channel: string | null;
   campaign_id: string;
   campaigns?: { name?: string | null } | { name?: string | null }[] | null;
@@ -183,10 +185,19 @@ export async function GET(request: NextRequest) {
     .in("campaign_id", campaignIds);
   if (metricsErr) return NextResponse.json({ error: metricsErr.message }, { status: 500 });
 
-  const { data: leadsData, error: leadsErr } = await supabase
+  const isClientViewer = roles.includes("client_viewer");
+
+  let leadsQuery = supabase
     .from("leads")
-    .select("created_at, channel, campaign_id, campaigns(name)")
+    .select("created_at, delivered_at, delivery_status, channel, campaign_id, campaigns(name)")
     .in("campaign_id", campaignIds);
+
+  // Client Viewer: only delivered leads
+  if (isClientViewer) {
+    leadsQuery = leadsQuery.eq("delivery_status", "delivered");
+  }
+
+  const { data: leadsData, error: leadsErr } = await leadsQuery;
   if (leadsErr) return NextResponse.json({ error: leadsErr.message }, { status: 500 });
 
   const { data: historyData, error: historyErr } = await supabase
@@ -231,7 +242,9 @@ export async function GET(request: NextRequest) {
     { date: string; campaignName: string; email: number; telemarketing: number }
   > = {};
   for (const l of leadRows) {
-    const date = (l.created_at ?? "").slice(0, 10);
+    // For client_viewer: use delivered_at when available; fall back to created_at
+    const rawDate = isClientViewer && l.delivered_at ? l.delivered_at : l.created_at;
+    const date = (rawDate ?? "").slice(0, 10);
     if (!date) continue;
     const campName = Array.isArray(l.campaigns)
       ? (l.campaigns[0]?.name ?? "Unknown Campaign")

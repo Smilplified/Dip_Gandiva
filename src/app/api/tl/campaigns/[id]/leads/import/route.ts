@@ -15,6 +15,7 @@ const LEAD_FIELDS = [
   "call_notes", "primary_reason", "secondary_reason", "qa_comments", "cq1", "cq2", "cq3", "cq4", "cq5",
   "audit_date", "qa_name", "asset_title", "status", "qa_status", "disqualification_reasons",
   "disqualification_reason", "rectified_reason", "lead_disposition", "followup_date", "notes", "delivery_status",
+  "delivered_at",
 ] as const;
 
 function pickLeadFields(obj: Record<string, unknown>): Record<string, unknown> {
@@ -162,6 +163,17 @@ export async function POST(
           : deliveryStatusRaw === "not_delivered" || deliveryStatusRaw === "not delivered"
           ? "not_delivered"
           : null;
+      // delivered_at from CSV (re-import / backfill), or auto-set when marking delivered
+      const deliveredAtFromCsv =
+        typeof fields.delivered_at === "string" && fields.delivered_at.trim()
+          ? fields.delivered_at.trim()
+          : null;
+      const resolvedDeliveredAt =
+        normalizedDeliveryStatus === "delivered"
+          ? deliveredAtFromCsv ?? new Date().toISOString()
+          : normalizedDeliveryStatus === "not_delivered"
+          ? null
+          : undefined; // don't touch if delivery_status not provided
       const channelRaw = typeof fields.channel === "string" ? fields.channel.trim().toLowerCase() : "";
       const normalizedChannel =
         channelRaw === "email"
@@ -240,6 +252,7 @@ export async function POST(
         followup_date: fields.followup_date || null,
         notes: fields.notes || null,
         delivery_status: normalizedDeliveryStatus ?? undefined,
+        ...(resolvedDeliveredAt !== undefined ? { delivered_at: resolvedDeliveredAt } : {}),
       } as Record<string, unknown>;
 
       // If CSV has existing id, update that lead; otherwise create new one

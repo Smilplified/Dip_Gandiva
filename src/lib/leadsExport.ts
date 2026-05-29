@@ -73,6 +73,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "asset_title", header: "asset_title" },
   { key: "status", header: "status" },
   { key: "delivery_status", header: "delivery_status" },
+  { key: "delivered_at", header: "delivered_at" },
   { key: "qa_status", header: "qa_status" },
   { key: "disqualification_reasons", header: "disqualification_reasons" },
   { key: "disqualification_reason", header: "disqualification_reason" },

@@ -352,7 +352,10 @@ export default function MISCampaignDetailPage() {
 
   const handleMarkDelivered = async (lead: Lead) => {
     if (!id) return;
-    if ((lead.delivery_status ?? "not_delivered") === "delivered") {
+    // Allow re-click only when lead is already delivered but delivered_at was never recorded (legacy backfill)
+    const alreadyDelivered = (lead.delivery_status ?? "not_delivered") === "delivered";
+    const missingDate = !lead.delivered_at;
+    if (alreadyDelivered && !missingDate) {
       message.info("Lead is already marked as delivered");
       return;
     }
@@ -366,7 +369,7 @@ export default function MISCampaignDetailPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update delivery status");
-      message.success("Lead marked as delivered");
+      message.success(alreadyDelivered ? "Delivery date recorded" : "Lead marked as delivered");
       await fetchCampaign(id);
     } catch (e) {
       message.error(

@@ -455,32 +455,44 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
             render: (v: Lead["delivery_status"], record: Lead) => {
               const status = (v ?? "not_delivered") as "not_delivered" | "delivered";
               const delivered = status === "delivered";
+              const deliveredAt = record.delivered_at
+                ? dayjs(record.delivered_at).format("MMM D, YYYY h:mm A")
+                : null;
+              // Allow re-clicking if delivered but delivered_at was never recorded (legacy)
+              const canRedeliver = delivered && !record.delivered_at;
               return (
                 <span
                   style={{
                     display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    whiteSpace: "nowrap",
+                    flexDirection: "column",
+                    gap: 2,
                   }}
                 >
-                  <Tag color={delivered ? "green" : "default"} style={{ margin: 0 }}>
-                    {delivered ? "Delivered" : "Not Delivered"}
-                  </Tag>
-                  {!delivered && onMarkDelivered ? (
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMarkDelivered(record);
-                      }}
-                      loading={markingDeliveredLeadId === record.id}
-                      style={{ paddingInline: 0, height: "auto" }}
-                    >
-                      Mark as Delivered
-                    </Button>
-                  ) : null}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+                    <Tag color={delivered ? "green" : "default"} style={{ margin: 0 }}>
+                      {delivered ? "Delivered" : "Not Delivered"}
+                    </Tag>
+                    {(!delivered || canRedeliver) && onMarkDelivered ? (
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMarkDelivered(record);
+                        }}
+                        loading={markingDeliveredLeadId === record.id}
+                        style={{ paddingInline: 0, height: "auto" }}
+                      >
+                        {canRedeliver ? "Set Delivery Date" : "Mark as Delivered"}
+                      </Button>
+                    ) : null}
+                  </span>
+                  {delivered && deliveredAt && (
+                    <span style={{ fontSize: 11, color: "#8c8c8c" }}>{deliveredAt}</span>
+                  )}
+                  {delivered && !deliveredAt && (
+                    <span style={{ fontSize: 11, color: "#faad14" }}>Date not recorded</span>
+                  )}
                 </span>
               );
             },

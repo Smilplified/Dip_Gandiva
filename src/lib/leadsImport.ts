@@ -33,6 +33,8 @@ const HEADER_MAP: Record<string, string> = {
   "qa_status": "qa_status",
   "delivery status": "delivery_status",
   "delivery_status": "delivery_status",
+  "delivered at": "delivered_at",
+  "delivered_at": "delivered_at",
   "client lp reg timestamp": "registered_at",
   "client_lp_reg_timestamp": "registered_at",
   "registered at": "registered_at",

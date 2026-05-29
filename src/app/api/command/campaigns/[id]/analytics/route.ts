@@ -13,6 +13,13 @@ interface LeadRow {
   channel: string | null;
   delivery_status: string | null;
   created_at: string;
+  delivered_at: string | null;
+}
+
+/** For client_viewer, use delivered_at when available; otherwise fall back to created_at. */
+function dateFor(lead: LeadRow, isClientViewer: boolean): string {
+  if (isClientViewer && lead.delivered_at) return lead.delivered_at.slice(0, 10);
+  return lead.created_at.slice(0, 10);
 }
 
 const QUALIFIED_LIKE = new Set(["qualified", "registered", "attended", "no_show"]);
@@ -34,11 +41,16 @@ function eachDayInRange(start: string, end: string): string[] {
   return out;
 }
 
-function buildTrendSeries(typedLeads: LeadRow[], start: string, end: string) {
+function buildTrendSeries(
+  typedLeads: LeadRow[],
+  start: string,
+  end: string,
+  isClientViewer = false
+) {
   const days = eachDayInRange(start, end);
   const daily = days.map((d) => {
-    const ingested = typedLeads.filter((l) => l.created_at.slice(0, 10) === d).length;
-    const cum = typedLeads.filter((l) => l.created_at.slice(0, 10) <= d);
+    const ingested = typedLeads.filter((l) => dateFor(l, isClientViewer) === d).length;
+    const cum = typedLeads.filter((l) => dateFor(l, isClientViewer) <= d);
     const n = cum.length;
     const q = cum.filter((l) => QUALIFIED_LIKE.has(normStatus(l.status))).length;
     const dq = cum.filter((l) => normStatus(l.status) === "disqualified").length;
@@ -76,14 +88,18 @@ function buildTrendSeries(typedLeads: LeadRow[], start: string, end: string) {
 
   const monthSet = new Set<string>();
   for (const d of days) monthSet.add(d.slice(0, 7));
-  for (const l of typedLeads) monthSet.add(l.created_at.slice(0, 7));
+  for (const l of typedLeads) monthSet.add(dateFor(l, isClientViewer).slice(0, 7));
 
   const monthly = [...monthSet]
     .filter((mk) => mk >= start.slice(0, 7) && mk <= end.slice(0, 7))
     .sort()
     .map((monthKey) => {
-      const ingested = typedLeads.filter((l) => l.created_at.slice(0, 7) === monthKey).length;
-      const cum = typedLeads.filter((l) => l.created_at.slice(0, 7) <= monthKey);
+      const ingested = typedLeads.filter(
+        (l) => dateFor(l, isClientViewer).slice(0, 7) === monthKey
+      ).length;
+      const cum = typedLeads.filter(
+        (l) => dateFor(l, isClientViewer).slice(0, 7) <= monthKey
+      );
       const n = cum.length;
       const q = cum.filter((l) => QUALIFIED_LIKE.has(normStatus(l.status))).length;
       const dq = cum.filter((l) => normStatus(l.status) === "disqualified").length;
@@ -143,8 +159,9 @@ export async function GET(
 
     const { metrics, leads, history, alerts } = await getCampaignAnalytics(supabase, id);
 
+    const isClientViewer = userRoles.includes("client_viewer");
     const typedLeadsAll = leads as LeadRow[];
-    const typedLeads = userRoles.includes("client_viewer")
+    const typedLeads = isClientViewer
       ? typedLeadsAll.filter(
           (l) => String(l.delivery_status ?? "").toLowerCase() === "delivered"
         )
@@ -168,12 +185,12 @@ export async function GET(
     }, {});
 
     const dailyLeads = typedLeads.reduce<Record<string, number>>((acc, l) => {
-      const day = l.created_at.slice(0, 10);
+      const day = dateFor(l, isClientViewer);
       acc[day] = (acc[day] ?? 0) + 1;
       return acc;
     }, {});
 
-    const leadDays = typedLeads.map((l) => l.created_at.slice(0, 10)).sort();
+    const leadDays = typedLeads.map((l) => dateFor(l, isClientViewer)).sort();
     const dataMin = leadDays[0] ?? dayjs().format("YYYY-MM-DD");
     const dataMax = leadDays[leadDays.length - 1] ?? dataMin;
 
@@ -195,7 +212,7 @@ export async function GET(
       rangeEnd = t;
     }
 
-    const trends = buildTrendSeries(typedLeads, rangeStart, rangeEnd);
+    const trends = buildTrendSeries(typedLeads, rangeStart, rangeEnd, isClientViewer);
 
     return NextResponse.json({
       metrics,

@@ -175,7 +175,10 @@ export function computeCampaignAverageAnalysis(input: {
     };
   });
 
-  const uploadTrend = dayKeys.map((dateKey) => ({
+  // uploadTrend always spans campaign start → end (never forecast days)
+  // so the bar chart shows the full campaign period with 0s for empty days.
+  const campaignDayKeys = eachDayInclusive(start, end);
+  const uploadTrend = campaignDayKeys.map((dateKey) => ({
     date: dateKey,
     label: dayjs(dateKey).format("MMM D"),
     count: countByDate.get(dateKey) ?? 0,
