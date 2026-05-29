@@ -457,6 +457,7 @@ export default function AgentCampaignDetailPage() {
     showActions: true,
     onEdit: openEditLeadDrawer,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
+    showFollowupDate: false,
   });
 
   const overviewRowStyle = {

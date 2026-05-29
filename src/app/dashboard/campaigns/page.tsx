@@ -29,6 +29,7 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import { cache, GANDIV_CACHE_PREFIX } from "@/lib/cache";
 import CampaignTable, { type CommandCampaignRow } from "@/components/command/CampaignTable";
+import { predictCampaignPerformance, type CampaignHealthStatus } from "@/lib/campaign-performance-prediction";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 
@@ -36,6 +37,20 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 type StatusFilter = "all" | "active" | "completed";
+type HealthFilter = "all" | CampaignHealthStatus;
+
+function getCampaignHealthStatus(row: CommandCampaignRow): CampaignHealthStatus | null {
+  const achieved =
+    row.achieved != null ? Number(row.achieved) : row.list_stats?.total_leads ?? 0;
+  if (!row.total_allocation) return null;
+  const pred = predictCampaignPerformance({
+    totalAllocation: row.total_allocation,
+    achieved,
+    startDate: row.start_date,
+    endDate: row.end_date,
+  });
+  return pred.status;
+}
 
 type CampaignsListCache = {
   campaigns: CommandCampaignRow[];
@@ -56,6 +71,7 @@ export default function CampaignsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [listTruncated, setListTruncated] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -167,6 +183,11 @@ export default function CampaignsPage() {
     if (!authReady) return;
     void fetchCampaigns();
   }, [authReady, authVersion, fetchCampaigns]);
+
+  const filteredCampaigns =
+    isClientViewerTable && healthFilter !== "all"
+      ? campaigns.filter((c) => getCampaignHealthStatus(c) === healthFilter)
+      : campaigns;
 
   const stats = {
     total: campaigns.length,
@@ -282,54 +303,123 @@ export default function CampaignsPage() {
       <div
         style={{
           background: "#fff",
-          padding: "16px 20px",
+          padding: "14px 20px",
           borderRadius: 10,
           border: "1px solid #f0f0f0",
           marginBottom: 16,
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
         }}
       >
-        <Input
-          prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
-          placeholder="Search by campaign name…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          style={{ width: 240 }}
-          allowClear
-        />
-        <Select<StatusFilter>
-          value={statusFilter}
-          onChange={setStatusFilter}
-          style={{ width: 160 }}
-          options={[
-            { value: "all", label: "All statuses" },
-            { value: "active", label: "Active" },
-            { value: "completed", label: "Completed" },
-          ]}
-        />
-        <RangePicker
-          value={dateRange}
-          onChange={(v) => setDateRange(v)}
-          format="YYYY-MM-DD"
-          style={{ minWidth: 260 }}
-          allowEmpty={[true, true]}
-        />
-        <Space style={{ marginLeft: "auto" }} wrap>
-          {listTruncated && (
-            <Text type="warning" style={{ fontSize: 12 }}>
-              Showing first 500 of {totalCount} campaigns; narrow filters to see more.
-            </Text>
+        <Row gutter={[10, 10]} align="middle">
+          {/* Search */}
+          <Col xs={24} sm={24} md={isClientViewerTable ? 7 : 9} lg={isClientViewerTable ? 6 : 8}>
+            <Input
+              prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+              placeholder="Search by campaign name…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              style={{ width: "100%" }}
+              allowClear
+            />
+          </Col>
+
+          {/* Status filter */}
+          <Col xs={12} sm={8} md={isClientViewerTable ? 4 : 5} lg={isClientViewerTable ? 4 : 5}>
+            <Select<StatusFilter>
+              value={statusFilter}
+              onChange={setStatusFilter}
+              style={{ width: "100%" }}
+              options={[
+                { value: "all", label: "All statuses" },
+                { value: "active", label: "Active" },
+                { value: "completed", label: "Completed" },
+              ]}
+            />
+          </Col>
+
+          {/* Campaign Health filter — Client Viewer only */}
+          {isClientViewerTable && (
+            <Col xs={12} sm={8} md={4} lg={4}>
+              <Select<HealthFilter>
+                value={healthFilter}
+                onChange={setHealthFilter}
+                style={{ width: "100%" }}
+                options={[
+                  { value: "all", label: "All health" },
+                  {
+                    value: "very_good",
+                    label: (
+                      <span>
+                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#389e0d", marginRight: 7, verticalAlign: "middle" }} />
+                        Very Good
+                      </span>
+                    ),
+                  },
+                  {
+                    value: "good",
+                    label: (
+                      <span>
+                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#d4b106", marginRight: 7, verticalAlign: "middle" }} />
+                        Good
+                      </span>
+                    ),
+                  },
+                  {
+                    value: "fair",
+                    label: (
+                      <span>
+                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#d46b08", marginRight: 7, verticalAlign: "middle" }} />
+                        Fair
+                      </span>
+                    ),
+                  },
+                  {
+                    value: "bad",
+                    label: (
+                      <span>
+                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#cf1322", marginRight: 7, verticalAlign: "middle" }} />
+                        Bad
+                      </span>
+                    ),
+                  },
+                ]}
+              />
+            </Col>
           )}
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            {campaigns.length} result{campaigns.length !== 1 ? "s" : ""}
-          </Text>
-          <Button icon={<ReloadOutlined />} size="small" onClick={() => void fetchCampaigns({ skipCache: true })}>
-            Refresh
-          </Button>
-        </Space>
+
+          {/* Date range */}
+          <Col xs={24} sm={isClientViewerTable ? 16 : 16} md={isClientViewerTable ? 9 : 10} lg={isClientViewerTable ? 8 : 9}>
+            <RangePicker
+              value={dateRange}
+              onChange={(v) => setDateRange(v)}
+              format="YYYY-MM-DD"
+              style={{ width: "100%" }}
+              allowEmpty={[true, true]}
+            />
+          </Col>
+
+          {/* Results + Refresh — always one line, icon-only button */}
+          <Col xs={24} flex="auto"
+            style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexWrap: "nowrap" }}
+          >
+            {listTruncated && (
+              <Text type="warning" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                Showing first 500 of {totalCount}; narrow filters.
+              </Text>
+            )}
+            <Text type="secondary" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+              {filteredCampaigns.length}
+              {isClientViewerTable && healthFilter !== "all" && (
+                <Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>(filtered)</Text>
+              )}
+            </Text>
+            <Button
+              icon={<ReloadOutlined />}
+              size="small"
+              onClick={() => void fetchCampaigns({ skipCache: true })}
+              title="Refresh"
+            />
+          </Col>
+        </Row>
       </div>
 
       {loading ? (
@@ -339,7 +429,7 @@ export default function CampaignsPage() {
       ) : (
         <Card style={{ ...cardStyle, padding: 0 }} styles={{ body: { padding: 0 } }}>
           <CampaignTable
-            campaigns={campaigns}
+            campaigns={filteredCampaigns}
             loading={loading}
             clientViewer={isClientViewerTable}
           />

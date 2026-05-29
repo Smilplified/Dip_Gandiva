@@ -51,6 +51,8 @@ type ColumnConfig = {
   markingDeliveredLeadId?: string | null;
   /** Pass when the table uses pagination so Sr. No. continues across pages. */
   pagination?: { current: number; pageSize: number };
+  /** Hide the Follow-up date column (default: shown). Pass false for Agent role. */
+  showFollowupDate?: boolean;
 };
 
 function formatLeadAppointment(value: string | null | undefined): string {
@@ -310,6 +312,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     onMarkDelivered,
     markingDeliveredLeadId,
     pagination,
+    showFollowupDate = true,
   } = config;
 
   const page = pagination?.current ?? 1;
@@ -591,14 +594,18 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
               ]
             : []),
         ]),
-    {
-      title: "Follow-up",
-      dataIndex: "followup_date",
-      key: "followup_date",
-      width: 110,
-      render: (v: string | null) =>
-        v ? new Date(v).toLocaleDateString() : "—",
-    },
+    ...(showFollowupDate
+      ? [
+          {
+            title: "Follow-up",
+            dataIndex: "followup_date",
+            key: "followup_date",
+            width: 110,
+            render: (v: string | null) =>
+              v ? new Date(v).toLocaleDateString() : "—",
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
     {
       title: "Created By",
       dataIndex: "created_by_name",
