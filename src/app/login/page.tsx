@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { AUTH_STORAGE_KEYS, resolvePostLoginRedirect } from "@/lib/auth/config";
 import { authDebug } from "@/lib/auth/debug";
 import { MailOutlined, LockOutlined, EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
+import LoginWorkflowIllustration from "@/components/login/LoginWorkflowIllustration";
 
 function getStoredRedirectPath() {
   if (typeof window === "undefined") {
@@ -150,16 +151,16 @@ function LoginContent() {
         </p>
       </div>
 
-      {/* Right panel - form */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 md:p-10">
-        <div className="w-full max-w-[400px] flex flex-col items-center">
-          <div className="flex justify-center mb-6">
+      {/* Right panel - form + illustration */}
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 md:p-10 w-full min-w-0">
+        <div className="w-full max-w-[480px] min-w-0 px-1 sm:px-0 flex flex-col items-center">
+          <div className="flex justify-center mb-4 sm:mb-6">
             <Image
               src="/projects/gandiva_logo.png"
               alt="Gandiva"
               width={160}
               height={56}
-              className="object-contain"
+              className="object-contain w-[120px] h-auto sm:w-[140px] md:w-[160px]"
               priority
             />
           </div>
@@ -175,19 +176,27 @@ function LoginContent() {
 
           <div
             data-login-card
-            className="w-full rounded-2xl border border-slate-200 bg-white p-7 shadow-lg shadow-slate-200/60 sm:p-10"
+            className="relative w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/60 sm:p-8 md:p-10 overflow-hidden"
             style={{ boxSizing: "border-box" }}
           >
-            <div className="mb-8 hidden md:block">
-              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
-                Sign in
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Enter your credentials to continue
-              </p>
+            <div className="login-card-hero">
+              <div className="login-card-hero__art" aria-hidden>
+                <LoginWorkflowIllustration />
+              </div>
+              <div className="login-card-hero__text">
+                <h1 className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight leading-tight">
+                  Sign in
+                </h1>
+                <p className="login-card-hero__subtitle">
+                  Enter your credentials to continue
+                </p>
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5 w-full">
+            <form
+              onSubmit={handleSubmit}
+              className="relative z-10 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
+            >
               {reason === "session_expired" && !error && (
                 <div
                   role="status"

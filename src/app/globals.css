@@ -41,6 +41,111 @@ html, body {
   max-width: 100% !important;
 }
 
+/* Login card header + workflow illustration (responsive) */
+.login-card-hero {
+  position: relative;
+  margin-bottom: -0.75rem;
+  min-height: 6.5rem;
+}
+
+@media (min-width: 480px) {
+  .login-card-hero {
+    margin-bottom: -1rem;
+    min-height: 7.25rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .login-card-hero {
+    margin-bottom: -1.25rem;
+    min-height: 8.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .login-card-hero {
+    margin-bottom: -1.75rem;
+    min-height: 9.25rem;
+  }
+}
+
+.login-card-hero__art {
+  position: absolute;
+  top: 0;
+  right: -0.5rem;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  width: 80%;
+  max-width: 11.5rem;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+@media (min-width: 480px) {
+  .login-card-hero__art {
+    right: -1rem;
+    width: 78%;
+    max-width: 13.5rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .login-card-hero__art {
+    right: -1.5rem;
+    width: 75%;
+    max-width: 16.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .login-card-hero__art {
+    right: -2.5rem;
+    width: 72%;
+    max-width: 20rem;
+  }
+}
+
+.login-card-hero__art svg {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+}
+
+.login-card-hero__text {
+  position: relative;
+  z-index: 10;
+  max-width: 72%;
+}
+
+@media (min-width: 480px) {
+  .login-card-hero__text {
+    max-width: 58%;
+  }
+}
+
+@media (min-width: 640px) {
+  .login-card-hero__text {
+    max-width: 15rem;
+  }
+}
+
+.login-card-hero__subtitle {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+@media (min-width: 640px) {
+  .login-card-hero__subtitle {
+    font-size: 0.875rem;
+    white-space: nowrap;
+  }
+}
+
 /* Base table safety: prevent content overlap in any table cell */
 .ant-table-wrapper .ant-table-cell {
   min-width: 0;
