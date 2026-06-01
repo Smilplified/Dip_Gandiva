@@ -306,6 +306,13 @@ td:has(.lead-phone-cell) a {
   color: #8c8c8c !important;
 }
 
+/* Campaign CQ: full-width stacked questions with wrapping labels */
+.lead-form .lead-campaign-cq-item .ant-form-item-label > label {
+  white-space: normal;
+  line-height: 1.5;
+  height: auto;
+}
+
 /* Lead ID column: keep copy icon visible (table cell must not clip it) */
 .ant-table-cell .lead-id-cell {
   max-width: 100%;

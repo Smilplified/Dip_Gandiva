@@ -1,6 +1,6 @@
 "use client";
 
-import { Col, Form, Input } from "antd";
+import { Form, Input, Row, Col } from "antd";
 import type { CampaignQuestion } from "@/lib/campaign-questions";
 import { leadAnswerFieldName } from "@/lib/campaign-questions";
 
@@ -13,14 +13,19 @@ export function CampaignCqAnswerFields({ questions }: CampaignCqAnswerFieldsProp
   if (questions.length === 0) return null;
 
   return (
-    <>
+    <Row gutter={[0, 4]}>
       {questions.map((q) => (
-        <Col xs={24} sm={12} key={q.key}>
-          <Form.Item label={q.label} name={leadAnswerFieldName(q.key)}>
+        <Col xs={24} key={q.key}>
+          <Form.Item
+            className="lead-campaign-cq-item"
+            label={q.label}
+            name={leadAnswerFieldName(q.key)}
+            style={{ marginBottom: 16 }}
+          >
             <Input placeholder="Your answer" allowClear />
           </Form.Item>
         </Col>
       ))}
-    </>
+    </Row>
   );
 }

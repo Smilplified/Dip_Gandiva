@@ -502,12 +502,12 @@ export function LeadForm({
               </Row>
             )}
           </Collapse>
-          {/* Custom Questions — bottom of Contact column */}
+          {/* Status / call notes (CQ fields here when campaign has no campaign_questions) */}
           <Collapse defaultActiveKey={["compliance"]} expandIconPosition="end" style={{ marginTop: 16 }}>
             {renderSection(
               "compliance",
-              "Custom Questions",
-              "✅",
+              useCampaignCq ? "Lead Status & Call Notes" : "Custom Questions",
+              useCampaignCq ? "📋" : "✅",
               <Row gutter={16}>
                 <Col xs={24} sm={12}>
                   <Form.Item label="Lead Status" name="status" initialValue="new">
@@ -524,9 +524,7 @@ export function LeadForm({
                     <Input.TextArea rows={2} placeholder="Call Notes" />
                   </Form.Item>
                 </Col>
-                {useCampaignCq ? (
-                  <CampaignCqAnswerFields questions={campaignQuestions!} />
-                ) : (
+                {!useCampaignCq && (
                   <>
                     <Col xs={24} sm={12}>
                       <Form.Item label="CQ1" name="cq1">
@@ -728,8 +726,12 @@ export function LeadForm({
               </div>
             )}
           </Collapse>
-          {/* QA Audit & Status — bottom of Contact column */}
-          <Collapse defaultActiveKey={["audit"]} expandIconPosition="end" style={{ marginTop: 16 }}>
+          {/* QA Audit & Status — bottom of Contact column (collapsed by default for agents) */}
+          <Collapse
+            defaultActiveKey={isAgentEntry ? [] : ["audit"]}
+            expandIconPosition="end"
+            style={{ marginTop: 16 }}
+          >
             {renderSection(
               "audit",
               "QA Audit & Status",
@@ -1215,6 +1217,21 @@ export function LeadForm({
           </Collapse>
         </Col>
       </Row>
+
+      {useCampaignCq && (
+        <Collapse
+          defaultActiveKey={["campaign-cq"]}
+          expandIconPosition="end"
+          style={{ marginBottom: 16 }}
+        >
+          {renderSection(
+            "campaign-cq",
+            "Campaign Questions",
+            "❓",
+            <CampaignCqAnswerFields questions={campaignQuestions!} />
+          )}
+        </Collapse>
+      )}
 
       <Form.Item label="Notes" name="notes" style={{ marginTop: 24 }}>
         <Input.TextArea rows={3} placeholder="Notes, context, objections..." />
