@@ -646,6 +646,8 @@ export default function CampaignDashboard({
       showQaStatus: false,
       showLhoFile: true,
       pagination: { current: leadPage, pageSize: leadPageSize },
+      showVoiceRecordings: true,
+      onVoiceRecordingsChange: () => { void fetchLeads(); },
     }) as unknown as ColumnsType<LeadRow>
   );
 

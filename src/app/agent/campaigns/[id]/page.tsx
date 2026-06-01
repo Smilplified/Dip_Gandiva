@@ -246,12 +246,30 @@ export default function AgentCampaignDetailPage() {
     setLeadDrawerOpen(true);
   };
 
-  const openEditLeadDrawer = (lead: Lead) => {
-    setDrawerMode("edit");
-    setEditingLead(lead);
-    form.setFieldsValue(leadToFormValues(lead as unknown as Record<string, unknown>));
-    setLeadDrawerOpen(true);
-  };
+  const openEditLeadDrawer = useCallback(
+    (lead: Lead) => {
+      setDrawerMode("edit");
+      setEditingLead(lead);
+      form.setFieldsValue(leadToFormValues(lead as unknown as Record<string, unknown>));
+      setLeadDrawerOpen(true);
+    },
+    [form]
+  );
+
+  const leadColumns = useMemo(
+    () =>
+      getLeadTableColumns({
+        showActions: true,
+        onEdit: openEditLeadDrawer,
+        pagination: { current: leadsPage, pageSize: leadsPageSize },
+        showFollowupDate: false,
+        showVoiceRecordings: true,
+        onVoiceRecordingsChange: () => {
+          void fetchData();
+        },
+      }),
+    [leadsPage, leadsPageSize, fetchData, openEditLeadDrawer]
+  );
 
   const closeLeadDrawer = () => {
     setLeadDrawerOpen(false);
@@ -461,13 +479,6 @@ export default function AgentCampaignDetailPage() {
     closed_won: "blue",
     closed_lost: "red",
   };
-
-  const leadColumns = getLeadTableColumns({
-    showActions: true,
-    onEdit: openEditLeadDrawer,
-    pagination: { current: leadsPage, pageSize: leadsPageSize },
-    showFollowupDate: false,
-  });
 
   const overviewRowStyle = {
     display: "grid",
@@ -808,7 +819,7 @@ export default function AgentCampaignDetailPage() {
           columns={leadColumns}
           dataSource={filteredLeads}
           rowKey="id"
-          scroll={{ x: 2600 }}
+          scroll={{ x: 2704 }}
           pagination={{
             current: leadsPage,
             pageSize: leadsPageSize,

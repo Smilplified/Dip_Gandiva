@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { leadsToCsv } from "@/lib/leadsExport";
 import type { Lead } from "@/types/lead.types";
+import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -435,6 +436,11 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
+  const attachVoiceIfCampaign = async (rows: LeadListRow[]): Promise<LeadListRow[]> => {
+    if (!campaignId || rows.length === 0) return rows;
+    return enrichCampaignLeadsWithVoiceRecordings(orgId, campaignId, rows);
+  };
+
   const rowDisplayName = (row: LeadListRow) => {
     const fn = (row.first_name as string | null) ?? "";
     const ln = (row.last_name as string | null) ?? "";
@@ -478,9 +484,10 @@ export async function GET(request: NextRequest) {
     const total = count ?? 0;
     const withUsers = await attachAssignedUsers(supabase, rows);
     const enriched = await enrichWithHistory(supabase, withUsers);
+    const withVoice = await attachVoiceIfCampaign(enriched);
 
     return NextResponse.json({
-      leads: enriched,
+      leads: withVoice,
       total,
       limit,
       offset,
@@ -514,9 +521,10 @@ export async function GET(request: NextRequest) {
 
   const withUsers = await attachAssignedUsers(supabase, items);
   const enriched = await enrichWithHistory(supabase, withUsers);
+  const withVoice = await attachVoiceIfCampaign(enriched);
 
   return NextResponse.json({
-    leads: enriched,
+    leads: withVoice,
     total: count ?? 0,
     limit,
     nextCursor,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { PRIVILEGED_VOICE_ROLES } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -100,13 +101,7 @@ async function getLeadForUser(
     .filter((n): n is string => !!n);
 
   const isAgent = roleNames.includes("agent");
-  const isPrivileged =
-    roleNames.includes("team_leader") ||
-    roleNames.includes("tl") ||
-    roleNames.includes("operations_manager") ||
-    roleNames.includes("qa") ||
-    roleNames.includes("admin") ||
-    roleNames.includes("sales");
+  const isPrivileged = roleNames.some((r) => PRIVILEGED_VOICE_ROLES.has(r));
 
   if (isAgent && !isPrivileged) {
     // For pure Agent users, require an active campaign assignment

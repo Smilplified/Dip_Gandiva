@@ -2,6 +2,8 @@
  * Lead types and constants for Audit & Lead Information
  */
 
+import type { VoiceRecording } from "@/lib/voice-recordings";
+
 export type Lead = {
   id: string;
   lead_id: string | null;
@@ -90,6 +92,8 @@ export type Lead = {
   rectified_reason: string | null;
   asset_title: string | null;
   lead_disposition: string | null;
+  /** Populated on agent campaign leads list for inline table playback. */
+  voice_recordings?: VoiceRecording[];
 };
 
 export const STATUS_OPTIONS = [

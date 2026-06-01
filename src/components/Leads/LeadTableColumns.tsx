@@ -8,6 +8,7 @@ import type { ColumnsType, ColumnType } from "antd/es/table";
 import { EditOutlined, CopyOutlined, DownloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Lead } from "@/types/lead.types";
+import { LeadTableRecordingCell } from "@/components/Leads/LeadTableRecordingCell";
 import { tableSerialNumber } from "@/lib/table-pagination";
 import { useAuth } from "@/context/AuthContext";
 import { generateLhoPdf, type LhoData } from "@/lib/generateLhoPdf";
@@ -53,6 +54,9 @@ type ColumnConfig = {
   pagination?: { current: number; pageSize: number };
   /** Hide the Follow-up date column (default: shown). Pass false for Agent role. */
   showFollowupDate?: boolean;
+  /** Inline voice log play/upload (agent campaign leads table). */
+  showVoiceRecordings?: boolean;
+  onVoiceRecordingsChange?: () => void;
 };
 
 function formatLeadAppointment(value: string | null | undefined): string {
@@ -313,6 +317,8 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     markingDeliveredLeadId,
     pagination,
     showFollowupDate = true,
+    showVoiceRecordings = false,
+    onVoiceRecordingsChange,
   } = config;
 
   const page = pagination?.current ?? 1;
@@ -655,8 +661,27 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     },
   ];
 
+  const voiceRecordingColumn: NonNullable<TableProps<Lead>["columns"]>[number] = {
+    title: "Rec.",
+    key: "voice_recording",
+    width: 80,
+    align: "center",
+    fixed: "left",
+    onCell: () => ({ style: { paddingInline: 6 } }),
+    render: (_: unknown, record: Lead) => (
+      <LeadTableRecordingCell
+        leadId={record.id}
+        leadEmail={record.email}
+        initialRecordings={record.voice_recordings}
+        onRecordingsChange={onVoiceRecordingsChange}
+      />
+    ),
+  };
+
   const extendedColumns = [
-    ...baseColumns.slice(0, 4),
+    ...baseColumns.slice(0, 2),
+    ...(showVoiceRecordings ? [voiceRecordingColumn] : []),
+    ...baseColumns.slice(2, 4),
     {
       title: "Direct Number",
       dataIndex: "direct_number",

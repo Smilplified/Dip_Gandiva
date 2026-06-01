@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 import {
   campaignQuestionsToDbValue,
   normalizeCampaignQuestions,
@@ -186,6 +187,11 @@ export async function GET(
     };
     const leadsList = (leadsRes.data ?? []) as LeadRow[];
     const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
+    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
+      orgId,
+      campaignId,
+      leadsWithNames
+    );
 
     type FileRow = { id: string; file_name: string; file_path: string; file_size: number | null; mime_type: string | null; created_at: string };
     const files = fileRows as FileRow[];
@@ -206,7 +212,7 @@ export async function GET(
 
     return NextResponse.json({
       campaign: campaignWithTlName,
-      leads: leadsWithNames,
+      leads: leadsWithRecordings,
       assignments: assignmentsWithNames,
       files: filesWithUrls,
     });

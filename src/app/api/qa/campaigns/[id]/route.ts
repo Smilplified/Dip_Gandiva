@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,11 @@ export async function GET(
     }));
 
     const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
+    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
+      orgId,
+      campaignId,
+      leadsWithNames
+    );
 
     type FileRow = {
       id: string;
@@ -142,7 +148,7 @@ export async function GET(
 
     return NextResponse.json({
       campaign: campaignWithTlName,
-      leads: leadsWithNames,
+      leads: leadsWithRecordings,
       files: filesWithUrls,
     });
   } catch (err) {

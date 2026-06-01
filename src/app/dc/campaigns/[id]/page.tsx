@@ -186,6 +186,8 @@ export default function DCCampaignDetailPage() {
     showActions: false,
     showDeliveryStatus: true,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
+    showVoiceRecordings: true,
+    onVoiceRecordingsChange: () => { void fetchData(); },
   });
 
   return (

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -165,10 +166,15 @@ export async function GET(
     }));
 
     const leadsWithNames = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
+    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
+      orgId,
+      campaignId,
+      leadsWithNames
+    );
 
     return NextResponse.json({
       campaign: campaignWithTlName,
-      leads: leadsWithNames,
+      leads: leadsWithRecordings,
     });
   } catch (err) {
     console.error("MIS campaign detail error:", err);

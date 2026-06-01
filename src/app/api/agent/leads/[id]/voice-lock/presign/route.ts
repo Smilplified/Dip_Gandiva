@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { PRIVILEGED_VOICE_ROLES } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +60,7 @@ export async function POST(
       .map((r) => r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_"))
       .filter((n): n is string => !!n);
     const isAgent = roleNames.includes("agent");
-    const isPrivileged = ["team_leader","tl","operations_manager","qa","admin","sales"].some((r) => roleNames.includes(r));
+    const isPrivileged = roleNames.some((r) => PRIVILEGED_VOICE_ROLES.has(r));
 
     if (isAgent && !isPrivileged) {
       const { data: assignment } = await supabase

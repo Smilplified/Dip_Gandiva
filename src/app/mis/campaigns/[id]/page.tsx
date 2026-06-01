@@ -423,6 +423,8 @@ export default function MISCampaignDetailPage() {
     onMarkDelivered: handleMarkDelivered,
     markingDeliveredLeadId,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
+    showVoiceRecordings: true,
+    onVoiceRecordingsChange: id ? () => { void fetchCampaign(id); } : undefined,
   });
 
   const headerCode = campaignHeaderDisplayCode(campaign);

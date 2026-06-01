@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AGENT_READONLY_LEAD_FIELD_SET } from "@/lib/agent-lead-fields";
 import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -139,7 +140,13 @@ export async function GET(
     })) as LeadRow[];
     const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leads, orgId);
 
-    return NextResponse.json({ leads: leadsWithNames });
+    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
+      orgId,
+      campaignId,
+      leadsWithNames
+    );
+
+    return NextResponse.json({ leads: leadsWithRecordings });
   } catch (err) {
     console.error("Agent leads fetch error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
