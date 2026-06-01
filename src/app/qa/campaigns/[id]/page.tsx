@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -44,6 +44,7 @@ import { ExpandableText, renderExpandableOverviewValue } from "@/components/Expa
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
 import { CampaignFilesCard, type CampaignFileItem } from "@/components/Campaigns/CampaignFilesCard";
+import { normalizeCampaignQuestions } from "@/lib/campaign-questions";
 
 type Campaign = {
   id: string;
@@ -78,6 +79,7 @@ type Campaign = {
   job_function?: string | null;
   creatives_url?: string[] | null;
   created_at?: string;
+  campaign_questions?: unknown;
 };
 
 const overviewRowStyle = {
@@ -135,6 +137,11 @@ export default function QACampaignDetailPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
+
+  const campaignQuestions = useMemo(
+    () => normalizeCampaignQuestions(campaign?.campaign_questions),
+    [campaign?.campaign_questions]
+  );
 
   const fetchCampaign = useCallback(async (campaignId: string) => {
     setLoading(true);
@@ -670,6 +677,7 @@ export default function QACampaignDetailPage() {
           mode="edit"
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
+          campaignQuestions={campaignQuestions}
         />
       </Drawer>
 

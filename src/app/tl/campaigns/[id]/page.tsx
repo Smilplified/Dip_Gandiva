@@ -48,6 +48,7 @@ import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import { normalizeCampaignQuestions } from "@/lib/campaign-questions";
 import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
 
 type Campaign = {
@@ -84,6 +85,7 @@ type Campaign = {
   job_function?: string | null;
   creatives_url?: string[] | null;
   created_at?: string;
+  campaign_questions?: unknown;
 };
 
 type Agent = {
@@ -181,6 +183,11 @@ export default function CampaignDetailPage() {
   }, [teamLeaderAssignments, campaign]);
 
   const assignedTlCount = effectiveTeamLeaderAssignments.length;
+  const campaignQuestions = useMemo(
+    () => normalizeCampaignQuestions(campaign?.campaign_questions),
+    [campaign?.campaign_questions]
+  );
+
   const assignedTlNames = useMemo(
     () =>
       effectiveTeamLeaderAssignments
@@ -1167,6 +1174,7 @@ export default function CampaignDetailPage() {
           mode="edit"
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
+          campaignQuestions={campaignQuestions}
         />
       </Drawer>
     </div>

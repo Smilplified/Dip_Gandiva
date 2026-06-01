@@ -22,6 +22,12 @@ import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 import { useAuth } from "@/context/AuthContext";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
+import { CampaignQuestionsEditor } from "@/components/Campaigns/CampaignQuestionsEditor";
+import {
+  campaignQuestionsPayloadFromFormValues,
+  campaignQuestionsToFormRows,
+  normalizeCampaignQuestions,
+} from "@/lib/campaign-questions";
 
 interface CampaignFormValues {
   campaign_id: string;
@@ -89,8 +95,12 @@ export default function CampaignForm({
 
   const normalizedInitialValues = useMemo(() => {
     if (!initialValues) return initialValues;
+    const campaignQuestions = normalizeCampaignQuestions(
+      (initialValues as { campaign_questions?: unknown }).campaign_questions
+    );
     return {
       ...initialValues,
+      campaign_question_rows: campaignQuestionsToFormRows(campaignQuestions),
       start_date: initialValues.start_date ? dayjs(initialValues.start_date as string) : null,
       end_date: initialValues.end_date ? dayjs(initialValues.end_date as string) : null,
       daily_reporting:
@@ -165,6 +175,9 @@ export default function CampaignForm({
       const payload = {
         ...values,
         leads: [],
+        campaign_questions: campaignQuestionsPayloadFromFormValues(
+          values as unknown as Record<string, unknown>
+        ),
         daily_reporting: parsedDailyReporting,
         channel_split: parsedChannelSplit,
         start_date: values.start_date
@@ -431,6 +444,11 @@ export default function CampaignForm({
           </Col>
         )}
       </Row>
+
+      <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
+        Campaign Questions
+      </Divider>
+      <CampaignQuestionsEditor />
 
       <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", paddingTop: 8 }}>
         {onCancel && (

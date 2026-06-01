@@ -44,6 +44,8 @@ import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import { normalizeCampaignQuestions } from "@/lib/campaign-questions";
+import type { CampaignQuestion } from "@/lib/campaign-questions";
 
 type Campaign = {
   id: string;
@@ -68,6 +70,7 @@ type Campaign = {
   seniority: string | null;
   job_function: string | null;
   creatives_url: string[] | null;
+  campaign_questions?: CampaignQuestion[] | unknown;
 };
 
 type CampaignFile = {
@@ -154,6 +157,7 @@ export default function AgentCampaignDetailPage() {
         seniority: campaignJson.campaign.seniority ?? null,
         job_function: campaignJson.campaign.job_function ?? null,
         creatives_url: campaignJson.campaign.creatives_url ?? null,
+        campaign_questions: campaignJson.campaign.campaign_questions ?? [],
       });
       setLeads(leadsJson.leads ?? []);
       setFiles(campaignJson.files ?? []);
@@ -180,6 +184,11 @@ export default function AgentCampaignDetailPage() {
 
     fetchData();
   }, [id, isInitialized, hasRole, router, fetchData]);
+
+  const campaignQuestions = useMemo(
+    () => normalizeCampaignQuestions(campaign?.campaign_questions),
+    [campaign?.campaign_questions]
+  );
 
   useEffect(() => {
     const handleOnline = () => {
@@ -942,6 +951,7 @@ export default function AgentCampaignDetailPage() {
           mode={drawerMode}
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
+          campaignQuestions={campaignQuestions}
           introText={
             drawerMode === "create"
               ? "Add a new lead to this campaign. After saving, the form will reset so you can add another. Close when finished."

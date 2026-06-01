@@ -19,6 +19,10 @@ import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
 import { createNotifications } from "@/lib/notifications";
 import { normalizeRoleName } from "@/lib/auth/config";
+import {
+  campaignQuestionsToDbValue,
+  normalizeCampaignQuestions,
+} from "@/lib/campaign-questions";
 
 /** In-app recipients when a client viewer creates a campaign. */
 const CLIENT_VIEWER_CAMPAIGN_NOTIFY_ROLES = new Set([
@@ -540,6 +544,9 @@ export async function POST(request: Request) {
       revenue: (body.revenue as number | null) ?? null,
       total_allocation: (body.total_allocation as number | null) ?? null,
       lead_aggregated: (body.lead_aggregated as string | null)?.trim() || null,
+      campaign_questions: campaignQuestionsToDbValue(
+        normalizeCampaignQuestions(body.campaign_questions)
+      ),
       created_by: user.id,
     } as never)
     .select()

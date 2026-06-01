@@ -23,8 +23,6 @@ import {
   FundProjectionScreenOutlined,
   RiseOutlined,
   TeamOutlined,
-  CheckCircleOutlined,
-  PercentageOutlined,
   PlusOutlined,
   EyeOutlined,
   EditOutlined,
@@ -62,8 +60,6 @@ type Stats = {
   totalCampaigns: number;
   activeCampaigns: number;
   totalLeads: number;
-  totalInterested: number;
-  conversionPct: number;
 };
 
 export default function SalesCampaignsPage() {
@@ -432,25 +428,6 @@ export default function SalesCampaignsPage() {
                   title="Total Leads"
                   value={stats?.totalLeads ?? 0}
                   prefix={<TeamOutlined />}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={12}>
-              <Card>
-                <Statistic
-                  title="Total Interested"
-                  value={stats?.totalInterested ?? 0}
-                  prefix={<CheckCircleOutlined />}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={12}>
-              <Card>
-                <Statistic
-                  title="Conversion %"
-                  value={stats?.conversionPct ?? 0}
-                  suffix="%"
-                  prefix={<PercentageOutlined />}
                 />
               </Card>
             </Col>

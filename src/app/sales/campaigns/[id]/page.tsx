@@ -45,6 +45,12 @@ import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
 import { tableSerialNumber } from "@/lib/table-pagination";
+import { CampaignQuestionsEditor } from "@/components/Campaigns/CampaignQuestionsEditor";
+import {
+  campaignQuestionsPayloadFromFormValues,
+  campaignQuestionsToFormRows,
+  normalizeCampaignQuestions,
+} from "@/lib/campaign-questions";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
@@ -98,6 +104,7 @@ type Campaign = {
   seniority: string | null;
   job_function: string | null;
   creatives_url: string[] | null;
+  campaign_questions?: unknown;
 };
 
 type Lead = {
@@ -273,6 +280,9 @@ export default function SalesCampaignDetailPage() {
         seniority: campaign.seniority ?? "",
         job_function: campaign.job_function ?? "",
         creatives_url: campaign.creatives_url?.length ? campaign.creatives_url : undefined,
+        campaign_question_rows: campaignQuestionsToFormRows(
+          normalizeCampaignQuestions(campaign.campaign_questions)
+        ),
       });
     }
   }, [campaign, editModalOpen, form, id]);
@@ -336,6 +346,9 @@ export default function SalesCampaignDetailPage() {
           seniority: values.seniority?.trim() || null,
           job_function: values.job_function?.trim() || null,
           creatives_url: values.creatives_url?.filter((u: string) => u?.trim()) || null,
+          campaign_questions: campaignQuestionsPayloadFromFormValues(
+            values as Record<string, unknown>
+          ),
         }),
       });
       if (!res.ok) {
@@ -1042,6 +1055,8 @@ export default function SalesCampaignDetailPage() {
             <Form.Item name="additional_comments" label="Additional Comments">
               <TextArea rows={3} placeholder="Additional notes" />
             </Form.Item>
+
+            <CampaignQuestionsEditor />
 
             <Divider style={{ margin: "20px 0 12px" }} />
 

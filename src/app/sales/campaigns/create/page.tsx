@@ -7,6 +7,8 @@ import { InboxOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { Spin } from "antd";
 import type { UploadFile } from "antd";
+import { CampaignQuestionsEditor } from "@/components/Campaigns/CampaignQuestionsEditor";
+import { campaignQuestionsPayloadFromFormValues } from "@/lib/campaign-questions";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 
@@ -139,6 +141,9 @@ export default function SalesCreateCampaignPage() {
           weekly_report: values.weekly_report,
           additional_comments: values.additional_comments,
           assigned_team_leader_id: values.assigned_team_leader_id || null,
+          campaign_questions: campaignQuestionsPayloadFromFormValues(
+            values as Record<string, unknown>
+          ),
         }),
       });
 
@@ -400,6 +405,8 @@ export default function SalesCreateCampaignPage() {
               </Form.Item>
             </Col>
           </Row>
+
+          <CampaignQuestionsEditor />
 
           <Row gutter={24}>
             <Col span={24}>

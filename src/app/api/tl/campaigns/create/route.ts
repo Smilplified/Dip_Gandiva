@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateCampaignId } from "@/lib/campaigns";
 import { createNotification } from "@/lib/notifications";
+import {
+  campaignQuestionsToDbValue,
+  normalizeCampaignQuestions,
+} from "@/lib/campaign-questions";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +61,7 @@ export async function POST(request: Request) {
       seniority,
       job_function,
       creatives_url,
+      campaign_questions,
     } = body;
 
     if (!name || typeof name !== "string") {
@@ -166,6 +171,9 @@ export async function POST(request: Request) {
         seniority: seniority != null && typeof seniority === "string" ? seniority.trim() || null : null,
         job_function: job_function != null && typeof job_function === "string" ? job_function.trim() || null : null,
         creatives_url: Array.isArray(creatives_url) && creatives_url.length > 0 ? creatives_url.filter((v) => v && typeof v === "string").map((v) => String(v).trim()).filter(Boolean) : null,
+        campaign_questions: campaignQuestionsToDbValue(
+          normalizeCampaignQuestions(campaign_questions)
+        ),
         created_by: user.id,
       } as never)
       .select("id, campaign_id, campaign_code")

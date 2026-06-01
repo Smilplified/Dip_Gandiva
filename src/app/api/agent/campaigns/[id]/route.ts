@@ -66,7 +66,7 @@ export async function GET(
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
       .select(
-        "id, campaign_id, campaign_code, name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, region, additional_comments, employee_size, abm, seniority, job_function, creatives_url"
+        "id, campaign_id, campaign_code, name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, region, additional_comments, employee_size, abm, seniority, job_function, creatives_url, campaign_questions"
       )
       .eq("id", campaignId)
       .eq("organization_id", orgId)

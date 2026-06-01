@@ -4,6 +4,7 @@ import React from "react";
 import { Typography } from "antd";
 import { LeadForm } from "./LeadForm";
 import type { Lead } from "@/types/lead.types";
+import type { CampaignQuestion } from "@/lib/campaign-questions";
 
 export const LEAD_DRAWER_WIDTH = 1080;
 export const LEAD_DRAWER_BODY_STYLE = { paddingBottom: 80 } as const;
@@ -17,6 +18,7 @@ type LeadDrawerContentProps = {
   lead?: Lead | null;
   canEditQaAudit?: boolean;
   introText?: string;
+  campaignQuestions?: CampaignQuestion[] | null;
 };
 
 export function LeadDrawerContent({
@@ -25,13 +27,20 @@ export function LeadDrawerContent({
   lead,
   canEditQaAudit = false,
   introText = DEFAULT_INTRO,
+  campaignQuestions = null,
 }: LeadDrawerContentProps) {
   return (
     <>
       <Typography.Paragraph type="secondary" style={LEAD_DRAWER_INTRO_STYLE}>
         {introText}
       </Typography.Paragraph>
-      <LeadForm form={form} mode={mode} lead={lead} canEditQaAudit={canEditQaAudit} />
+      <LeadForm
+        form={form}
+        mode={mode}
+        lead={lead}
+        canEditQaAudit={canEditQaAudit}
+        campaignQuestions={campaignQuestions}
+      />
     </>
   );
 }

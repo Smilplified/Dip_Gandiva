@@ -24,6 +24,14 @@ import type { Lead } from "@/types/lead.types";
 import { useAuth } from "@/context/AuthContext";
 import { nextExtraCqIndex, parseExtraCqIndexes } from "@/lib/extra-cq";
 import { normalizeRoleName } from "@/lib/auth/config";
+import type { CampaignQuestion } from "@/lib/campaign-questions";
+import { CampaignCqAnswerFields } from "@/components/Leads/CampaignCqAnswerFields";
+import {
+  digitsOnlyFormRules,
+  normalizeDigitsOnly,
+  normalizePhoneNumeric,
+  phoneNumericFormRules,
+} from "@/lib/lead-field-validation";
 
 const NON_CLIENT_VIEWER_ROLES = new Set([
   "agent",
@@ -45,6 +53,8 @@ type LeadFormProps = {
   mode: "create" | "edit";
   lead?: Lead | null;
   canEditQaAudit?: boolean;
+  /** When set, show campaign-defined question labels (agents answer only). */
+  campaignQuestions?: CampaignQuestion[] | null;
 };
 
 export function LeadForm({
@@ -52,8 +62,12 @@ export function LeadForm({
   mode,
   lead,
   canEditQaAudit = false,
+  campaignQuestions = null,
 }: LeadFormProps) {
+  const useCampaignCq =
+    Array.isArray(campaignQuestions) && campaignQuestions.length > 0;
   const { profile, hasRole, user } = useAuth();
+  const isAgentEntry = hasRole("agent");
   const loggedInQaName =
     profile?.full_name?.trim() || profile?.email?.trim() || user?.email?.trim() || "";
   const [showMoreCq, setShowMoreCq] = useState(false);
@@ -409,8 +423,20 @@ export function LeadForm({
               "👤",
               <Row gutter={16}>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Salutation" name="salutation">
-                    <Select placeholder="Select" options={SALUTATION_OPTIONS} allowClear />
+                  <Form.Item
+                    label="Salutation"
+                    name="salutation"
+                    rules={
+                      isAgentEntry
+                        ? [{ required: true, message: "Please select Salutation" }]
+                        : undefined
+                    }
+                  >
+                    <Select
+                      placeholder="Select"
+                      options={SALUTATION_OPTIONS}
+                      allowClear={!isAgentEntry}
+                    />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
@@ -429,12 +455,22 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Phone Number" name="phone">
+                  <Form.Item
+                    label="Phone Number"
+                    name="phone"
+                    rules={isAgentEntry ? phoneNumericFormRules("Phone Number") : undefined}
+                    normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
+                  >
                     <Input placeholder="+1 555 123 4567" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Direct Number" name="direct_number">
+                  <Form.Item
+                    label="Direct Number"
+                    name="direct_number"
+                    rules={isAgentEntry ? phoneNumericFormRules("Direct Number") : undefined}
+                    normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
+                  >
                     <Input placeholder="+1 555 987 6543" />
                   </Form.Item>
                 </Col>
@@ -488,76 +524,82 @@ export function LeadForm({
                     <Input.TextArea rows={2} placeholder="Call Notes" />
                   </Form.Item>
                 </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item label="CQ1" name="cq1">
-                    <Input placeholder="CQ1" />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item label="CQ2" name="cq2">
-                    <Input placeholder="CQ2" />
-                  </Form.Item>
-                </Col>
-                {showMoreCq && (
+                {useCampaignCq ? (
+                  <CampaignCqAnswerFields questions={campaignQuestions!} />
+                ) : (
                   <>
                     <Col xs={24} sm={12}>
-                      <Form.Item label="CQ3" name="cq3">
-                        <Input placeholder="CQ3" />
+                      <Form.Item label="CQ1" name="cq1">
+                        <Input placeholder="CQ1" />
                       </Form.Item>
                     </Col>
                     <Col xs={24} sm={12}>
-                      <Form.Item label="CQ4" name="cq4">
-                        <Input placeholder="CQ4" />
+                      <Form.Item label="CQ2" name="cq2">
+                        <Input placeholder="CQ2" />
                       </Form.Item>
                     </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item label="CQ5" name="cq5">
-                        <Input placeholder="CQ5" />
-                      </Form.Item>
-                    </Col>
-                    {dynamicCqIndexes.map((cqIndex) => (
-                      <Col xs={24} sm={12} key={`extra-cq-${cqIndex}`}>
-                        <Form.Item label={`CQ${cqIndex}`} name={["extra_cq", `cq${cqIndex}`]}>
-                          <Input
-                            placeholder={`CQ${cqIndex}`}
-                            suffix={
-                              <Button
-                                type="text"
-                                size="small"
-                                icon={<DeleteOutlined />}
-                                aria-label={`Remove CQ${cqIndex}`}
-                                onClick={() => removeDynamicCqField(cqIndex)}
+                    {showMoreCq && (
+                      <>
+                        <Col xs={24} sm={12}>
+                          <Form.Item label="CQ3" name="cq3">
+                            <Input placeholder="CQ3" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12}>
+                          <Form.Item label="CQ4" name="cq4">
+                            <Input placeholder="CQ4" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={12}>
+                          <Form.Item label="CQ5" name="cq5">
+                            <Input placeholder="CQ5" />
+                          </Form.Item>
+                        </Col>
+                        {dynamicCqIndexes.map((cqIndex) => (
+                          <Col xs={24} sm={12} key={`extra-cq-${cqIndex}`}>
+                            <Form.Item label={`CQ${cqIndex}`} name={["extra_cq", `cq${cqIndex}`]}>
+                              <Input
+                                placeholder={`CQ${cqIndex}`}
+                                suffix={
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<DeleteOutlined />}
+                                    aria-label={`Remove CQ${cqIndex}`}
+                                    onClick={() => removeDynamicCqField(cqIndex)}
+                                  />
+                                }
                               />
-                            }
-                          />
-                        </Form.Item>
-                      </Col>
-                    ))}
-                    <Col xs={24} sm={12} style={{ marginBottom: 24 }}>
-                      <div style={{ paddingTop: 30 }}>
+                            </Form.Item>
+                          </Col>
+                        ))}
+                        <Col xs={24} sm={12} style={{ marginBottom: 24 }}>
+                          <div style={{ paddingTop: 30 }}>
+                            <Button
+                              type="dashed"
+                              icon={<PlusOutlined />}
+                              onClick={addDynamicCqField}
+                              aria-label="Add another custom question"
+                              style={{ width: "100%", height: 32 }}
+                            />
+                          </div>
+                        </Col>
+                      </>
+                    )}
+                    <Col xs={24}>
+                      {!showMoreCq && (
                         <Button
                           type="dashed"
                           icon={<PlusOutlined />}
-                          onClick={addDynamicCqField}
-                          aria-label="Add another custom question"
-                          style={{ width: "100%", height: 32 }}
-                        />
-                      </div>
+                          onClick={() => setShowMoreCq(true)}
+                          style={{ width: "100%" }}
+                        >
+                          Click to add more
+                        </Button>
+                      )}
                     </Col>
                   </>
                 )}
-                <Col xs={24}>
-                  {!showMoreCq && (
-                    <Button
-                      type="dashed"
-                      icon={<PlusOutlined />}
-                      onClick={() => setShowMoreCq(true)}
-                      style={{ width: "100%" }}
-                    >
-                      Click to add more
-                    </Button>
-                  )}
-                </Col>
               </Row>
             )}
           </Collapse>
@@ -826,7 +868,12 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Corporate Number" name="company_number">
+                  <Form.Item
+                    label="Corporate Number"
+                    name="company_number"
+                    rules={isAgentEntry ? phoneNumericFormRules("Corporate Number") : undefined}
+                    normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
+                  >
                     <Input placeholder="Company phone" />
                   </Form.Item>
                 </Col>
@@ -856,7 +903,12 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Zip / Postal Code" name="zip_code">
+                  <Form.Item
+                    label="Zip / Postal Code"
+                    name="zip_code"
+                    rules={isAgentEntry ? phoneNumericFormRules("Zip / Postal Code") : undefined}
+                    normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
+                  >
                     <Input placeholder="Zip / Postal code" />
                   </Form.Item>
                 </Col>
@@ -886,8 +938,13 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Founded Year" name="founded_years">
-                    <Input placeholder="e.g. 2010" />
+                  <Form.Item
+                    label="Founded Year"
+                    name="founded_years"
+                    rules={isAgentEntry ? digitsOnlyFormRules("Founded Year") : undefined}
+                    normalize={isAgentEntry ? normalizeDigitsOnly : undefined}
+                  >
+                    <Input placeholder="e.g. 2010" inputMode="numeric" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>

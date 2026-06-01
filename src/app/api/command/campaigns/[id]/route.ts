@@ -9,6 +9,10 @@ import {
 } from "@/lib/command/db";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
+import {
+  campaignQuestionsToDbValue,
+  normalizeCampaignQuestions,
+} from "@/lib/campaign-questions";
 
 const COMMAND_CAMPAIGN_LEAD_IMPORT_MAX = 500;
 
@@ -136,7 +140,7 @@ export async function PATCH(
   const allowedFields = [
     "name", "description", "status", "start_date", "end_date",
     "client_id", "client_name", "lead_type", "campaign_type", "lead_aggregated", "cpl", "revenue", "total_allocation",
-    "industry", "geography", "additional_comments", "weekly_call", "weekly_report",
+    "industry", "geography", "additional_comments", "weekly_call", "weekly_report", "campaign_questions",
   ];
 
   const fieldsForUser =
@@ -147,6 +151,11 @@ export async function PATCH(
   const updates: Record<string, unknown> = {};
   for (const field of fieldsForUser) {
     if (field in body) updates[field] = body[field];
+  }
+  if ("campaign_questions" in body) {
+    updates.campaign_questions = campaignQuestionsToDbValue(
+      normalizeCampaignQuestions(body.campaign_questions)
+    );
   }
 
   // Keep client_name synced when client_id changes via dropdown selection
