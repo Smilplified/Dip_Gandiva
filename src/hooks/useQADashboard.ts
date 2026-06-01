@@ -14,8 +14,9 @@ export type QaStats = {
 export type CampaignWithLeads = {
   id: string;
   name?: string;
+  campaign_code?: string | null;
   status?: string | null;
-  leads: { qa_status: string | null; status?: string | null }[];
+  leads: { qa_status: string | null; status?: string | null; created_at?: string }[];
 };
 
 async function fetchQADashboard(): Promise<{ campaigns: CampaignWithLeads[] }> {

@@ -9,9 +9,6 @@ import {
   Col,
   Typography,
   Tag,
-  Avatar,
-  Badge,
-  Checkbox,
   Table,
   Button,
   Empty,
@@ -21,10 +18,8 @@ import {
   FundProjectionScreenOutlined,
   RiseOutlined,
   TeamOutlined,
-  CheckCircleOutlined,
   AuditOutlined,
   ArrowUpOutlined,
-  ClockCircleOutlined,
   RightOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
@@ -39,8 +34,23 @@ import {
   QACampaignReviewChart,
 } from "@/components/Dashboard/QADashboardCharts";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import dayjs from "dayjs";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
+
+type CampaignPendingRow = {
+  id: string;
+  name: string;
+  campaign_code: string | null;
+  pending: number;
+  todayLeads: number;
+  total: number;
+};
+
+function isLeadCreatedToday(createdAt: string | null | undefined, todayKey: string): boolean {
+  if (!createdAt) return false;
+  return dayjs(createdAt).format("YYYY-MM-DD") === todayKey;
+}
 
 const cardStyle = {
   borderRadius: 16,
@@ -55,22 +65,6 @@ const statCardHover = (e: React.MouseEvent<HTMLDivElement>, enter: boolean) => {
   el.style.boxShadow = enter ? "0 4px 16px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.04)";
   el.style.transform = enter ? "translateY(-2px)" : "translateY(0)";
 };
-
-const tasksData = [
-  { id: 1, task: "Review Campaign A leads (12 pending)", dueTime: "10:00 AM", priority: "high", completed: false },
-  { id: 2, task: "Approve quality scores for Campaign B", dueTime: "11:30 AM", priority: "high", completed: false },
-  { id: 3, task: "Export QA report", dueTime: "02:00 PM", priority: "medium", completed: false },
-  { id: 4, task: "Update QA guidelines", dueTime: "03:30 PM", priority: "medium", completed: true },
-  { id: 5, task: "Sync with TL on rejections", dueTime: "04:00 PM", priority: "low", completed: false },
-];
-
-const activityFeedData = [
-  { id: 1, user: "You", action: "approved", target: "24 leads", value: "Campaign A", time: "5 mins ago", type: "success" },
-  { id: 2, user: "System", action: "Campaign B", target: "8 new leads", value: "need review", time: "12 mins ago", type: "info" },
-  { id: 3, user: "You", action: "rejected", target: "3 leads", value: "Campaign C", time: "25 mins ago", type: "info" },
-  { id: 4, user: "TL", action: "requested re-review", target: "Campaign D", value: "", time: "45 mins ago", type: "default" },
-  { id: 5, user: "You", action: "exported", target: "QA report", value: "", time: "1 hour ago", type: "default" },
-];
 
 export default function QADashboardPage() {
   const { profile } = useAuth();
@@ -114,19 +108,29 @@ export default function QADashboardPage() {
     [campaigns]
   );
 
-  const campaignsWithPending = useMemo(
-    () =>
-      campaigns
-        .map((c) => ({
+  const campaignsWithPending = useMemo((): CampaignPendingRow[] => {
+    const todayKey = dayjs().format("YYYY-MM-DD");
+    return campaigns
+      .map((c) => {
+        const leads = c.leads ?? [];
+        const pending = leads.filter((l) => !l.qa_status || String(l.qa_status).trim() === "").length;
+        const todayLeads = leads.filter((l) => isLeadCreatedToday(l.created_at, todayKey)).length;
+        return {
           id: c.id,
-          name: (c as { name?: string }).name ?? `Campaign ${c.id.slice(0, 8)}`,
-          campaign_code: (c as { campaign_code?: string | null }).campaign_code ?? null,
-          pending: c.leads?.filter((l) => !l.qa_status || String(l.qa_status).trim() === "").length ?? 0,
-          total: c.leads?.length ?? 0,
-        }))
-        .filter((c) => c.pending > 0),
-    [campaigns]
-  );
+          name: c.name ?? `Campaign ${c.id.slice(0, 8)}`,
+          campaign_code: c.campaign_code ?? null,
+          pending,
+          todayLeads,
+          total: leads.length,
+        };
+      })
+      .filter((c) => c.pending > 0)
+      .sort((a, b) => {
+        if (b.todayLeads !== a.todayLeads) return b.todayLeads - a.todayLeads;
+        if (b.pending !== a.pending) return b.pending - a.pending;
+        return a.name.localeCompare(b.name);
+      });
+  }, [campaigns]);
 
   const statsCards = useMemo(() => {
     const s = statsData ?? {
@@ -297,114 +301,6 @@ export default function QADashboardPage() {
         </Col>
       </Row>
 
-      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
-        <Col xs={24} xl={12}>
-          <Card
-            title={
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Text strong style={{ fontSize: 16 }}>
-                  My Tasks
-                </Text>
-                <Badge count={tasksData.filter((t) => !t.completed).length} style={{ backgroundColor: "#722ed1" }} />
-              </div>
-            }
-            bordered={false}
-            style={cardStyle}
-            styles={{ body: { padding: "20px 24px" } }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {tasksData.map((task) => (
-                <div
-                  key={task.id}
-                  style={{
-                    padding: "14px 16px",
-                    backgroundColor: task.completed ? "#fafafa" : "#fff",
-                    border: "1px solid #f0f0f0",
-                    borderRadius: 10,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <Checkbox checked={task.completed} />
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 500,
-                        color: task.completed ? "#8c8c8c" : "#1f1f1f",
-                        textDecoration: task.completed ? "line-through" : "none",
-                      }}
-                    >
-                      {task.task}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      <ClockCircleOutlined style={{ marginRight: 4 }} />
-                      {task.dueTime}
-                    </Text>
-                  </div>
-                  <Tag
-                    color={task.priority === "high" ? "red" : task.priority === "medium" ? "orange" : "default"}
-                    style={{ fontSize: 11, margin: 0 }}
-                  >
-                    {task.priority.toUpperCase()}
-                  </Tag>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </Col>
-        <Col xs={24} xl={12}>
-          <Card
-            title={<Text strong style={{ fontSize: 16 }}>Activity Feed</Text>}
-            bordered={false}
-            style={cardStyle}
-            styles={{ body: { padding: "20px 24px" } }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {activityFeedData.map((activity) => (
-                <div key={activity.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <Avatar
-                    size={36}
-                    style={{
-                      backgroundColor: activity.type === "success" ? "#52c41a" : "#722ed1",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {activity.user[0]}
-                  </Avatar>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, lineHeight: 1.6, color: "#1f1f1f" }}>
-                      <Text strong style={{ fontSize: 13 }}>
-                        {activity.user}
-                      </Text>{" "}
-                      <Text type="secondary" style={{ fontSize: 13 }}>
-                        {activity.action}
-                      </Text>{" "}
-                      <Text strong style={{ fontSize: 13 }}>
-                        {activity.target}
-                      </Text>
-                      {activity.value && (
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          {" "}
-                          {activity.value}
-                        </Text>
-                      )}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 11, display: "block", marginTop: 4 }}>
-                      {activity.time}
-                    </Text>
-                  </div>
-                  {activity.type === "success" && (
-                    <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16, marginTop: 4 }} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </Col>
-      </Row>
-
       {!dashboardReady ? (
         <TableSkeleton rows={5} />
       ) : (
@@ -431,10 +327,12 @@ export default function QADashboardPage() {
                 />
               ) : (
                 <Table
+                  className="table-single-line"
                   dataSource={campaignsWithPending}
                   rowKey="id"
                   pagination={false}
                   size="middle"
+                  scroll={{ x: "max-content" }}
                   columns={[
                     {
                       title: "Campaign Code",
@@ -461,13 +359,42 @@ export default function QADashboardPage() {
                       dataIndex: "pending",
                       key: "pending",
                       width: 100,
+                      sorter: (a: CampaignPendingRow, b: CampaignPendingRow) => a.pending - b.pending,
                       render: (v: number) => (
                         <Tag color="orange">
                           {v} leads
                         </Tag>
                       ),
                     },
-                    { title: "Total Leads", dataIndex: "total", key: "total", width: 110 },
+                    {
+                      title: (
+                        <span style={{ whiteSpace: "nowrap" }}>Today&apos;s Leads</span>
+                      ),
+                      dataIndex: "todayLeads",
+                      key: "todayLeads",
+                      width: 132,
+                      className: "table-col-todays-leads",
+                      defaultSortOrder: "descend",
+                      onHeaderCell: () => ({
+                        style: { whiteSpace: "nowrap", minWidth: 132 },
+                      }),
+                      onCell: () => ({ style: { whiteSpace: "nowrap" } }),
+                      sorter: (a: CampaignPendingRow, b: CampaignPendingRow) =>
+                        a.todayLeads - b.todayLeads,
+                      render: (v: number) =>
+                        v > 0 ? (
+                          <Tag color="green">{v}</Tag>
+                        ) : (
+                          <Text type="secondary">0</Text>
+                        ),
+                    },
+                    {
+                      title: "Total Leads",
+                      dataIndex: "total",
+                      key: "total",
+                      width: 110,
+                      sorter: (a: CampaignPendingRow, b: CampaignPendingRow) => a.total - b.total,
+                    },
                     {
                       title: "",
                       key: "action",

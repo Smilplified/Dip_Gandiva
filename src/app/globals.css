@@ -219,6 +219,12 @@ html, body {
 .table-single-line th.ant-table-cell.table-col-remaining-allocation {
   min-width: 200px;
 }
+.table-single-line th.ant-table-cell.table-col-todays-leads {
+  min-width: 132px;
+}
+.table-single-line th.ant-table-cell.table-col-todays-leads .ant-table-column-title {
+  white-space: nowrap;
+}
 .table-single-line td.table-col-campaign-name a.table-text-ellipsis {
   display: block;
   overflow: hidden;
