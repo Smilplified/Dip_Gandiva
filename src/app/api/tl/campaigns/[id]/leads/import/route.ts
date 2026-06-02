@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import {
+  normalizeImportTimestampField,
+  pickAndSanitizeLeadImportFields,
+} from "@/lib/lead-import-sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -17,17 +21,6 @@ const LEAD_FIELDS = [
   "disqualification_reason", "rectified_reason", "lead_disposition", "followup_date", "notes", "delivery_status",
   "delivered_at",
 ] as const;
-
-function pickLeadFields(obj: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const k of LEAD_FIELDS) {
-    const v = obj[k];
-    if (v !== undefined && v !== null && v !== "") {
-      out[k] = typeof v === "string" ? v.trim() : v;
-    }
-  }
-  return out;
-}
 
 function getChannelCandidates(channel: string | null): (string | null)[] {
   if (!channel) return [null];
@@ -150,7 +143,7 @@ export async function POST(
         }
       }
 
-      const fields = pickLeadFields(row);
+      const fields = pickAndSanitizeLeadImportFields(row, LEAD_FIELDS);
       const first_name = ((fields.first_name as string) ?? (fields.name as string)?.split(/\s+/)[0]) ?? null;
       const last_name = ((fields.last_name as string) ?? (fields.name as string)?.split(/\s+/).slice(1).join(" ")) || null;
       const derivedName = [first_name, last_name].filter(Boolean).join(" ").trim() || (fields.name as string) || null;
@@ -164,10 +157,7 @@ export async function POST(
           ? "not_delivered"
           : null;
       // delivered_at from CSV (re-import / backfill), or auto-set when marking delivered
-      const deliveredAtFromCsv =
-        typeof fields.delivered_at === "string" && fields.delivered_at.trim()
-          ? fields.delivered_at.trim()
-          : null;
+      const deliveredAtFromCsv = normalizeImportTimestampField(fields.delivered_at);
       const resolvedDeliveredAt =
         normalizedDeliveryStatus === "delivered"
           ? deliveredAtFromCsv ?? new Date().toISOString()
@@ -221,7 +211,8 @@ export async function POST(
         sic_code_link: fields.sic_code_link || null,
         naics_code: fields.naics_code || null,
         naics_code_link: fields.naics_code_link || null,
-        founded_years: fields.founded_years != null ? Number(fields.founded_years) : null,
+        founded_years:
+          typeof fields.founded_years === "number" ? fields.founded_years : null,
         founded_years_link: fields.founded_years_link || null,
         contact_linkedin_url: fields.contact_linkedin_url || null,
         company_linkedin_url: fields.company_linkedin_url || null,

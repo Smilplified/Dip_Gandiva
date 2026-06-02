@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { coerceParsedImportCell, isImportPlaceholder } from "@/lib/lead-import-sanitize";
 
 /**
  * Parse CSV file and return array of lead objects for bulk import.
@@ -87,9 +88,10 @@ export function parseLeadsCsv(csvText: string): Record<string, unknown>[] {
     const row: Record<string, unknown> = {};
     for (let j = 0; j < colMap.length && j < values.length; j++) {
       const key = colMap[j];
-      const val = values[j]?.trim();
-      if (key && val) {
-        row[key] = val;
+      if (!key) continue;
+      const coerced = coerceParsedImportCell(key, values[j]?.trim() ?? "");
+      if (coerced !== undefined) {
+        row[key] = coerced;
       }
     }
     if (Object.keys(row).length > 0) {
@@ -122,18 +124,15 @@ export function parseLeadsExcel(buffer: ArrayBuffer): Record<string, unknown>[] 
     const row: Record<string, unknown> = {};
     for (let j = 0; j < colMap.length; j++) {
       const key = colMap[j];
+      if (!key) continue;
       const val = values[j];
-      const str = val != null ? String(val).trim() : "";
-      if (key) {
-        if (str) row[key] = str;
-        else if (
-          (key === "id" || key === "lead_id") &&
-          val !== undefined &&
-          val !== null
-        ) {
-          row[key] = String(val).trim();
-        }
+      if (key === "id" || key === "lead_id") {
+        const idStr = val != null ? String(val).trim() : "";
+        if (idStr && !isImportPlaceholder(idStr)) row[key] = idStr;
+        continue;
       }
+      const coerced = coerceParsedImportCell(key, val);
+      if (coerced !== undefined) row[key] = coerced;
     }
     if (row.id === "") delete row.id;
     if (Object.keys(row).length > 0) {

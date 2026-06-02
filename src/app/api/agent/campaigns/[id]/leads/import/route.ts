@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { AGENT_READONLY_LEAD_FIELDS } from "@/lib/agent-lead-fields";
+import { pickAndSanitizeLeadImportFields } from "@/lib/lead-import-sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -63,17 +64,6 @@ function sanitizeAgentImportRow(
   const out = { ...row };
   for (const key of AGENT_IMPORT_BLOCKED) {
     delete out[key];
-  }
-  return out;
-}
-
-function pickAgentFields(obj: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const k of AGENT_IMPORT_FIELDS) {
-    const v = obj[k];
-    if (v !== undefined && v !== null && v !== "") {
-      out[k] = typeof v === "string" ? v.trim() : v;
-    }
   }
   return out;
 }
@@ -157,7 +147,10 @@ export async function POST(
       const rowLeadId =
         rowLeadIdRaw != null ? String(rowLeadIdRaw).trim() : "";
 
-      const fields = pickAgentFields(sanitizeAgentImportRow(row));
+      const fields = pickAndSanitizeLeadImportFields(
+        sanitizeAgentImportRow(row),
+        AGENT_IMPORT_FIELDS
+      );
       const first_name = normalizeString(fields.first_name);
       const last_name = normalizeString(fields.last_name);
       const name = normalizeString(fields.name);
