@@ -606,6 +606,32 @@ export default function TeamPerformanceDashboard() {
       ),
     },
     {
+      title: "Qualified",
+      dataIndex: "qualified_leads",
+      key: "qualified_leads",
+      align: "center" as const,
+      sorter: (a: AgentPerformance, b: AgentPerformance) => a.qualified_leads - b.qualified_leads,
+      render: (v: number, r: AgentPerformance) => (
+        <span
+          style={{
+            fontWeight: 600,
+            fontSize: 13,
+            color: v > 0 ? "#389e0d" : "#bfbfbf",
+            background: v > 0 ? "#f6ffed" : "transparent",
+            borderRadius: 8,
+            padding: "2px 10px",
+          }}
+          title={
+            r.total_leads > 0
+              ? `${Math.round((v / r.total_leads) * 100)}% of ${r.total_leads} leads`
+              : undefined
+          }
+        >
+          {v.toLocaleString()}
+        </span>
+      ),
+    },
+    {
       title: "Today",
       dataIndex: "today_leads",
       key: "today_leads",

@@ -273,7 +273,8 @@ export default function QACampaignDetailPage() {
     }
     downloadExcel(
       filteredLeads,
-      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`
+      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
+      campaign?.name
     );
     message.success(`Exported ${filteredLeads.length} leads`);
   };
@@ -383,6 +384,7 @@ export default function QACampaignDetailPage() {
     showActions: true,
     onEdit: openEditLeadDrawer,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
+    showDeliveryStatus: true,
     showVoiceRecordings: true,
     onVoiceRecordingsChange: id ? () => { void fetchCampaign(id); } : undefined,
   });

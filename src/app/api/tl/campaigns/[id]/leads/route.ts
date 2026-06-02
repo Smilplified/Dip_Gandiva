@@ -258,13 +258,17 @@ export async function PATCH(
         updates.delivery_status = "not_delivered";
         (updates as Record<string, unknown>).delivered_at = null;
         (updates as Record<string, unknown>).delivered_by = null;
+      } else if (raw === "pending") {
+        updates.delivery_status = "pending";
+        (updates as Record<string, unknown>).delivered_at = null;
+        (updates as Record<string, unknown>).delivered_by = null;
       } else {
         return NextResponse.json({ error: "Invalid delivery_status" }, { status: 400 });
       }
     }
 
     const canEditQa = roleNames.includes("qa") || roleNames.includes("admin");
-    const canEditDelivery = roleNames.includes("mis") || roleNames.includes("admin");
+    const canEditDelivery = roleNames.includes("mis");
     if (!canEditQa) {
       delete updates.qa_status;
       delete updates.disqualification_reasons;
@@ -281,7 +285,7 @@ export async function PATCH(
       updates.qa_name = u?.full_name || u?.email || null;
     }
     if (delivery_status !== undefined && !canEditDelivery) {
-      return NextResponse.json({ error: "Only MIS/Admin can update delivery status" }, { status: 403 });
+      return NextResponse.json({ error: "Only MIS can update delivery status" }, { status: 403 });
     }
 
     if (updates.delivery_status !== undefined) {

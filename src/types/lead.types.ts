@@ -84,7 +84,7 @@ export type Lead = {
   audit_date: string | null;
   qa_name: string | null;
   qa_status: string | null;
-  delivery_status: "not_delivered" | "delivered" | null;
+  delivery_status: "pending" | "not_delivered" | "delivered" | null;
   delivered_at: string | null;
   delivered_by: string | null;
   disqualification_reasons: string | null;

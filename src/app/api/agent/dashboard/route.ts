@@ -51,8 +51,8 @@ export async function GET(request: Request) {
           activeCampaigns: 0,
           totalLeads: 0,
           activeLeads: 0,
-          wonLeads: 0,
-          conversionPct: 0,
+          qualifiedLeads: 0,
+          qualifiedRatePct: 0,
         },
         recentCampaigns: [],
       });
@@ -100,8 +100,12 @@ export async function GET(request: Request) {
     const activeCampaigns = campaigns.filter((c) => c.status === "active").length;
     const totalLeads = leads.length;
     const activeLeads = leads.filter((l) => ["interested", "followup"].includes(l.status)).length;
-    const wonLeads = leads.filter((l) => l.status === "closed_won").length;
-    const conversionPct = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
+    const qualifiedLeads = leads.reduce((count, l) => {
+      const qa = String(l.qa_status ?? "").trim().toLowerCase();
+      return qa === "qualified" || qa === "approved" || qa === "pass" ? count + 1 : count;
+    }, 0);
+    const qualifiedRatePct =
+      totalLeads > 0 ? Math.round((qualifiedLeads / totalLeads) * 100) : 0;
 
     const recentCampaigns = campaigns.map((c) => ({
       ...c,
@@ -117,8 +121,8 @@ export async function GET(request: Request) {
         activeCampaigns,
         totalLeads,
         activeLeads,
-        wonLeads,
-        conversionPct,
+        qualifiedLeads,
+        qualifiedRatePct,
       },
       recentCampaigns,
     });

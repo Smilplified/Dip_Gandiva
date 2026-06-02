@@ -165,7 +165,8 @@ export default function DCCampaignDetailPage() {
     const slug = (campaign?.name ?? "campaign").replace(/[^\w-]+/g, "-").replace(/-+/g, "-");
     downloadExcel(
       leads,
-      `dc-leads-${slug}-${dayjs().format("YYYY-MM-DD")}.xlsx`
+      `dc-leads-${slug}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
+      campaign?.name
     );
     message.success(`Exported ${leads.length} leads with all database fields`);
   };

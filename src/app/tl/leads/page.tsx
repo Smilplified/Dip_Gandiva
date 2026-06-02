@@ -120,6 +120,7 @@ export default function TeamLeaderLeadsPage() {
   const baseColumns = getLeadTableColumns({
     showActions: false,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
+    showDeliveryStatus: true,
   });
   const campaignColumn = {
     title: "Campaign",

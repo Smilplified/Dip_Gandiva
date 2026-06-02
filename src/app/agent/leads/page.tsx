@@ -111,6 +111,7 @@ export default function AgentMyLeadsPage() {
   const baseColumns = getLeadTableColumns({
     showActions: false,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
+    showDeliveryStatus: true,
     showFollowupDate: false,
   });
   const campaignColumn = {

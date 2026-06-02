@@ -280,7 +280,8 @@ export default function MISCampaignDetailPage() {
     }
     downloadExcel(
       sortedFilteredLeads,
-      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`
+      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
+      campaign?.name
     );
     message.success(`Exported ${sortedFilteredLeads.length} leads`);
   };
@@ -357,13 +358,17 @@ export default function MISCampaignDetailPage() {
     }
   };
 
-  const handleMarkDelivered = async (lead: Lead) => {
+  const handleDeliveryStatusChange = async (
+    lead: Lead,
+    nextStatus: "pending" | "not_delivered" | "delivered"
+  ) => {
     if (!id) return;
+    const currentStatus = lead.delivery_status ?? "pending";
     // Allow re-click only when lead is already delivered but delivered_at was never recorded (legacy backfill)
-    const alreadyDelivered = (lead.delivery_status ?? "not_delivered") === "delivered";
+    const alreadyDelivered = currentStatus === "delivered";
     const missingDate = !lead.delivered_at;
-    if (alreadyDelivered && !missingDate) {
-      message.info("Lead is already marked as delivered");
+    if (nextStatus === currentStatus && !(alreadyDelivered && missingDate)) {
+      message.info("Delivery status is already set");
       return;
     }
     setMarkingDeliveredLeadId(lead.id);
@@ -372,11 +377,19 @@ export default function MISCampaignDetailPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: lead.id, delivery_status: "delivered" }),
+        body: JSON.stringify({ id: lead.id, delivery_status: nextStatus }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update delivery status");
-      message.success(alreadyDelivered ? "Delivery date recorded" : "Lead marked as delivered");
+      message.success(
+        nextStatus === "delivered"
+          ? alreadyDelivered
+            ? "Delivery date recorded"
+            : "Lead marked as delivered"
+          : nextStatus === "not_delivered"
+          ? "Lead marked as not delivered"
+          : "Delivery status set to pending"
+      );
       await fetchCampaign(id);
     } catch (e) {
       message.error(
@@ -420,7 +433,7 @@ export default function MISCampaignDetailPage() {
     showActions: true,
     onEdit: openEditLeadDrawer,
     showDeliveryStatus: true,
-    onMarkDelivered: handleMarkDelivered,
+    onDeliveryStatusChange: handleDeliveryStatusChange,
     markingDeliveredLeadId,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
     showVoiceRecordings: true,

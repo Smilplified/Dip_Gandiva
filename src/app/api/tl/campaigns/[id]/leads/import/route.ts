@@ -67,6 +67,7 @@ export async function POST(
       roleNames.includes("qa") ||
       roleNames.includes("mis") ||
       roleNames.includes("admin");
+    const canEditDelivery = roleNames.includes("mis");
     if (!canImport) {
       return NextResponse.json({ error: "You do not have permission to import leads" }, { status: 403 });
     }
@@ -151,17 +152,20 @@ export async function POST(
       const leadStatus = typeof fields.status === "string" && fields.status.length > 0 ? fields.status : "new";
       const deliveryStatusRaw = typeof fields.delivery_status === "string" ? fields.delivery_status.trim().toLowerCase() : "";
       const normalizedDeliveryStatus =
-        deliveryStatusRaw === "delivered"
+        canEditDelivery && (deliveryStatusRaw === "delivered")
           ? "delivered"
-          : deliveryStatusRaw === "not_delivered" || deliveryStatusRaw === "not delivered"
+          : canEditDelivery &&
+            (deliveryStatusRaw === "not_delivered" || deliveryStatusRaw === "not delivered")
           ? "not_delivered"
+          : canEditDelivery && deliveryStatusRaw === "pending"
+          ? "pending"
           : null;
       // delivered_at from CSV (re-import / backfill), or auto-set when marking delivered
       const deliveredAtFromCsv = normalizeImportTimestampField(fields.delivered_at);
       const resolvedDeliveredAt =
         normalizedDeliveryStatus === "delivered"
           ? deliveredAtFromCsv ?? new Date().toISOString()
-          : normalizedDeliveryStatus === "not_delivered"
+          : normalizedDeliveryStatus === "not_delivered" || normalizedDeliveryStatus === "pending"
           ? null
           : undefined; // don't touch if delivery_status not provided
       const channelRaw = typeof fields.channel === "string" ? fields.channel.trim().toLowerCase() : "";

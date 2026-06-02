@@ -30,6 +30,7 @@ export type AgentPerformance = {
   tl_id: string | null;
   tl_name: string | null;
   total_leads: number;
+  qualified_leads: number;
   today_leads: number;
   week_leads: number;
   month_leads: number;
@@ -324,13 +325,14 @@ export async function GET(request: Request) {
       id: string;
       campaign_id: string;
       assigned_agent_id: string | null;
+      qa_status: string | null;
       created_at: string;
     }[] = [];
 
     if (scopedCampaignIds.length > 0) {
       const { data: leadsData, error: leadsErr } = await admin
         .from("leads")
-        .select("id, campaign_id, assigned_agent_id, created_at")
+        .select("id, campaign_id, assigned_agent_id, qa_status, created_at")
         .eq("organization_id", orgId)
         .in("campaign_id", scopedCampaignIds)
         .gte("created_at", startUtc)
@@ -357,6 +359,7 @@ export async function GET(request: Request) {
       string,
       {
         total: number;
+        qualified: number;
         today: number;
         week: number;
         month: number;
@@ -365,8 +368,14 @@ export async function GET(request: Request) {
       }
     >();
 
+    const isQualifiedQa = (qa: string | null | undefined) => {
+      const q = String(qa ?? "").trim().toLowerCase();
+      return q === "qualified" || q === "approved" || q === "pass";
+    };
+
     const initAgent = () => ({
       total: 0,
+      qualified: 0,
       today: 0,
       week: 0,
       month: 0,
@@ -381,6 +390,7 @@ export async function GET(request: Request) {
       if (!agentLeadMap.has(agId)) agentLeadMap.set(agId, initAgent());
       const agg = agentLeadMap.get(agId)!;
       agg.total++;
+      if (isQualifiedQa(l.qa_status)) agg.qualified++;
       const d = dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD");
       if (d === today) agg.today++;
       if (d >= weekStart) agg.week++;
@@ -408,6 +418,7 @@ export async function GET(request: Request) {
         tl_id: effTlId,
         tl_name: tlRow ? userLabel(tlRow) : null,
         total_leads: agg.total,
+        qualified_leads: agg.qualified,
         today_leads: agg.today,
         week_leads: agg.week,
         month_leads: agg.month,

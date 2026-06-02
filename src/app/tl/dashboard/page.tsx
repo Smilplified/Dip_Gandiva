@@ -18,7 +18,7 @@ import {
   FundProjectionScreenOutlined,
   RiseOutlined,
   TeamOutlined,
-  PercentageOutlined,
+  CheckCircleOutlined,
   ArrowUpOutlined,
   RightOutlined,
 } from "@ant-design/icons";
@@ -88,8 +88,8 @@ export default function TeamLeaderDashboardPage() {
       totalCampaigns: 0,
       activeCampaigns: 0,
       totalLeads: 0,
-      totalInterested: 0,
-      conversionPct: 0,
+      qualifiedLeads: 0,
+      qualifiedRatePct: 0,
     };
     return [
       {
@@ -120,13 +120,13 @@ export default function TeamLeaderDashboardPage() {
         bgColor: "#f9f0ff",
       },
       {
-        title: "Conversion",
-        value: `${s.conversionPct}%`,
-        change: s.totalInterested != null ? `${s.totalInterested} interested` : "—",
+        title: "Qualified rate",
+        value: `${s.qualifiedRatePct}%`,
+        change: `${s.qualifiedLeads} of ${s.totalLeads} leads`,
         trend: "up" as const,
-        icon: <PercentageOutlined />,
-        color: "#faad14",
-        bgColor: "#fffbe6",
+        icon: <CheckCircleOutlined />,
+        color: "#52c41a",
+        bgColor: "#f6ffed",
       },
     ];
   }, [statsData]);

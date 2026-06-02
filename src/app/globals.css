@@ -225,7 +225,51 @@ html, body {
 .table-single-line th.ant-table-cell.table-col-todays-leads .ant-table-column-title {
   white-space: nowrap;
 }
-.table-single-line td.table-col-campaign-name a.table-text-ellipsis {
+
+/* Delivery status select: soft green when Delivered */
+.delivery-status-select--delivered .ant-select-selector {
+  background-color: #e8f5e9 !important;
+  border-color: #a5d6a7 !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.delivery-status-select--delivered .ant-select-selection-item {
+  color: #2e7d32;
+  font-weight: 500;
+}
+.delivery-status-select--delivered:hover .ant-select-selector,
+.delivery-status-select--delivered.ant-select-focused .ant-select-selector {
+  background-color: #f1f8e9 !important;
+  border-color: #81c784 !important;
+}
+
+/* MIS campaigns list: horizontal scroll on small screens */
+.mis-campaigns-table .ant-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+}
+.mis-campaigns-table .ant-table-content {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mis-campaigns-table table {
+  table-layout: fixed;
+}
+/* Force ellipsis cells to respect column width (fixed layout) */
+.mis-campaigns-table .ant-table-cell-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mis-campaigns-table .ant-table-cell-ellipsis .ant-tooltip-open,
+.mis-campaigns-table .ant-table-cell-ellipsis > span {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table-single-line td.table-col-campaign-name a.table-text-ellipsis,
+.table-single-line td.table-col-campaign-name .table-text-ellipsis {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;

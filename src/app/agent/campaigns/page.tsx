@@ -24,8 +24,7 @@ type AgentCampaignRow = {
   region: string | null;
   created_at: string;
   total_leads: number;
-  active_leads: number;
-  won_leads: number;
+  qualified_leads: number;
 };
 
 const statusColors: Record<string, string> = {
@@ -202,10 +201,18 @@ export default function AgentCampaignsPage() {
       width: 100,
     },
     {
-      title: "Active",
-      dataIndex: "active_leads",
-      key: "active_leads",
-      width: 90,
+      title: "Qualified",
+      dataIndex: "qualified_leads",
+      key: "qualified_leads",
+      width: 96,
+      align: "center" as const,
+      sorter: (a: AgentCampaignRow, b: AgentCampaignRow) =>
+        (a.qualified_leads ?? 0) - (b.qualified_leads ?? 0),
+      render: (v: number) => (
+        <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+          {v ?? 0}
+        </Typography.Text>
+      ),
     },
     {
       title: "Actions",

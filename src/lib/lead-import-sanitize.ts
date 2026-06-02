@@ -33,6 +33,7 @@ export const LEAD_IMPORT_READONLY_FIELDS = new Set([
   "created_by_name",
   "creator_display_name",
   "campaign_id",
+  "campaign_name",
   "organization_id",
   "delivered_by",
   "risk_flags",

@@ -40,7 +40,7 @@ export async function GET() {
       campaignsQuery,
       supabase
         .from("leads")
-        .select("id, status, campaign_id, created_at")
+        .select("id, status, qa_status, campaign_id, created_at")
         .eq("organization_id", orgId),
     ]);
 
@@ -48,6 +48,7 @@ export async function GET() {
     type LeadRow = {
       id: string;
       status: string;
+      qa_status: string | null;
       campaign_id: string | null;
       created_at: string;
     };
@@ -66,6 +67,12 @@ export async function GET() {
     ).length;
     const closedWon = leads.filter((l) => l.status === "closed_won").length;
     const conversionPct = totalLeads > 0 ? Math.round((closedWon / totalLeads) * 100) : 0;
+    const qualifiedLeads = leads.reduce((count, l) => {
+      const qa = String(l.qa_status ?? "").trim().toLowerCase();
+      return qa === "qualified" || qa === "approved" || qa === "pass" ? count + 1 : count;
+    }, 0);
+    const qualifiedRatePct =
+      totalLeads > 0 ? Math.round((qualifiedLeads / totalLeads) * 100) : 0;
 
     // Build last 7 days lead trend for active campaigns (day-wise)
     const today = new Date();
@@ -124,6 +131,8 @@ export async function GET() {
       totalLeads,
       totalInterested,
       conversionPct,
+      qualifiedLeads,
+      qualifiedRatePct,
       leadTrend,
     });
   } catch (err) {

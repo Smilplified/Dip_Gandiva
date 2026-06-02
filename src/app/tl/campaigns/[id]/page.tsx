@@ -427,7 +427,8 @@ export default function CampaignDetailPage() {
     }
     downloadExcel(
       leads,
-      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.xlsx`
+      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      campaign?.name
     );
     message.success(`Exported ${leads.length} leads`);
   };
@@ -553,6 +554,7 @@ export default function CampaignDetailPage() {
     showActions: true,
     onEdit: openEditLeadDrawer,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
+    showDeliveryStatus: true,
     showVoiceRecordings: true,
     onVoiceRecordingsChange: id ? () => { void fetchCampaign(id); } : undefined,
   });

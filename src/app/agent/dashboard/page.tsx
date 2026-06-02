@@ -89,8 +89,8 @@ export default function AgentDashboardPage() {
       activeCampaigns: 0,
       totalLeads: 0,
       activeLeads: 0,
-      wonLeads: 0,
-      conversionPct: 0,
+      qualifiedLeads: 0,
+      qualifiedRatePct: 0,
     };
     return [
       {
@@ -121,13 +121,13 @@ export default function AgentDashboardPage() {
         bgColor: "#f9f0ff",
       },
       {
-        title: "Conversion %",
-        value: `${s.conversionPct}%`,
-        change: `${s.wonLeads} won`,
+        title: "Qualified rate",
+        value: `${s.qualifiedRatePct}%`,
+        change: `${s.qualifiedLeads} of ${s.totalLeads} leads`,
         trend: "up" as const,
         icon: <CheckCircleOutlined />,
-        color: "#faad14",
-        bgColor: "#fffbe6",
+        color: "#52c41a",
+        bgColor: "#f6ffed",
       },
     ];
   }, [summary]);

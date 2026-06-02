@@ -262,6 +262,7 @@ export default function AgentCampaignDetailPage() {
         showActions: true,
         onEdit: openEditLeadDrawer,
         pagination: { current: leadsPage, pageSize: leadsPageSize },
+        showDeliveryStatus: true,
         showFollowupDate: false,
         showVoiceRecordings: true,
         onVoiceRecordingsChange: () => {
@@ -440,7 +441,8 @@ export default function AgentCampaignDetailPage() {
       toExport,
       `agent-leads-format-${
         campaign?.name?.replace(/\s+/g, "-") ?? "export"
-      }-${new Date().toISOString().slice(0, 10)}.xlsx`
+      }-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      campaign?.name
     );
     if (toExport.length === 0) {
       message.success("Downloaded blank Excel format template");
@@ -722,7 +724,8 @@ export default function AgentCampaignDetailPage() {
                     toExport,
                     `leads-${
                       campaign?.name?.replace(/\s+/g, "-") ?? "export"
-                    }-${new Date().toISOString().slice(0, 10)}.csv`
+                    }-${new Date().toISOString().slice(0, 10)}.csv`,
+                    campaign?.name
                   );
                   message.success(`Exported ${toExport.length} leads`);
                 }
@@ -868,7 +871,8 @@ export default function AgentCampaignDetailPage() {
                 toExport,
                 `agent-leads-format-${
                   campaign?.name?.replace(/\s+/g, "-") ?? "export"
-                }-${new Date().toISOString().slice(0, 10)}.xlsx`
+                }-${new Date().toISOString().slice(0, 10)}.xlsx`,
+                campaign?.name
               );
               if (toExport.length === 0) {
                 message.success("Downloaded blank Excel format template");

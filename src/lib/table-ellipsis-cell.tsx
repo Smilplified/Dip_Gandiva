@@ -10,7 +10,9 @@ export function tableEllipsisCell(
   if (text === fallback) return text;
   return (
     <Tooltip title={text}>
-      <span className="table-text-ellipsis">{text}</span>
+      <span className="table-text-ellipsis" style={{ display: "block", width: "100%", maxWidth: "100%" }}>
+        {text}
+      </span>
     </Tooltip>
   );
 }

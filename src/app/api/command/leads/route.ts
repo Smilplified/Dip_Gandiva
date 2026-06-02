@@ -451,7 +451,43 @@ export async function GET(request: NextRequest) {
   const toCsv = async (rows: LeadListRow[]) => {
     const withUsers = await attachAssignedUsers(supabase, rows);
     const withHist = await enrichWithHistory(supabase, withUsers);
-    return leadsToCsv(withHist as unknown as Lead[]);
+
+    const campaignNameById = new Map<string, string>();
+    if (campaignId) {
+      const { data: camp } = await supabase
+        .from("campaigns")
+        .select("name")
+        .eq("id", campaignId)
+        .maybeSingle();
+      const name = (camp as { name?: string } | null)?.name?.trim();
+      if (name) campaignNameById.set(campaignId, name);
+    } else {
+      const ids = [
+        ...new Set(
+          withHist
+            .map((r) => r.campaign_id as string | null | undefined)
+            .filter((id): id is string => Boolean(id))
+        ),
+      ];
+      if (ids.length > 0) {
+        const { data: camps } = await supabase
+          .from("campaigns")
+          .select("id, name")
+          .in("id", ids);
+        ((camps ?? []) as { id: string; name: string }[]).forEach((c) => {
+          if (c.name?.trim()) campaignNameById.set(c.id, c.name.trim());
+        });
+      }
+    }
+
+    const withCampaignNames = withHist.map((row) => ({
+      ...row,
+      campaign_name: row.campaign_id
+        ? campaignNameById.get(row.campaign_id as string) ?? ""
+        : "",
+    }));
+
+    return leadsToCsv(withCampaignNames as unknown as Lead[]);
   };
 
   if (formatCsv) {

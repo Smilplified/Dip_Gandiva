@@ -2,7 +2,7 @@
 
 import React from "react";
 import type { HTMLAttributes } from "react";
-import { Table, Tag, Button, message, Select } from "antd";
+import { Table, Tag, Button, message, Select, Tooltip } from "antd";
 import type { TableProps } from "antd";
 import type { ColumnsType, ColumnType } from "antd/es/table";
 import { EditOutlined, CopyOutlined, DownloadOutlined } from "@ant-design/icons";
@@ -50,6 +50,10 @@ type ColumnConfig = {
   lhoApiPrefix?: string;
   onMarkDelivered?: (lead: Lead) => void;
   markingDeliveredLeadId?: string | null;
+  onDeliveryStatusChange?: (
+    lead: Lead,
+    status: "pending" | "not_delivered" | "delivered"
+  ) => void;
   /** Pass when the table uses pagination so Sr. No. continues across pages. */
   pagination?: { current: number; pageSize: number };
   /** Hide the Follow-up date column (default: shown). Pass false for Agent role. */
@@ -315,6 +319,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     lhoApiPrefix = "/api/command/leads",
     onMarkDelivered,
     markingDeliveredLeadId,
+    onDeliveryStatusChange,
     pagination,
     showFollowupDate = true,
     showVoiceRecordings = false,
@@ -453,55 +458,123 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
             title: "Delivery",
             dataIndex: "delivery_status",
             key: "delivery_status",
-            width: 220,
+            width: onDeliveryStatusChange ? 120 : 96,
             fixed: "right" as const,
+            align: "center",
+            onCell: () => ({ style: { paddingInline: 6 } }),
             filters: [
+              { text: "Pending", value: "pending" },
               { text: "Delivered", value: "delivered" },
               { text: "Not Delivered", value: "not_delivered" },
             ],
             onFilter: (value, record) =>
-              (record.delivery_status ?? "not_delivered") === String(value),
+              (record.delivery_status ?? "pending") === String(value),
             render: (v: Lead["delivery_status"], record: Lead) => {
-              const status = (v ?? "not_delivered") as "not_delivered" | "delivered";
+              const status = (v ?? "pending") as "pending" | "not_delivered" | "delivered";
               const delivered = status === "delivered";
               const deliveredAt = record.delivered_at
                 ? dayjs(record.delivered_at).format("MMM D, YYYY h:mm A")
                 : null;
               // Allow re-clicking if delivered but delivered_at was never recorded (legacy)
               const canRedeliver = delivered && !record.delivered_at;
-              return (
+              const statusColor =
+                status === "delivered"
+                  ? "green"
+                  : status === "not_delivered"
+                  ? "default"
+                  : "orange";
+              const statusText =
+                status === "delivered"
+                  ? "Delivered"
+                  : status === "not_delivered"
+                  ? "Not Delivered"
+                  : "Pending";
+              const deliveryDateTooltip = delivered
+                ? deliveredAt
+                  ? `Delivered date: ${deliveredAt}`
+                  : "Delivered (date not recorded)"
+                : null;
+
+              const wrapWithDeliveryTooltip = (content: React.ReactNode) => {
+                if (!deliveryDateTooltip) return content;
+                return (
+                  <Tooltip title={deliveryDateTooltip}>
+                    <span
+                      style={{ display: "inline-flex", justifyContent: "center", maxWidth: "100%" }}
+                    >
+                      {content}
+                    </span>
+                  </Tooltip>
+                );
+              };
+
+              if (onDeliveryStatusChange) {
+                return wrapWithDeliveryTooltip(
+                  <span
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    style={{ display: "inline-flex", justifyContent: "center", maxWidth: "100%" }}
+                  >
+                    <Select
+                      size="small"
+                      value={status}
+                      className={
+                        status === "delivered"
+                          ? "delivery-status-select delivery-status-select--delivered"
+                          : "delivery-status-select"
+                      }
+                      style={{ width: 108, maxWidth: "100%" }}
+                      loading={markingDeliveredLeadId === record.id}
+                      options={[
+                        { label: "Pending", value: "pending" },
+                        { label: "Not Delivered", value: "not_delivered" },
+                        { label: "Delivered", value: "delivered" },
+                      ]}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(nextStatus) => {
+                        if (
+                          nextStatus === status &&
+                          !(status === "delivered" && canRedeliver)
+                        ) {
+                          return;
+                        }
+                        onDeliveryStatusChange(
+                          record,
+                          nextStatus as "pending" | "not_delivered" | "delivered"
+                        );
+                      }}
+                    />
+                  </span>
+                );
+              }
+
+              return wrapWithDeliveryTooltip(
                 <span
                   style={{
                     display: "inline-flex",
                     flexDirection: "column",
+                    alignItems: "center",
                     gap: 2,
+                    maxWidth: "100%",
                   }}
                 >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-                    <Tag color={delivered ? "green" : "default"} style={{ margin: 0 }}>
-                      {delivered ? "Delivered" : "Not Delivered"}
-                    </Tag>
-                    {(!delivered || canRedeliver) && onMarkDelivered ? (
-                      <Button
-                        type="link"
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onMarkDelivered(record);
-                        }}
-                        loading={markingDeliveredLeadId === record.id}
-                        style={{ paddingInline: 0, height: "auto" }}
-                      >
-                        {canRedeliver ? "Set Delivery Date" : "Mark as Delivered"}
-                      </Button>
-                    ) : null}
-                  </span>
-                  {delivered && deliveredAt && (
-                    <span style={{ fontSize: 11, color: "#8c8c8c" }}>{deliveredAt}</span>
-                  )}
-                  {delivered && !deliveredAt && (
-                    <span style={{ fontSize: 11, color: "#faad14" }}>Date not recorded</span>
-                  )}
+                  <Tag color={statusColor} style={{ margin: 0 }}>
+                    {statusText}
+                  </Tag>
+                  {(!delivered || canRedeliver) && onMarkDelivered ? (
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkDelivered(record);
+                      }}
+                      loading={markingDeliveredLeadId === record.id}
+                      style={{ paddingInline: 0, height: "auto", fontSize: 11 }}
+                    >
+                      {canRedeliver ? "Set date" : "Deliver"}
+                    </Button>
+                  ) : null}
                 </span>
               );
             },

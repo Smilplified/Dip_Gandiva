@@ -8,6 +8,8 @@ export type TLStats = {
   totalLeads: number;
   totalInterested: number;
   conversionPct: number;
+  qualifiedLeads: number;
+  qualifiedRatePct: number;
   leadTrend?: { date: string; leads: number; campaigns: number }[];
 };
 

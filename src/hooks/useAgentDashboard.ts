@@ -7,8 +7,10 @@ export type AgentDashboardSummary = {
   activeCampaigns: number;
   totalLeads: number;
   activeLeads: number;
-  wonLeads: number;
-  conversionPct: number;
+  /** Leads with QA status qualified (incl. legacy approved/pass). */
+  qualifiedLeads: number;
+  /** qualifiedLeads / totalLeads × 100 */
+  qualifiedRatePct: number;
 };
 
 export type AgentDashboardCampaignRow = {
