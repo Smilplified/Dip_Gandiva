@@ -2,7 +2,17 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Form, Input, Select, DatePicker, Row, Col, Collapse, Typography, Button, Spin, message } from "antd";
-import { PlusOutlined, PlayCircleOutlined, DeleteOutlined, UploadOutlined, FileOutlined, FilePdfOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  PlayCircleOutlined,
+  DeleteOutlined,
+  UploadOutlined,
+  FileOutlined,
+  FilePdfOutlined,
+  LinkOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+import type { FormInstance } from "antd/es/form";
 import type { Dayjs } from "dayjs";
 import { generateLhoPdf } from "@/lib/generateLhoPdf";
 import {
@@ -48,6 +58,112 @@ const NON_CLIENT_VIEWER_ROLES = new Set([
   "internal_admin",
 ]);
 
+function toExternalUrl(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withScheme);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function buildAddressSearchQuery(parts: {
+  address?: unknown;
+  city?: unknown;
+  state?: unknown;
+  country?: unknown;
+  zip_code?: unknown;
+}): string | null {
+  const segments = [
+    parts.address,
+    parts.city,
+    parts.state,
+    parts.zip_code,
+    parts.country,
+  ]
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+  return segments.length > 0 ? segments.join(", ") : null;
+}
+
+function toGoogleSearchUrl(query: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+}
+
+function LeadAddressLineField({ form }: { form: FormInstance }) {
+  const address = Form.useWatch("address", form);
+  const city = Form.useWatch("city", form);
+  const state = Form.useWatch("state", form);
+  const country = Form.useWatch("country", form);
+  const zipCode = Form.useWatch("zip_code", form);
+
+  const addressTrim = String(address ?? "").trim();
+  const searchQuery =
+    addressTrim.length > 0
+      ? buildAddressSearchQuery({
+          address,
+          city,
+          state,
+          country,
+          zip_code: zipCode,
+        })
+      : null;
+  const googleHref = searchQuery ? toGoogleSearchUrl(searchQuery) : null;
+
+  return (
+    <Form.Item
+      label="Address Line 1"
+      name="address"
+      extra={
+        googleHref ? (
+          <Typography.Link href={googleHref} target="_blank" rel="noopener noreferrer">
+            <SearchOutlined /> Search on Google
+          </Typography.Link>
+        ) : undefined
+      }
+    >
+      <Input placeholder="Street address" />
+    </Form.Item>
+  );
+}
+
+function LeadUrlFormField({
+  form,
+  name,
+  label,
+  placeholder,
+  showOpenLink,
+}: {
+  form: FormInstance;
+  name: string;
+  label: string;
+  placeholder?: string;
+  showOpenLink: boolean;
+}) {
+  const value = Form.useWatch(name, form);
+  const href = showOpenLink ? toExternalUrl(value) : null;
+
+  return (
+    <Form.Item
+      label={label}
+      name={name}
+      extra={
+        href ? (
+          <Typography.Link href={href} target="_blank" rel="noopener noreferrer">
+            <LinkOutlined /> Open in new tab
+          </Typography.Link>
+        ) : undefined
+      }
+    >
+      <Input placeholder={placeholder ?? "URL"} />
+    </Form.Item>
+  );
+}
+
 type LeadFormProps = {
   form: ReturnType<typeof Form.useForm>[0];
   mode: "create" | "edit";
@@ -64,6 +180,7 @@ export function LeadForm({
   canEditQaAudit = false,
   campaignQuestions = null,
 }: LeadFormProps) {
+  const showOpenLink = mode === "edit";
   const useCampaignCq =
     Array.isArray(campaignQuestions) && campaignQuestions.length > 0;
   const { profile, hasRole, user } = useAuth();
@@ -495,9 +612,13 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
-                  <Form.Item label="Job Title Link" name="job_title_link">
-                    <Input placeholder="URL" />
-                  </Form.Item>
+                  <LeadUrlFormField
+                    form={form}
+                    name="job_title_link"
+                    label="Job Title Link"
+                    placeholder="URL"
+                    showOpenLink={showOpenLink}
+                  />
                 </Col>
               </Row>
             )}
@@ -885,9 +1006,7 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
-                  <Form.Item label="Address Line 1" name="address">
-                    <Input placeholder="Street address" />
-                  </Form.Item>
+                  <LeadAddressLineField form={form} />
                 </Col>
                 <Col xs={24} sm={12}>
                   <Form.Item label="City" name="city">
@@ -930,14 +1049,22 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Employee Size Link" name="employee_size_link">
-                    <Input placeholder="URL" />
-                  </Form.Item>
+                  <LeadUrlFormField
+                    form={form}
+                    name="employee_size_link"
+                    label="Employee Size Link"
+                    placeholder="URL"
+                    showOpenLink={showOpenLink}
+                  />
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Company Website Link" name="company_website_link">
-                    <Input placeholder="https://company.com" />
-                  </Form.Item>
+                  <LeadUrlFormField
+                    form={form}
+                    name="company_website_link"
+                    label="Company Website Link"
+                    placeholder="https://company.com"
+                    showOpenLink={showOpenLink}
+                  />
                 </Col>
                 <Col xs={24} sm={12}>
                   <Form.Item
@@ -985,9 +1112,13 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
-                  <Form.Item label="Company LinkedIn URL" name="company_linkedin_url">
-                    <Input placeholder="https://linkedin.com/company/..." />
-                  </Form.Item>
+                  <LeadUrlFormField
+                    form={form}
+                    name="company_linkedin_url"
+                    label="Company LinkedIn URL"
+                    placeholder="https://linkedin.com/company/..."
+                    showOpenLink={showOpenLink}
+                  />
                 </Col>
                 <Col xs={24}>
                   <Form.Item

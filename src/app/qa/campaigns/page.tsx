@@ -58,6 +58,18 @@ type Campaign = {
   last_lead_activity_at?: string | null;
 };
 
+function getLeadsCount(leads: unknown[] | undefined): number {
+  return Array.isArray(leads) ? leads.length : 0;
+}
+
+function getQualifiedCount(leads: unknown[] | undefined): number {
+  if (!Array.isArray(leads)) return 0;
+  return leads.reduce<number>((count, lead) => {
+    const qa = String((lead as { qa_status?: unknown })?.qa_status ?? "").trim().toLowerCase();
+    return qa === "qualified" || qa === "approved" || qa === "pass" ? count + 1 : count;
+  }, 0);
+}
+
 export default function QACampaignsPage() {
   const router = useRouter();
   const { status } = useRoleGuard(["qa", "admin"]);
@@ -244,7 +256,7 @@ export default function QACampaignsPage() {
             size="middle"
             rowKey="id"
             dataSource={list}
-            scroll={{ x: 1280 }}
+            scroll={{ x: 1376 }}
             tableLayout="fixed"
             pagination={{
               current: campaignsPage,
@@ -367,9 +379,24 @@ export default function QACampaignsPage() {
                 width: 80,
                 align: "center" as const,
                 fixed: "right" as const,
+                sorter: (a: Campaign, b: Campaign) => getLeadsCount(a.leads) - getLeadsCount(b.leads),
                 render: (_: unknown, rec: Campaign) => (
-                  <Typography.Text style={{ fontSize: 13, fontWeight: 500 }}>
-                    {rec.leads?.length ?? 0}
+                  <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+                    {getLeadsCount(rec.leads)}
+                  </Typography.Text>
+                ),
+              },
+              {
+                title: "Qualified",
+                key: "qualified_count",
+                width: 96,
+                align: "center" as const,
+                fixed: "right" as const,
+                sorter: (a: Campaign, b: Campaign) =>
+                  getQualifiedCount(a.leads) - getQualifiedCount(b.leads),
+                render: (_: unknown, rec: Campaign) => (
+                  <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+                    {getQualifiedCount(rec.leads)}
                   </Typography.Text>
                 ),
               },
