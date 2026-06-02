@@ -83,9 +83,9 @@ export async function GET() {
       campaignIds.length > 0
         ? supabase
             .from("leads")
-            .select("campaign_id, qa_status")
+            .select("campaign_id, qa_status, delivery_status")
             .in("campaign_id", campaignIds)
-        : { data: [] as { campaign_id: string; qa_status: string | null }[] },
+        : { data: [] as { campaign_id: string; qa_status: string | null; delivery_status: string | null }[] },
       campaignIds.length > 0
         ? supabase
             .from("campaign_assignments")
@@ -95,16 +95,20 @@ export async function GET() {
         : { data: [] as { campaign_id: string }[] },
     ]);
 
-    const leadsByCampaign: Record<string, { total: number; qualified: number }> = {};
+    const leadsByCampaign: Record<string, { total: number; qualified: number; delivered: number }> = {};
     (leadsRes.data ?? []).forEach((l) => {
       if (!leadsByCampaign[l.campaign_id]) {
-        leadsByCampaign[l.campaign_id] = { total: 0, qualified: 0 };
+        leadsByCampaign[l.campaign_id] = { total: 0, qualified: 0, delivered: 0 };
       }
-      leadsByCampaign[l.campaign_id].total += 1;
+      const bucket = leadsByCampaign[l.campaign_id];
+      bucket.total += 1;
 
       const qa = String(l.qa_status ?? "").trim().toLowerCase();
-      if (qa === "qualified") {
-        leadsByCampaign[l.campaign_id].qualified += 1;
+      if (qa === "qualified" || qa === "approved" || qa === "pass") {
+        bucket.qualified += 1;
+      }
+      if (String(l.delivery_status ?? "").trim().toLowerCase() === "delivered") {
+        bucket.delivered += 1;
       }
     });
 
@@ -123,6 +127,7 @@ export async function GET() {
         total_leads: leadCounts?.total ?? 0,
         total_agents: agentsByCampaign[c.id] ?? 0,
         qualified_leads: leadCounts?.qualified ?? 0,
+        delivered_leads: leadCounts?.delivered ?? 0,
       };
     });
 

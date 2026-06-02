@@ -242,25 +242,31 @@ html, body {
   border-color: #81c784 !important;
 }
 
-/* MIS campaigns list: horizontal scroll on small screens */
-.mis-campaigns-table .ant-table-wrapper {
+/* MIS / TL campaigns list: horizontal scroll on small screens */
+.mis-campaigns-table .ant-table-wrapper,
+.tl-campaigns-table .ant-table-wrapper {
   width: 100%;
   max-width: 100%;
 }
-.mis-campaigns-table .ant-table-content {
+.mis-campaigns-table .ant-table-content,
+.tl-campaigns-table .ant-table-content {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-.mis-campaigns-table table {
+.mis-campaigns-table table,
+.tl-campaigns-table table {
   table-layout: fixed;
 }
 /* Force ellipsis cells to respect column width (fixed layout) */
-.mis-campaigns-table .ant-table-cell-ellipsis {
+.mis-campaigns-table .ant-table-cell-ellipsis,
+.tl-campaigns-table .ant-table-cell-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .mis-campaigns-table .ant-table-cell-ellipsis .ant-tooltip-open,
-.mis-campaigns-table .ant-table-cell-ellipsis > span {
+.mis-campaigns-table .ant-table-cell-ellipsis > span,
+.tl-campaigns-table .ant-table-cell-ellipsis .ant-tooltip-open,
+.tl-campaigns-table .ant-table-cell-ellipsis > span {
   display: block;
   max-width: 100%;
   min-width: 0;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { fetchCampaignIdsForTeamLeader } from "@/lib/campaign/team-leader-assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -33,14 +34,22 @@ export async function GET() {
       .select("id, status")
       .eq("organization_id", orgId);
     if (!seeAllOrgCampaigns) {
-      campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
+      const junctionCampaignIds = await fetchCampaignIdsForTeamLeader(supabase, user.id, orgId);
+      if (junctionCampaignIds.length > 0) {
+        const idList = junctionCampaignIds.map((id) => `"${id}"`).join(",");
+        campaignsQuery = campaignsQuery.or(
+          `assigned_team_leader_id.eq.${user.id},id.in.(${idList})`
+        );
+      } else {
+        campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
+      }
     }
 
     const [campaignsRes, leadsRes] = await Promise.all([
       campaignsQuery,
       supabase
         .from("leads")
-        .select("id, status, qa_status, campaign_id, created_at")
+        .select("id, status, qa_status, delivery_status, campaign_id, created_at")
         .eq("organization_id", orgId),
     ]);
 
@@ -49,6 +58,7 @@ export async function GET() {
       id: string;
       status: string;
       qa_status: string | null;
+      delivery_status: string | null;
       campaign_id: string | null;
       created_at: string;
     };
@@ -73,6 +83,11 @@ export async function GET() {
     }, 0);
     const qualifiedRatePct =
       totalLeads > 0 ? Math.round((qualifiedLeads / totalLeads) * 100) : 0;
+    const deliveredLeads = leads.reduce((count, l) => {
+      return String(l.delivery_status ?? "").trim().toLowerCase() === "delivered"
+        ? count + 1
+        : count;
+    }, 0);
 
     // Build last 7 days lead trend for active campaigns (day-wise)
     const today = new Date();
@@ -133,6 +148,7 @@ export async function GET() {
       conversionPct,
       qualifiedLeads,
       qualifiedRatePct,
+      deliveredLeads,
       leadTrend,
     });
   } catch (err) {
