@@ -12,22 +12,7 @@ import { LeadTableRecordingCell } from "@/components/Leads/LeadTableRecordingCel
 import { tableSerialNumber } from "@/lib/table-pagination";
 import { useAuth } from "@/context/AuthContext";
 import { generateLhoPdf, type LhoData } from "@/lib/generateLhoPdf";
-import { normalizeRoleName } from "@/lib/auth/config";
-
-const NON_CLIENT_VIEWER_ROLES = new Set([
-  "agent",
-  "team_leader",
-  "tl",
-  "operations_manager",
-  "admin",
-  "qa",
-  "mis",
-  "sales",
-  "sales_manager",
-  "dc",
-  "internal_operator",
-  "internal_admin",
-]);
+import { shouldGenerateLhoPdfWithLogo } from "@/lib/lho/logo-pdf";
 
 const STATUS_COLORS: Record<string, string> = {
   new: "default",
@@ -246,17 +231,13 @@ function LeadLhoDownloadButton({
       onClick={async () => {
         setLoading(true);
         try {
-          const normalizedRoles = roles.map((r) => normalizeRoleName(r.role_name));
-          const hasClientViewerRole = normalizedRoles.includes("client_viewer");
-          const hasNonClientViewerBusinessRole = normalizedRoles.some((r) =>
-            NON_CLIENT_VIEWER_ROLES.has(r)
+          const shouldUseClientLogo = shouldGenerateLhoPdfWithLogo(
+            roles.map((r) => r.role_name)
           );
-          const shouldUseClientLogo = hasClientViewerRole && !hasNonClientViewerBusinessRole;
           const clientLogoUrl =
             (profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null;
 
-          // Client viewers get a freshly generated LHO PDF with client logo.
-          // (Storage file download may contain old logo from previous uploads.)
+          // client_viewer / DC: fresh LHO PDF with client logo (not stale storage uploads).
           if (shouldUseClientLogo) {
             const res = await fetch(`${apiPrefix}/${lead.id}`, { credentials: "include" });
             const json = (await res.json().catch(() => ({}))) as {
@@ -658,21 +639,21 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
               );
             },
           } as NonNullable<TableProps<Lead>["columns"]>[number],
-          ...(showLhoFile
-            ? [
-                {
-                  title: "LHO file",
-                  key: "lho_file",
-                  width: 88,
-                  fixed: "right" as const,
-                  align: "center" as const,
-                  render: (_: unknown, record: Lead) => (
-                    <LeadLhoDownloadButton lead={record} apiPrefix={lhoApiPrefix} />
-                  ),
-                } as NonNullable<TableProps<Lead>["columns"]>[number],
-              ]
-            : []),
         ]),
+    ...(showLhoFile
+      ? [
+          {
+            title: "LHO file",
+            key: "lho_file",
+            width: 88,
+            fixed: "right" as const,
+            align: "center" as const,
+            render: (_: unknown, record: Lead) => (
+              <LeadLhoDownloadButton lead={record} apiPrefix={lhoApiPrefix} />
+            ),
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
     ...(showFollowupDate
       ? [
           {

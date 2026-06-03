@@ -27,6 +27,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import AdminUserStats from "@/components/Admin/AdminUserStats";
 import ClientLogoUpload from "@/components/Admin/ClientLogoUpload";
+import { roleRequiresClientBinding } from "@/lib/admin/client-binding-roles";
 import type { Tables } from "@/types/database.types";
 
 type UserRow = Tables<"users"> & {
@@ -145,10 +146,9 @@ export default function AdminUsersPage() {
           password: values.password,
           full_name: values.full_name,
           role_id: values.role_id || null,
-          client_id:
-            createSelectedRoleName === "client_viewer"
-              ? (values.client_id || null)
-              : null,
+          client_id: roleRequiresClientBinding(createSelectedRoleName)
+            ? (values.client_id || null)
+            : null,
           department: values.department || null,
           designation: values.designation || null,
         }),
@@ -175,13 +175,19 @@ export default function AdminUsersPage() {
     setSelectedUser(record);
     const currentRoleName = record.roles?.[0]?.name || "";
     const currentRoleId = roles.find((r) => r.name === currentRoleName)?.id;
-    setEditSelectedRoleName(currentRoleName.toLowerCase().replace(/\s+/g, "_"));
+    const normalizedRole = currentRoleName.toLowerCase().replace(/\s+/g, "_");
+    setEditSelectedRoleName(normalizedRole);
+    let clientId = record.client_id ?? undefined;
+    if (!clientId && normalizedRole === "dc") {
+      const dcClient = clients.find((c) => c.name.trim().toLowerCase() === "dc");
+      if (dcClient) clientId = dcClient.id;
+    }
     editForm.setFieldsValue({
       full_name: record.full_name,
       department: record.department,
       designation: record.designation,
       role_id: currentRoleId,
-      client_id: record.client_id ?? undefined,
+      client_id: clientId,
       new_password: "",
       confirm_password: "",
     });
@@ -202,10 +208,9 @@ export default function AdminUsersPage() {
         department: values.department || null,
         designation: values.designation || null,
         role_id: values.role_id || null,
-        client_id:
-          editSelectedRoleName === "client_viewer"
-            ? (values.client_id || null)
-            : null,
+        client_id: roleRequiresClientBinding(editSelectedRoleName)
+          ? (values.client_id || null)
+          : null,
       };
       if (newPassword) {
         payload.password = newPassword;
@@ -531,7 +536,7 @@ export default function AdminUsersPage() {
                 const role = roles.find((r) => r.id === roleId);
                 const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
                 setCreateSelectedRoleName(normalized);
-                if (normalized !== "client_viewer") {
+                if (!roleRequiresClientBinding(normalized)) {
                   createForm.setFieldValue("client_id", undefined);
                 }
               }}
@@ -543,12 +548,12 @@ export default function AdminUsersPage() {
                 .map((r) => ({ label: r.name, value: r.id }))}
             />
           </Form.Item>
-          {createSelectedRoleName === "client_viewer" && (
+          {roleRequiresClientBinding(createSelectedRoleName) && (
             <>
               <Form.Item
                 name="client_id"
                 label="Select Client"
-                rules={[{ required: true, message: "Client selection is required for client users" }]}
+                rules={[{ required: true, message: "Client selection is required for this role" }]}
               >
                 <Select
                   showSearch
@@ -608,19 +613,22 @@ export default function AdminUsersPage() {
                   const role = roles.find((r) => r.id === roleId);
                   const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
                   setEditSelectedRoleName(normalized);
-                  if (normalized !== "client_viewer") {
+                  if (!roleRequiresClientBinding(normalized)) {
                     editForm.setFieldValue("client_id", undefined);
+                  } else if (normalized === "dc" && !editForm.getFieldValue("client_id")) {
+                    const dcClient = clients.find((c) => c.name.trim().toLowerCase() === "dc");
+                    if (dcClient) editForm.setFieldValue("client_id", dcClient.id);
                   }
                 }}
                 options={roles.map((r) => ({ label: r.name, value: r.id }))}
               />
             </Form.Item>
-            {editSelectedRoleName === "client_viewer" && (
+            {roleRequiresClientBinding(editSelectedRoleName) && (
               <>
                 <Form.Item
                   name="client_id"
                   label="Select Client"
-                  rules={[{ required: true, message: "Client selection is required for client users" }]}
+                  rules={[{ required: true, message: "Client selection is required for this role" }]}
                 >
                   <Select
                     showSearch

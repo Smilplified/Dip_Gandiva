@@ -31,6 +31,9 @@ export default function DCHeader() {
     }
   };
 
+  const clientLogoUrl =
+    (profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null;
+
   const userMenuItems = [
     { key: "profile", icon: <UserOutlined />, label: "Profile" },
     { type: "divider" as const },
@@ -46,7 +49,27 @@ export default function DCHeader() {
       }}
     >
       <GlobalSearch />
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 24,
+          flexShrink: 0,
+        }}
+      >
+        {clientLogoUrl ? (
+          <img
+            src={clientLogoUrl}
+            alt="Client logo"
+            style={{
+              height: 40,
+              maxWidth: 180,
+              width: "auto",
+              objectFit: "contain",
+              flexShrink: 0,
+            }}
+          />
+        ) : null}
         <NotificationBell />
         <Dropdown menu={{ items: userMenuItems, onClick: handleMenuClick }} placement="bottomRight" disabled={signingOut}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: signingOut ? "wait" : "pointer", opacity: signingOut ? 0.7 : 1 }}>

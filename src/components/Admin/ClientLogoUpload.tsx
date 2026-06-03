@@ -104,7 +104,7 @@ export default function ClientLogoUpload({
         Client logo
       </Typography.Text>
       <Typography.Text type="secondary" style={{ display: "block", marginBottom: 12, fontSize: 13 }}>
-        Shown on the client dashboard header (left of notifications).
+        Shown in the user&apos;s dashboard header (left of notifications).
       </Typography.Text>
       <Upload {...uploadProps}>
         {logoUrl && !loading && !fetching ? (

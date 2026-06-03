@@ -186,6 +186,8 @@ export default function DCCampaignDetailPage() {
   const leadColumns = getLeadTableColumns({
     showActions: false,
     showDeliveryStatus: true,
+    showLhoFile: true,
+    lhoApiPrefix: "/api/dc/leads",
     pagination: { current: leadsPage, pageSize: leadsPageSize },
     showVoiceRecordings: true,
     onVoiceRecordingsChange: () => { void fetchData(); },

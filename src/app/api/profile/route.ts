@@ -106,9 +106,10 @@ export async function GET() {
   }
 
   let clientLogoUrl: string | null = null;
-  if (profile?.client_id && profile.organization_id) {
-    const admin = getAdminClientSafe();
-    if (admin) {
+  const admin = getAdminClientSafe();
+  const normalizedRoles = roles.map((r) => r.toLowerCase().trim().replace(/\s+/g, "_"));
+  if (profile?.organization_id && admin) {
+    if (profile.client_id) {
       const { data: clientRow } = await admin
         .from("clients")
         .select("logo_url")
@@ -116,6 +117,16 @@ export async function GET() {
         .eq("organization_id", profile.organization_id)
         .maybeSingle();
       clientLogoUrl = (clientRow as { logo_url: string | null } | null)?.logo_url ?? null;
+    }
+    if (!clientLogoUrl && normalizedRoles.includes("dc")) {
+      const { data: orgClients } = await admin
+        .from("clients")
+        .select("logo_url, name")
+        .eq("organization_id", profile.organization_id);
+      const dcClient = ((orgClients ?? []) as { logo_url: string | null; name: string | null }[]).find(
+        (c) => (c.name ?? "").trim().toLowerCase() === "dc"
+      );
+      clientLogoUrl = dcClient?.logo_url ?? null;
     }
   }
 

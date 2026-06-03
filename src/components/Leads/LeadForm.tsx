@@ -15,6 +15,7 @@ import {
 import type { FormInstance } from "antd/es/form";
 import type { Dayjs } from "dayjs";
 import { generateLhoPdf } from "@/lib/generateLhoPdf";
+import { shouldGenerateLhoPdfWithLogo } from "@/lib/lho/logo-pdf";
 import {
   DEFAULT_TIMEZONE,
   TIMEZONE_OPTIONS,
@@ -33,7 +34,6 @@ import {
 import type { Lead } from "@/types/lead.types";
 import { useAuth } from "@/context/AuthContext";
 import { nextExtraCqIndex, parseExtraCqIndexes } from "@/lib/extra-cq";
-import { normalizeRoleName } from "@/lib/auth/config";
 import type { CampaignQuestion } from "@/lib/campaign-questions";
 import { CampaignCqAnswerFields } from "@/components/Leads/CampaignCqAnswerFields";
 import {
@@ -42,21 +42,6 @@ import {
   normalizePhoneNumeric,
   phoneNumericFormRules,
 } from "@/lib/lead-field-validation";
-
-const NON_CLIENT_VIEWER_ROLES = new Set([
-  "agent",
-  "team_leader",
-  "tl",
-  "operations_manager",
-  "admin",
-  "qa",
-  "mis",
-  "sales",
-  "sales_manager",
-  "dc",
-  "internal_operator",
-  "internal_admin",
-]);
 
 function toExternalUrl(value: unknown): string | null {
   const raw = String(value ?? "").trim();
@@ -1477,16 +1462,12 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
 
     setGenerating(true);
     try {
-      const normalizedRoles = roles.map((r) => normalizeRoleName(r.role_name));
-      const hasClientViewerRole = normalizedRoles.includes("client_viewer");
-      const hasNonClientViewerBusinessRole = normalizedRoles.some((r) =>
-        NON_CLIENT_VIEWER_ROLES.has(r)
+      const shouldUseClientLogo = shouldGenerateLhoPdfWithLogo(
+        roles.map((r) => r.role_name)
       );
-      const shouldUseClientLogo = hasClientViewerRole && !hasNonClientViewerBusinessRole;
-      const clientLogoUrl =
-        shouldUseClientLogo
-          ? ((profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null)
-          : null;
+      const clientLogoUrl = shouldUseClientLogo
+        ? ((profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null)
+        : null;
       await generateLhoPdf(data, { logoSrc: clientLogoUrl });
       message.success("LHO PDF downloaded successfully");
     } catch (err) {

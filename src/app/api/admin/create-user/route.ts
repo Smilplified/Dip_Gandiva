@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { roleRequiresClientBinding } from "@/lib/admin/client-binding-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,9 @@ export async function POST(request: Request) {
         .replace(/\s+/g, "_");
     }
 
-    if (roleNameNormalized === "client_viewer" && !client_id) {
+    if (roleRequiresClientBinding(roleNameNormalized) && !client_id) {
       return NextResponse.json(
-        { error: "Client selection is required for client users" },
+        { error: "Client selection is required for this role" },
         { status: 400 }
       );
     }
@@ -113,10 +114,9 @@ export async function POST(request: Request) {
         full_name: full_name?.trim() || null,
         department: department?.trim() || null,
         designation: designation?.trim() || null,
-        client_id:
-          roleNameNormalized === "client_viewer"
-            ? (typeof client_id === "string" ? client_id : null)
-            : null,
+        client_id: roleRequiresClientBinding(roleNameNormalized)
+          ? (typeof client_id === "string" ? client_id : null)
+          : null,
       } as never)
       .eq("id", createdUserId);
 
