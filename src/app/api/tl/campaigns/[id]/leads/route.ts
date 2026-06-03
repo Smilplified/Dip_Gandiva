@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { normalizeExtraCq } from "@/lib/extra-cq";
+import {
+  shouldStampQaAuditor,
+  stampQaAuditorOnLeadUpdate,
+} from "@/lib/qa-audit-attribution";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -31,13 +36,7 @@ export async function PATCH(
     if (!orgId) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", user.id);
-    const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[]).map((r) =>
-      r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_")
-    );
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
     const useAdminDataClient = roleNames.includes("mis") || roleNames.includes("admin");
     const admin = useAdminDataClient ? getAdminClientSafe() : null;
     if (useAdminDataClient && !admin) {
@@ -267,22 +266,48 @@ export async function PATCH(
       }
     }
 
-    const canEditQa = roleNames.includes("qa") || roleNames.includes("admin");
+    const canEditQa = roleNames.includes("qa");
     const canEditDelivery = roleNames.includes("mis");
     if (!canEditQa) {
       delete updates.qa_status;
+      delete updates.qa_comments;
+      delete updates.audit_date;
+      delete updates.qa_name;
+      delete updates.qa_audited_by_id;
+      delete updates.qa_audited_at;
       delete updates.disqualification_reasons;
       delete updates.disqualification_reason;
       delete updates.rectified_reason;
     } else {
-      // Auto-set QA Name when QA user adds/edits lead status
-      const { data: userProfile } = await supabase
-        .from("users")
-        .select("full_name, email")
-        .eq("id", user.id)
-        .single();
-      const u = userProfile as { full_name: string | null; email: string | null } | null;
-      updates.qa_name = u?.full_name || u?.email || null;
+      const { data: existingLead } = await dataClient
+        .from("leads")
+        .select(
+          "qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id"
+        )
+        .eq("id", leadRowId)
+        .eq("campaign_id", campaignId)
+        .maybeSingle();
+
+      const existing = (existingLead ?? {}) as {
+        qa_status: string | null;
+        qa_comments: string | null;
+        audit_date: string | null;
+        disqualification_reasons: string | null;
+        disqualification_reason: string | null;
+        rectified_reason: string | null;
+        qa_audited_by_id: string | null;
+      };
+
+      if (shouldStampQaAuditor(existing, updates)) {
+        await stampQaAuditorOnLeadUpdate(updates, user.id, async () => {
+          const { data: userProfile } = await supabase
+            .from("users")
+            .select("full_name, email")
+            .eq("id", user.id)
+            .single();
+          return userProfile as { full_name: string | null; email: string | null } | null;
+        });
+      }
     }
     if (delivery_status !== undefined && !canEditDelivery) {
       return NextResponse.json({ error: "Only MIS can update delivery status" }, { status: 403 });

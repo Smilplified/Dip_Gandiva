@@ -5,6 +5,12 @@ import {
   normalizeImportTimestampField,
   pickAndSanitizeLeadImportFields,
 } from "@/lib/lead-import-sanitize";
+import {
+  applyQaAuditorToImportPayload,
+  isQaRoleForAuditImport,
+} from "@/lib/qa-audit-attribution";
+import { stripQaAuditFieldsFromImport } from "@/lib/lead-import-sanitize";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -53,13 +59,18 @@ export async function POST(
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", user.id);
-    const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[]).map((r) =>
-      r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_")
-    );
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    const isQaImporter = isQaRoleForAuditImport(roleNames);
+    let qaAuditorLabel: string | null = null;
+    if (isQaImporter) {
+      const { data: qaProfile } = await supabase
+        .from("users")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .single();
+      const qp = qaProfile as { full_name: string | null; email: string | null } | null;
+      qaAuditorLabel = qp?.full_name?.trim() || qp?.email?.trim() || null;
+    }
     const canImport =
       roleNames.includes("team_leader") ||
       roleNames.includes("tl") ||
@@ -145,6 +156,9 @@ export async function POST(
       }
 
       const fields = pickAndSanitizeLeadImportFields(row, LEAD_FIELDS);
+      if (!isQaImporter) {
+        stripQaAuditFieldsFromImport(fields);
+      }
       const first_name = ((fields.first_name as string) ?? (fields.name as string)?.split(/\s+/)[0]) ?? null;
       const last_name = ((fields.last_name as string) ?? (fields.name as string)?.split(/\s+/).slice(1).join(" ")) || null;
       const derivedName = [first_name, last_name].filter(Boolean).join(" ").trim() || (fields.name as string) || null;
@@ -249,6 +263,10 @@ export async function POST(
         delivery_status: normalizedDeliveryStatus ?? undefined,
         ...(resolvedDeliveredAt !== undefined ? { delivered_at: resolvedDeliveredAt } : {}),
       } as Record<string, unknown>;
+
+      if (isQaImporter && qaAuditorLabel) {
+        applyQaAuditorToImportPayload(upsertPayload, fields, user.id, qaAuditorLabel);
+      }
 
       // If CSV has existing id, update that lead; otherwise create new one
       if (rowId) {

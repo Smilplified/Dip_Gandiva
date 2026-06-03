@@ -40,7 +40,28 @@ export const LEAD_IMPORT_READONLY_FIELDS = new Set([
   "consent_status",
   "rep_id",
   "dq_reason_code",
+  "qa_audited_by_id",
+  "qa_audited_at",
 ]);
+
+/** Only the QA role may set these via bulk import (agents/MIS/TL use other fields). */
+export const QA_AUDIT_IMPORT_FIELD_KEYS = [
+  "qa_status",
+  "qa_comments",
+  "qa_name",
+  "audit_date",
+  "disqualification_reasons",
+  "disqualification_reason",
+  "rectified_reason",
+] as const;
+
+export function stripQaAuditFieldsFromImport(
+  fields: Record<string, unknown>
+): void {
+  for (const key of QA_AUDIT_IMPORT_FIELD_KEYS) {
+    delete fields[key];
+  }
+}
 
 /** Postgres `date` columns on leads. */
 export const LEAD_IMPORT_DATE_FIELDS = new Set(["followup_date", "audit_date"]);

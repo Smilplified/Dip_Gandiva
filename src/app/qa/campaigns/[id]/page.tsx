@@ -720,7 +720,10 @@ export default function QACampaignDetailPage() {
             <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
           </p>
           <p className="ant-upload-text">Click or drag CSV or Excel file here</p>
-          <p className="ant-upload-hint">Export as Excel, edit (keep the lead_id or id column), then re-upload to update existing leads. Rows without an id are added as new leads.</p>
+          <p className="ant-upload-hint">
+            Export as Excel, edit QA status/comments (keep the lead_id or id column), then re-upload.
+            Your QA name and audit time are saved automatically on rows with QA audit fields.
+          </p>
         </Upload.Dragger>
         {parsedLeads.length > 0 && (
           <Typography.Text style={{ display: "block", marginTop: 12, color: "#52c41a" }}>

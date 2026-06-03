@@ -23,6 +23,7 @@ import type { ColumnsType } from "antd/es/table";
 import {
   AlertOutlined,
   BarChartOutlined,
+  AuditOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   CrownOutlined,
@@ -55,6 +56,7 @@ import dayjs from "dayjs";
 import type {
   AgentPerformance,
   CampaignPerformance,
+  QASummary,
   TeamPerformanceResponse,
   TLSummary,
 } from "@/app/api/tl/team-performance/route";
@@ -713,6 +715,101 @@ export default function TeamPerformanceDashboard() {
     { title: "This Month", dataIndex: "month_leads", key: "month_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
   ];
 
+  const qaCols: ColumnsType<QASummary> = [
+    {
+      title: "#",
+      key: "rank",
+      width: 52,
+      render: (_: unknown, __: QASummary, i: number) => <RankBadge rank={i + 1} />,
+    },
+    {
+      title: "QA",
+      key: "qa",
+      render: (_: unknown, r: QASummary) => (
+        <Space size={10}>
+          <Avatar size={32} style={{ background: "#13c2c2", fontSize: 12 }}>{initials(r.qa_name)}</Avatar>
+          <Text strong style={{ fontSize: 13 }}>{r.qa_name}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Total Audited",
+      dataIndex: "total_audited",
+      key: "total_audited",
+      align: "center" as const,
+      defaultSortOrder: "descend" as const,
+      sorter: (a: QASummary, b: QASummary) => a.total_audited - b.total_audited,
+      render: (v: number) => <span style={{ fontWeight: 700, color: "#1677ff" }}>{v.toLocaleString()}</span>,
+    },
+    {
+      title: "Qualified",
+      dataIndex: "qualified_leads",
+      key: "qualified_leads",
+      align: "center" as const,
+      sorter: (a: QASummary, b: QASummary) => a.qualified_leads - b.qualified_leads,
+      render: (v: number) => (
+        <span style={{ fontWeight: 600, color: v > 0 ? "#389e0d" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+      ),
+    },
+    {
+      title: "Disqualified",
+      dataIndex: "disqualified_leads",
+      key: "disqualified_leads",
+      align: "center" as const,
+      sorter: (a: QASummary, b: QASummary) => a.disqualified_leads - b.disqualified_leads,
+      render: (v: number) => (
+        <span style={{ fontWeight: 600, color: v > 0 ? "#cf1322" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+      ),
+    },
+    {
+      title: "Rectified",
+      dataIndex: "rectified_leads",
+      key: "rectified_leads",
+      align: "center" as const,
+      sorter: (a: QASummary, b: QASummary) => a.rectified_leads - b.rectified_leads,
+      render: (v: number) => (
+        <span style={{ fontWeight: 600, color: v > 0 ? "#722ed1" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+      ),
+    },
+    {
+      title: "QA Comments",
+      dataIndex: "with_qa_comments",
+      key: "with_qa_comments",
+      align: "center" as const,
+      sorter: (a: QASummary, b: QASummary) => a.with_qa_comments - b.with_qa_comments,
+      render: (v: number) => (
+        <Tooltip title="Leads with QA comments filled">
+          <Tag color={v > 0 ? "cyan" : "default"} style={{ borderRadius: 20, minWidth: 32, textAlign: "center" }}>
+            {v}
+          </Tag>
+        </Tooltip>
+      ),
+    },
+    {
+      title: "Today",
+      dataIndex: "today_audited",
+      key: "today_audited",
+      align: "center" as const,
+      render: (v: number) => (
+        <span style={{ color: v > 0 ? "#52c41a" : "#bfbfbf", fontWeight: 600 }}>{v}</span>
+      ),
+    },
+    {
+      title: "This Week",
+      dataIndex: "week_audited",
+      key: "week_audited",
+      align: "center" as const,
+      render: (v: number) => v.toLocaleString(),
+    },
+    {
+      title: "This Month",
+      dataIndex: "month_audited",
+      key: "month_audited",
+      align: "center" as const,
+      render: (v: number) => v.toLocaleString(),
+    },
+  ];
+
   const campCols: ColumnsType<CampaignPerformance> = [
     {
       title: "Campaign",
@@ -1113,6 +1210,34 @@ export default function TeamPerformanceDashboard() {
             size="small"
             loading={loading}
             pagination={{ pageSize: 10, size: "small", showSizeChanger: false }}
+            style={{ borderRadius: "0 0 16px 16px", overflow: "hidden" }}
+            scroll={{ x: "max-content" }}
+          />
+        </Card>
+      )}
+
+      {/* ── QA Table (OM only) ── */}
+      {isOM && (
+        <Card style={{ ...card, marginBottom: 24 }} styles={{ body: { padding: "0" } }}>
+          <div style={{ padding: "18px 20px 12px" }}>
+            <SectionHeader
+              icon={<AuditOutlined />}
+              title="QA-wise Summary"
+              extra={
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Counts leads QA saved in the app (with QA status). Uses audit save time — not imported sheet QA status.
+                </Text>
+              }
+            />
+          </div>
+          <Table<QASummary>
+            dataSource={data?.qa_summaries ?? []}
+            columns={qaCols}
+            rowKey="qa_id"
+            size="small"
+            loading={loading}
+            pagination={{ pageSize: 10, size: "small", showSizeChanger: false }}
+            locale={{ emptyText: "No QA audit activity in this period" }}
             style={{ borderRadius: "0 0 16px 16px", overflow: "hidden" }}
             scroll={{ x: "max-content" }}
           />

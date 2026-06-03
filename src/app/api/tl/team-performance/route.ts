@@ -15,6 +15,11 @@ import {
   isAgentRole,
 } from "@/lib/tl/team-hierarchy";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import {
+  buildQaNameToIdMap,
+  leadHasQaOutcome,
+  resolveQaUserId,
+} from "@/lib/qa-audit-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +73,19 @@ export type TLSummary = {
   month_leads: number;
 };
 
+export type QASummary = {
+  qa_id: string;
+  qa_name: string;
+  total_audited: number;
+  qualified_leads: number;
+  disqualified_leads: number;
+  rectified_leads: number;
+  with_qa_comments: number;
+  today_audited: number;
+  week_audited: number;
+  month_audited: number;
+};
+
 export type TeamPerformanceResponse = {
   scope: "organization" | "team";
   date_range: { start: string; end: string };
@@ -88,6 +106,7 @@ export type TeamPerformanceResponse = {
   agents: AgentPerformance[];
   campaigns: CampaignPerformance[];
   tl_summaries: TLSummary[];
+  qa_summaries: QASummary[];
   daily_trend: DailyTrend[];
 };
 
@@ -206,6 +225,11 @@ export async function GET(request: Request) {
       (u.user_roles ?? []).some((r) => isAgentRole(r.roles?.name));
     const userIsTL = (u: OrgUser) =>
       (u.user_roles ?? []).some((r) => isCampaignTeamLeaderRole(r.roles?.name));
+    const userIsQA = (u: OrgUser) =>
+      (u.user_roles ?? []).some((r) => {
+        const n = (r.roles?.name ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+        return n === "qa";
+      });
 
     // Identify all TLs in the org
     const allTLs = orgUsers.filter(userIsTL);
@@ -470,6 +494,139 @@ export async function GET(request: Request) {
       tlSummaries.sort((a, b) => b.total_leads - a.total_leads);
     }
 
+    // ── QA summaries (OM / admin — audit activity in date range) ─────────────
+    const qaSummaries: QASummary[] = [];
+    if (isOM) {
+      const allQAs = orgUsers.filter(userIsQA);
+      const qaIds = new Set(allQAs.map((qa) => qa.id));
+      const qaRefs = allQAs.map((qa) => ({
+        id: qa.id,
+        full_name: qa.full_name,
+        email: qa.email,
+      }));
+      const qaNameToId = buildQaNameToIdMap(qaRefs, (qa) => {
+        const row = allQAs.find((u) => u.id === qa.id)!;
+        return userLabel(row);
+      });
+
+      type AuditLeadRow = {
+        id: string;
+        qa_status: string | null;
+        qa_name: string | null;
+        qa_audited_by_id: string | null;
+        qa_audited_at: string | null;
+        qa_comments: string | null;
+        audit_date: string | null;
+        updated_at: string;
+      };
+
+      let auditLeads: AuditLeadRow[] = [];
+      const qaCampaignIds = campaignIdFilter
+        ? scopedCampaignIds
+        : (campaigns ?? []).map((c) => (c as { id: string }).id);
+      const qaIdList = [...qaIds];
+      if (qaCampaignIds.length > 0 && qaIdList.length > 0) {
+        const { data: auditData, error: auditErr } = await admin
+          .from("leads")
+          .select(
+            "id, qa_status, qa_name, qa_audited_by_id, qa_audited_at, qa_comments, audit_date, updated_at"
+          )
+          .eq("organization_id", orgId)
+          .in("campaign_id", qaCampaignIds)
+          .in("qa_audited_by_id", qaIdList);
+
+        if (auditErr) return NextResponse.json({ error: auditErr.message }, { status: 500 });
+        auditLeads = (auditData ?? []) as AuditLeadRow[];
+
+        const { data: legacyByName, error: legacyErr } = await admin
+          .from("leads")
+          .select(
+            "id, qa_status, qa_name, qa_audited_by_id, qa_audited_at, qa_comments, audit_date, updated_at"
+          )
+          .eq("organization_id", orgId)
+          .in("campaign_id", qaCampaignIds)
+          .is("qa_audited_by_id", null)
+          .not("qa_name", "is", null);
+
+        if (legacyErr) return NextResponse.json({ error: legacyErr.message }, { status: 500 });
+        auditLeads = auditLeads.concat((legacyByName ?? []) as AuditLeadRow[]);
+      }
+
+      const auditActivityDay = (l: AuditLeadRow): string => {
+        if (l.qa_audited_at) {
+          return dayjs(l.qa_audited_at).tz(appTz).format("YYYY-MM-DD");
+        }
+        const ad = l.audit_date?.trim();
+        if (ad) return ad.length >= 10 ? ad.slice(0, 10) : ad;
+        return dayjs(l.updated_at).tz(appTz).format("YYYY-MM-DD");
+      };
+
+      const initQaAgg = () => ({
+        total: 0,
+        qualified: 0,
+        disqualified: 0,
+        rectified: 0,
+        withComments: 0,
+        today: 0,
+        week: 0,
+        month: 0,
+      });
+
+      const qaAggMap = new Map<string, ReturnType<typeof initQaAgg>>();
+      for (const qa of allQAs) qaAggMap.set(qa.id, initQaAgg());
+
+      const isQualifiedQaStatus = (qa: string | null | undefined) => {
+        const q = String(qa ?? "").trim().toLowerCase();
+        return q === "qualified" || q === "approved" || q === "pass";
+      };
+      const isDisqualifiedQaStatus = (qa: string | null | undefined) =>
+        String(qa ?? "").trim().toLowerCase() === "disqualified";
+      const isRectifiedQaStatus = (qa: string | null | undefined) =>
+        String(qa ?? "").trim().toLowerCase() === "rectified";
+
+      const countedLeadKeys = new Set<string>();
+
+      for (const l of auditLeads) {
+        const qaId = resolveQaUserId(l.qa_audited_by_id, l.qa_name, qaIds, qaNameToId);
+        if (!qaId) continue;
+        if (!leadHasQaOutcome(l.qa_status)) continue;
+
+        const activityDay = auditActivityDay(l);
+        if (activityDay < startDate || activityDay > endDate) continue;
+
+        const dedupeKey = `${qaId}:${l.id}`;
+        if (countedLeadKeys.has(dedupeKey)) continue;
+        countedLeadKeys.add(dedupeKey);
+
+        const agg = qaAggMap.get(qaId)!;
+        agg.total++;
+        if (isQualifiedQaStatus(l.qa_status)) agg.qualified++;
+        if (isDisqualifiedQaStatus(l.qa_status)) agg.disqualified++;
+        if (isRectifiedQaStatus(l.qa_status)) agg.rectified++;
+        if (String(l.qa_comments ?? "").trim()) agg.withComments++;
+        if (activityDay === today) agg.today++;
+        if (activityDay >= weekStart) agg.week++;
+        if (activityDay >= monthStart) agg.month++;
+      }
+
+      for (const qa of allQAs) {
+        const agg = qaAggMap.get(qa.id)!;
+        qaSummaries.push({
+          qa_id: qa.id,
+          qa_name: userLabel(qa),
+          total_audited: agg.total,
+          qualified_leads: agg.qualified,
+          disqualified_leads: agg.disqualified,
+          rectified_leads: agg.rectified,
+          with_qa_comments: agg.withComments,
+          today_audited: agg.today,
+          week_audited: agg.week,
+          month_audited: agg.month,
+        });
+      }
+      qaSummaries.sort((a, b) => b.total_audited - a.total_audited);
+    }
+
     // ── Campaign performance ─────────────────────────────────────────────────
     const campAgentMap = new Map<string, Set<string>>();
     const campLeadMap = new Map<string, number>();
@@ -572,6 +729,7 @@ export async function GET(request: Request) {
       agents: agentRows,
       campaigns: campaignPerf,
       tl_summaries: tlSummaries,
+      qa_summaries: qaSummaries,
       daily_trend: dailyTrend,
     };
 
