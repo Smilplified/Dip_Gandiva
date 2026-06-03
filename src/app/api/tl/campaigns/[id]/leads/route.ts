@@ -37,7 +37,10 @@ export async function PATCH(
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
     const roleNames = await fetchUserRoleNames(supabase, user.id);
-    const useAdminDataClient = roleNames.includes("mis") || roleNames.includes("admin");
+    const useAdminDataClient =
+      roleNames.includes("mis") ||
+      roleNames.includes("admin") ||
+      roleNames.includes("qa");
     const admin = useAdminDataClient ? getAdminClientSafe() : null;
     if (useAdminDataClient && !admin) {
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });

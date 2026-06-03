@@ -82,7 +82,11 @@ export async function POST(
     if (!canImport) {
       return NextResponse.json({ error: "You do not have permission to import leads" }, { status: 403 });
     }
-    const useAdminDataClient = roleNames.includes("mis") || roleNames.includes("admin");
+    // QA/MIS/Admin bulk import must bypass leads RLS (QA has UPDATE but no INSERT policy on user JWT).
+    const useAdminDataClient =
+      roleNames.includes("mis") ||
+      roleNames.includes("admin") ||
+      isQaImporter;
     const admin = useAdminDataClient ? getAdminClientSafe() : null;
     if (useAdminDataClient && !admin) {
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
