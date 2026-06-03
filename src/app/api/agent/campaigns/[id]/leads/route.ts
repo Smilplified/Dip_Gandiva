@@ -4,6 +4,7 @@ import { AGENT_READONLY_LEAD_FIELD_SET } from "@/lib/agent-lead-fields";
 import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
+import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
 
@@ -601,7 +602,11 @@ export async function PATCH(
     if (scored_timezone !== undefined) updates.scored_timezone = scored_timezone || null;
     if (appointment !== undefined) updates.appointment = appointment || null;
     if (appointment_timezone !== undefined) updates.appointment_timezone = appointment_timezone || null;
-    if (lead_tagging !== undefined) updates.lead_tagging = lead_tagging || null;
+    if (lead_tagging !== undefined) {
+      updates.lead_tagging = normalizeLeadTaggingValue(
+        typeof lead_tagging === "string" ? lead_tagging : null
+      );
+    }
     if (ra_comment !== undefined) updates.ra_comment = ra_comment || null;
     if (special_comments !== undefined) updates.special_comments = special_comments || null;
     if (call_back !== undefined) updates.call_back = call_back || null;

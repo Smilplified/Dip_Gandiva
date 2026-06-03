@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 
 dayjs.extend(customParseFormat);
 
@@ -172,7 +173,7 @@ export function sanitizeLeadImportFields(
     if (typeof raw === "string") {
       const trimmed = raw.trim();
       if (!trimmed || isImportPlaceholder(trimmed)) continue;
-      out[key] = trimmed;
+      out[key] = key === "lead_tagging" ? normalizeLeadTaggingValue(trimmed) ?? trimmed : trimmed;
     } else if (typeof raw === "number" || typeof raw === "boolean") {
       out[key] = raw;
     }

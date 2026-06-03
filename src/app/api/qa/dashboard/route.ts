@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
 
@@ -130,21 +131,21 @@ export async function GET() {
 
     const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition";
     const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, asset_title";
-    let { data: leadsData, error: leadsError } = await supabase
-      .from("leads")
-      .select(leadsSelectExtended + ", disqualification_reasons, disqualification_reason, rectified_reason")
-      .in("campaign_id", campaignIds)
-      .eq("lead_tagging", "Scored")
-      .order("created_at", { ascending: false });
+    let { data: leadsData, error: leadsError } = await applyScoredLeadTaggingFilter(
+      supabase
+        .from("leads")
+        .select(leadsSelectExtended + ", disqualification_reasons, disqualification_reason, rectified_reason")
+        .in("campaign_id", campaignIds)
+    ).order("created_at", { ascending: false });
 
     if (leadsError && (leadsError.message?.includes("column") || leadsError.message?.includes("disqualification"))) {
       leadsError = null;
-      const fallback = await supabase
-        .from("leads")
-        .select(leadsSelectBase + ", disqualification_reasons, disqualification_reason, rectified_reason")
-        .in("campaign_id", campaignIds)
-        .eq("lead_tagging", "Scored")
-        .order("created_at", { ascending: false });
+      const fallback = await applyScoredLeadTaggingFilter(
+        supabase
+          .from("leads")
+          .select(leadsSelectBase + ", disqualification_reasons, disqualification_reason, rectified_reason")
+          .in("campaign_id", campaignIds)
+      ).order("created_at", { ascending: false });
       leadsData = fallback.data;
       leadsError = fallback.error;
     }

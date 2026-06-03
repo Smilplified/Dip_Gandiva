@@ -133,7 +133,7 @@ export async function GET(request: Request) {
         query = query.eq("assigned_agent_id", user!.id);
       } else if (isQA) {
         // QA typically reviews scored leads
-        query = query.eq("lead_tagging" as never, "Scored" as never);
+        query = query.or("lead_tagging.eq.Scored,lead_tagging.eq.scored");
       }
       // TL, MIS, Admin see all org leads (leads table is org-scoped via campaigns)
 
