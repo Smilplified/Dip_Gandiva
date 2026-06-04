@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { AGENT_READONLY_LEAD_FIELDS } from "@/lib/agent-lead-fields";
-import { pickAndSanitizeLeadImportFields } from "@/lib/lead-import-sanitize";
+import {
+  LEAD_IMPORT_PHONE_FIELD_KEYS,
+  normalizeImportPhoneField,
+  pickAndSanitizeLeadImportFields,
+} from "@/lib/lead-import-sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -157,8 +161,9 @@ export async function POST(
       const company_name = normalizeString(fields.company_name);
       const email = normalizeString(fields.email);
       const domain = normalizeString(fields.domain);
-      const phone =
-        typeof fields.phone === "string" ? fields.phone.trim() || null : null;
+      const phone = normalizeImportPhoneField(fields.phone);
+      const direct_number = normalizeImportPhoneField(fields.direct_number);
+      const company_number = normalizeImportPhoneField(fields.company_number);
 
       const derivedName =
         [first_name, last_name].filter(Boolean).join(" ").trim() ||
@@ -205,8 +210,8 @@ export async function POST(
         phone,
         email,
         domain,
-        direct_number: fields.direct_number ?? null,
-        company_number: fields.company_number ?? null,
+        direct_number,
+        company_number,
         phone_number_link: fields.phone_number_link ?? null,
         job_title: fields.job_title ?? null,
         job_level: fields.job_level ?? null,
@@ -249,9 +254,14 @@ export async function POST(
       };
 
       if (existingLeadId) {
+        const updatePayload = { ...upsertPayload };
+        for (const key of LEAD_IMPORT_PHONE_FIELD_KEYS) {
+          if (!(key in fields)) delete updatePayload[key];
+        }
+
         const { data: updatedRow, error: updateError } = await supabase
           .from("leads")
-          .update(upsertPayload as never)
+          .update(updatePayload as never)
           .eq("id", existingLeadId)
           .eq("campaign_id", campaignId)
           .eq("organization_id", orgId)

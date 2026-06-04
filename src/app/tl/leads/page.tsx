@@ -16,6 +16,10 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
+import {
+  LEADS_TABLE_PAGE_SIZE_DEFAULT,
+  LEADS_TABLE_PAGE_SIZE_OPTIONS,
+} from "@/lib/leads-table-pagination";
 import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { downloadCsv } from "@/lib/leadsExport";
@@ -35,7 +39,7 @@ export default function TeamLeaderLeadsPage() {
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
   const [leadsPage, setLeadsPage] = useState(1);
-  const [leadsPageSize, setLeadsPageSize] = useState(10);
+  const [leadsPageSize, setLeadsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
   const [isOffline, setIsOffline] = useState(false);
 
   const fetchLeads = useCallback(async () => {
@@ -286,7 +290,7 @@ export default function TeamLeaderLeadsPage() {
               current: leadsPage,
               pageSize: leadsPageSize,
               showSizeChanger: true,
-              pageSizeOptions: ["10", "15", "25", "50"],
+              pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
               showTotal: (t) => `Total ${t} leads`,
               onChange: (page, size) => {
                 setLeadsPage(page);

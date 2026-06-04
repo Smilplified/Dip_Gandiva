@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import {
+  LEAD_IMPORT_PHONE_FIELD_KEYS,
+  normalizeImportPhoneField,
   normalizeImportTimestampField,
   pickAndSanitizeLeadImportFields,
 } from "@/lib/lead-import-sanitize";
@@ -232,11 +234,11 @@ export async function POST(
         last_name: last_name || null,
         salutation: fields.salutation || null,
         company_name: fields.company_name || null,
-        phone: fields.phone || null,
+        phone: normalizeImportPhoneField(fields.phone),
         email: fields.email || null,
         domain: fields.domain || null,
-        direct_number: fields.direct_number || null,
-        company_number: fields.company_number || null,
+        direct_number: normalizeImportPhoneField(fields.direct_number),
+        company_number: normalizeImportPhoneField(fields.company_number),
         phone_number_link: fields.phone_number_link || null,
         job_title: fields.job_title || null,
         job_level: fields.job_level || null,
@@ -331,6 +333,9 @@ export async function POST(
         let updateError: { message: string } | null = null;
         for (const candidateChannel of channelCandidates) {
           const payload = { ...upsertPayload, channel: candidateChannel } as Record<string, unknown>;
+          for (const key of LEAD_IMPORT_PHONE_FIELD_KEYS) {
+            if (!(key in fields)) delete payload[key];
+          }
           const { error } = await dataClient
             .from("leads")
             .update(payload as never)
@@ -366,7 +371,12 @@ export async function POST(
           }
         }
       } else {
-        if (!derivedName && !fields.company_name && !fields.email && !fields.phone) {
+        if (
+          !derivedName &&
+          !fields.company_name &&
+          !fields.email &&
+          !normalizeImportPhoneField(fields.phone)
+        ) {
           errors.push(`Row ${i + 1}: At least one of name, company, email, or phone is required`);
           continue;
         }

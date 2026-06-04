@@ -24,6 +24,10 @@ import {
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import {
+  LEADS_TABLE_PAGE_SIZE_DEFAULT,
+  LEADS_TABLE_PAGE_SIZE_OPTIONS,
+} from "@/lib/leads-table-pagination";
+import {
   ArrowLeftOutlined,
   ReloadOutlined,
   LeftOutlined,
@@ -127,7 +131,7 @@ export default function MISCampaignDetailPage() {
   const [form] = Form.useForm();
   const [leadSearch, setLeadSearch] = useState("");
   const [leadsPage, setLeadsPage] = useState(1);
-  const [leadsPageSize, setLeadsPageSize] = useState(10);
+  const [leadsPageSize, setLeadsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [previousConfirmOpen, setPreviousConfirmOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -673,7 +677,7 @@ export default function MISCampaignDetailPage() {
             current: leadsPage,
             pageSize: leadsPageSize,
             showSizeChanger: true,
-            pageSizeOptions: ["10", "15", "25", "50"],
+            pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
             showTotal: (t) => `Total ${t} leads`,
             onChange: (page, size) => {
               setLeadsPage(page);

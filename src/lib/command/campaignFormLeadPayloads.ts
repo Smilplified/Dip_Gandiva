@@ -4,6 +4,7 @@
  */
 
 import dayjs from "dayjs";
+import { normalizeImportPhoneField } from "@/lib/lead-import-sanitize";
 
 /** Parse CSV/Excel cell into ISO timestamp for `leads.registered_at` (client LP registration). */
 function parseClientLpRegTimestamp(raw: unknown): string | null {
@@ -34,7 +35,7 @@ export function parsedRowsToLeadInserts(
       const companyName =
         typeof row.company_name === "string" ? row.company_name.trim() || null : null;
       const email = typeof row.email === "string" ? row.email.trim() || null : null;
-      const phone = typeof row.phone === "string" ? row.phone.trim() || null : null;
+      const phone = normalizeImportPhoneField(row.phone);
 
       if (!name && !companyName && !email && !phone) return null;
 

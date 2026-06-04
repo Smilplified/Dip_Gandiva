@@ -18,6 +18,10 @@ import {
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { tableSerialNumber } from "@/lib/table-pagination";
+import {
+  LEADS_TABLE_PAGE_SIZE_DEFAULT,
+  LEADS_TABLE_PAGE_SIZE_OPTIONS,
+} from "@/lib/leads-table-pagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 
 type Campaign = {
@@ -78,7 +82,7 @@ export default function QACampaignsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [campaignsPage, setCampaignsPage] = useState(1);
-  const [campaignsPageSize, setCampaignsPageSize] = useState(15);
+  const [campaignsPageSize, setCampaignsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
   const [isOffline, setIsOffline] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
@@ -262,7 +266,7 @@ export default function QACampaignsPage() {
               current: campaignsPage,
               pageSize: campaignsPageSize,
               showSizeChanger: true,
-              pageSizeOptions: ["10", "15", "25", "50"],
+              pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
               showTotal: (t) => `${t} campaigns`,
               onChange: (page, size) => {
                 setCampaignsPage(page);

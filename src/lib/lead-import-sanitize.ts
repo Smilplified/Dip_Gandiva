@@ -75,6 +75,35 @@ export const LEAD_IMPORT_TIMESTAMP_FIELDS = new Set([
   "registered_at",
 ]);
 
+/** Phone-like columns — Excel often stores these as numbers. */
+export const LEAD_IMPORT_PHONE_FIELD_KEYS = new Set([
+  "phone",
+  "direct_number",
+  "company_number",
+]);
+
+/**
+ * Normalize a phone cell from CSV/Excel (string or numeric) for `leads.phone` text columns.
+ */
+export function normalizeImportPhoneField(value: unknown): string | null {
+  if (isImportPlaceholder(value)) return null;
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+
+  const s = String(value).trim();
+  if (!s || isImportPlaceholder(s)) return null;
+
+  if (/^[\d.]+e[+-]?\d+$/i.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+  }
+
+  const cleaned = s.replace(/[^\d+\-().\s]/g, "").trim();
+  return cleaned || null;
+}
+
 const DATE_PARSE_FORMATS = [
   "YYYY-MM-DD",
   "YYYY-MM-DDTHH:mm:ss.SSSZ",
@@ -170,6 +199,12 @@ export function sanitizeLeadImportFields(
       continue;
     }
 
+    if (LEAD_IMPORT_PHONE_FIELD_KEYS.has(key)) {
+      const parsed = normalizeImportPhoneField(raw);
+      if (parsed) out[key] = parsed;
+      continue;
+    }
+
     if (typeof raw === "string") {
       const trimmed = raw.trim();
       if (!trimmed || isImportPlaceholder(trimmed)) continue;
@@ -207,6 +242,9 @@ export function coerceParsedImportCell(key: string, val: unknown): unknown | und
     ) {
       return val;
     }
+    if (LEAD_IMPORT_PHONE_FIELD_KEYS.has(key)) {
+      return normalizeImportPhoneField(val) ?? undefined;
+    }
     return val;
   }
   const str = String(val).trim();
@@ -217,6 +255,9 @@ export function coerceParsedImportCell(key: string, val: unknown): unknown | und
   }
   if (LEAD_IMPORT_TIMESTAMP_FIELDS.has(key)) {
     return normalizeImportTimestampField(str) ?? undefined;
+  }
+  if (LEAD_IMPORT_PHONE_FIELD_KEYS.has(key)) {
+    return normalizeImportPhoneField(str) ?? undefined;
   }
   return str;
 }
