@@ -443,6 +443,10 @@ export default function TeamPerformanceDashboard() {
   }, [load]);
 
   const isOM = data?.scope === "organization";
+  const singleDayRange = data?.date_range?.single_day ?? false;
+  const selectedDayLabel = data?.date_range?.start
+    ? dayjs(data.date_range.start).format("DD MMM YYYY")
+    : null;
 
   // ── Options ─────────────────────────────────────────────────────────────────
   const campaignOptions = useMemo(
@@ -545,10 +549,19 @@ export default function TeamPerformanceDashboard() {
   // ── Agent comparison chart ───────────────────────────────────────────────────
   const agentChartData = useMemo(
     () =>
-      (data?.agents ?? [])
+      [...(data?.agents ?? [])]
+        .sort((a, b) =>
+          singleDayRange
+            ? b.total_leads - a.total_leads
+            : b.today_leads - a.today_leads || b.total_leads - a.total_leads
+        )
         .slice(0, 8)
-        .map((a) => ({ name: a.agent_name.split(" ")[0], total: a.total_leads, today: a.today_leads })),
-    [data]
+        .map((a) => ({
+          name: a.agent_name.split(" ")[0],
+          total: a.total_leads,
+          today: a.today_leads,
+        })),
+    [data, singleDayRange]
   );
 
   // ── Campaign progress chart ──────────────────────────────────────────────────
@@ -564,6 +577,46 @@ export default function TeamPerformanceDashboard() {
         })),
     [data]
   );
+
+  const periodAgentCols: ColumnsType<AgentPerformance> = singleDayRange
+    ? []
+    : [
+        {
+          title: "Today",
+          dataIndex: "today_leads",
+          key: "today_leads",
+          align: "center" as const,
+          sorter: (a: AgentPerformance, b: AgentPerformance) => a.today_leads - b.today_leads,
+          defaultSortOrder: "descend" as const,
+          render: (v: number) => (
+            <span
+              style={{
+                fontWeight: 600,
+                color: v > 0 ? "#52c41a" : "#bfbfbf",
+                background: v > 0 ? "#f6ffed" : "transparent",
+                borderRadius: 8,
+                padding: "2px 10px",
+              }}
+            >
+              {v}
+            </span>
+          ),
+        },
+        {
+          title: "This Week",
+          dataIndex: "week_leads",
+          key: "week_leads",
+          align: "center" as const,
+          render: (v: number) => v.toLocaleString(),
+        },
+        {
+          title: "This Month",
+          dataIndex: "month_leads",
+          key: "month_leads",
+          align: "center" as const,
+          render: (v: number) => v.toLocaleString(),
+        },
+      ];
 
   // ── Table columns ────────────────────────────────────────────────────────────
   const agentCols: ColumnsType<AgentPerformance> = [
@@ -600,6 +653,7 @@ export default function TeamPerformanceDashboard() {
       dataIndex: "total_leads",
       key: "total_leads",
       sorter: (a: AgentPerformance, b: AgentPerformance) => a.total_leads - b.total_leads,
+      defaultSortOrder: singleDayRange ? ("descend" as const) : undefined,
       align: "center" as const,
       render: (v: number) => (
         <span style={{ fontWeight: 700, fontSize: 14, color: "#1677ff", background: "#e6f4ff", borderRadius: 8, padding: "2px 10px" }}>
@@ -633,21 +687,7 @@ export default function TeamPerformanceDashboard() {
         </span>
       ),
     },
-    {
-      title: "Today",
-      dataIndex: "today_leads",
-      key: "today_leads",
-      align: "center" as const,
-      sorter: (a: AgentPerformance, b: AgentPerformance) => a.today_leads - b.today_leads,
-      defaultSortOrder: "descend" as const,
-      render: (v: number) => (
-        <span style={{ fontWeight: 600, color: v > 0 ? "#52c41a" : "#bfbfbf", background: v > 0 ? "#f6ffed" : "transparent", borderRadius: 8, padding: "2px 10px" }}>
-          {v}
-        </span>
-      ),
-    },
-    { title: "This Week", dataIndex: "week_leads", key: "week_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
-    { title: "This Month", dataIndex: "month_leads", key: "month_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
+    ...periodAgentCols,
     {
       title: "Avg/Day",
       dataIndex: "avg_per_day",
@@ -706,13 +746,42 @@ export default function TeamPerformanceDashboard() {
         </Tag>
       ),
     },
-    { title: "Total", dataIndex: "total_leads", key: "total_leads", align: "center" as const, defaultSortOrder: "descend" as const,
+    {
+      title: "Total",
+      dataIndex: "total_leads",
+      key: "total_leads",
+      align: "center" as const,
+      defaultSortOrder: "descend" as const,
       sorter: (a: TLSummary, b: TLSummary) => a.total_leads - b.total_leads,
-      render: (v: number) => <span style={{ fontWeight: 700, color: "#1677ff" }}>{v.toLocaleString()}</span> },
-    { title: "Today", dataIndex: "today_leads", key: "today_leads", align: "center" as const,
-      render: (v: number) => <span style={{ color: v > 0 ? "#52c41a" : "#bfbfbf", fontWeight: 600 }}>{v}</span> },
-    { title: "This Week", dataIndex: "week_leads", key: "week_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
-    { title: "This Month", dataIndex: "month_leads", key: "month_leads", align: "center" as const, render: (v: number) => v.toLocaleString() },
+      render: (v: number) => <span style={{ fontWeight: 700, color: "#1677ff" }}>{v.toLocaleString()}</span>,
+    },
+    ...(singleDayRange
+      ? []
+      : [
+          {
+            title: "Today",
+            dataIndex: "today_leads" as keyof TLSummary,
+            key: "today_leads",
+            align: "center" as const,
+            render: (v: number) => (
+              <span style={{ color: v > 0 ? "#52c41a" : "#bfbfbf", fontWeight: 600 }}>{v}</span>
+            ),
+          },
+          {
+            title: "This Week",
+            dataIndex: "week_leads" as keyof TLSummary,
+            key: "week_leads",
+            align: "center" as const,
+            render: (v: number) => v.toLocaleString(),
+          },
+          {
+            title: "This Month",
+            dataIndex: "month_leads" as keyof TLSummary,
+            key: "month_leads",
+            align: "center" as const,
+            render: (v: number) => v.toLocaleString(),
+          },
+        ]),
   ];
 
   const qaCols: ColumnsType<QASummary> = [
@@ -941,12 +1010,30 @@ export default function TeamPerformanceDashboard() {
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<RiseOutlined />} title="Total Leads Uploaded" value={(s?.total_leads ?? 0).toLocaleString()}
-              sub={`${(s?.week_leads ?? 0).toLocaleString()} this week`} color="#52c41a" />
+              sub={
+                singleDayRange && selectedDayLabel
+                  ? `Selected day: ${selectedDayLabel}`
+                  : `${(s?.week_leads ?? 0).toLocaleString()} in last 7 days (within range)`
+              }
+              color="#52c41a" />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
-            <KpiCard icon={<FireOutlined />} title="Today Uploads" value={(s?.today_leads ?? 0).toLocaleString()}
-              sub={`${(s?.month_leads ?? 0).toLocaleString()} this month`} color="#fa8c16"
-              badge={s?.today_leads === 0 ? <Tag color="error">No uploads</Tag> : undefined} />
+            <KpiCard
+              icon={<FireOutlined />}
+              title={singleDayRange && selectedDayLabel ? `Uploads on ${selectedDayLabel}` : "Today Uploads"}
+              value={(singleDayRange ? (s?.total_leads ?? 0) : (s?.today_leads ?? 0)).toLocaleString()}
+              sub={
+                singleDayRange
+                  ? "Matches total for the selected date"
+                  : `${(s?.month_leads ?? 0).toLocaleString()} in last 30 days (within range)`
+              }
+              color="#fa8c16"
+              badge={
+                (singleDayRange ? (s?.total_leads ?? 0) : (s?.today_leads ?? 0)) === 0 ? (
+                  <Tag color="error">No uploads</Tag>
+                ) : undefined
+              }
+            />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<CrownOutlined />} title="Active Team Leaders" value={s?.active_tl_count ?? 0}
@@ -986,9 +1073,22 @@ export default function TeamPerformanceDashboard() {
               sub="In your team" color="#722ed1" />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
-            <KpiCard icon={<FireOutlined />} title="Today Uploads" value={(s?.today_leads ?? 0).toLocaleString()}
-              color="#fa8c16" sub="By your agents today"
-              badge={s?.today_leads === 0 ? <Tag color="error">0</Tag> : undefined} />
+            <KpiCard
+              icon={<FireOutlined />}
+              title={singleDayRange && selectedDayLabel ? `Uploads on ${selectedDayLabel}` : "Today Uploads"}
+              value={(singleDayRange ? (s?.total_leads ?? 0) : (s?.today_leads ?? 0)).toLocaleString()}
+              color="#fa8c16"
+              sub={
+                singleDayRange
+                  ? "In your selected date range"
+                  : "By your agents on calendar today (within range)"
+              }
+              badge={
+                (singleDayRange ? (s?.total_leads ?? 0) : (s?.today_leads ?? 0)) === 0 ? (
+                  <Tag color="error">0</Tag>
+                ) : undefined
+              }
+            />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<RiseOutlined />} title="Monthly Uploads" value={(s?.month_leads ?? 0).toLocaleString()}
@@ -1106,7 +1206,14 @@ export default function TeamPerformanceDashboard() {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24}>
           <Card style={card} styles={{ body: { padding: "20px 22px" } }}>
-            <SectionHeader icon={<UserOutlined />} title="Agent Performance Graph (Top 8)" />
+            <SectionHeader
+              icon={<UserOutlined />}
+              title={
+                singleDayRange && selectedDayLabel
+                  ? `Agent Performance Graph (Top 8) — ${selectedDayLabel}`
+                  : "Agent Performance Graph (Top 8)"
+              }
+            />
             {loading ? <Skeleton active paragraph={{ rows: 4 }} /> : agentChartData.length === 0 ? (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No agents" style={{ margin: "40px 0" }} />
             ) : (
@@ -1120,7 +1227,9 @@ export default function TeamPerformanceDashboard() {
                   <Bar dataKey="total" name="Total Uploads" radius={[6, 6, 0, 0]}>
                     {agentChartData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                   </Bar>
-                  <Bar dataKey="today" name="Today" fill="#52c41a" opacity={0.7} radius={[6, 6, 0, 0]} />
+                  {!singleDayRange && (
+                    <Bar dataKey="today" name="Today (calendar)" fill="#52c41a" opacity={0.7} radius={[6, 6, 0, 0]} />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -1182,7 +1291,14 @@ export default function TeamPerformanceDashboard() {
       {/* ── Agent Table ── */}
       <Card style={{ ...card, marginBottom: 24 }} styles={{ body: { padding: "0" } }}>
         <div style={{ padding: "18px 20px 12px" }}>
-          <SectionHeader icon={<UserOutlined />} title="Agent-wise Performance" />
+          <SectionHeader
+            icon={<UserOutlined />}
+            title={
+              singleDayRange && selectedDayLabel
+                ? `Agent-wise Performance — ${selectedDayLabel}`
+                : "Agent-wise Performance"
+            }
+          />
         </div>
         <Table<AgentPerformance>
           dataSource={data?.agents ?? []}

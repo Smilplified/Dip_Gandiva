@@ -88,7 +88,7 @@ export type QASummary = {
 
 export type TeamPerformanceResponse = {
   scope: "organization" | "team";
-  date_range: { start: string; end: string };
+  date_range: { start: string; end: string; single_day: boolean };
   summary: {
     total_leads: number;
     today_leads: number;
@@ -147,6 +147,67 @@ function daysBetween(a: string, b: string): number {
   return Math.max(1, Math.round(ms / 86_400_000));
 }
 
+type LeadActivityRow = {
+  id: string;
+  campaign_id: string;
+  assigned_agent_id: string | null;
+  created_by: string | null;
+  qa_status: string | null;
+  created_at: string;
+};
+
+/** Who gets credit for an upload (import sets both; legacy rows may only have created_by). */
+function resolveLeadAgentId(lead: {
+  assigned_agent_id: string | null;
+  created_by: string | null;
+}): string | null {
+  return lead.assigned_agent_id ?? lead.created_by ?? null;
+}
+
+function leadDayInTz(createdAt: string, appTz: string): string {
+  return dayjs(createdAt).tz(appTz).format("YYYY-MM-DD");
+}
+
+const LEADS_PAGE_SIZE = 1000;
+
+/** Supabase caps at 1000 rows per request — paginate so KPIs are not truncated. */
+async function fetchLeadActivityRows(
+  admin: ReturnType<typeof getAdminClientSafe>,
+  params: {
+    orgId: string;
+    campaignIds: string[];
+    startUtc: string;
+    endUtc: string;
+  }
+): Promise<LeadActivityRow[]> {
+  if (!admin || params.campaignIds.length === 0) return [];
+
+  const select =
+    "id, campaign_id, assigned_agent_id, created_by, qa_status, created_at";
+  const all: LeadActivityRow[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const { data, error } = await admin
+      .from("leads")
+      .select(select)
+      .eq("organization_id", params.orgId)
+      .in("campaign_id", params.campaignIds)
+      .gte("created_at", params.startUtc)
+      .lte("created_at", params.endUtc)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const chunk = (data ?? []) as LeadActivityRow[];
+    all.push(...chunk);
+    if (chunk.length < LEADS_PAGE_SIZE) break;
+    offset += LEADS_PAGE_SIZE;
+  }
+
+  return all;
+}
+
 // ─── GET /api/tl/team-performance ─────────────────────────────────────────────
 
 export async function GET(request: Request) {
@@ -197,6 +258,7 @@ export async function GET(request: Request) {
     const userIdFilter = url.searchParams.get("user_id") || null;
     const startUtc = utcStartOfDayInTz(startDate, appTz);
     const endUtc = utcEndOfDayInTz(endDate, appTz);
+    const singleDayRange = startDate === endDate;
 
     // ── Fetch all org users with roles ──────────────────────────────────────
     const { data: allUsers, error: usersErr } = await admin
@@ -342,41 +404,80 @@ export async function GET(request: Request) {
     // Rebuild array after potential widening
     const scopedAgentIdArr = [...scopedAgentIds];
 
-    // ── Fetch leads ──────────────────────────────────────────────────────────
-    // Get all leads in scoped campaigns between start & end.
-    // Agent-level stats are still derived from assigned_agent_id where available.
-    let leadsInRange: {
-      id: string;
-      campaign_id: string;
-      assigned_agent_id: string | null;
-      qa_status: string | null;
-      created_at: string;
-    }[] = [];
+    // ── Fetch leads (scoped campaigns — KPIs, campaigns, TL summaries, trend) ──
+    let leadsInRange: LeadActivityRow[] = [];
 
     if (scopedCampaignIds.length > 0) {
-      const { data: leadsData, error: leadsErr } = await admin
-        .from("leads")
-        .select("id, campaign_id, assigned_agent_id, qa_status, created_at")
-        .eq("organization_id", orgId)
-        .in("campaign_id", scopedCampaignIds)
-        .gte("created_at", startUtc)
-        .lte("created_at", endUtc)
-        .order("created_at", { ascending: true });
-
-      if (leadsErr) return NextResponse.json({ error: leadsErr.message }, { status: 500 });
-      leadsInRange = (leadsData ?? []) as typeof leadsInRange;
+      try {
+        leadsInRange = await fetchLeadActivityRows(admin, {
+          orgId,
+          campaignIds: scopedCampaignIds,
+          startUtc,
+          endUtc,
+        });
+      } catch (leadsErr) {
+        const msg = leadsErr instanceof Error ? leadsErr.message : "Failed to load leads";
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
 
       if (campaignIdFilter) {
         leadsInRange = leadsInRange.filter((l) => l.campaign_id === campaignIdFilter);
       }
       if (userIdFilter) {
-        leadsInRange = leadsInRange.filter((l) => l.assigned_agent_id === userIdFilter);
+        leadsInRange = leadsInRange.filter(
+          (l) => resolveLeadAgentId(l) === userIdFilter
+        );
       }
     }
 
-    // Key date boundaries
+    // Per-agent stats: all active campaign assignments (agent may upload on a
+    // campaign owned by another TL — e.g. agent on Splunk + "shyam s").
+    const agentActivityCampaignIds = new Set<string>();
+    for (const row of allCampAssignments) {
+      if (!scopedAgentIds.has(row.agent_id)) continue;
+      agentActivityCampaignIds.add(row.campaign_id);
+    }
+    if (campaignIdFilter) {
+      for (const id of [...agentActivityCampaignIds]) {
+        if (id !== campaignIdFilter) agentActivityCampaignIds.delete(id);
+      }
+    }
+
+    let agentActivityLeads: LeadActivityRow[] = [];
+    const agentCampIdList = [...agentActivityCampaignIds];
+    if (agentCampIdList.length > 0) {
+      try {
+        agentActivityLeads = await fetchLeadActivityRows(admin, {
+          orgId,
+          campaignIds: agentCampIdList,
+          startUtc,
+          endUtc,
+        });
+      } catch (agentLeadsErr) {
+        const msg =
+          agentLeadsErr instanceof Error ? agentLeadsErr.message : "Failed to load leads";
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
+      if (userIdFilter) {
+        agentActivityLeads = agentActivityLeads.filter(
+          (l) => resolveLeadAgentId(l) === userIdFilter
+        );
+      }
+    }
+
+    // Calendar buckets (only meaningful when the range spans multiple days)
     const weekStart = weeksAgoInTz(appTz, 1);
     const monthStart = monthsAgoInTz(appTz, 1);
+    const weekStartInRange = singleDayRange
+      ? startDate
+      : weekStart < startDate
+      ? startDate
+      : weekStart;
+    const monthStartInRange = singleDayRange
+      ? startDate
+      : monthStart < startDate
+      ? startDate
+      : monthStart;
 
     // ── Aggregate per-agent ──────────────────────────────────────────────────
     const agentLeadMap = new Map<
@@ -407,18 +508,24 @@ export async function GET(request: Request) {
       lastDate: null as string | null,
     });
 
-    for (const l of leadsInRange) {
-      const agId = l.assigned_agent_id;
+    for (const l of agentActivityLeads) {
+      const agId = resolveLeadAgentId(l);
       if (!agId) continue;
       if (!scopedAgentIds.has(agId)) continue;
       if (!agentLeadMap.has(agId)) agentLeadMap.set(agId, initAgent());
       const agg = agentLeadMap.get(agId)!;
       agg.total++;
       if (isQualifiedQa(l.qa_status)) agg.qualified++;
-      const d = dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD");
-      if (d === today) agg.today++;
-      if (d >= weekStart) agg.week++;
-      if (d >= monthStart) agg.month++;
+      const d = leadDayInTz(l.created_at, appTz);
+      if (singleDayRange) {
+        agg.today = agg.total;
+        agg.week = agg.total;
+        agg.month = agg.total;
+      } else {
+        if (d === today) agg.today++;
+        if (d >= weekStartInRange) agg.week++;
+        if (d >= monthStartInRange) agg.month++;
+      }
       agg.campaignSet.add(l.campaign_id);
       if (!agg.lastDate || d > agg.lastDate) agg.lastDate = d;
     }
@@ -471,13 +578,19 @@ export async function GET(request: Request) {
 
         for (const l of leadsInRange) {
           if (!tlCampIds.has(l.campaign_id)) continue;
-          const agId = l.assigned_agent_id;
+          const agId = resolveLeadAgentId(l);
           if (!agId || !tlAgentIdSet.has(agId)) continue;
           totalLeads++;
-          const d = dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD");
-          if (d === today) todayLeads++;
-          if (d >= weekStart) weekLeads++;
-          if (d >= monthStart) monthLeads++;
+          const d = leadDayInTz(l.created_at, appTz);
+          if (singleDayRange) {
+            todayLeads = totalLeads;
+            weekLeads = totalLeads;
+            monthLeads = totalLeads;
+          } else {
+            if (d === today) todayLeads++;
+            if (d >= weekStartInRange) weekLeads++;
+            if (d >= monthStartInRange) monthLeads++;
+          }
         }
 
         tlSummaries.push({
@@ -634,7 +747,8 @@ export async function GET(request: Request) {
       if (!campById.has(l.campaign_id)) continue;
       campLeadMap.set(l.campaign_id, (campLeadMap.get(l.campaign_id) ?? 0) + 1);
       if (!campAgentMap.has(l.campaign_id)) campAgentMap.set(l.campaign_id, new Set());
-      if (l.assigned_agent_id) campAgentMap.get(l.campaign_id)!.add(l.assigned_agent_id);
+      const agId = resolveLeadAgentId(l);
+      if (agId) campAgentMap.get(l.campaign_id)!.add(agId);
     }
 
     const campaignPerf: CampaignPerformance[] = scopedCampaigns.map((c) => {
@@ -680,15 +794,22 @@ export async function GET(request: Request) {
 
     // ── Summary ──────────────────────────────────────────────────────────────
     const totalLeads = leadsInRange.length;
-    const todayLeads = leadsInRange.filter(
-      (l) => dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD") === today
-    ).length;
-    const weekLeads = leadsInRange.filter(
-      (l) => dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD") >= weekStart
-    ).length;
-    const monthLeads = leadsInRange.filter(
-      (l) => dayjs(l.created_at).tz(appTz).format("YYYY-MM-DD") >= monthStart
-    ).length;
+    let todayLeads: number;
+    let weekLeads: number;
+    let monthLeads: number;
+    if (singleDayRange) {
+      todayLeads = totalLeads;
+      weekLeads = totalLeads;
+      monthLeads = totalLeads;
+    } else {
+      todayLeads = leadsInRange.filter((l) => leadDayInTz(l.created_at, appTz) === today).length;
+      weekLeads = leadsInRange.filter(
+        (l) => leadDayInTz(l.created_at, appTz) >= weekStartInRange
+      ).length;
+      monthLeads = leadsInRange.filter(
+        (l) => leadDayInTz(l.created_at, appTz) >= monthStartInRange
+      ).length;
+    }
     const activeCampaigns = scopedCampaigns.filter((c) => c.status === "active").length;
     const pendingAlloc = scopedCampaigns.reduce(
       (s, c) => s + (c.pending_allocation ?? c.total_allocation ?? 0),
@@ -711,7 +832,7 @@ export async function GET(request: Request) {
 
     const response: TeamPerformanceResponse = {
       scope: isOM ? "organization" : "team",
-      date_range: { start: startDate, end: endDate },
+      date_range: { start: startDate, end: endDate, single_day: singleDayRange },
       summary: {
         total_leads: totalLeads,
         today_leads: todayLeads,
