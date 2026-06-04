@@ -6,6 +6,7 @@ import {
   shouldStampQaAuditor,
   stampQaAuditorOnLeadUpdate,
 } from "@/lib/qa-audit-attribution";
+import { appendQaAuditLeadHistory } from "@/lib/qa-audit-history";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 
@@ -276,6 +277,22 @@ export async function PATCH(
 
     const canEditQa = roleNames.includes("qa");
     const canEditDelivery = roleNames.includes("mis");
+    let qaHistoryContext: {
+      existing: {
+        qa_status: string | null;
+        qa_comments: string | null;
+        audit_date: string | null;
+        disqualification_reasons: string | null;
+        disqualification_reason: string | null;
+        rectified_reason: string | null;
+        qa_audited_by_id: string | null;
+        qa_audited_at: string | null;
+        qa_name: string | null;
+      };
+      stamped: boolean;
+      auditorLabel: string;
+    } | null = null;
+
     if (!canEditQa) {
       delete updates.qa_status;
       delete updates.qa_comments;
@@ -287,10 +304,14 @@ export async function PATCH(
       delete updates.disqualification_reason;
       delete updates.rectified_reason;
     } else {
+      delete updates.qa_name;
+      delete updates.qa_audited_by_id;
+      delete updates.qa_audited_at;
+
       const { data: existingLead } = await dataClient
         .from("leads")
         .select(
-          "qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id"
+          "qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id, qa_audited_at, qa_name"
         )
         .eq("id", leadRowId)
         .eq("campaign_id", campaignId)
@@ -304,17 +325,36 @@ export async function PATCH(
         disqualification_reason: string | null;
         rectified_reason: string | null;
         qa_audited_by_id: string | null;
+        qa_audited_at: string | null;
+        qa_name: string | null;
       };
 
+      let qaStamped = false;
+      let qaAuditorLabel = "";
       if (shouldStampQaAuditor(existing, updates)) {
+        qaStamped = true;
         await stampQaAuditorOnLeadUpdate(updates, user.id, async () => {
           const { data: userProfile } = await supabase
             .from("users")
             .select("full_name, email")
             .eq("id", user.id)
             .single();
-          return userProfile as { full_name: string | null; email: string | null } | null;
+          const profile = userProfile as {
+            full_name: string | null;
+            email: string | null;
+          } | null;
+          qaAuditorLabel =
+            profile?.full_name?.trim() || profile?.email?.trim() || "";
+          return profile;
         });
+      }
+
+      if (qaStamped) {
+        qaHistoryContext = {
+          existing,
+          stamped: true,
+          auditorLabel: qaAuditorLabel || existing.qa_name?.trim() || "",
+        };
       }
     }
     if (delivery_status !== undefined && !canEditDelivery) {
@@ -372,6 +412,19 @@ export async function PATCH(
     }
     if (!updated) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
+    if (qaHistoryContext) {
+      await appendQaAuditLeadHistory(
+        dataClient,
+        leadRowId,
+        user.id,
+        qaHistoryContext.existing,
+        updates,
+        qaHistoryContext.stamped,
+        user.id,
+        qaHistoryContext.auditorLabel
+      );
     }
 
     return NextResponse.json({ success: true });

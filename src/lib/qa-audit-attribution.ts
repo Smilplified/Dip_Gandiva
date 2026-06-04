@@ -43,6 +43,10 @@ const QA_AUDIT_FIELD_KEYS = [
   "rectified_reason",
 ] as const;
 
+export type QaAuditFieldKey = (typeof QA_AUDIT_FIELD_KEYS)[number];
+
+export const QA_LEAD_IMPORT_FIELD_KEYS: readonly QaAuditFieldKey[] = QA_AUDIT_FIELD_KEYS;
+
 export function updatesTouchQaAudit(updates: Record<string, unknown>): boolean {
   return QA_AUDIT_FIELD_KEYS.some((k) => updates[k] !== undefined);
 }
@@ -59,7 +63,37 @@ export type ExistingLeadQaSnapshot = {
   disqualification_reason?: string | null;
   rectified_reason?: string | null;
   qa_audited_by_id?: string | null;
+  qa_audited_at?: string | null;
+  qa_name?: string | null;
 };
+
+/** Build update payload keys from import row (only fields present in the spreadsheet). */
+export function buildQaUpdatesFromImportRow(
+  fields: Record<string, unknown>
+): Record<string, unknown> {
+  const updates: Record<string, unknown> = {};
+  for (const key of QA_AUDIT_FIELD_KEYS) {
+    if (!(key in fields)) continue;
+    if (key === "qa_status") {
+      updates.qa_status =
+        fields.qa_status && typeof fields.qa_status === "string"
+          ? fields.qa_status.trim().toLowerCase()
+          : null;
+      continue;
+    }
+    if (
+      key === "disqualification_reasons" ||
+      key === "disqualification_reason" ||
+      key === "rectified_reason"
+    ) {
+      updates[key] =
+        fields[key] && typeof fields[key] === "string" ? String(fields[key]).trim() : null;
+      continue;
+    }
+    updates[key] = fields[key] ?? null;
+  }
+  return updates;
+}
 
 /** True when a QA user save should record who performed the audit. */
 export function shouldStampQaAuditor(
@@ -120,30 +154,69 @@ export function leadHasQaOutcome(qaStatus: string | null | undefined): boolean {
   return normField(qaStatus).length > 0;
 }
 
-/** Bulk import row includes QA audit fields (status, comments, etc.). */
-export function importRowTouchesQaAudit(fields: Record<string, unknown>): boolean {
-  if (normField(fields.qa_status)) return true;
-  if (normField(fields.qa_comments)) return true;
-  if (normField(fields.audit_date)) return true;
-  if (normField(fields.disqualification_reasons)) return true;
-  if (normField(fields.disqualification_reason)) return true;
-  if (normField(fields.rectified_reason)) return true;
-  return false;
-}
-
 export function applyQaAuditorToImportPayload(
   payload: Record<string, unknown>,
+  existing: ExistingLeadQaSnapshot,
   fields: Record<string, unknown>,
   auditorUserId: string,
   auditorLabel: string
-): void {
-  if (!importRowTouchesQaAudit(fields)) return;
+): boolean {
+  const qaUpdates = buildQaUpdatesFromImportRow(fields);
+  if (!shouldStampQaAuditor(existing, qaUpdates)) return false;
   payload.qa_audited_by_id = auditorUserId;
   payload.qa_audited_at = new Date().toISOString();
   payload.qa_name = auditorLabel;
+  return true;
 }
 
 /** True only for the dedicated QA role (not agent, MIS, TL, OM, or admin). */
 export function isQaRoleForAuditImport(roleNames: string[]): boolean {
   return roleNames.includes("qa");
+}
+
+export type QaAuditHistoryValue = {
+  qa_status: string | null;
+  qa_comments: string | null;
+  qa_audited_by_id: string | null;
+  qa_audited_at: string | null;
+  qa_name: string | null;
+};
+
+export function snapshotQaAuditForHistory(
+  row: ExistingLeadQaSnapshot
+): QaAuditHistoryValue {
+  return {
+    qa_status: row.qa_status ?? null,
+    qa_comments: row.qa_comments ?? null,
+    qa_audited_by_id: row.qa_audited_by_id ?? null,
+    qa_audited_at: row.qa_audited_at ?? null,
+    qa_name: row.qa_name ?? null,
+  };
+}
+
+export function mergeQaAuditHistoryAfterUpdate(
+  before: QaAuditHistoryValue,
+  updates: Record<string, unknown>,
+  stamped: boolean,
+  auditorUserId: string,
+  auditorLabel: string
+): QaAuditHistoryValue {
+  const after: QaAuditHistoryValue = { ...before };
+  if ("qa_status" in updates) {
+    after.qa_status =
+      updates.qa_status != null ? String(updates.qa_status) : null;
+  }
+  if ("qa_comments" in updates) {
+    after.qa_comments =
+      updates.qa_comments != null ? String(updates.qa_comments) : null;
+  }
+  if (stamped) {
+    after.qa_audited_by_id = auditorUserId;
+    after.qa_audited_at =
+      typeof updates.qa_audited_at === "string"
+        ? updates.qa_audited_at
+        : new Date().toISOString();
+    after.qa_name = auditorLabel;
+  }
+  return after;
 }

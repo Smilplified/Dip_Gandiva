@@ -865,9 +865,9 @@ export function LeadForm({
                 </Col>
                 <Col xs={24} sm={12}>
                   <Form.Item
-                    label="QA Name"
+                    label="QA Auditor"
                     name="qa_name"
-                    tooltip="Auto-filled with the logged-in QA user; saved when you update the lead"
+                    tooltip="Set when this lead is audited; preserved per lead across QA users"
                   >
                     <Input
                       placeholder={hasRole("qa") ? loggedInQaName || "QA user" : "—"}
@@ -876,6 +876,17 @@ export function LeadForm({
                     />
                   </Form.Item>
                 </Col>
+                {lead?.qa_audited_at ? (
+                  <Col xs={24} sm={12}>
+                    <Form.Item label="QA Audit Date">
+                      <Input
+                        disabled
+                        value={new Date(lead.qa_audited_at).toLocaleString()}
+                        style={{ color: "rgba(0,0,0,0.65)", backgroundColor: "#fafafa" }}
+                      />
+                    </Form.Item>
+                  </Col>
+                ) : null}
                 <Col xs={24} sm={12}>
                   <Form.Item label="Tenurity" name="tenurity">
                     <Input placeholder="Tenurity" disabled={!canEditQaAudit} />

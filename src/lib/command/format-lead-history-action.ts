@@ -35,6 +35,7 @@ export function formatLeadHistoryAction(row: HistoryRowMin): string {
     if (st) return `Status → ${st.replace(/_/g, " ")}`;
   }
 
+  if (ct === "qa_audit") return "QA audit updated";
   if (ct === "dq_override" || ct === "disqualification_override") return "DQ Override";
   if (ct.includes("consent")) return "Consent updated";
   if (ct.includes("risk")) return "Risk updated";

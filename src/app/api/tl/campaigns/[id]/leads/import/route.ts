@@ -7,8 +7,12 @@ import {
 } from "@/lib/lead-import-sanitize";
 import {
   applyQaAuditorToImportPayload,
+  buildQaUpdatesFromImportRow,
   isQaRoleForAuditImport,
+  shouldStampQaAuditor,
+  type ExistingLeadQaSnapshot,
 } from "@/lib/qa-audit-attribution";
+import { appendQaAuditLeadHistory } from "@/lib/qa-audit-history";
 import { stripQaAuditFieldsFromImport } from "@/lib/lead-import-sanitize";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
@@ -130,6 +134,33 @@ export async function POST(
     let created = 0;
     let updated = 0;
 
+    const importRowIds: string[] = [];
+    for (let i = 0; i < rawLeads.length; i++) {
+      const row = rawLeads[i] as Record<string, unknown>;
+      const rowIdRaw = row["id"] as string | number | undefined;
+      const id = rowIdRaw != null ? String(rowIdRaw).trim() : "";
+      if (id) importRowIds.push(id);
+    }
+
+    const existingQaByLeadId = new Map<string, ExistingLeadQaSnapshot>();
+    if (importRowIds.length > 0) {
+      const { data: existingRows, error: existingErr } = await dataClient
+        .from("leads")
+        .select(
+          "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id, qa_audited_at, qa_name"
+        )
+        .eq("campaign_id", campaignId)
+        .eq("organization_id", orgId)
+        .in("id", importRowIds);
+      if (existingErr) {
+        return NextResponse.json({ error: existingErr.message }, { status: 500 });
+      }
+      for (const row of existingRows ?? []) {
+        const r = row as ExistingLeadQaSnapshot & { id: string };
+        existingQaByLeadId.set(r.id, r);
+      }
+    }
+
     for (let i = 0; i < rawLeads.length; i++) {
       const row = rawLeads[i] as Record<string, unknown>;
       const rowIdRaw = row["id"] as string | number | undefined;
@@ -247,20 +278,13 @@ export async function POST(
         call_notes: fields.call_notes || null,
         primary_reason: fields.primary_reason || null,
         secondary_reason: fields.secondary_reason || null,
-        qa_comments: fields.qa_comments || null,
         cq1: fields.cq1 || null,
         cq2: fields.cq2 || null,
         cq3: fields.cq3 || null,
         cq4: fields.cq4 || null,
         cq5: fields.cq5 || null,
-        audit_date: fields.audit_date || null,
-        qa_name: fields.qa_name || null,
         asset_title: fields.asset_title || null,
         status: leadStatus,
-        qa_status: fields.qa_status && typeof fields.qa_status === "string" ? fields.qa_status.trim().toLowerCase() : null,
-        disqualification_reasons: fields.disqualification_reasons && typeof fields.disqualification_reasons === "string" ? fields.disqualification_reasons.trim() : null,
-        disqualification_reason: fields.disqualification_reason && typeof fields.disqualification_reason === "string" ? fields.disqualification_reason.trim() : null,
-        rectified_reason: fields.rectified_reason && typeof fields.rectified_reason === "string" ? fields.rectified_reason.trim() : null,
         lead_disposition: fields.lead_disposition || null,
         followup_date: fields.followup_date || null,
         notes: fields.notes || null,
@@ -268,8 +292,35 @@ export async function POST(
         ...(resolvedDeliveredAt !== undefined ? { delivered_at: resolvedDeliveredAt } : {}),
       } as Record<string, unknown>;
 
+      Object.assign(upsertPayload, buildQaUpdatesFromImportRow(fields));
+      if (!isQaImporter && "qa_name" in fields) {
+        upsertPayload.qa_name = fields.qa_name || null;
+      }
+
+      let qaStamped = false;
       if (isQaImporter && qaAuditorLabel) {
-        applyQaAuditorToImportPayload(upsertPayload, fields, user.id, qaAuditorLabel);
+        let existingQa = rowId ? existingQaByLeadId.get(rowId) : undefined;
+        if (rowId && !existingQa) {
+          const { data: oneLead } = await dataClient
+            .from("leads")
+            .select(
+              "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id, qa_audited_at, qa_name"
+            )
+            .eq("id", rowId)
+            .eq("campaign_id", campaignId)
+            .eq("organization_id", orgId)
+            .maybeSingle();
+          existingQa = (oneLead ?? {}) as ExistingLeadQaSnapshot;
+          existingQaByLeadId.set(rowId, existingQa);
+        }
+        const existingSnapshot = existingQa ?? {};
+        qaStamped = applyQaAuditorToImportPayload(
+          upsertPayload,
+          existingSnapshot,
+          fields,
+          user.id,
+          qaAuditorLabel
+        );
       }
 
       // If CSV has existing id, update that lead; otherwise create new one
@@ -295,6 +346,24 @@ export async function POST(
           errors.push(`Row ${i + 1}: ${updateError.message}`);
         } else {
           updated++;
+          const qaImportUpdates = buildQaUpdatesFromImportRow(fields);
+          const existingForHistory = existingQaByLeadId.get(rowId) ?? {};
+          if (
+            isQaImporter &&
+            qaAuditorLabel &&
+            shouldStampQaAuditor(existingForHistory, qaImportUpdates)
+          ) {
+            await appendQaAuditLeadHistory(
+              dataClient,
+              rowId,
+              user.id,
+              existingForHistory,
+              upsertPayload,
+              qaStamped,
+              user.id,
+              qaAuditorLabel
+            );
+          }
         }
       } else {
         if (!derivedName && !fields.company_name && !fields.email && !fields.phone) {
