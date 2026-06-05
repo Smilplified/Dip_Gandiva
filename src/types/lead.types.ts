@@ -22,6 +22,8 @@ export type Lead = {
   assigned_agent_name: string | null;
   created_by_name: string | null;
   channel?: "Email" | "Telemarketing" | null;
+  /** Per-lead type set by agent (e.g. MQL, HQL). */
+  lead_type?: string | null;
   // Contact Person
   salutation: string | null;
   first_name: string | null;

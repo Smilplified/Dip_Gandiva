@@ -156,6 +156,9 @@ type LeadFormProps = {
   canEditQaAudit?: boolean;
   /** When set, show campaign-defined question labels (agents answer only). */
   campaignQuestions?: CampaignQuestion[] | null;
+  /** Agent per-lead type (options from campaign.lead_type). */
+  showLeadTypeField?: boolean;
+  leadTypeOptions?: { value: string; label: string }[];
 };
 
 export function LeadForm({
@@ -164,6 +167,8 @@ export function LeadForm({
   lead,
   canEditQaAudit = false,
   campaignQuestions = null,
+  showLeadTypeField = false,
+  leadTypeOptions = [],
 }: LeadFormProps) {
   const showOpenLink = mode === "edit";
   const useCampaignCq =
@@ -1206,6 +1211,27 @@ export function LeadForm({
                     </Row>
                   </Form.Item>
                 </Col>
+                {showLeadTypeField && isAgentEntry && (
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      label="Lead Type"
+                      name="lead_type"
+                      rules={[{ required: true, message: "Please select Lead Type" }]}
+                    >
+                      {leadTypeOptions.length > 0 ? (
+                        <Select
+                          placeholder="Select lead type"
+                          options={leadTypeOptions}
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                        />
+                      ) : (
+                        <Input placeholder="Enter lead type" />
+                      )}
+                    </Form.Item>
+                  </Col>
+                )}
                 <Col xs={24} sm={12}>
                   <Form.Item label="Lead Tagging" name="lead_tagging" rules={[{ required: true, message: "Please select Lead Tagging" }]}>
                     <Select placeholder="Select tag" options={LEAD_TAGGING_OPTIONS} allowClear />

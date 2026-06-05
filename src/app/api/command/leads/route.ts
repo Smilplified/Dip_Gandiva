@@ -15,6 +15,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { leadsToCsv } from "@/lib/leadsExport";
+import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 import type { Lead } from "@/types/lead.types";
 import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 
@@ -452,15 +453,21 @@ export async function GET(request: NextRequest) {
     const withUsers = await attachAssignedUsers(supabase, rows);
     const withHist = await enrichWithHistory(supabase, withUsers);
 
-    const campaignNameById = new Map<string, string>();
+    const campaignMetaById = new Map<string, { name: string; lead_type: string }>();
     if (campaignId) {
       const { data: camp } = await supabase
         .from("campaigns")
-        .select("name")
+        .select("name, lead_type")
         .eq("id", campaignId)
         .maybeSingle();
-      const name = (camp as { name?: string } | null)?.name?.trim();
-      if (name) campaignNameById.set(campaignId, name);
+      const row = camp as { name?: string; lead_type?: string | null } | null;
+      const name = row?.name?.trim();
+      if (name) {
+        campaignMetaById.set(campaignId, {
+          name,
+          lead_type: row?.lead_type?.trim() ?? "",
+        });
+      }
     } else {
       const ids = [
         ...new Set(
@@ -472,22 +479,38 @@ export async function GET(request: NextRequest) {
       if (ids.length > 0) {
         const { data: camps } = await supabase
           .from("campaigns")
-          .select("id, name")
+          .select("id, name, lead_type")
           .in("id", ids);
-        ((camps ?? []) as { id: string; name: string }[]).forEach((c) => {
-          if (c.name?.trim()) campaignNameById.set(c.id, c.name.trim());
+        ((camps ?? []) as { id: string; name: string; lead_type: string | null }[]).forEach((c) => {
+          if (c.name?.trim()) {
+            campaignMetaById.set(c.id, {
+              name: c.name.trim(),
+              lead_type: c.lead_type?.trim() ?? "",
+            });
+          }
         });
       }
     }
 
-    const withCampaignNames = withHist.map((row) => ({
-      ...row,
-      campaign_name: row.campaign_id
-        ? campaignNameById.get(row.campaign_id as string) ?? ""
-        : "",
-    }));
+    const withCampaignNames = withHist.map((row) => {
+      const cid = row.campaign_id as string | null | undefined;
+      const meta = cid ? campaignMetaById.get(cid) : undefined;
+      return {
+        ...row,
+        campaign_name: meta?.name ?? "",
+        lead_type: resolveLeadTypeForExport(
+          row.lead_type as string | null | undefined,
+          meta?.lead_type
+        ),
+      };
+    });
 
-    return leadsToCsv(withCampaignNames as unknown as Lead[]);
+    const singleCampaignMeta = campaignId ? campaignMetaById.get(campaignId) : undefined;
+    return leadsToCsv(
+      withCampaignNames as unknown as Lead[],
+      singleCampaignMeta?.name,
+      singleCampaignMeta?.lead_type
+    );
   };
 
   if (formatCsv) {

@@ -63,6 +63,7 @@ export function leadToFormValues(lead: Record<string, unknown>): Record<string, 
     scored_timezone: scoredTz,
     appointment: utcIsoToWallClockDayjs(lead.appointment as string | null | undefined, appointmentTz),
     appointment_timezone: appointmentTz,
+    lead_type: lead.lead_type ?? undefined,
     lead_tagging: lead.lead_tagging ?? undefined,
     ra_comment: lead.ra_comment ?? undefined,
     special_comments: lead.special_comments ?? undefined,
@@ -165,6 +166,8 @@ export function buildLeadPayload(values: Record<string, unknown>) {
         ? (typeof values.appointment_timezone === "string" && values.appointment_timezone) ||
           DEFAULT_TIMEZONE
         : null,
+    lead_type:
+      typeof values.lead_type === "string" ? values.lead_type.trim() || null : null,
     lead_tagging: values.lead_tagging ?? null,
     ra_comment: values.ra_comment ?? null,
     special_comments: values.special_comments ?? null,

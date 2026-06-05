@@ -10,7 +10,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "id", header: "id" },
   { key: "campaign_id", header: "campaign_id" },
   { key: "campaign_name", header: "campaign_name" },
-  { key: "campaign_lead_type", header: "Lead Type" },
+  { key: "lead_type", header: "Lead Type" },
   { key: "lead_id", header: "lead_id" },
   { key: "salutation", header: "salutation" },
   { key: "first_name", header: "first_name" },
@@ -117,7 +117,7 @@ function escapeCsvValue(val: string | number | null | undefined): string {
   return s;
 }
 
-/** Adds campaign_name and campaign lead_type for export (read-only on re-import). */
+/** Adds campaign_name and resolves lead_type for export (legacy rows fall back to campaign type). */
 export function enrichLeadsForExport(
   leads: Lead[],
   campaignName?: string | null,
@@ -128,11 +128,13 @@ export function enrichLeadsForExport(
   return leads.map((lead) => {
     const record = lead as Record<string, unknown>;
     const existingName = (record.campaign_name as string | null | undefined)?.trim();
-    const existingLeadType = (record.campaign_lead_type as string | null | undefined)?.trim();
+    const existingLeadType =
+      (record.lead_type as string | null | undefined)?.trim() ||
+      (record.campaign_lead_type as string | null | undefined)?.trim();
     return {
       ...lead,
       campaign_name: existingName || nameFallback,
-      campaign_lead_type: existingLeadType || leadTypeFallback,
+      lead_type: existingLeadType || leadTypeFallback,
     } as Lead;
   });
 }

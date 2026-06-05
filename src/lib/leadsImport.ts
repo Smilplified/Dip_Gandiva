@@ -59,6 +59,9 @@ const HEADER_MAP: Record<string, string> = {
   department: "department",
   "job function": "job_function",
   "job level": "job_level",
+  "lead type": "lead_type",
+  "lead_type": "lead_type",
+  "campaign_lead_type": "lead_type",
 };
 
 function parseCsvLine(line: string): string[] {

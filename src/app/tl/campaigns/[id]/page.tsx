@@ -432,7 +432,8 @@ export default function CampaignDetailPage() {
     downloadExcel(
       leads,
       `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      campaign?.name
+      campaign?.name,
+      campaign?.lead_type
     );
     message.success(`Exported ${leads.length} leads`);
   };

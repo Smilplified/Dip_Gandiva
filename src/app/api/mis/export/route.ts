@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
     let leadsQuery = supabase
       .from("leads")
       .select(
-        "id, lead_id, name, company_name, email, phone, status, qa_status, assigned_agent_id, campaign_id, created_at"
+        "id, lead_id, name, company_name, email, phone, status, qa_status, assigned_agent_id, campaign_id, lead_type, created_at"
       )
       .eq("organization_id", orgId);
 
@@ -109,6 +110,7 @@ export async function GET(request: Request) {
       qa_status: string | null;
       assigned_agent_id: string | null;
       campaign_id: string;
+      lead_type: string | null;
       created_at: string;
     }[];
 
@@ -121,6 +123,7 @@ export async function GET(request: Request) {
 
     let agentNames: Record<string, string> = {};
     let campaignNames: Record<string, string> = {};
+    let campaignLeadTypes: Record<string, string> = {};
 
     if (agentIds.length > 0) {
       const { data: usersData } = await supabase
@@ -135,10 +138,11 @@ export async function GET(request: Request) {
     if (campaignIds.length > 0) {
       const { data: campaignsData } = await supabase
         .from("campaigns")
-        .select("id, name")
+        .select("id, name, lead_type")
         .in("id", campaignIds);
-      (campaignsData ?? []).forEach((c: any) => {
+      (campaignsData ?? []).forEach((c: { id: string; name: string | null; lead_type: string | null }) => {
         campaignNames[c.id] = c.name || c.id;
+        campaignLeadTypes[c.id] = c.lead_type?.trim() ?? "";
       });
     }
 
@@ -208,6 +212,10 @@ export async function GET(request: Request) {
           : "Unassigned",
         campaign_id: l.campaign_id,
         campaign_name: campaignNames[l.campaign_id] ?? l.campaign_id,
+        "Lead Type": resolveLeadTypeForExport(
+          l.lead_type,
+          campaignLeadTypes[l.campaign_id]
+        ),
         created_at: l.created_at,
       }));
     }

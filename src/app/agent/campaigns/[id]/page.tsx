@@ -48,6 +48,7 @@ import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import { parseCampaignLeadTypeOptions } from "@/lib/campaign-lead-type";
 import { normalizeCampaignQuestions } from "@/lib/campaign-questions";
 import type { CampaignQuestion } from "@/lib/campaign-questions";
 
@@ -243,10 +244,18 @@ export default function AgentCampaignDetailPage() {
     setLeadsPage(1);
   }, [leadSearch, dateRange, leadTaggingFilter]);
 
+  const leadTypeOptions = useMemo(
+    () => parseCampaignLeadTypeOptions(campaign?.lead_type),
+    [campaign?.lead_type]
+  );
+
   const openLeadDrawer = () => {
     setDrawerMode("create");
     setEditingLead(null);
     form.resetFields();
+    if (leadTypeOptions.length === 1) {
+      form.setFieldsValue({ lead_type: leadTypeOptions[0].value });
+    }
     setLeadDrawerOpen(true);
   };
 
@@ -971,6 +980,8 @@ export default function AgentCampaignDetailPage() {
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
           campaignQuestions={campaignQuestions}
+          showLeadTypeField
+          leadTypeOptions={leadTypeOptions}
           introText={
             drawerMode === "create"
               ? "Add a new lead to this campaign. After saving, the form will reset so you can add another. Close when finished."

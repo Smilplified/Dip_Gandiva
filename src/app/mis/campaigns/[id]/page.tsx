@@ -285,7 +285,8 @@ export default function MISCampaignDetailPage() {
     downloadExcel(
       sortedFilteredLeads,
       `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
-      campaign?.name
+      campaign?.name,
+      campaign?.lead_type
     );
     message.success(`Exported ${sortedFilteredLeads.length} leads`);
   };
