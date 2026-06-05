@@ -222,7 +222,7 @@ export default function QACampaignsPage() {
 
   const handleExport = () => {
     const exportLeads = filteredCampaigns.flatMap((c) =>
-      enrichLeadsForExport((c.leads ?? []) as Lead[], c.name)
+      enrichLeadsForExport((c.leads ?? []) as Lead[], c.name, c.lead_type)
     );
     if (exportLeads.length === 0) {
       message.warning("No leads to export for the selected date range");

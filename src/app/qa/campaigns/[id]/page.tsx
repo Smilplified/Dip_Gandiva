@@ -278,7 +278,8 @@ export default function QACampaignDetailPage() {
     downloadExcel(
       filteredLeads,
       `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
-      campaign?.name
+      campaign?.name,
+      campaign?.lead_type
     );
     message.success(`Exported ${filteredLeads.length} leads`);
   };

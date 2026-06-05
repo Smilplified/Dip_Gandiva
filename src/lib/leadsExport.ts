@@ -10,6 +10,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "id", header: "id" },
   { key: "campaign_id", header: "campaign_id" },
   { key: "campaign_name", header: "campaign_name" },
+  { key: "campaign_lead_type", header: "Lead Type" },
   { key: "lead_id", header: "lead_id" },
   { key: "salutation", header: "salutation" },
   { key: "first_name", header: "first_name" },
@@ -116,24 +117,32 @@ function escapeCsvValue(val: string | number | null | undefined): string {
   return s;
 }
 
-/** Adds campaign_name for export (read-only on re-import). */
+/** Adds campaign_name and campaign lead_type for export (read-only on re-import). */
 export function enrichLeadsForExport(
   leads: Lead[],
-  campaignName?: string | null
+  campaignName?: string | null,
+  campaignLeadType?: string | null
 ): Lead[] {
-  const fallback = campaignName?.trim() ?? "";
+  const nameFallback = campaignName?.trim() ?? "";
+  const leadTypeFallback = campaignLeadType?.trim() ?? "";
   return leads.map((lead) => {
     const record = lead as Record<string, unknown>;
-    const existing = (record.campaign_name as string | null | undefined)?.trim();
+    const existingName = (record.campaign_name as string | null | undefined)?.trim();
+    const existingLeadType = (record.campaign_lead_type as string | null | undefined)?.trim();
     return {
       ...lead,
-      campaign_name: existing || fallback,
+      campaign_name: existingName || nameFallback,
+      campaign_lead_type: existingLeadType || leadTypeFallback,
     } as Lead;
   });
 }
 
-export function leadsToCsv(leads: Lead[], campaignName?: string | null): string {
-  const prepared = enrichLeadsForExport(leads, campaignName);
+export function leadsToCsv(
+  leads: Lead[],
+  campaignName?: string | null,
+  campaignLeadType?: string | null
+): string {
+  const prepared = enrichLeadsForExport(leads, campaignName, campaignLeadType);
   const headers = CSV_COLUMNS.map((c) => c.header).join(",");
   const rows = prepared.map((lead) => {
     const record = lead as Record<string, unknown>;
@@ -147,9 +156,10 @@ export function leadsToCsv(leads: Lead[], campaignName?: string | null): string 
 export function downloadCsv(
   leads: Lead[],
   filename?: string,
-  campaignName?: string | null
+  campaignName?: string | null,
+  campaignLeadType?: string | null
 ): void {
-  const csv = leadsToCsv(leads, campaignName);
+  const csv = leadsToCsv(leads, campaignName, campaignLeadType);
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -164,8 +174,12 @@ export function downloadCsv(
  * Build array of arrays for Excel: first row = headers, then one row per lead.
  * Same columns as CSV so re-upload matches by id and updates correctly.
  */
-function leadsToSheetData(leads: Lead[], campaignName?: string | null): unknown[][] {
-  const prepared = enrichLeadsForExport(leads, campaignName);
+function leadsToSheetData(
+  leads: Lead[],
+  campaignName?: string | null,
+  campaignLeadType?: string | null
+): unknown[][] {
+  const prepared = enrichLeadsForExport(leads, campaignName, campaignLeadType);
   const headers = CSV_COLUMNS.map((c) => c.header);
   const rows = prepared.map((lead) => {
     const record = lead as Record<string, unknown>;
@@ -181,9 +195,10 @@ function leadsToSheetData(leads: Lead[], campaignName?: string | null): unknown[
 export function downloadExcel(
   leads: Lead[],
   filename?: string,
-  campaignName?: string | null
+  campaignName?: string | null,
+  campaignLeadType?: string | null
 ): void {
-  const data = leadsToSheetData(leads, campaignName);
+  const data = leadsToSheetData(leads, campaignName, campaignLeadType);
   const ws = XLSX.utils.aoa_to_sheet(data);
   const colWidths = CSV_COLUMNS.map((_, i) => {
     const maxLen = Math.max(
@@ -209,8 +224,12 @@ export function downloadExcel(
   URL.revokeObjectURL(url);
 }
 
-function leadsToAgentExportRows(leads: Lead[], campaignName?: string | null): string[][] {
-  const prepared = enrichLeadsForExport(leads, campaignName);
+function leadsToAgentExportRows(
+  leads: Lead[],
+  campaignName?: string | null,
+  campaignLeadType?: string | null
+): string[][] {
+  const prepared = enrichLeadsForExport(leads, campaignName, campaignLeadType);
   return prepared.map((lead) => {
     const record = lead as Record<string, unknown>;
     return AGENT_EXPORT_COLUMNS.map((c) => {
