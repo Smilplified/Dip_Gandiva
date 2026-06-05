@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
-import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
+import { fetchScoredLeadsForCampaigns } from "@/lib/qa-campaigns-data";
+import {
+  countAuditedLeads,
+  countDisqualifiedLeads,
+  countPendingAuditLeads,
+  countQualifiedLeads,
+} from "@/lib/qa-lead-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -99,69 +105,34 @@ export async function GET() {
     const campaignIds = campaignsList.map((c) => c.id);
 
     if (campaignIds.length === 0) {
-      return NextResponse.json({ campaigns: campaignsWithTlName.map((c) => ({ ...c, leads: [] })) });
+      return NextResponse.json({
+        campaigns: campaignsWithTlName.map((c) => ({ ...c, leads: [] })),
+        summary: {
+          total_leads: 0,
+          total_audited: 0,
+          pending_audit: 0,
+          total_qualified: 0,
+          total_disqualified: 0,
+        },
+      });
     }
 
-    /** Latest agent lead create/update per campaign — drives QA campaigns table order. */
-    const lastLeadActivityMs: Record<string, number> = {};
-    const { data: leadActivityRows, error: leadActivityError } = await supabase
-      .from("leads")
-      .select("campaign_id, created_at, updated_at")
-      .in("campaign_id", campaignIds);
-
-    if (leadActivityError) {
-      console.error("QA dashboard lead activity:", leadActivityError.message);
-    } else {
-      for (const row of (leadActivityRows ?? []) as {
-        campaign_id: string;
-        created_at: string;
-        updated_at: string;
-      }[]) {
-        const createdMs = new Date(row.created_at).getTime();
-        const updatedMs = new Date(row.updated_at).getTime();
-        const activityMs = Math.max(
-          Number.isFinite(createdMs) ? createdMs : 0,
-          Number.isFinite(updatedMs) ? updatedMs : 0
-        );
-        if (!activityMs) continue;
-        const prev = lastLeadActivityMs[row.campaign_id] ?? 0;
-        if (activityMs > prev) lastLeadActivityMs[row.campaign_id] = activityMs;
-      }
-    }
-
-    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition";
-    const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title";
-    let { data: leadsData, error: leadsError } = await applyScoredLeadTaggingFilter(
-      supabase
-        .from("leads")
-        .select(leadsSelectExtended + ", disqualification_reasons, disqualification_reason, rectified_reason")
-        .in("campaign_id", campaignIds)
-    ).order("created_at", { ascending: false });
-
-    if (leadsError && (leadsError.message?.includes("column") || leadsError.message?.includes("disqualification"))) {
-      leadsError = null;
-      const fallback = await applyScoredLeadTaggingFilter(
-        supabase
-          .from("leads")
-          .select(leadsSelectBase + ", disqualification_reasons, disqualification_reason, rectified_reason")
-          .in("campaign_id", campaignIds)
-      ).order("created_at", { ascending: false });
-      leadsData = fallback.data;
-      leadsError = fallback.error;
-    }
-
-    if (leadsError) {
-      return NextResponse.json({ error: leadsError.message }, { status: 500 });
-    }
-
-    const rawList = (leadsData ?? []) as Record<string, unknown>[];
-    const leadsList = rawList.map((row) => ({
-      ...row,
-      disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
-      disqualification_reason: (row.disqualification_reason as string | null) ?? null,
-      rectified_reason: (row.rectified_reason as string | null) ?? null,
-    })) as LeadRow[];
+    const rawLeads = await fetchScoredLeadsForCampaigns(supabase, orgId, campaignIds);
+    const leadsList = rawLeads as LeadRow[];
     const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
+
+    const lastLeadActivityMs: Record<string, number> = {};
+    for (const row of leadsWithNames) {
+      const createdMs = new Date(row.created_at).getTime();
+      const updatedMs = new Date(row.updated_at).getTime();
+      const activityMs = Math.max(
+        Number.isFinite(createdMs) ? createdMs : 0,
+        Number.isFinite(updatedMs) ? updatedMs : 0
+      );
+      if (!activityMs) continue;
+      const prev = lastLeadActivityMs[row.campaign_id] ?? 0;
+      if (activityMs > prev) lastLeadActivityMs[row.campaign_id] = activityMs;
+    }
 
     const leadsByCampaign: Record<string, typeof leadsWithNames> = {};
     campaignsWithTlName.forEach((c) => {
@@ -189,7 +160,15 @@ export async function GET() {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
 
-    return NextResponse.json({ campaigns: campaignsWithLeads });
+    const summary = {
+      total_leads: leadsWithNames.length,
+      total_audited: countAuditedLeads(leadsWithNames),
+      pending_audit: countPendingAuditLeads(leadsWithNames),
+      total_qualified: countQualifiedLeads(leadsWithNames),
+      total_disqualified: countDisqualifiedLeads(leadsWithNames),
+    };
+
+    return NextResponse.json({ campaigns: campaignsWithLeads, summary });
   } catch (err) {
     console.error("QA dashboard error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

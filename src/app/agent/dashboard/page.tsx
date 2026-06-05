@@ -13,15 +13,16 @@ import {
   Button,
   Input,
   Select,
+  Skeleton,
 } from "antd";
 import {
   FundProjectionScreenOutlined,
   RiseOutlined,
   TeamOutlined,
   CheckCircleOutlined,
-  ArrowUpOutlined,
   EyeOutlined,
   SearchOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { useAgentDashboard, type AgentDashboardCampaignRow } from "@/hooks/useAgentDashboard";
@@ -32,7 +33,7 @@ import {
 import {
   AgentLeadTrendChart,
   AgentCampaignLeadsChart,
-  AgentCampaignPieChart,
+  AgentCompletionPredictions,
 } from "@/components/Dashboard/AgentDashboardCharts";
 
 const { Text } = Typography;
@@ -42,7 +43,6 @@ const cardStyle = {
   boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
   border: "1px solid #f0f0f0",
   transition: "all 0.3s ease",
-  cursor: "pointer" as const,
 };
 
 const statCardHover = (e: React.MouseEvent<HTMLDivElement>, enter: boolean) => {
@@ -58,8 +58,22 @@ const statusColors: Record<string, string> = {
   completed: "blue",
 };
 
+function ChartsRowSkeleton() {
+  return (
+    <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+      {[0, 1].map((i) => (
+        <Col xs={24} lg={12} key={i}>
+          <Card bordered={false} style={cardStyle}>
+            <Skeleton active paragraph={{ rows: 6 }} />
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+}
+
 export default function AgentDashboardPage() {
-  const { profile, hasRole, isInitialized } = useAuth();
+  const { hasRole, isInitialized } = useAuth();
   const [isOffline, setIsOffline] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -83,51 +97,52 @@ export default function AgentDashboardPage() {
   }, [refetch]);
 
   const summary = dashboard.data?.summary;
+  const leadTrend = dashboard.data?.leadTrend ?? [];
+  const campaignLeads = dashboard.data?.campaignLeads ?? [];
+  const completionPredictions = dashboard.data?.completionPredictions ?? [];
+
   const statsCards = useMemo(() => {
     const s = summary ?? {
       totalCampaigns: 0,
       activeCampaigns: 0,
       totalLeads: 0,
-      activeLeads: 0,
+      pendingLeads: 0,
       qualifiedLeads: 0,
+      disqualifiedLeads: 0,
       qualifiedRatePct: 0,
     };
     return [
       {
         title: "Assigned Campaigns",
-        value: String(s.totalCampaigns),
-        change: "Total",
-        trend: "neutral" as const,
+        value: s.totalCampaigns.toLocaleString(),
+        change: `${s.activeCampaigns} active`,
         icon: <FundProjectionScreenOutlined />,
-        color: "#1890ff",
+        color: "#1677ff",
         bgColor: "#e6f4ff",
       },
       {
-        title: "Active Campaigns",
-        value: String(s.activeCampaigns),
-        change: "Running",
-        trend: "up" as const,
-        icon: <RiseOutlined />,
-        color: "#52c41a",
-        bgColor: "#f6ffed",
-      },
-      {
-        title: "Leads",
-        value: String(s.totalLeads),
-        change: `${s.activeLeads} active`,
-        trend: "neutral" as const,
+        title: "My Leads",
+        value: s.totalLeads.toLocaleString(),
+        change: `${s.pendingLeads.toLocaleString()} pending QA`,
         icon: <TeamOutlined />,
         color: "#722ed1",
         bgColor: "#f9f0ff",
       },
       {
-        title: "Qualified rate",
-        value: `${s.qualifiedRatePct}%`,
-        change: `${s.qualifiedLeads} of ${s.totalLeads} leads`,
-        trend: "up" as const,
+        title: "Qualified",
+        value: s.qualifiedLeads.toLocaleString(),
+        change: `${s.qualifiedRatePct}% of your leads`,
         icon: <CheckCircleOutlined />,
         color: "#52c41a",
         bgColor: "#f6ffed",
+      },
+      {
+        title: "Disqualified",
+        value: s.disqualifiedLeads.toLocaleString(),
+        change: "Audited, not qualified",
+        icon: <RiseOutlined />,
+        color: "#ff4d4f",
+        bgColor: "#fff1f0",
       },
     ];
   }, [summary]);
@@ -136,31 +151,6 @@ export default function AgentDashboardPage() {
     () => campaigns.data?.campaigns ?? [],
     [campaigns.data?.campaigns]
   );
-  const chartSource = useMemo(
-    () =>
-      campaignList.length > 0 ? campaignList : dashboard.data?.recentCampaigns ?? [],
-    [campaignList, dashboard.data?.recentCampaigns]
-  );
-  const campaignChartData = useMemo(
-    () =>
-      chartSource.slice(0, 6).map((c) => ({
-        name: c.name.length > 12 ? c.name.slice(0, 12) + "…" : c.name,
-        leads: c.total_leads ?? 0,
-        qualified: c.qualified_leads ?? c.won_leads ?? 0,
-      })),
-    [chartSource]
-  );
-  const campaignPieData =
-    chartSource.length > 0
-      ? chartSource
-          .slice(0, 5)
-          .map((c, i) => ({
-            name: (c.name ?? "Unnamed").trim() || "Unnamed",
-            value: c.total_leads ?? 0,
-            color: ["#1890ff", "#52c41a", "#722ed1", "#faad14", "#13c2c2"][i % 5],
-          }))
-          .filter((d) => d.value > 0)
-      : [{ name: "No data", value: 1, color: "#d9d9d9" }];
 
   const filteredCampaigns = useMemo(() => {
     let result = campaignList;
@@ -182,11 +172,11 @@ export default function AgentDashboardPage() {
     return null;
   }
 
-  const statsReady = Boolean(summary);
+  const dashboardReady = dashboard.isSuccess;
   const campaignsReady = campaigns.isSuccess;
 
   return (
-    <div style={{ padding: "0 4px" }}>
+    <div style={{ padding: "0 4px", maxWidth: 1600, margin: "0 auto" }}>
       <DashboardGreeting />
 
       {isOffline && (
@@ -203,14 +193,16 @@ export default function AgentDashboardPage() {
 
       {dashboard.error && (
         <div style={{ marginBottom: 24 }}>
-          <Text type="danger">{dashboard.error instanceof Error ? dashboard.error.message : "Failed to load dashboard"}</Text>
+          <Text type="danger">
+            {dashboard.error instanceof Error ? dashboard.error.message : "Failed to load dashboard"}
+          </Text>
           <Button type="link" onClick={() => refetch()} style={{ marginLeft: 8 }}>
             Retry
           </Button>
         </div>
       )}
 
-      {!statsReady ? (
+      {!dashboardReady ? (
         <StatCardsRowSkeleton />
       ) : (
         <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
@@ -228,13 +220,18 @@ export default function AgentDashboardPage() {
                     <Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
                       {stat.title}
                     </Text>
-                    <div style={{ fontSize: 32, fontWeight: 700, color: "#1f1f1f", lineHeight: 1, marginBottom: 12 }}>
+                    <div
+                      style={{
+                        fontSize: 32,
+                        fontWeight: 700,
+                        color: "#1f1f1f",
+                        lineHeight: 1,
+                        marginBottom: 12,
+                      }}
+                    >
                       {stat.value}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {stat.trend === "up" && <ArrowUpOutlined style={{ color: "#52c41a", fontSize: 12 }} />}
-                      <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
-                    </div>
+                    <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
                   </div>
                   <div
                     style={{
@@ -258,17 +255,28 @@ export default function AgentDashboardPage() {
         </Row>
       )}
 
-      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
-        <Col xs={24} xl={8}>
-          <AgentLeadTrendChart />
-        </Col>
-        <Col xs={24} xl={8}>
-          <AgentCampaignLeadsChart data={campaignChartData} />
-        </Col>
-        <Col xs={24} xl={8}>
-          <AgentCampaignPieChart data={campaignPieData} />
-        </Col>
-      </Row>
+      {!dashboardReady ? (
+        <ChartsRowSkeleton />
+      ) : (
+        <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+          <Col xs={24} lg={12}>
+            <AgentLeadTrendChart data={leadTrend} />
+          </Col>
+          <Col xs={24} lg={12}>
+            <AgentCampaignLeadsChart data={campaignLeads} />
+          </Col>
+        </Row>
+      )}
+
+      {!dashboardReady ? (
+        <Card bordered={false} style={{ ...cardStyle, marginBottom: 24 }}>
+          <Skeleton active paragraph={{ rows: 4 }} />
+        </Card>
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          <AgentCompletionPredictions predictions={completionPredictions} />
+        </div>
+      )}
 
       {!campaignsReady ? (
         <TableSkeleton rows={5} />
@@ -276,7 +284,14 @@ export default function AgentDashboardPage() {
         <Row gutter={[20, 20]}>
           <Col xs={24}>
             <Card
-              title={<Text strong style={{ fontSize: 16 }}>My Assigned Campaigns</Text>}
+              title={
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <ClockCircleOutlined style={{ color: "#1677ff" }} />
+                  <Text strong style={{ fontSize: 16 }}>
+                    My Assigned Campaigns
+                  </Text>
+                </div>
+              }
               bordered={false}
               style={cardStyle}
               extra={
@@ -317,7 +332,8 @@ export default function AgentDashboardPage() {
                 size="middle"
                 scroll={{ x: 1030 }}
                 locale={{
-                  emptyText: "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
+                  emptyText:
+                    "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
                 }}
                 columns={[
                   {
@@ -374,8 +390,13 @@ export default function AgentDashboardPage() {
                     width: 110,
                     render: (v: string | null) => (v ? new Date(v).toLocaleDateString() : "—"),
                   },
-                  { title: "Leads", dataIndex: "total_leads", key: "total_leads", width: 100 },
-                  { title: "Active", dataIndex: "active_leads", key: "active_leads", width: 90 },
+                  { title: "My Leads", dataIndex: "total_leads", key: "total_leads", width: 100 },
+                  {
+                    title: "Qualified",
+                    dataIndex: "qualified_leads",
+                    key: "qualified_leads",
+                    width: 96,
+                  },
                   {
                     title: "",
                     key: "action",

@@ -1,21 +1,25 @@
 "use client";
 
-import { Card, Typography, Empty } from "antd";
+import { Card, Empty, Typography } from "antd";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
   Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
+import type {
+  QaActivityDay,
+  QaCampaignStatusBar,
+  QaPendingCampaignBar,
+  QaPipelineSlice,
+} from "@/lib/qa-dashboard-metrics";
 
 const { Text } = Typography;
 
@@ -23,175 +27,164 @@ const cardStyle = {
   borderRadius: 16,
   boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
   border: "1px solid #f0f0f0",
-  transition: "all 0.3s ease",
-  cursor: "pointer" as const,
+  height: "100%",
 };
 
-const reviewTrendSample = [
-  { day: "Mon", reviewed: 24, pending: 12 },
-  { day: "Tue", reviewed: 32, pending: 8 },
-  { day: "Wed", reviewed: 28, pending: 14 },
-  { day: "Thu", reviewed: 41, pending: 6 },
-  { day: "Fri", reviewed: 35, pending: 10 },
-  { day: "Sat", reviewed: 18, pending: 16 },
-  { day: "Sun", reviewed: 22, pending: 12 },
-];
+const tooltipStyle = {
+  borderRadius: 10,
+  border: "1px solid #f0f0f0",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+};
 
-type PieSlice = { name: string; value: number; color: string };
-type BarRow = { campaign: string; reviewed: number; pending: number };
-
-export function QAStatusPieChart({ data }: { data: PieSlice[] }) {
-  const pieData = data.length > 0 ? data : [{ name: "No data", value: 1, color: "#d9d9d9" }];
+function ChartCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <Card
-      title={<Text strong style={{ fontSize: 16 }}>QA Status Distribution</Text>}
       bordered={false}
-      style={{ ...cardStyle, height: "100%" }}
-      styles={{ body: { padding: "24px 24px 16px", overflow: "visible" } }}
+      style={cardStyle}
+      styles={{ body: { padding: "20px 22px 16px" } }}
     >
-      <div className="qa-status-pie-wrapper" style={{ overflow: "visible", minHeight: 320 }}>
-        <ResponsiveContainer width="100%" height={320}>
-          <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+      <Text strong style={{ fontSize: 16, display: "block" }}>
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 4 }}>
+          {subtitle}
+        </Text>
+      ) : null}
+      <div style={{ marginTop: 16 }}>{children}</div>
+    </Card>
+  );
+}
+
+function ChartEmpty({ description }: { description: string }) {
+  return (
+    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={description} style={{ margin: "48px 0" }} />
+  );
+}
+
+/** Donut: Pending vs Qualified vs Disqualified */
+export function QAPipelineChart({ data }: { data: QaPipelineSlice[] }) {
+  const slices = data.length > 0 ? data : [{ name: "No leads", value: 1, color: "#d9d9d9" }];
+  const total = data.reduce((s, d) => s + d.value, 0);
+
+  return (
+    <ChartCard title="QA Pipeline" subtitle="Pending, qualified, and disqualified leads">
+      {total === 0 ? (
+        <ChartEmpty description="No scored leads yet" />
+      ) : (
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
             <Pie
-              data={pieData}
+              data={slices}
+              dataKey="value"
+              nameKey="name"
               cx="50%"
               cy="50%"
-              innerRadius={60}
-              outerRadius={90}
+              innerRadius={68}
+              outerRadius={98}
               paddingAngle={2}
-              dataKey="value"
-              label={({ name, percent, cx, cy }) => {
-                const pct = (percent * 100).toFixed(0);
-                const isSingleSlice = percent >= 0.99;
-                if (isSingleSlice) {
-                  return (
-                    <text
-                      x={cx}
-                      y={cy}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      style={{ fontSize: 14, fontWeight: 500 }}
-                    >
-                      {name} {pct}%
-                    </text>
-                  );
-                }
-                return `${name} ${pct}%`;
-              }}
-              labelLine={{ stroke: "#d9d9d9", strokeWidth: 1 }}
+              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
             >
-              {pieData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
+              {slices.map((entry, i) => (
+                <Cell key={entry.name} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip
-              contentStyle={{
-                borderRadius: 8,
-                border: "1px solid #f0f0f0",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-              }}
-            />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v.toLocaleString(), "Leads"]} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
           </PieChart>
         </ResponsiveContainer>
-      </div>
-    </Card>
+      )}
+    </ChartCard>
   );
 }
 
-export function QAReviewTrendChart() {
+/** Bar: campaigns by status */
+export function QACampaignStatusChart({ data }: { data: QaCampaignStatusBar[] }) {
   return (
-    <Card
-      title={<Text strong style={{ fontSize: 16 }}>Review Trend</Text>}
-      bordered={false}
-      style={{ ...cardStyle, height: "100%" }}
-      styles={{ body: { padding: "24px 24px 16px" } }}
-    >
-      <ResponsiveContainer width="100%" height={320}>
-        <AreaChart data={reviewTrendSample} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
-          <defs>
-            <linearGradient id="colorQAReviewed" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#52c41a" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#52c41a" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="colorQAPending" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#faad14" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#faad14" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="day" stroke="#8c8c8c" fontSize={11} />
-          <YAxis stroke="#8c8c8c" fontSize={11} />
-          <Tooltip
-            contentStyle={{
-              borderRadius: 8,
-              border: "1px solid #f0f0f0",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-            }}
-          />
-          <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-          <Area
-            type="monotone"
-            dataKey="reviewed"
-            stroke="#52c41a"
-            strokeWidth={2}
-            fillOpacity={1}
-            fill="url(#colorQAReviewed)"
-            name="Reviewed"
-          />
-          <Area
-            type="monotone"
-            dataKey="pending"
-            stroke="#faad14"
-            strokeWidth={2}
-            fillOpacity={1}
-            fill="url(#colorQAPending)"
-            name="Pending"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </Card>
-  );
-}
-
-export function QACampaignReviewChart({ data }: { data: BarRow[] }) {
-  return (
-    <Card
-      title={<Text strong style={{ fontSize: 16 }}>Campaign Review Status</Text>}
-      bordered={false}
-      style={{ ...cardStyle, height: "100%" }}
-      styles={{ body: { padding: "24px 24px 16px" } }}
-    >
+    <ChartCard title="Campaigns by Status" subtitle="How many campaigns are in each state">
       {data.length === 0 ? (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="No campaign data yet"
-          style={{ margin: "48px 0" }}
-        />
+        <ChartEmpty description="No campaigns" />
       ) : (
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={data} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-            <XAxis
-              dataKey="campaign"
-              stroke="#8c8c8c"
-              fontSize={11}
-              tick={{ fontSize: 10 }}
-              tickFormatter={(v) => (v && v.length > 18 ? `${v.slice(0, 18)}…` : v)}
-            />
-            <YAxis stroke="#8c8c8c" fontSize={11} />
-            <Tooltip
-              contentStyle={{
-                borderRadius: 8,
-                border: "1px solid #f0f0f0",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-              }}
-            />
-            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="reviewed" fill="#52c41a" radius={[8, 8, 0, 0]} name="Reviewed" />
-            <Bar dataKey="pending" fill="#faad14" radius={[8, 8, 0, 0]} name="Pending" />
+            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v, "Campaigns"]} />
+            <Bar dataKey="count" name="Campaigns" radius={[8, 8, 0, 0]}>
+              {data.map((row) => (
+                <Cell key={row.status} fill={row.color} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       )}
-    </Card>
+    </ChartCard>
+  );
+}
+
+/** Horizontal bar: top campaigns with pending QA */
+export function QATopPendingCampaignsChart({ data }: { data: QaPendingCampaignBar[] }) {
+  return (
+    <ChartCard title="Top Pending QA" subtitle="Campaigns with the most unaudited leads">
+      {data.length === 0 ? (
+        <ChartEmpty description="No pending QA — all caught up" />
+      ) : (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={108}
+              tick={{ fontSize: 11 }}
+              tickFormatter={(v) => (v.length > 14 ? `${v.slice(0, 13)}…` : v)}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              formatter={(v: number, _n, item) => {
+                const row = item?.payload as QaPendingCampaignBar | undefined;
+                return [`${v} pending (${row?.total ?? 0} total)`, "Pending"];
+              }}
+            />
+            <Bar dataKey="pending" name="Pending" fill="#faad14" radius={[0, 6, 6, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
+  );
+}
+
+/** Grouped bar: uploads vs audits — last 14 days */
+export function QAUploadAuditTrendChart({ data }: { data: QaActivityDay[] }) {
+  const hasData = data.some((d) => d.uploaded > 0 || d.audited > 0);
+
+  return (
+    <ChartCard title="Uploads vs Audits" subtitle="Last 14 days — uploads by created date, audits by audit date">
+      {!hasData ? (
+        <ChartEmpty description="No activity in the last 14 days" />
+      ) : (
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="uploaded" name="Uploaded" fill="#1677ff" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="audited" name="Audited" fill="#52c41a" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </ChartCard>
   );
 }

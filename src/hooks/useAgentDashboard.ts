@@ -1,15 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type {
+  AgentCampaignLeadBar,
+  AgentCompletionPrediction,
+  AgentLeadTrendDay,
+} from "@/lib/agent-dashboard-metrics";
 
 export type AgentDashboardSummary = {
   totalCampaigns: number;
   activeCampaigns: number;
   totalLeads: number;
   activeLeads: number;
-  /** Leads with QA status qualified (incl. legacy approved/pass). */
+  pendingLeads: number;
   qualifiedLeads: number;
-  /** qualifiedLeads / totalLeads × 100 */
+  disqualifiedLeads: number;
   qualifiedRatePct: number;
 };
 
@@ -34,6 +39,9 @@ export type AgentDashboardCampaignRow = {
 
 export type AgentDashboardResponse = {
   summary: AgentDashboardSummary;
+  leadTrend: AgentLeadTrendDay[];
+  campaignLeads: AgentCampaignLeadBar[];
+  completionPredictions: AgentCompletionPrediction[];
   recentCampaigns: AgentDashboardCampaignRow[];
 };
 

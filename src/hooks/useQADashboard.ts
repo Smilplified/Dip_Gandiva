@@ -7,7 +7,10 @@ export type QaStats = {
   totalCampaigns: number;
   activeCampaigns: number;
   totalLeads: number;
-  totalInterested: number;
+  totalAudited: number;
+  totalQualified: number;
+  totalDisqualified: number;
+  pendingAudit: number;
   conversionPct: number;
 };
 
@@ -16,48 +19,56 @@ export type CampaignWithLeads = {
   name?: string;
   campaign_code?: string | null;
   status?: string | null;
-  leads: { qa_status: string | null; status?: string | null; created_at?: string }[];
+  leads: {
+    qa_status: string | null;
+    status?: string | null;
+    created_at?: string;
+    qa_audited_at?: string | null;
+    audit_date?: string | null;
+  }[];
 };
 
-async function fetchQADashboard(): Promise<{ campaigns: CampaignWithLeads[] }> {
+type QaDashboardSummary = {
+  total_leads: number;
+  total_audited: number;
+  pending_audit: number;
+  total_qualified: number;
+  total_disqualified: number;
+};
+
+async function fetchQADashboard(): Promise<{
+  campaigns: CampaignWithLeads[];
+  summary?: QaDashboardSummary;
+}> {
   const res = await fetch("/api/qa/dashboard", { credentials: "include" });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to load dashboard");
   return data;
 }
 
-function buildStats(campaigns: CampaignWithLeads[]): QaStats {
+function buildStats(
+  campaigns: CampaignWithLeads[],
+  summary?: QaDashboardSummary
+): QaStats {
   const totalCampaigns = campaigns.length;
   const activeCampaigns = campaigns.filter((campaign) => campaign.status === "active").length;
-  const totalLeads = campaigns.reduce(
-    (sum, campaign) => sum + (campaign.leads?.length ?? 0),
-    0
-  );
-  const totalInterested = campaigns.reduce(
-    (sum, campaign) =>
-      sum +
-      (campaign.leads?.filter((lead) => {
-        const status = String(lead.status ?? "").trim().toLowerCase();
-        return ["interested", "followup", "closed_won"].includes(status);
-      }).length ?? 0),
-    0
-  );
-  const reviewedLeads = campaigns.reduce(
-    (sum, campaign) =>
-      sum +
-      (campaign.leads?.filter((lead) => {
-        const qaStatus = String(lead.qa_status ?? "").trim().toLowerCase();
-        return qaStatus.length > 0;
-      }).length ?? 0),
-    0
-  );
+  const totalLeads =
+    summary?.total_leads ??
+    campaigns.reduce((sum, campaign) => sum + (campaign.leads?.length ?? 0), 0);
+  const totalAudited = summary?.total_audited ?? 0;
+  const totalQualified = summary?.total_qualified ?? 0;
+  const totalDisqualified = summary?.total_disqualified ?? 0;
+  const pendingAudit = summary?.pending_audit ?? 0;
 
   return {
     totalCampaigns,
     activeCampaigns,
     totalLeads,
-    totalInterested,
-    conversionPct: totalLeads > 0 ? Math.round((reviewedLeads / totalLeads) * 100) : 0,
+    totalAudited,
+    totalQualified,
+    totalDisqualified,
+    pendingAudit,
+    conversionPct: totalLeads > 0 ? Math.round((totalAudited / totalLeads) * 100) : 0,
   };
 }
 
@@ -70,8 +81,8 @@ export function useQADashboard(enabled: boolean) {
   });
 
   const statsData = useMemo(
-    () => buildStats(dashboardQuery.data?.campaigns ?? []),
-    [dashboardQuery.data?.campaigns]
+    () => buildStats(dashboardQuery.data?.campaigns ?? [], dashboardQuery.data?.summary),
+    [dashboardQuery.data?.campaigns, dashboardQuery.data?.summary]
   );
 
   return {

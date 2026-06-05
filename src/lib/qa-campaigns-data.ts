@@ -63,48 +63,53 @@ export type QaCampaignsListResult = {
   summary: QaCampaignsSummary;
 };
 
-async function fetchLeadsInUploadRange(
+export type QaLeadUploadRange = { startUtc: string; endUtc: string };
+
+/** Paginated fetch — Supabase returns at most 1000 rows per request. */
+export async function fetchScoredLeadsForCampaigns(
   supabase: SupabaseClient,
   orgId: string,
   campaignIds: string[],
-  startUtc: string,
-  endUtc: string
+  uploadRange?: QaLeadUploadRange
 ): Promise<Record<string, unknown>[]> {
   if (campaignIds.length === 0) return [];
 
   const all: Record<string, unknown>[] = [];
   let offset = 0;
+  let useExtendedSelect = true;
 
   for (;;) {
+    const select = useExtendedSelect
+      ? leadsSelectExtended + ", disqualification_reasons, disqualification_reason, rectified_reason"
+      : leadsSelectBase + ", disqualification_reasons, disqualification_reason, rectified_reason";
+
     let query = applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
-        .select(leadsSelectExtended + ", disqualification_reasons, disqualification_reason, rectified_reason")
+        .select(select)
         .eq("organization_id", orgId)
         .in("campaign_id", campaignIds)
-        .gte("created_at", startUtc)
-        .lte("created_at", endUtc)
-    )
+    );
+
+    if (uploadRange) {
+      query = query
+        .gte("created_at", uploadRange.startUtc)
+        .lte("created_at", uploadRange.endUtc);
+    }
+
+    const { data, error } = await query
       .order("created_at", { ascending: false })
       .range(offset, offset + LEADS_PAGE_SIZE - 1);
 
-    let { data, error } = await query;
-
-    if (error && (error.message?.includes("column") || error.message?.includes("disqualification"))) {
-      query = applyScoredLeadTaggingFilter(
-        supabase
-          .from("leads")
-          .select(leadsSelectBase + ", disqualification_reasons, disqualification_reason, rectified_reason")
-          .eq("organization_id", orgId)
-          .in("campaign_id", campaignIds)
-          .gte("created_at", startUtc)
-          .lte("created_at", endUtc)
-      )
-        .order("created_at", { ascending: false })
-        .range(offset, offset + LEADS_PAGE_SIZE - 1);
-      const fallback = await query;
-      data = fallback.data;
-      error = fallback.error;
+    if (
+      error &&
+      useExtendedSelect &&
+      (error.message?.includes("column") || error.message?.includes("disqualification"))
+    ) {
+      useExtendedSelect = false;
+      offset = 0;
+      all.length = 0;
+      continue;
     }
 
     if (error) throw new Error(error.message);
@@ -173,7 +178,10 @@ export async function loadQaCampaignsForDateRange(
   }
 
   const campaignIds = campaignsList.map((c) => c.id);
-  const rawLeads = await fetchLeadsInUploadRange(supabase, orgId, campaignIds, startUtc, endUtc);
+  const rawLeads = await fetchScoredLeadsForCampaigns(supabase, orgId, campaignIds, {
+    startUtc,
+    endUtc,
+  });
   const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, rawLeads, orgId);
 
   const leadsByCampaign: Record<string, typeof leadsWithNames> = {};

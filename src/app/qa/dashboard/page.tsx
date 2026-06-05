@@ -13,27 +13,28 @@ import {
   Button,
   Empty,
   message,
+  Skeleton,
 } from "antd";
 import {
   FundProjectionScreenOutlined,
-  RiseOutlined,
   TeamOutlined,
   AuditOutlined,
-  ArrowUpOutlined,
+  CheckCircleOutlined,
   RightOutlined,
 } from "@ant-design/icons";
-import { useAuth } from "@/context/AuthContext";
 import { useQADashboard } from "@/hooks/useQADashboard";
 import {
   StatCardsRowSkeleton,
   TableSkeleton,
 } from "@/components/Dashboard/DashboardSkeletons";
 import {
-  QAStatusPieChart,
-  QAReviewTrendChart,
-  QACampaignReviewChart,
+  QAPipelineChart,
+  QACampaignStatusChart,
+  QATopPendingCampaignsChart,
+  QAUploadAuditTrendChart,
 } from "@/components/Dashboard/QADashboardCharts";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { computeQaDashboardMetrics } from "@/lib/qa-dashboard-metrics";
 import dayjs from "dayjs";
 
 const { Text } = Typography;
@@ -57,7 +58,6 @@ const cardStyle = {
   boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
   border: "1px solid #f0f0f0",
   transition: "all 0.3s ease",
-  cursor: "pointer" as const,
 };
 
 const statCardHover = (e: React.MouseEvent<HTMLDivElement>, enter: boolean) => {
@@ -66,13 +66,26 @@ const statCardHover = (e: React.MouseEvent<HTMLDivElement>, enter: boolean) => {
   el.style.transform = enter ? "translateY(-2px)" : "translateY(0)";
 };
 
+function ChartsRowSkeleton() {
+  return (
+    <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Col xs={24} lg={12} key={i}>
+          <Card bordered={false} style={cardStyle}>
+            <Skeleton active paragraph={{ rows: 6 }} />
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+}
+
 export default function QADashboardPage() {
-  const { profile } = useAuth();
   const { status } = useRoleGuard(["qa", "admin"]);
   const [isOffline, setIsOffline] = useState(false);
 
   const enabled = status === "authorized";
-  const { dashboard, stats, refetch } = useQADashboard(enabled);
+  const { dashboard, refetch } = useQADashboard(enabled);
 
   useEffect(() => {
     if (dashboard.error) {
@@ -96,16 +109,10 @@ export default function QADashboardPage() {
   }, [refetch]);
 
   const campaigns = useMemo(() => dashboard.data?.campaigns ?? [], [dashboard.data?.campaigns]);
-  const statsData = stats.data;
 
-  const pendingQaCount = useMemo(
-    () =>
-      campaigns.reduce(
-        (sum, c) =>
-          sum + (c.leads?.filter((l) => !l.qa_status || String(l.qa_status).trim() === "").length ?? 0),
-        0
-      ),
-    [campaigns]
+  const metrics = useMemo(
+    () => computeQaDashboardMetrics(campaigns, dashboard.data?.summary),
+    [campaigns, dashboard.data?.summary]
   );
 
   const campaignsWithPending = useMemo((): CampaignPendingRow[] => {
@@ -132,100 +139,48 @@ export default function QADashboardPage() {
       });
   }, [campaigns]);
 
-  const statsCards = useMemo(() => {
-    const s = statsData ?? {
-      totalCampaigns: 0,
-      activeCampaigns: 0,
-      totalLeads: 0,
-      conversionPct: 0,
-    };
-    return [
+  const statsCards = useMemo(
+    () => [
       {
         title: "Total Campaigns",
-        value: String(s.totalCampaigns),
-        change: "All campaigns",
-        trend: "neutral" as const,
+        value: metrics.totalCampaigns.toLocaleString(),
+        change: `${metrics.activeCampaigns} active`,
         icon: <FundProjectionScreenOutlined />,
-        color: "#1890ff",
+        color: "#1677ff",
         bgColor: "#e6f4ff",
       },
       {
-        title: "Active Campaigns",
-        value: String(s.activeCampaigns),
-        change: "Running",
-        trend: "up" as const,
-        icon: <RiseOutlined />,
-        color: "#52c41a",
-        bgColor: "#f6ffed",
-      },
-      {
         title: "Total Leads",
-        value: String(s.totalLeads),
-        change: "Across campaigns",
-        trend: "neutral" as const,
+        value: metrics.totalLeads.toLocaleString(),
+        change: `${metrics.totalAudited.toLocaleString()} audited (${metrics.auditRatePct}%)`,
         icon: <TeamOutlined />,
         color: "#722ed1",
         bgColor: "#f9f0ff",
       },
       {
-        title: "Pending QA Review",
-        value: String(pendingQaCount),
-        change: `${s.conversionPct ?? 0}% conversion`,
-        trend: pendingQaCount > 0 ? ("up" as const) : ("neutral" as const),
+        title: "Qualified",
+        value: metrics.totalQualified.toLocaleString(),
+        change: `${metrics.qualifiedRatePct}% of audited leads`,
+        icon: <CheckCircleOutlined />,
+        color: "#52c41a",
+        bgColor: "#f6ffed",
+      },
+      {
+        title: "Pending QA",
+        value: metrics.pendingAudit.toLocaleString(),
+        change: `${metrics.totalDisqualified.toLocaleString()} disqualified`,
         icon: <AuditOutlined />,
         color: "#eb2f96",
         bgColor: "#fff0f6",
       },
-    ];
-  }, [statsData, pendingQaCount]);
-
-  const qaStatusFromCampaigns = useMemo(() => {
-    let approved = 0;
-    let rejected = 0;
-    let pending = 0;
-    campaigns.forEach((c) => {
-      c.leads?.forEach((l) => {
-        const s = String(l.qa_status ?? "").trim().toLowerCase();
-        if (!s) pending++;
-        else if (s === "approved" || s === "pass") approved++;
-        else rejected++;
-      });
-    });
-    const out: { name: string; value: number; color: string }[] = [];
-    if (approved > 0) out.push({ name: "Approved", value: approved, color: "#52c41a" });
-    if (rejected > 0) out.push({ name: "Rejected", value: rejected, color: "#ff4d4f" });
-    if (pending > 0) out.push({ name: "Pending", value: pending, color: "#faad14" });
-    return out.length > 0 ? out : [{ name: "No data", value: 1, color: "#d9d9d9" }];
-  }, [campaigns]);
-
-  const campaignReviewData = useMemo(
-    () =>
-      campaigns
-        .map((c) => {
-          const leads = c.leads ?? [];
-          const reviewed = leads.filter((l) => {
-            const s = String(l.qa_status ?? "").trim().toLowerCase();
-            return s && s !== "";
-          }).length;
-          const pending = leads.filter((l) => {
-            const s = String(l.qa_status ?? "").trim();
-            return !s;
-          }).length;
-          return {
-            campaign: (c as { name?: string }).name ?? `Campaign ${c.id.slice(0, 8)}`,
-            reviewed,
-            pending,
-          };
-        })
-        .filter((r) => r.reviewed > 0 || r.pending > 0),
-    [campaigns]
+    ],
+    [metrics]
   );
 
   if (status !== "authorized") {
     return null;
   }
 
-  const statsReady = Boolean(statsData);
   const dashboardReady = dashboard.isSuccess;
 
   return (
@@ -241,7 +196,7 @@ export default function QADashboardPage() {
         </div>
       )}
 
-      {!statsReady ? (
+      {!dashboardReady ? (
         <StatCardsRowSkeleton />
       ) : (
         <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
@@ -262,10 +217,7 @@ export default function QADashboardPage() {
                     <div style={{ fontSize: 32, fontWeight: 700, color: "#1f1f1f", lineHeight: 1, marginBottom: 12 }}>
                       {stat.value}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {stat.trend === "up" && <ArrowUpOutlined style={{ color: "#52c41a", fontSize: 12 }} />}
-                      <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
-                    </div>
+                    <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
                   </div>
                   <div
                     style={{
@@ -289,17 +241,24 @@ export default function QADashboardPage() {
         </Row>
       )}
 
-      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
-        <Col xs={24} xl={8}>
-          <QAStatusPieChart data={qaStatusFromCampaigns} />
-        </Col>
-        <Col xs={24} xl={8}>
-          <QAReviewTrendChart />
-        </Col>
-        <Col xs={24} xl={8}>
-          <QACampaignReviewChart data={campaignReviewData} />
-        </Col>
-      </Row>
+      {!dashboardReady ? (
+        <ChartsRowSkeleton />
+      ) : (
+        <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+          <Col xs={24} lg={12}>
+            <QAPipelineChart data={metrics.pipelineSlices} />
+          </Col>
+          <Col xs={24} lg={12}>
+            <QACampaignStatusChart data={metrics.campaignStatusBars} />
+          </Col>
+          <Col xs={24} lg={12}>
+            <QATopPendingCampaignsChart data={metrics.topPendingCampaigns} />
+          </Col>
+          <Col xs={24} lg={12}>
+            <QAUploadAuditTrendChart data={metrics.activityTrend} />
+          </Col>
+        </Row>
+      )}
 
       {!dashboardReady ? (
         <TableSkeleton rows={5} />
@@ -360,33 +319,19 @@ export default function QADashboardPage() {
                       key: "pending",
                       width: 100,
                       sorter: (a: CampaignPendingRow, b: CampaignPendingRow) => a.pending - b.pending,
-                      render: (v: number) => (
-                        <Tag color="orange">
-                          {v} leads
-                        </Tag>
-                      ),
+                      render: (v: number) => <Tag color="orange">{v} leads</Tag>,
                     },
                     {
-                      title: (
-                        <span style={{ whiteSpace: "nowrap" }}>Today&apos;s Leads</span>
-                      ),
+                      title: <span style={{ whiteSpace: "nowrap" }}>Today&apos;s Leads</span>,
                       dataIndex: "todayLeads",
                       key: "todayLeads",
                       width: 132,
                       className: "table-col-todays-leads",
                       defaultSortOrder: "descend",
-                      onHeaderCell: () => ({
-                        style: { whiteSpace: "nowrap", minWidth: 132 },
-                      }),
-                      onCell: () => ({ style: { whiteSpace: "nowrap" } }),
                       sorter: (a: CampaignPendingRow, b: CampaignPendingRow) =>
                         a.todayLeads - b.todayLeads,
                       render: (v: number) =>
-                        v > 0 ? (
-                          <Tag color="green">{v}</Tag>
-                        ) : (
-                          <Text type="secondary">0</Text>
-                        ),
+                        v > 0 ? <Tag color="green">{v}</Tag> : <Text type="secondary">0</Text>,
                     },
                     {
                       title: "Total Leads",
