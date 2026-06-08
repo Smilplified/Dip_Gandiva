@@ -234,7 +234,7 @@ function Logo({ logoSrc }: { logoSrc?: string | null }) {
 // ── Main Document ─────────────────────────────────────────────────────────────
 
 function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null }) {
-  const prospectName = [data.salutation, data.firstName, data.lastName]
+  const prospectName = [data.firstName, data.lastName]
     .filter(Boolean)
     .join(" ")
     .trim();
@@ -307,11 +307,8 @@ function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null
           {/* ── Prospect Details ── */}
           <View wrap={false} style={styles.section}>
             <Text style={styles.sectionHeading}>Prospect Details</Text>
-            <FieldRow label="Salutation" value={data.salutation} />
-            <FieldRow label="First Name" value={data.firstName} />
-            <FieldRow label="Last Name" value={data.lastName} />
+            <FieldRow label="Full Name" value={prospectName} />
           </View>
-          <FieldRow label="Full Name" value={prospectName} />
           <FieldRow label="Email Address" value={data.email} />
           <FieldRow label="Phone Number" value={data.phone} />
           <FieldRow label="Direct Number" value={data.directNumber} />
@@ -323,37 +320,15 @@ function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null
 
           <View style={styles.divider} />
 
-          {/* ── Custom Questions & Lead Status ── */}
+          {/* ── Custom Questions ── */}
           <View wrap={false} style={styles.section}>
-            <Text style={styles.sectionHeading}>Custom Questions &amp; Lead Status</Text>
-            <FieldRow label="Lead Status" value={data.leadStatus} />
+            <Text style={styles.sectionHeading}>Custom Questions</Text>
             <FieldRow label="Call Notes" value={data.callNotes} />
           </View>
           {cqFields.map((f) => (
             <FieldRow key={f.label} label={f.label} value={f.value} />
           ))}
-          <FieldRow label="Lead Tagging" value={data.leadTagging} />
-          <FieldRow label="RA Comment" value={data.raComment} />
           <FieldRow label="Special Comments" value={data.specialComments} />
-
-          <View style={styles.divider} />
-
-          {/* ── QA Audit & Status ── */}
-          <View wrap={false} style={styles.section}>
-            <Text style={styles.sectionHeading}>QA Audit &amp; Status</Text>
-            <FieldRow label="Asset Title" value={data.assetTitle} />
-            <FieldRow label="Status" value={data.status || data.qaStatus} />
-            <FieldRow label="QA Status" value={data.qaStatus} />
-          </View>
-          <FieldRow label="Audit Date" value={data.auditDate} />
-          <FieldRow label="QA Name" value={data.qaName} />
-          <FieldRow label="Tenurity" value={data.tenurity} />
-          <FieldRow label="VV Status" value={data.vvStatus} />
-          <FieldRow label="Email Status" value={data.emailStatus} />
-          <FieldRow label="EV Tool" value={data.evTool} />
-          <FieldRow label="Primary Reason" value={data.primaryReason} />
-          <FieldRow label="Secondary Reason" value={data.secondaryReason} />
-          <FieldRow label="QA Comments" value={data.qaComments} />
 
           <View style={styles.divider} />
 

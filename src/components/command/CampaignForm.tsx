@@ -277,14 +277,21 @@ export default function CampaignForm({
           </Form.Item>
         </Col>
         <Col xs={24} md={12}>
-          <Form.Item name="campaign_type" label="Campaign Type">
+          <Form.Item
+            name="campaign_type"
+            label="Campaign Type"
+            rules={[{ required: true, message: "Campaign type is required" }]}
+          >
             <Select
               placeholder="Select campaign type"
-              allowClear
               options={[
                 { value: "Email CS", label: "Email CS" },
                 { value: "Email CS DT", label: "Email CS DT" },
-                { value: "Webinar", label: "Webinar" },
+                { value: "Webinar/Live Events", label: "Webinar/Live Events" },
+                { value: "HQL", label: "HQL" },
+                { value: "BANT", label: "BANT" },
+                { value: "BANT-CCL", label: "BANT-CCL" },
+                { value: "AG", label: "AG" },
               ]}
             />
           </Form.Item>
