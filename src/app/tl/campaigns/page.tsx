@@ -243,23 +243,27 @@ export default function TLCampaignsPage() {
           </Tooltip>
         ),
       },
-      {
-        title: "Industry",
-        dataIndex: "industry",
-        key: "industry",
-        width: 120,
-        ellipsis: { showTitle: false },
-        className: "table-col-campaign-name",
-        render: (v: string | null) => tableEllipsisCell(v),
-      },
-      {
-        title: "Geography",
-        dataIndex: "geography",
-        key: "geography",
-        width: 110,
-        ellipsis: true,
-        render: (v: string | null) => tableEllipsisCell(v),
-      },
+      ...(isOperationsManager
+        ? []
+        : [
+            {
+              title: "Industry",
+              dataIndex: "industry",
+              key: "industry",
+              width: 120,
+              ellipsis: { showTitle: false },
+              className: "table-col-campaign-name",
+              render: (v: string | null) => tableEllipsisCell(v),
+            },
+            {
+              title: "Geography",
+              dataIndex: "geography",
+              key: "geography",
+              width: 110,
+              ellipsis: true,
+              render: (v: string | null) => tableEllipsisCell(v),
+            },
+          ]),
       {
         title: "Status",
         dataIndex: "status",
