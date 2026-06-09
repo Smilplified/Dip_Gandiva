@@ -7,6 +7,7 @@ import {
   fetchCampaignTeamLeaderAssignments,
   formatTeamLeaderAssignmentLabel,
 } from "@/lib/campaign/team-leader-assignments";
+import { fetchTlDashboardLeads, tallyTlDashboardLeadCounts } from "@/lib/tl/dashboard-leads";
 
 export const dynamic = "force-dynamic";
 
@@ -79,13 +80,8 @@ export async function GET() {
         );
       })
     );
-    const [leadsRes, assignmentsRes] = await Promise.all([
-      campaignIds.length > 0
-        ? supabase
-            .from("leads")
-            .select("campaign_id, qa_status, delivery_status")
-            .in("campaign_id", campaignIds)
-        : { data: [] as { campaign_id: string; qa_status: string | null; delivery_status: string | null }[] },
+    const [leads, assignmentsRes] = await Promise.all([
+      fetchTlDashboardLeads(supabase, orgId, campaignIds),
       campaignIds.length > 0
         ? supabase
             .from("campaign_assignments")
@@ -95,22 +91,7 @@ export async function GET() {
         : { data: [] as { campaign_id: string }[] },
     ]);
 
-    const leadsByCampaign: Record<string, { total: number; qualified: number; delivered: number }> = {};
-    (leadsRes.data ?? []).forEach((l) => {
-      if (!leadsByCampaign[l.campaign_id]) {
-        leadsByCampaign[l.campaign_id] = { total: 0, qualified: 0, delivered: 0 };
-      }
-      const bucket = leadsByCampaign[l.campaign_id];
-      bucket.total += 1;
-
-      const qa = String(l.qa_status ?? "").trim().toLowerCase();
-      if (qa === "qualified" || qa === "approved" || qa === "pass") {
-        bucket.qualified += 1;
-      }
-      if (String(l.delivery_status ?? "").trim().toLowerCase() === "delivered") {
-        bucket.delivered += 1;
-      }
-    });
+    const leadsByCampaign = tallyTlDashboardLeadCounts(leads);
 
     const agentsByCampaign: Record<string, number> = {};
     (assignmentsRes.data ?? []).forEach((a) => {

@@ -48,6 +48,7 @@ export interface CommandCampaignRow {
   end_date: string | null;
   client_name: string | null;
   lead_type: string | null;
+  campaign_type?: string | null;
   cpl: number | null;
   total_allocation: number | null;
   achieved: number | null;
@@ -127,6 +128,7 @@ function fixedBodyCellProps(minWidth: number) {
 
 /** Min scroll width for Client Viewer columns (enables horizontal scroll + fixed columns). */
 const CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH = 180;
+const CAMPAIGN_TYPE_COL_WIDTH = 160;
 const REMAINING_ALLOCATION_COL_WIDTH = 140;
 const CAMPAIGN_HEALTH_COL_WIDTH = 160;
 
@@ -134,6 +136,7 @@ const CLIENT_VIEWER_SCROLL_X =
   72 +
   CLIENT_VIEWER_CAMPAIGN_NAME_WIDTH +
   180 +
+  CAMPAIGN_TYPE_COL_WIDTH +
   124 +
   136 +
   136 +
@@ -194,6 +197,17 @@ export default function CampaignTable({ campaigns, loading, clientViewer }: Camp
       onHeaderCell: headerCellProps(180),
       onCell: () => ({ style: { minWidth: 180, whiteSpace: "nowrap" } }),
       render: (name: string | null | undefined) => name || "—",
+    },
+    {
+      title: "Campaign Type",
+      dataIndex: "campaign_type",
+      key: "campaign_type",
+      width: CAMPAIGN_TYPE_COL_WIDTH,
+      ellipsis: true,
+      sorter: (a, b) => (a.campaign_type ?? "").localeCompare(b.campaign_type ?? ""),
+      onHeaderCell: headerCellProps(CAMPAIGN_TYPE_COL_WIDTH),
+      onCell: () => ({ style: { minWidth: CAMPAIGN_TYPE_COL_WIDTH, whiteSpace: "nowrap" } }),
+      render: (v: string | null | undefined) => v?.trim() || "—",
     },
     {
       title: "Status",
@@ -370,6 +384,17 @@ export default function CampaignTable({ campaigns, loading, clientViewer }: Camp
       onHeaderCell: headerCellProps(180),
       onCell: () => ({ style: { minWidth: 180, whiteSpace: "nowrap" } }),
       render: (name: string | null | undefined) => name || "—",
+    },
+    {
+      title: "Campaign Type",
+      dataIndex: "campaign_type",
+      key: "campaign_type",
+      width: CAMPAIGN_TYPE_COL_WIDTH,
+      ellipsis: true,
+      sorter: (a, b) => (a.campaign_type ?? "").localeCompare(b.campaign_type ?? ""),
+      onHeaderCell: headerCellProps(CAMPAIGN_TYPE_COL_WIDTH),
+      onCell: () => ({ style: { minWidth: CAMPAIGN_TYPE_COL_WIDTH, whiteSpace: "nowrap" } }),
+      render: (v: string | null | undefined) => v?.trim() || "—",
     },
     {
       title: "Status",

@@ -13,6 +13,7 @@ import {
   Col,
   DatePicker,
   Input,
+  Select,
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -22,7 +23,7 @@ import {
 } from "@/lib/leads-table-pagination";
 import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
-import { downloadCsv } from "@/lib/leadsExport";
+import { downloadExcel } from "@/lib/leadsExport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import type { Lead } from "@/types/lead.types";
 
@@ -32,11 +33,26 @@ type TLLeadRow = Lead & {
   assigned_agent_name?: string | null;
 };
 
+const UNASSIGNED_AGENT_ID = "__unassigned__";
+
+function leadMatchesDateRange(
+  createdAt: string | null | undefined,
+  dateRange: [Dayjs | null, Dayjs | null] | null
+): boolean {
+  if (!dateRange?.[0] || !dateRange?.[1]) return true;
+  const leadDate = dayjs(createdAt).startOf("day");
+  if (!leadDate.isValid()) return false;
+  const start = dateRange[0].startOf("day");
+  const end = dateRange[1].endOf("day");
+  return !leadDate.isBefore(start) && !leadDate.isAfter(end);
+}
+
 export default function TeamLeaderLeadsPage() {
   const { hasTLAccess, isInitialized } = useAuth();
   const [leads, setLeads] = useState<TLLeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [leadSearch, setLeadSearch] = useState("");
   const [leadsPage, setLeadsPage] = useState(1);
   const [leadsPageSize, setLeadsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
@@ -91,8 +107,47 @@ export default function TeamLeaderLeadsPage() {
     };
   }, [fetchLeads]);
 
+  const agentOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    let hasUnassigned = false;
+
+    for (const lead of leads) {
+      const agentId = lead.assigned_agent_id;
+      if (!agentId) {
+        hasUnassigned = true;
+        continue;
+      }
+      const name = (lead.assigned_agent_name ?? "").trim();
+      byId.set(agentId, name && name !== "—" ? name : agentId);
+    }
+
+    const options = [...byId.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    if (hasUnassigned) {
+      options.unshift({ value: UNASSIGNED_AGENT_ID, label: "Unassigned" });
+    }
+
+    return options;
+  }, [leads]);
+
+  const hasActiveFilters = Boolean(
+    leadSearch.trim() ||
+      selectedAgentIds.length > 0 ||
+      (dateRange?.[0] && dateRange?.[1])
+  );
+
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
+      if (selectedAgentIds.length > 0) {
+        const agentId = lead.assigned_agent_id;
+        const matchesAgent = selectedAgentIds.some((id) =>
+          id === UNASSIGNED_AGENT_ID ? !agentId : agentId === id
+        );
+        if (!matchesAgent) return false;
+      }
+
       const q = leadSearch.trim().toLowerCase();
       const matchesSearch = !q
         ? true
@@ -106,20 +161,19 @@ export default function TeamLeaderLeadsPage() {
           ([lead.first_name, lead.last_name].filter(Boolean).join(" ") ?? "").toLowerCase().includes(q);
 
       if (!matchesSearch) return false;
-      if (!dateRange?.[0] || !dateRange?.[1]) return true;
-
-      const leadTs = dayjs(lead.created_at).valueOf();
-      if (Number.isNaN(leadTs)) return false;
-
-      const startTs = dateRange[0].startOf("day").valueOf();
-      const endTs = dateRange[1].endOf("day").valueOf();
-      return leadTs >= startTs && leadTs <= endTs;
+      return leadMatchesDateRange(lead.created_at, dateRange);
     });
-  }, [leads, leadSearch, dateRange]);
+  }, [leads, leadSearch, dateRange, selectedAgentIds]);
 
   useEffect(() => {
     setLeadsPage(1);
-  }, [leadSearch, dateRange]);
+  }, [leadSearch, dateRange, selectedAgentIds]);
+
+  const clearFilters = () => {
+    setLeadSearch("");
+    setDateRange(null);
+    setSelectedAgentIds([]);
+  };
 
   const baseColumns = getLeadTableColumns({
     showActions: false,
@@ -218,13 +272,20 @@ export default function TeamLeaderLeadsPage() {
             <Button
               icon={<DownloadOutlined />}
               onClick={() => {
-                const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
-                if (toExport.length === 0) {
-                  message.warning("No leads to export");
+                if (filteredLeads.length === 0) {
+                  message.warning(
+                    hasActiveFilters
+                      ? "No leads match the current filters to export"
+                      : "No leads to export"
+                  );
                   return;
                 }
-                downloadCsv(toExport, `tl-leads-${new Date().toISOString().slice(0, 10)}.csv`);
-                message.success(`Exported ${toExport.length} leads`);
+                const stamp = new Date().toISOString().slice(0, 10);
+                downloadExcel(
+                  filteredLeads,
+                  `tl-leads-${stamp}${hasActiveFilters ? `-filtered-${filteredLeads.length}` : ""}.xlsx`
+                );
+                message.success(`Exported ${filteredLeads.length} leads`);
               }}
               disabled={leads.length === 0}
             >
@@ -240,43 +301,68 @@ export default function TeamLeaderLeadsPage() {
             align="middle"
             style={{ marginBottom: 16, marginInline: 0 }}
           >
-            <Col>
-              <Typography.Text type="secondary" style={{ marginRight: 8 }}>
-                Date range (created):
+            <Col xs={24} sm={12} md={8} lg={6}>
+              <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
+                Agents
               </Typography.Text>
+              <Select
+                mode="multiple"
+                placeholder="All agents"
+                allowClear
+                maxTagCount="responsive"
+                showSearch
+                optionFilterProp="label"
+                options={agentOptions}
+                value={selectedAgentIds}
+                onChange={setSelectedAgentIds}
+                style={{ width: "100%" }}
+                disabled={agentOptions.length === 0}
+              />
             </Col>
-            <Col>
+            <Col xs={24} sm={12} md={8} lg={6}>
+              <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
+                Date range (created)
+              </Typography.Text>
               <DatePicker.RangePicker
                 value={dateRange}
                 onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
                 allowClear
-                style={{ width: 260 }}
+                style={{ width: "100%" }}
               />
             </Col>
-            <Col>
-              <Button
-                size="middle"
-                onClick={() => setDateRange(null)}
-                disabled={!dateRange?.[0] && !dateRange?.[1]}
-              >
-                Clear dates
-              </Button>
-            </Col>
-            <Col flex="auto" style={{ minWidth: 200 }}>
+            <Col xs={24} sm={24} md={8} lg={8}>
+              <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
+                Search
+              </Typography.Text>
               <Input.Search
-                placeholder="Search (agent, campaign, Lead ID, name, company, email, phone)..."
+                placeholder="Lead ID, name, company, email, phone, campaign..."
                 allowClear
                 value={leadSearch}
                 onChange={(e) => setLeadSearch(e.target.value)}
-                style={{ width: "100%", maxWidth: 420 }}
+                style={{ width: "100%" }}
               />
+            </Col>
+            <Col xs={24} sm={24} md={24} lg={4}>
+              <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
+                &nbsp;
+              </Typography.Text>
+              <Button
+                size="middle"
+                onClick={clearFilters}
+                disabled={!hasActiveFilters}
+                block
+              >
+                Clear filters
+              </Button>
             </Col>
           </Row>
 
           <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
-            {filteredLeads.length !== leads.length
-              ? `Showing ${filteredLeads.length} of ${leads.length} leads from your campaigns.`
-              : "Click a campaign name to open that campaign."}
+            {hasActiveFilters
+              ? `Showing ${filteredLeads.length} of ${leads.length} leads matching your filters.`
+              : filteredLeads.length !== leads.length
+                ? `Showing ${filteredLeads.length} of ${leads.length} leads from your campaigns.`
+                : "Click a campaign name to open that campaign."}
           </Typography.Text>
 
           <Table
@@ -298,10 +384,9 @@ export default function TeamLeaderLeadsPage() {
               },
             }}
             locale={{
-              emptyText:
-                leadSearch || dateRange?.[0] || dateRange?.[1]
-                  ? "No leads match the current filters."
-                  : "No leads found for your assigned campaigns.",
+              emptyText: hasActiveFilters
+                ? "No leads match the current filters."
+                : "No leads found for your assigned campaigns.",
             }}
             size="middle"
           />

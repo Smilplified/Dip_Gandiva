@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { fetchCampaignIdsForTeamLeader } from "@/lib/campaign/team-leader-assignments";
+import { fetchTlDashboardLeads } from "@/lib/tl/dashboard-leads";
 
 export const dynamic = "force-dynamic";
 
@@ -45,29 +46,15 @@ export async function GET() {
       }
     }
 
-    const [campaignsRes, leadsRes] = await Promise.all([
-      campaignsQuery,
-      supabase
-        .from("leads")
-        .select("id, status, qa_status, delivery_status, campaign_id, created_at")
-        .eq("organization_id", orgId),
-    ]);
+    const { data: campaignsData, error: campaignsError } = await campaignsQuery;
+    if (campaignsError) {
+      return NextResponse.json({ error: campaignsError.message }, { status: 500 });
+    }
 
     type CampaignRow = { id: string; status: string };
-    type LeadRow = {
-      id: string;
-      status: string;
-      qa_status: string | null;
-      delivery_status: string | null;
-      campaign_id: string | null;
-      created_at: string;
-    };
-
-    const campaigns = (campaignsRes.data ?? []) as CampaignRow[];
-    const assignedCampaignIds = new Set(campaigns.map((c) => c.id));
-    const leads = ((leadsRes.data ?? []) as LeadRow[]).filter((l) =>
-      l.campaign_id ? assignedCampaignIds.has(l.campaign_id) : false
-    );
+    const campaigns = (campaignsData ?? []) as CampaignRow[];
+    const campaignIds = campaigns.map((c) => c.id);
+    const leads = await fetchTlDashboardLeads(supabase, orgId, campaignIds);
 
     const totalCampaigns = campaigns.length;
     const activeCampaigns = campaigns.filter((c) => c.status === "active").length;
