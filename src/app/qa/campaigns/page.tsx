@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -21,11 +22,9 @@ import {
 import { DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import { buildListApiUrl } from "@/lib/build-list-api-url";
 import { tableSerialNumber } from "@/lib/table-pagination";
-import {
-  LEADS_TABLE_PAGE_SIZE_DEFAULT,
-  LEADS_TABLE_PAGE_SIZE_OPTIONS,
-} from "@/lib/leads-table-pagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 import { downloadExcel, enrichLeadsForExport } from "@/lib/leadsExport";
 import type { Lead } from "@/types/lead.types";
@@ -116,14 +115,11 @@ function KpiCard({
 export default function QACampaignsPage() {
   const router = useRouter();
   const { status } = useRoleGuard(["qa", "admin"]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [campaignsPage, setCampaignsPage] = useState(1);
-  const [campaignsPageSize, setCampaignsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
+  const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
   const [isOffline, setIsOffline] = useState(false);
 
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
@@ -131,54 +127,84 @@ export default function QACampaignsPage() {
     dayjs(),
   ]);
 
+  useEffect(() => {
+    resetPage();
+  }, [dateRange, resetPage]);
+
   const clientTimeZone = useMemo(() => {
     if (typeof Intl === "undefined") return "UTC";
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   }, []);
 
-  const buildUrl = useCallback(() => {
-    const p = new URLSearchParams();
-    p.set("start_date", dateRange[0].format("YYYY-MM-DD"));
-    p.set("end_date", dateRange[1].format("YYYY-MM-DD"));
-    p.set("tz", clientTimeZone);
-    return `/api/qa/campaigns?${p.toString()}`;
-  }, [dateRange, clientTimeZone]);
+  const buildUrl = useCallback(
+    (opts?: { includeLeads?: boolean; exportLimit?: number }) => {
+      return buildListApiUrl("/api/qa/campaigns", {
+        start_date: dateRange[0].format("YYYY-MM-DD"),
+        end_date: dateRange[1].format("YYYY-MM-DD"),
+        tz: clientTimeZone,
+        page: opts?.exportLimit ? 1 : page,
+        limit: opts?.exportLimit ?? pageSize,
+        include_leads: opts?.includeLeads ? 1 : undefined,
+      });
+    },
+    [dateRange, clientTimeZone, page, pageSize]
+  );
 
-  const fetchCampaigns = useCallback(async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setIsOffline(true);
-      setLoading(false);
-      return;
-    }
+  const listUrl = buildUrl();
+  const listEnabled =
+    status === "authorized" &&
+    !isOffline &&
+    typeof navigator !== "undefined" &&
+    navigator.onLine;
 
-    setIsOffline(false);
-    setLoading(true);
-    try {
-      const res = await fetch(buildUrl(), { credentials: "include" });
+  const campaignsQuery = useQuery({
+    queryKey: ["qa", "campaigns", "list", listUrl],
+    queryFn: async () => {
+      const res = await fetch(listUrl, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load");
-      setCampaigns(data.campaigns ?? []);
-      setSummary(data.summary ?? null);
-    } catch (e) {
-      message.error(e instanceof Error ? e.message : "Failed to load campaigns");
-      setCampaigns([]);
-      setSummary(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [buildUrl]);
+      return data as {
+        campaigns?: Campaign[];
+        summary?: Summary;
+        pagination?: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      };
+    },
+    enabled: listEnabled,
+    placeholderData: (previous) => previous,
+    refetchInterval: 60 * 60 * 1000,
+  });
+
+  const campaigns = useMemo(
+    () => campaignsQuery.data?.campaigns ?? [],
+    [campaignsQuery.data?.campaigns]
+  );
+  const summary = campaignsQuery.data?.summary ?? null;
 
   useEffect(() => {
-    if (status !== "authorized") return;
-    fetchCampaigns();
-    const interval = window.setInterval(fetchCampaigns, 60 * 60 * 1000);
-    return () => window.clearInterval(interval);
-  }, [fetchCampaigns, status]);
+    if (campaignsQuery.data?.pagination) {
+      applyPaginationMeta(campaignsQuery.data.pagination);
+    }
+  }, [campaignsQuery.data?.pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (campaignsQuery.error) {
+      message.error(
+        campaignsQuery.error instanceof Error
+          ? campaignsQuery.error.message
+          : "Failed to load campaigns"
+      );
+    }
+  }, [campaignsQuery.error]);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      fetchCampaigns();
+      void campaignsQuery.refetch();
     };
     const handleOffline = () => setIsOffline(true);
 
@@ -193,13 +219,11 @@ export default function QACampaignsPage() {
         window.removeEventListener("offline", handleOffline);
       }
     };
-  }, [fetchCampaigns]);
+  }, [campaignsQuery]);
 
-  useEffect(() => {
-    setCampaignsPage(1);
-  }, [search, statusFilter, dateRange]);
+  const loading = campaignsQuery.isLoading && campaigns.length === 0;
 
-  const filteredCampaigns = useMemo(() => {
+  const displayedCampaigns = useMemo(() => {
     let result = campaigns;
     const q = search.trim().toLowerCase();
     if (q) {
@@ -220,29 +244,53 @@ export default function QACampaignsPage() {
 
   const rangeLabel = `${dateRange[0].format("DD MMM YYYY")} – ${dateRange[1].format("DD MMM YYYY")}`;
 
-  const handleExport = () => {
-    const exportLeads = filteredCampaigns.flatMap((c) =>
-      enrichLeadsForExport((c.leads ?? []) as Lead[], c.name, c.lead_type)
-    );
-    if (exportLeads.length === 0) {
-      message.warning("No leads to export for the selected date range");
-      return;
-    }
-    const expected = filteredCampaigns.reduce(
-      (sum, c) => sum + (c.leads_uploaded ?? c.leads?.length ?? 0),
-      0
-    );
-    if (exportLeads.length !== expected) {
-      message.error("Export count does not match table — refresh and try again");
-      return;
-    }
+  const handleExport = async () => {
     setExporting(true);
     try {
+      const res = await fetch(buildUrl({ includeLeads: true, exportLimit: 100 }), {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load export data");
+
+      let exportCampaigns = (data.campaigns ?? []) as Campaign[];
+      const q = search.trim().toLowerCase();
+      if (q) {
+        exportCampaigns = exportCampaigns.filter(
+          (c) =>
+            (c.name ?? "").toLowerCase().includes(q) ||
+            (c.campaign_code ?? "").toLowerCase().includes(q) ||
+            (c.lead_type ?? "").toLowerCase().includes(q) ||
+            (c.industry ?? "").toLowerCase().includes(q) ||
+            (c.geography ?? "").toLowerCase().includes(q)
+        );
+      }
+      if (statusFilter) {
+        exportCampaigns = exportCampaigns.filter((c) => c.status === statusFilter);
+      }
+
+      const exportLeads = exportCampaigns.flatMap((c) =>
+        enrichLeadsForExport((c.leads ?? []) as Lead[], c.name, c.lead_type)
+      );
+      if (exportLeads.length === 0) {
+        message.warning("No leads to export for the selected date range");
+        return;
+      }
+      const expected = exportCampaigns.reduce(
+        (sum, c) => sum + (c.leads_uploaded ?? c.leads?.length ?? 0),
+        0
+      );
+      if (exportLeads.length !== expected) {
+        message.error("Export count does not match table — refresh and try again");
+        return;
+      }
       const stamp = `${dateRange[0].format("YYYY-MM-DD")}_${dateRange[1].format("YYYY-MM-DD")}`;
       downloadExcel(exportLeads, `qa-campaigns-export_${stamp}.xlsx`);
       message.success(
-        `Exported ${exportLeads.length} leads from ${filteredCampaigns.length} campaigns (${rangeLabel})`
+        `Exported ${exportLeads.length} leads from ${exportCampaigns.length} campaigns (${rangeLabel})`
       );
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Export failed");
     } finally {
       setExporting(false);
     }
@@ -256,7 +304,7 @@ export default function QACampaignsPage() {
     );
   }
 
-  const list = filteredCampaigns;
+  const list = displayedCampaigns;
   const s = summary;
   const campaignStatusColors: Record<string, string> = {
     draft: "default",
@@ -284,7 +332,7 @@ export default function QACampaignsPage() {
             <a
               onClick={(e) => {
                 e.preventDefault();
-                fetchCampaigns();
+                void campaignsQuery.refetch();
               }}
             >
               retry now
@@ -348,7 +396,11 @@ export default function QACampaignsPage() {
           </Col>
           <Col>
             <Space>
-              <Button icon={<ReloadOutlined />} onClick={fetchCampaigns} loading={loading}>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => void campaignsQuery.refetch()}
+                loading={campaignsQuery.isFetching && !loading}
+              >
                 Refresh
               </Button>
               <Button
@@ -429,17 +481,7 @@ export default function QACampaignsPage() {
             dataSource={list}
             scroll={{ x: 1480 }}
             tableLayout="fixed"
-            pagination={{
-              current: campaignsPage,
-              pageSize: campaignsPageSize,
-              showSizeChanger: true,
-              pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
-              showTotal: (t) => `${t} campaigns`,
-              onChange: (page, size) => {
-                setCampaignsPage(page);
-                setCampaignsPageSize(size);
-              },
-            }}
+            pagination={tablePagination}
             onRow={(record) => ({
               onClick: () => router.push(`/qa/campaigns/${record.id}`),
               style: { cursor: "pointer" },
@@ -459,7 +501,7 @@ export default function QACampaignsPage() {
                 fixed: "left" as const,
                 render: (_: unknown, __: Campaign, index: number) => (
                   <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                    {tableSerialNumber(campaignsPage, campaignsPageSize, index)}
+                    {tableSerialNumber(page, pageSize, index)}
                   </Typography.Text>
                 ),
               },

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import {
@@ -52,7 +53,7 @@ async function getUserAndOrg() {
   return { user, orgId, roleNames };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const ctx = await getUserAndOrg();
     if ("error" in ctx) return ctx.error;
@@ -63,9 +64,12 @@ export async function GET() {
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
     }
 
+    const { page, limit, offset } = parseListPagination(request.nextUrl.searchParams);
+    const searchRaw = request.nextUrl.searchParams.get("q")?.trim() || "";
+
     let query = admin
       .from("sales_leads")
-      .select(SALES_LEADS_SELECT)
+      .select(SALES_LEADS_SELECT, { count: "exact" })
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
 
@@ -78,7 +82,16 @@ export async function GET() {
       );
     }
 
-    const { data: leadsRes, error } = await query;
+    if (searchRaw.length > 0) {
+      const safe = searchRaw.replace(/%/g, "").replace(/_/g, "");
+      if (safe.length > 0) {
+        query = query.or(
+          `name.ilike.%${safe}%,company_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`
+        );
+      }
+    }
+
+    const { data: leadsRes, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -137,7 +150,11 @@ export async function GET() {
       shapeSalesLeadForApi(l as Record<string, unknown>, userNames, accountCompanyNames)
     );
 
-    return NextResponse.json({ leads: shapedLeads, agents });
+    return NextResponse.json({
+      leads: shapedLeads,
+      agents,
+      pagination: buildPaginationMeta(page, limit, count ?? shapedLeads.length),
+    });
   } catch (err) {
     console.error("Sales leads GET error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

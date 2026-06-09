@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -31,7 +32,10 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 type CampaignRow = {
   id: string;
@@ -67,57 +71,94 @@ const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
 
 export default function TLCampaignsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { hasTLAccess, hasRole, isInitialized } = useAuth();
   const isOperationsManager = hasRole("operations_manager");
-  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [campaignsPage, setCampaignsPage] = useState(1);
-  const [campaignsPageSize, setCampaignsPageSize] = useState(10);
+  const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
 
-  const fetchData = useCallback(async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setIsOffline(true);
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchText]);
 
-    setIsOffline(false);
-    setLoading(true);
-    try {
-      const campaignsRes = await fetch("/api/tl/campaigns", { credentials: "include" });
-      const campaignsData = await campaignsRes.json();
-      if (campaignsRes.ok) {
-        setCampaigns(campaignsData.campaigns ?? []);
-      } else {
-        message.error(campaignsData.error || "Failed to load campaigns");
-      }
-    } catch {
-      message.error("Failed to load campaigns");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, statusFilter, resetPage]);
+
+  const listEnabled =
+    isInitialized &&
+    hasTLAccess() &&
+    !isOffline &&
+    typeof navigator !== "undefined" &&
+    navigator.onLine;
+
+  const statsQuery = useQuery({
+    queryKey: ["tl", "campaigns", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/tl/campaigns/stats", { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load stats");
+      return data as {
+        totalCampaigns: number;
+        totalLeads: number;
+        qualifiedLeads: number;
+        deliveredLeads: number;
+      };
+    },
+    enabled: listEnabled,
+  });
+
+  const {
+    items: campaigns,
+    pagination,
+    isLoading: campaignsLoading,
+    isFetching: campaignsFetching,
+    error: campaignsError,
+    refetch: refetchCampaigns,
+  } = usePaginatedListQuery<CampaignRow>({
+    queryKeyPrefix: ["tl", "campaigns", "list"],
+    url: "/api/tl/campaigns",
+    params: {
+      page,
+      limit: pageSize,
+      q: debouncedSearch || undefined,
+      status: statusFilter || undefined,
+    },
+    listField: "campaigns",
+    enabled: listEnabled,
+  });
+
+  useEffect(() => {
+    if (pagination) applyPaginationMeta(pagination);
+  }, [pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (campaignsError) {
+      message.error(
+        campaignsError instanceof Error ? campaignsError.message : "Failed to load campaigns"
+      );
     }
-  }, []);
+  }, [campaignsError]);
 
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasTLAccess()) {
       router.replace("/login");
-      return;
     }
-    fetchData();
-  }, [isInitialized, hasTLAccess, router, fetchData]);
+  }, [isInitialized, hasTLAccess, router]);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      fetchData();
+      void statsQuery.refetch();
+      void refetchCampaigns();
     };
-    const handleOffline = () => {
-      setIsOffline(true);
-    };
+    const handleOffline = () => setIsOffline(true);
 
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
@@ -130,11 +171,19 @@ export default function TLCampaignsPage() {
         window.removeEventListener("offline", handleOffline);
       }
     };
-  }, [fetchData]);
+  }, [statsQuery, refetchCampaigns]);
 
-  useEffect(() => {
-    setCampaignsPage(1);
-  }, [searchText, statusFilter]);
+  const loading = (campaignsLoading || statsQuery.isLoading) && campaigns.length === 0;
+  const summaryStats = {
+    totalCampaigns: statsQuery.data?.totalCampaigns ?? 0,
+    totalLeads: statsQuery.data?.totalLeads ?? 0,
+    qualifiedLeads: statsQuery.data?.qualifiedLeads ?? 0,
+    deliveredLeads: statsQuery.data?.deliveredLeads ?? 0,
+  };
+
+  const refreshLists = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["tl", "campaigns"] });
+  }, [queryClient]);
 
   const handleStatusChange = useCallback(
     async (id: string, newStatus: string) => {
@@ -147,28 +196,13 @@ export default function TLCampaignsPage() {
         });
         if (!res.ok) throw new Error("Failed");
         message.success("Campaign updated");
-        fetchData();
+        refreshLists();
       } catch {
         message.error("Failed to update campaign");
       }
     },
-    [fetchData]
+    [refreshLists]
   );
-
-  const filteredCampaigns = useMemo(() => {
-    const q = searchText.trim().toLowerCase();
-    return campaigns.filter((c) => {
-      const matchesSearch =
-        !q ||
-        (c.name ?? "").toLowerCase().includes(q) ||
-        (c.campaign_code ?? "").toLowerCase().includes(q) ||
-        (c.industry ?? "").toLowerCase().includes(q) ||
-        (c.geography ?? "").toLowerCase().includes(q) ||
-        (c.assigned_team_leader_name ?? "").toLowerCase().includes(q);
-      const matchesStatus = !statusFilter || c.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [campaigns, searchText, statusFilter]);
 
   const columns: ColumnsType<CampaignRow> = useMemo(
     () => [
@@ -179,7 +213,7 @@ export default function TLCampaignsPage() {
         fixed: "left",
         align: "center",
         render: (_: unknown, __: CampaignRow, index: number) =>
-          (campaignsPage - 1) * campaignsPageSize + index + 1,
+          tableSerialNumber(page, pageSize, index),
       },
       {
         title: "Campaign Code",
@@ -396,34 +430,10 @@ export default function TLCampaignsPage() {
         ),
       },
     ],
-    [campaignsPage, campaignsPageSize, handleStatusChange, isOperationsManager, router]
+    [page, pageSize, handleStatusChange, isOperationsManager, router]
   );
 
-  const tablePagination: TableProps<CampaignRow>["pagination"] = useMemo(
-    () => ({
-      current: campaignsPage,
-      pageSize: campaignsPageSize,
-      showSizeChanger: true,
-      pageSizeOptions: ["10", "15", "25", "50"],
-      showTotal: (t: number) => `Total ${t} campaigns`,
-      responsive: true,
-      onChange: (page: number, size: number) => {
-        setCampaignsPage(page);
-        setCampaignsPageSize(size);
-      },
-    }),
-    [campaignsPage, campaignsPageSize]
-  );
-
-  const campaignSummary = useMemo(
-    () => ({
-      totalCampaigns: campaigns.length,
-      totalLeads: campaigns.reduce((sum, c) => sum + (c.total_leads ?? 0), 0),
-      qualifiedLeads: campaigns.reduce((sum, c) => sum + (c.qualified_leads ?? 0), 0),
-      deliveredLeads: campaigns.reduce((sum, c) => sum + (c.delivered_leads ?? 0), 0),
-    }),
-    [campaigns]
-  );
+  const campaignSummary = summaryStats;
 
   const summaryCards = useMemo(
     () => [
@@ -507,7 +517,7 @@ export default function TLCampaignsPage() {
             <a
               onClick={(e) => {
                 e.preventDefault();
-                fetchData();
+                refreshLists();
               }}
             >
               click here to retry now
@@ -517,99 +527,93 @@ export default function TLCampaignsPage() {
         </div>
       )}
 
-      {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
-          <Spin size="large" />
-        </div>
-      ) : (
-        <>
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            {summaryCards.map((card) => (
-              <Col xs={24} sm={12} xl={6} key={card.title}>
-                <Card bordered={false} style={statCardStyle} styles={{ body: { padding: "20px 24px" } }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
-                        {card.title}
-                      </Typography.Text>
-                      <div style={{ fontSize: 28, fontWeight: 700, color: "#1f1f1f", lineHeight: 1.2 }}>
-                        {card.value.toLocaleString()}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 12,
-                        backgroundColor: card.bgColor,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 20,
-                        color: card.color,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {card.icon}
-                    </div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {summaryCards.map((card) => (
+          <Col xs={24} sm={12} xl={6} key={card.title}>
+            <Card bordered={false} style={statCardStyle} styles={{ body: { padding: "20px 24px" } }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
+                    {card.title}
+                  </Typography.Text>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: "#1f1f1f", lineHeight: 1.2 }}>
+                    {loading ? "—" : card.value.toLocaleString()}
                   </div>
-                </Card>
-              </Col>
-            ))}
+                </div>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor: card.bgColor,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                    color: card.color,
+                    flexShrink: 0,
+                  }}
+                >
+                  {card.icon}
+                </div>
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <Card
+        title="All Campaigns"
+        bodyStyle={{ padding: 0, overflow: "hidden" }}
+        style={{ overflow: "hidden" }}
+      >
+        <div style={{ padding: "12px 16px 0" }}>
+          <Row gutter={[12, 12]}>
+            <Col xs={24} md={14} lg={12}>
+              <Input
+                placeholder="Search campaigns..."
+                prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                allowClear
+                style={{ width: "100%" }}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={6} lg={5}>
+              <Select
+                placeholder="Filter by status"
+                allowClear
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={statusOptions}
+                style={{ width: "100%" }}
+              />
+            </Col>
           </Row>
+        </div>
 
-          <Card
-            title="All Campaigns"
-            bodyStyle={{ padding: 0, overflow: "hidden" }}
-            style={{ overflow: "hidden" }}
-          >
-            <div style={{ padding: "12px 16px 0" }}>
-              <Row gutter={[12, 12]}>
-                <Col xs={24} md={14} lg={12}>
-                  <Input
-                    placeholder="Search campaigns..."
-                    prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    allowClear
-                    style={{ width: "100%" }}
-                  />
-                </Col>
-                <Col xs={24} sm={12} md={6} lg={5}>
-                  <Select
-                    placeholder="Filter by status"
-                    allowClear
-                    value={statusFilter}
-                    onChange={setStatusFilter}
-                    options={statusOptions}
-                    style={{ width: "100%" }}
-                  />
-                </Col>
-              </Row>
-            </div>
-
-            {filteredCampaigns.length === 0 ? (
+        <Table
+          className="table-single-line tl-campaigns-table"
+          columns={columns}
+          dataSource={campaigns}
+          rowKey="id"
+          size="middle"
+          scroll={{ x: 1480 }}
+          tableLayout="fixed"
+          sticky
+          loading={loading}
+          pagination={tablePagination}
+          locale={{
+            emptyText: (
               <Empty
                 description="No campaigns yet. Create your first campaign."
-                style={{ margin: "32px 0" }}
+                style={{ margin: "20px 0" }}
               />
-            ) : (
-              <Table
-                className="table-single-line tl-campaigns-table"
-                columns={columns}
-                dataSource={filteredCampaigns}
-                rowKey="id"
-                size="middle"
-                scroll={{ x: 1480 }}
-                tableLayout="fixed"
-                sticky
-                pagination={tablePagination}
-                style={{ marginTop: 12 }}
-              />
-            )}
-          </Card>
-        </>
-      )}
+            ),
+          }}
+          style={{ marginTop: 12 }}
+        />
+      </Card>
     </div>
   );
 }

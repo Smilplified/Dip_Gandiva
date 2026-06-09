@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Button, Input, Select, Space, Typography,
   Row, Col, Card, Statistic, Skeleton, Tag, Table,
@@ -13,6 +13,9 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ColumnsType } from "antd/es/table";
+import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 const { Title, Text } = Typography;
 
@@ -47,37 +50,53 @@ const statusColors: Record<string, string> = {
 
 export default function DCCampaignsPage() {
   const router = useRouter();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
 
-  const fetchCampaigns = useCallback((skipCache = false) => {
-    if (skipCache) setLoading(true);
-    fetch("/api/dc/campaigns")
-      .then((r) => r.json())
-      .then((data) => setCampaigns(data.campaigns ?? []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
-  useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, statusFilter, resetPage]);
 
-  const filtered = campaigns.filter((c) => {
-    const matchSearch =
-      !searchInput ||
-      c.name.toLowerCase().includes(searchInput.toLowerCase()) ||
-      (c.campaign_id ?? "").toLowerCase().includes(searchInput.toLowerCase());
-    const matchStatus = statusFilter === "all" || c.status === statusFilter;
-    return matchSearch && matchStatus;
+  const {
+    items: campaigns,
+    pagination,
+    isLoading,
+    refetch,
+  } = usePaginatedListQuery<Campaign>({
+    queryKeyPrefix: ["dc", "campaigns", "list"],
+    url: "/api/dc/campaigns",
+    params: {
+      page,
+      limit: pageSize,
+      q: debouncedSearch || undefined,
+      status: statusFilter !== "all" ? statusFilter : undefined,
+    },
+    listField: "campaigns",
   });
 
-  const stats = {
-    total: campaigns.length,
-    active: campaigns.filter((c) => c.status === "active").length,
-    completed: campaigns.filter((c) => c.status === "completed").length,
-    paused: campaigns.filter((c) => c.status === "paused").length,
-  };
+  useEffect(() => {
+    if (pagination) applyPaginationMeta(pagination);
+  }, [pagination, applyPaginationMeta]);
+
+  const loading = isLoading && campaigns.length === 0;
+
+  const stats = useMemo(
+    () => ({
+      total,
+      active: campaigns.filter((c) => c.status === "active").length,
+      completed: campaigns.filter((c) => c.status === "completed").length,
+      paused: campaigns.filter((c) => c.status === "paused").length,
+    }),
+    [campaigns, total]
+  );
 
   const statCards = [
     { title: "Total Campaigns", value: stats.total, icon: <FundProjectionScreenOutlined />, color: "#1890ff", bg: "#e6f4ff" },
@@ -91,7 +110,8 @@ export default function DCCampaignsPage() {
       title: "Sr. No.",
       key: "sr",
       width: 72,
-      render: (_: unknown, __: Campaign, index: number) => index + 1,
+      render: (_: unknown, __: Campaign, index: number) =>
+        tableSerialNumber(page, pageSize, index),
     },
     {
       title: "Campaign ID",
@@ -270,12 +290,12 @@ export default function DCCampaignsPage() {
         />
         <Space style={{ marginLeft: "auto" }} wrap>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+            {total} result{total !== 1 ? "s" : ""}
           </Text>
           <Button
             icon={<ReloadOutlined />}
             size="small"
-            onClick={() => fetchCampaigns(true)}
+            onClick={() => void refetch()}
             loading={loading}
           >
             Refresh
@@ -292,14 +312,9 @@ export default function DCCampaignsPage() {
           <Table
             rowKey="id"
             columns={columns}
-            dataSource={filtered}
+            dataSource={campaigns}
             scroll={{ x: 1200 }}
-            pagination={{
-              pageSize: 20,
-              showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50"],
-              showTotal: (t) => `Total ${t} campaigns`,
-            }}
+            pagination={tablePagination}
             locale={{ emptyText: "No campaigns found. Create your first campaign." }}
           />
         </Card>

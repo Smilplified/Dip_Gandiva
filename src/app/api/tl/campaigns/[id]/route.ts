@@ -20,11 +20,12 @@ import {
   normalizeTeamLeaderAssignments,
   syncCampaignTeamLeaderAssignments,
 } from "@/lib/campaign/team-leader-assignments";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -100,14 +101,19 @@ export async function GET(
       team_leader_assignments,
     };
 
+    const sp = new URL(request.url).searchParams;
+    const { page: leadsPage, limit: leadsLimit, offset: leadsOffset } = parseListPagination(sp);
+
     const [leadsRes, assignmentsRes, filesRes] = await Promise.all([
       supabase
         .from("leads")
         .select(
-          "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, delivery_status, delivered_at"
+          "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, delivery_status, delivered_at",
+          { count: "exact" }
         )
         .eq("campaign_id", campaignId)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .range(leadsOffset, leadsOffset + leadsLimit - 1),
       supabase
         .from("campaign_assignments")
         .select("id, agent_id, assigned_by, assigned_at, is_active")
@@ -213,6 +219,7 @@ export async function GET(
     return NextResponse.json({
       campaign: campaignWithTlName,
       leads: leadsWithRecordings,
+      leads_pagination: buildPaginationMeta(leadsPage, leadsLimit, leadsRes.count ?? leadsWithRecordings.length),
       assignments: assignmentsWithNames,
       files: filesWithUrls,
     });

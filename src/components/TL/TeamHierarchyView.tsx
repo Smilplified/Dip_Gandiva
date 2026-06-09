@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React from "react";
 import {
   Avatar,
   Badge,
@@ -26,6 +26,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import type { TeamHierarchyData, TeamLeaderNode, TeamMember } from "@/lib/tl/team-hierarchy";
 import { getTeamLeaderLabel, getTeamMemberLabel } from "@/lib/tl/team-hierarchy";
+import { useCachedApiQuery } from "@/hooks/useCachedApiQuery";
 
 const { Text, Title } = Typography;
 
@@ -154,35 +155,25 @@ export default function TeamHierarchyView() {
   const { hasRole } = useAuth();
   const isOperationsManager = hasRole("operations_manager") || hasRole("admin");
 
-  const [data, setData] = useState<(TeamHierarchyData & { updated_at?: string; scope?: string }) | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch,
+  } = useCachedApiQuery<TeamHierarchyData & { updated_at?: string; scope?: string }>(
+    ["tl", "team", "hierarchy"],
+    "/api/tl/team/hierarchy",
+    { refetchInterval: REFRESH_MS }
+  );
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/tl/team/hierarchy", { credentials: "include" });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error ?? "Failed to load team");
-      }
-      setData(json);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load team");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    const id = window.setInterval(() => void load(true), REFRESH_MS);
-    return () => window.clearInterval(id);
-  }, [load]);
+  const loading = isLoading && !data;
+  const refreshing = isFetching && Boolean(data);
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : "Failed to load team"
+    : null;
 
   if (loading && !data) {
     return (
@@ -213,7 +204,7 @@ export default function TeamHierarchyView() {
     return (
       <Card style={cardStyle}>
         <Empty description={error}>
-          <Button type="primary" icon={<ReloadOutlined />} onClick={() => void load()}>
+          <Button type="primary" icon={<ReloadOutlined />} onClick={() => void refetch()}>
             Retry
           </Button>
         </Empty>
@@ -246,7 +237,7 @@ export default function TeamHierarchyView() {
         </div>
         <Button
           icon={<ReloadOutlined spin={refreshing} />}
-          onClick={() => void load(true)}
+          onClick={() => void refetch()}
           loading={refreshing}
         >
           Refresh

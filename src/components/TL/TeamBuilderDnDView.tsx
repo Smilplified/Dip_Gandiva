@@ -58,6 +58,7 @@ import {
   TEAM_ASSIGNMENT_CHANNEL,
   broadcastTeamAssignmentUpdated,
 } from "@/lib/tl/team-sync";
+import { useCachedApiQuery } from "@/hooks/useCachedApiQuery";
 
 const cardStyle: React.CSSProperties = {
   borderRadius: 16,
@@ -424,11 +425,10 @@ function DroppableUnassignedPanel({
 
 // ─── Main view ────────────────────────────────────────────────────────────────
 
+type HierarchyResponse = TeamHierarchyData & { updated_at?: string; scope?: string };
+
 export default function TeamBuilderDnDView() {
   const [data, setData] = useState<LocalState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null);
   const [activeAgent, setActiveAgent] = useState<TeamMember | null>(null);
   const [filter, setFilter] = useState("");
@@ -439,40 +439,45 @@ export default function TeamBuilderDnDView() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/tl/team/hierarchy", { credentials: "include" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to load team");
-      setData(buildLocalStateFromHierarchy(json));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load team");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const {
+    data: hierarchyData,
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch,
+  } = useCachedApiQuery<HierarchyResponse>(
+    ["tl", "team", "hierarchy"],
+    "/api/tl/team/hierarchy"
+  );
+
+  const loading = isLoading && !data;
+  const refreshing = isFetching && Boolean(data);
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : "Failed to load team"
+    : null;
 
   useEffect(() => {
-    void load();
+    if (!hierarchyData || dragLockRef.current || savingAgentId) return;
+    setData(buildLocalStateFromHierarchy(hierarchyData));
+  }, [hierarchyData, savingAgentId]);
+
+  useEffect(() => {
     const id = window.setInterval(() => {
       if (dragLockRef.current || savingAgentId) return;
-      void load(true);
+      void refetch();
     }, REFRESH_MS);
     return () => window.clearInterval(id);
-  }, [load, savingAgentId]);
+  }, [refetch, savingAgentId]);
 
-  // Reload when team assignments change (e.g. from another tab or Team Performance page)
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
       channel = new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL);
       channel.onmessage = () => {
         if (dragLockRef.current || savingAgentId) return;
-        void load(true);
+        void refetch();
       };
     } catch {
       // ignore
@@ -483,7 +488,7 @@ export default function TeamBuilderDnDView() {
         channel.close();
       }
     };
-  }, [load, savingAgentId]);
+  }, [refetch, savingAgentId]);
 
   const stats = useMemo(() => {
     if (!data) {
@@ -661,7 +666,7 @@ export default function TeamBuilderDnDView() {
     return (
       <Card style={cardStyle}>
         <Empty description={error}>
-          <Button type="primary" icon={<ReloadOutlined />} onClick={() => void load()}>
+          <Button type="primary" icon={<ReloadOutlined />} onClick={() => void refetch()}>
             Retry
           </Button>
         </Empty>
@@ -707,7 +712,7 @@ export default function TeamBuilderDnDView() {
           </Space>
           <Button
             icon={<ReloadOutlined spin={refreshing} />}
-            onClick={() => void load(true)}
+            onClick={() => void refetch()}
             loading={refreshing}
           >
             Refresh

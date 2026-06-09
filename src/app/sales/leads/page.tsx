@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import quarterOfYear from "dayjs/plugin/quarterOfYear";
 import Link from "next/link";
@@ -25,6 +26,8 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { LEAD_STATUS_OPTIONS } from "@/constants/salesLeadForm";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import { buildListApiUrl } from "@/lib/build-list-api-url";
 
 type LeadRow = {
   id: string;
@@ -349,23 +352,36 @@ const { Title, Text } = Typography;
 
 export default function SalesLeadsPage() {
   const router = useRouter();
-  const [leads, setLeads] = useState<LeadRow[]>([]);
-  const [agents, setAgents] = useState<AgentOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<string | undefined>();
   const [createdPreset, setCreatedPreset] = useState<DateRangeKey | undefined>();
-  const [createdRange, setCreatedRange] = useState<[any, any] | null>(null); // used only when createdPreset === "search"
+  const [createdRange, setCreatedRange] = useState<[any, any] | null>(null);
   const [lastActivityRange, setLastActivityRange] = useState<[any, any] | null>(null);
-  const [lastActivityByLeadId, setLastActivityByLeadId] = useState<Record<string, string>>({});
+  const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, statusFilter, ownerFilter, createdPreset, createdRange, lastActivityRange, resetPage]);
+
+  const listUrl = buildListApiUrl("/api/sales/leads", {
+    page,
+    limit: pageSize,
+    q: debouncedSearch || undefined,
+  });
+
+  const leadsQuery = useQuery({
+    queryKey: ["sales", "leads", "list", listUrl],
+    queryFn: async () => {
       const [res, actRes] = await Promise.all([
-        fetch("/api/sales/leads", { credentials: "include" }),
+        fetch(listUrl, { credentials: "include" }),
         fetch("/api/sales/activities?related_to_type=lead", { credentials: "include" }),
       ]);
       const json = await res.json();
@@ -373,46 +389,61 @@ export default function SalesLeadsPage() {
       if (!res.ok) {
         throw new Error(json.error || "Failed to load leads");
       }
-      setLeads(json.leads ?? []);
-      setAgents(json.agents ?? []);
 
+      const lastActivityByLeadId: Record<string, string> = {};
       if (actRes.ok) {
-        const map: Record<string, string> = {};
-        ((actJson.activities ?? []) as { related_to_id: string; activity_date: string }[]).forEach((a) => {
-          const prev = map[a.related_to_id];
-          if (!prev || new Date(a.activity_date) > new Date(prev)) {
-            map[a.related_to_id] = a.activity_date;
+        ((actJson.activities ?? []) as { related_to_id: string; activity_date: string }[]).forEach(
+          (a) => {
+            const prev = lastActivityByLeadId[a.related_to_id];
+            if (!prev || new Date(a.activity_date) > new Date(prev)) {
+              lastActivityByLeadId[a.related_to_id] = a.activity_date;
+            }
           }
-        });
-        setLastActivityByLeadId(map);
+        );
       }
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to load leads");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
+      return {
+        leads: (json.leads ?? []) as LeadRow[],
+        agents: (json.agents ?? []) as AgentOption[],
+        pagination: json.pagination as
+          | { page: number; limit: number; total: number; totalPages: number }
+          | undefined,
+        lastActivityByLeadId,
+      };
+    },
+    placeholderData: (previous) => previous,
+  });
+
+  const leads = useMemo(() => leadsQuery.data?.leads ?? [], [leadsQuery.data?.leads]);
+  const agents = leadsQuery.data?.agents ?? [];
+  const lastActivityByLeadId = useMemo(
+    () => leadsQuery.data?.lastActivityByLeadId ?? {},
+    [leadsQuery.data?.lastActivityByLeadId]
+  );
+  const loading = leadsQuery.isLoading && leads.length === 0;
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (leadsQuery.data?.pagination) {
+      applyPaginationMeta(leadsQuery.data.pagination);
+    }
+  }, [leadsQuery.data?.pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (leadsQuery.error) {
+      message.error(
+        leadsQuery.error instanceof Error ? leadsQuery.error.message : "Failed to load leads"
+      );
+    }
+  }, [leadsQuery.error]);
 
 
   const filteredLeads = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const createdPresetRange =
       createdPreset && createdPreset !== "search" ? rangeForCreatedDate(createdPreset) : null;
     const createdFrom = (createdPresetRange?.[0] ?? createdRange?.[0]) ?? null;
     const createdTo = (createdPresetRange?.[1] ?? createdRange?.[1]) ?? null;
 
     return leads.filter((l) => {
-      const matchesSearch =
-        !q ||
-        (l.lead_name ?? "").toLowerCase().includes(q) ||
-        (l.company ?? "").toLowerCase().includes(q) ||
-        (l.email ?? "").toLowerCase().includes(q) ||
-        (l.phone ?? "").toLowerCase().includes(q) ||
-        (l.lead_source ?? "").toLowerCase().includes(q);
       const matchesStatus = statusFilter.length === 0 || statusFilter.includes(l.status);
       const matchesOwner = !ownerFilter || l.assigned_to_id === ownerFilter;
       const matchesCreated =
@@ -426,11 +457,10 @@ export default function SalesLeadsPage() {
         (lastAct &&
           new Date(lastAct) >= lastActivityRange[0].toDate() &&
           new Date(lastAct) <= lastActivityRange[1].toDate());
-      return matchesSearch && matchesStatus && matchesOwner && matchesCreated && matchesLastActivity;
+      return matchesStatus && matchesOwner && matchesCreated && matchesLastActivity;
     });
   }, [
     leads,
-    search,
     statusFilter,
     ownerFilter,
     createdPreset,
@@ -669,11 +699,7 @@ export default function SalesLeadsPage() {
           loading={loading}
           rowKey="id"
           scroll={{ x: 900, y: 480 }}
-          pagination={{
-            defaultPageSize: 10,
-            showSizeChanger: true,
-            showTotal: (t) => `Total ${t} leads`,
-          }}
+          pagination={tablePagination}
           size="middle"
         />
       </Card>

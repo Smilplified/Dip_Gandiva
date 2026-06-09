@@ -18,6 +18,7 @@ import { leadsToCsv } from "@/lib/leadsExport";
 import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 import type { Lead } from "@/types/lead.types";
 import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
+import { getClientViewerCampaignIds } from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -195,6 +196,7 @@ async function fetchLatestHistoryForLeads(
 const SORT_FIELDS = new Set([
   "created_at",
   "updated_at",
+  "delivered_at",
   "name",
   "company_name",
   "job_title",
@@ -298,32 +300,19 @@ export async function GET(request: NextRequest) {
 
   const cursor = sp.get("cursor");
   const offsetRaw = sp.get("offset");
-  const useOffset = offsetRaw !== null && offsetRaw !== "";
-  const offset = useOffset ? Math.max(0, parseInt(offsetRaw ?? "0", 10) || 0) : 0;
-  const limit = clampLimit(sp.get("limit") ?? "25");
+  const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
+  const limit = clampLimit(sp.get("limit") ?? "10");
+  const useOffset =
+    offsetRaw !== null && offsetRaw !== "" || sp.has("page") || !cursor;
+  const offset = offsetRaw !== null && offsetRaw !== ""
+    ? Math.max(0, parseInt(offsetRaw ?? "0", 10) || 0)
+    : (page - 1) * limit;
 
+  const isClientViewer = userRoles.includes("client_viewer");
   const sortField = sp.get("sort") ?? "";
   const sortDir = (sp.get("sort_dir") ?? "desc").toLowerCase() === "asc" ? "asc" : "desc";
-  const sortCol = SORT_FIELDS.has(sortField) ? sortField : "created_at";
-
-  let idRestriction: string[] | null = null;
-
-  try {
-    if (riskActive && campaignId) {
-      const riskIds = await filterLeadIdsWithRisk(supabase, campaignId, orgId);
-      idRestriction = intersectIds(idRestriction, riskIds);
-    }
-
-    if (consentTypeIn.length > 0 && campaignId) {
-      const cIds = await filterLeadIdsByConsentTypes(supabase, campaignId, orgId, consentTypeIn);
-      idRestriction = intersectIds(idRestriction, cIds);
-    }
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Filter error" },
-      { status: 500 }
-    );
-  }
+  const defaultSortCol = isClientViewer ? "delivered_at" : "created_at";
+  const sortCol = SORT_FIELDS.has(sortField) ? sortField : defaultSortCol;
 
   const emptyResponse = () => {
     if (formatCsv) {
@@ -345,9 +334,55 @@ export async function GET(request: NextRequest) {
     });
   };
 
+  let clientViewerCampaignIds: string[] | null = null;
+  if (isClientViewer) {
+    if (!profile?.client_id || !orgId) {
+      return emptyResponse();
+    }
+    try {
+      clientViewerCampaignIds = await getClientViewerCampaignIds(
+        supabase,
+        orgId,
+        profile.client_id
+      );
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Failed to resolve campaigns" },
+        { status: 500 }
+      );
+    }
+    if (clientViewerCampaignIds.length === 0) {
+      return emptyResponse();
+    }
+    if (campaignId && !clientViewerCampaignIds.includes(campaignId)) {
+      return emptyResponse();
+    }
+  }
+
+  let idRestriction: string[] | null = null;
+
+  try {
+    if (riskActive && campaignId) {
+      const riskIds = await filterLeadIdsWithRisk(supabase, campaignId, orgId);
+      idRestriction = intersectIds(idRestriction, riskIds);
+    }
+
+    if (consentTypeIn.length > 0 && campaignId) {
+      const cIds = await filterLeadIdsByConsentTypes(supabase, campaignId, orgId, consentTypeIn);
+      idRestriction = intersectIds(idRestriction, cIds);
+    }
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Filter error" },
+      { status: 500 }
+    );
+  }
+
   if (idRestriction !== null && idRestriction.length === 0) {
     return emptyResponse();
   }
+
+  const dateColumn = clientViewerCampaignIds !== null ? "delivered_at" : "created_at";
 
   const applyFilters = (q: LeadsQ) => {
     let x = q
@@ -392,10 +427,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (dateFrom) {
-      x = x.gte("created_at", `${dateFrom}T00:00:00.000Z`);
+      x = x.gte(dateColumn, `${dateFrom}T00:00:00.000Z`);
     }
     if (dateTo) {
-      x = x.lte("created_at", `${dateTo}T23:59:59.999Z`);
+      x = x.lte(dateColumn, `${dateTo}T23:59:59.999Z`);
     }
 
     if (searchPattern) {
@@ -404,16 +439,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (deliveryStatus === "delivered" || deliveryStatus === "not_delivered") {
-      x = x.eq("delivery_status", deliveryStatus);
-    }
-
-    if (userRoles.includes("client_viewer")) {
-      if (!profile?.client_id) {
-        return null;
-      }
-      x = x.eq("campaigns.client_id", profile.client_id);
+    if (clientViewerCampaignIds !== null) {
+      x = x.in("campaign_id", clientViewerCampaignIds);
       x = x.eq("delivery_status", "delivered");
+    } else if (deliveryStatus === "delivered" || deliveryStatus === "not_delivered") {
+      x = x.eq("delivery_status", deliveryStatus);
     }
 
     return x;
@@ -550,6 +580,8 @@ export async function GET(request: NextRequest) {
       total,
       limit,
       offset,
+      page: Math.floor(offset / limit) + 1,
+      totalPages: total > 0 ? Math.ceil(total / limit) : 0,
       nextCursor: null,
       hasMore: offset + rows.length < total,
     });

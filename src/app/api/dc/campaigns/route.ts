@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
+import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +56,7 @@ async function getDCCampaignIds(
     .map((c) => c.id);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -70,43 +72,54 @@ export async function GET() {
     const admin = getAdminClientSafe();
     if (!admin) return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
 
-    const campaignIds = await getDCCampaignIds(admin, orgId);
-    if (campaignIds.length === 0) return NextResponse.json({ campaigns: [] });
+    const { page, limit, offset } = parseListPagination(request.nextUrl.searchParams);
+    const statusFilter = request.nextUrl.searchParams.get("status")?.trim() || null;
+    const searchRaw = request.nextUrl.searchParams.get("q")?.trim() || "";
 
-    const { data: camps, error: campsErr } = await admin
+    const campaignIds = await getDCCampaignIds(admin, orgId);
+    if (campaignIds.length === 0) {
+      return NextResponse.json({
+        campaigns: [],
+        pagination: buildPaginationMeta(page, limit, 0),
+      });
+    }
+
+    let campsQuery = admin
       .from("campaigns")
-      .select("id, campaign_id, name, status, start_date, end_date, created_at, client_name")
-      .in("id", campaignIds)
-      .order("created_at", { ascending: false });
+      .select("id, campaign_id, name, status, start_date, end_date, created_at, client_name", {
+        count: "exact",
+      })
+      .in("id", campaignIds);
+
+    if (statusFilter) campsQuery = campsQuery.eq("status", statusFilter);
+    if (searchRaw.length > 0) {
+      const safe = searchRaw.replace(/%/g, "").replace(/_/g, "");
+      if (safe.length > 0) campsQuery = campsQuery.ilike("name", `%${safe}%`);
+    }
+
+    const { data: camps, error: campsErr, count } = await campsQuery
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (campsErr) return NextResponse.json({ error: campsErr.message }, { status: 500 });
 
-    const { data: leads } = await admin
-      .from("leads")
-      .select("id, campaign_id, status, qa_status, delivery_status, lead_tagging")
-      .in("campaign_id", campaignIds)
-      .eq("lead_tagging", "Scored");
+    type CampRow = {
+      id: string;
+      campaign_id: string | null;
+      name: string;
+      status: string;
+      start_date: string | null;
+      end_date: string | null;
+      created_at: string;
+      client_name: string | null;
+    };
+    const campaignsList = (camps ?? []) as CampRow[];
+    const pageIds = campaignsList.map((c) => c.id);
+    const total = count ?? campaignsList.length;
 
-    type LeadRow = { id: string; campaign_id: string; status: string | null; qa_status: string | null; delivery_status: string | null; lead_tagging: string | null };
+    const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, pageIds);
 
-    // qualified_leads = only when QA explicitly sets qa_status = 'qualified'
-    const isQualified = (l: LeadRow) =>
-      (l.qa_status ?? "").trim().toLowerCase() === "qualified";
-
-    const isDelivered = (l: LeadRow) =>
-      (l.delivery_status ?? "").trim().toLowerCase() === "delivered" ||
-      (l.delivery_status ?? "").trim().toLowerCase() === "delivered_by_mis";
-
-    const stats: Record<string, { total: number; qualified: number; delivered: number }> = {};
-    ((leads ?? []) as LeadRow[]).forEach((l) => {
-      if (!stats[l.campaign_id]) stats[l.campaign_id] = { total: 0, qualified: 0, delivered: 0 };
-      stats[l.campaign_id].total++;
-      if (isQualified(l)) stats[l.campaign_id].qualified++;
-      if (isDelivered(l)) stats[l.campaign_id].delivered++;
-    });
-
-    type CampRow = { id: string; campaign_id: string | null; name: string; status: string; start_date: string | null; end_date: string | null; created_at: string; client_name: string | null };
-    const campaigns = ((camps ?? []) as CampRow[]).map((c) => ({
+    const campaigns = campaignsList.map((c) => ({
       id: c.id,
       campaign_id: c.campaign_id,
       name: c.name,
@@ -115,12 +128,15 @@ export async function GET() {
       end_date: c.end_date,
       created_at: c.created_at,
       client_name: c.client_name,
-      total_leads: stats[c.id]?.total ?? 0,
-      qualified_leads: stats[c.id]?.qualified ?? 0,
-      delivered_leads: stats[c.id]?.delivered ?? 0,
+      total_leads: leadCounts[c.id]?.total ?? 0,
+      qualified_leads: leadCounts[c.id]?.qualified ?? 0,
+      delivered_leads: leadCounts[c.id]?.delivered ?? 0,
     }));
 
-    return NextResponse.json({ campaigns });
+    return NextResponse.json({
+      campaigns,
+      pagination: buildPaginationMeta(page, limit, total),
+    });
   } catch (err) {
     console.error("DC campaigns error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

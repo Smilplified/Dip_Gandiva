@@ -1,15 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { fetchCampaignIdsForTeamLeader } from "@/lib/campaign/team-leader-assignments";
 import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
-import { fetchTlLeadsForCampaigns } from "@/lib/tl/leads-list";
+import { TL_LEADS_LIST_SELECT, fetchTlLeadsPageForCampaigns } from "@/lib/tl/leads-list";
+import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const {
@@ -31,6 +33,20 @@ export async function GET() {
     if (!orgId) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
+
+    const sp = request.nextUrl.searchParams;
+    const { page, limit, offset } = parseListPagination(sp);
+    const searchRaw = sp.get("q")?.trim() || "";
+    const dateFrom = sp.get("date_from")?.trim() || undefined;
+    const dateTo = sp.get("date_to")?.trim() || undefined;
+    const agentIdsParam = sp.get("agent_ids")?.trim() || "";
+    const agentIds = agentIdsParam
+      ? agentIdsParam.split(",").map((id) => id.trim()).filter(Boolean)
+      : [];
+    const includeUnassigned = sp.get("include_unassigned") === "1";
+    const realAgentIds = agentIds.filter((id) => id !== "__unassigned__");
+    const wantsUnassigned =
+      includeUnassigned || agentIds.includes("__unassigned__");
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const seeAllOrgCampaigns = hasOrgWideCampaignAccess(roleNames);
@@ -60,7 +76,11 @@ export async function GET() {
 
     const campaignList = (campaigns ?? []) as { id: string; name: string; lead_type: string | null }[];
     if (campaignList.length === 0) {
-      return NextResponse.json({ leads: [] });
+      return NextResponse.json({
+        leads: [],
+        pagination: buildPaginationMeta(page, limit, 0),
+        agents: [],
+      });
     }
 
     const campaignIds = campaignList.map((c) => c.id);
@@ -71,33 +91,74 @@ export async function GET() {
       return acc;
     }, {});
 
-    const rawLeads = (await fetchTlLeadsForCampaigns(supabase, campaignIds)) as (Record<string, unknown> & {
-      campaign_id?: string;
-      assigned_agent_id?: string;
-      created_by?: string;
-    })[];
+    const [{ rows: rawLeads, total }, assignmentsRes] = await Promise.all([
+      fetchTlLeadsPageForCampaigns(supabase, {
+        campaignIds,
+        offset,
+        limit,
+        search: searchRaw || undefined,
+        select: TL_LEADS_LIST_SELECT,
+        ...(agentIds.length > 0
+          ? {
+              agentIds: realAgentIds.length > 0 ? realAgentIds : undefined,
+              includeUnassigned: wantsUnassigned,
+            }
+          : {}),
+        dateFrom,
+        dateTo,
+      }),
+      supabase
+        .from("campaign_assignments")
+        .select("agent_id")
+        .in("campaign_id", campaignIds)
+        .eq("is_active", true),
+    ]);
 
-    const enriched = await enrichLeadsWithCreatorNames(supabase, rawLeads, orgId);
+    const assignmentAgentIds = [
+      ...new Set(
+        ((assignmentsRes.data ?? []) as { agent_id: string }[])
+          .map((a) => a.agent_id)
+          .filter(Boolean)
+      ),
+    ];
+    const agentNames = await resolveUserDisplayNames(supabase, assignmentAgentIds);
+    const agents = assignmentAgentIds
+      .map((id) => ({ id, name: agentNames[id] ?? id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const enriched = await enrichLeadsWithCreatorNames(
+      supabase,
+      rawLeads as (Record<string, unknown> & {
+        campaign_id?: string;
+        assigned_agent_id?: string;
+        created_by?: string;
+      })[],
+      orgId
+    );
 
     const leads = enriched.map((row) => {
       const meta = row.campaign_id ? campaignMeta[row.campaign_id as string] : undefined;
       return {
-      ...row,
-      campaign_name: meta?.name ?? "—",
-      lead_type: resolveLeadTypeForExport(
-        row.lead_type as string | null | undefined,
-        meta?.lead_type
-      ),
-      assigned_agent_name: row.assigned_agent_name ?? "—",
-      created_by_name: row.created_by_name ?? "—",
-      qa_status: (row.qa_status as string | null) ?? null,
-      disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
-      disqualification_reason: (row.disqualification_reason as string | null) ?? null,
-      rectified_reason: (row.rectified_reason as string | null) ?? null,
-    };
+        ...row,
+        campaign_name: meta?.name ?? "—",
+        lead_type: resolveLeadTypeForExport(
+          row.lead_type as string | null | undefined,
+          meta?.lead_type
+        ),
+        assigned_agent_name: row.assigned_agent_name ?? "—",
+        created_by_name: row.created_by_name ?? "—",
+        qa_status: (row.qa_status as string | null) ?? null,
+        disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
+        disqualification_reason: (row.disqualification_reason as string | null) ?? null,
+        rectified_reason: (row.rectified_reason as string | null) ?? null,
+      };
     });
 
-    return NextResponse.json({ leads });
+    return NextResponse.json({
+      leads,
+      pagination: buildPaginationMeta(page, limit, total),
+      agents,
+    });
   } catch (error) {
     console.error("TL leads (all) error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

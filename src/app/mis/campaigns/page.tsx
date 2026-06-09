@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -16,9 +16,11 @@ import {
   Empty,
   message,
 } from "antd";
-import type { ColumnsType, TableProps } from "antd/es/table";
+import type { ColumnsType } from "antd/es/table";
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
 import { tableSerialNumber } from "@/lib/table-pagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 
@@ -55,20 +57,9 @@ type Campaign = {
   seniority?: string | null;
   job_function?: string | null;
   creatives_url?: string[] | null;
-  leads?: unknown[];
+  scored_leads_count?: number;
+  delivered_leads_count?: number;
 };
-
-function getLeadsCount(leads: unknown[] | undefined): number {
-  return Array.isArray(leads) ? leads.length : 0;
-}
-
-function getDeliveredCount(leads: unknown[] | undefined): number {
-  if (!Array.isArray(leads)) return 0;
-  return leads.reduce<number>((count, lead) => {
-    const status = (lead as { delivery_status?: unknown })?.delivery_status;
-    return status === "delivered" ? count + 1 : count;
-  }, 0);
-}
 
 const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   draft: "default",
@@ -80,44 +71,61 @@ const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
 export default function MISCampaignsPage() {
   const router = useRouter();
   const { status } = useRoleGuard(["mis", "admin"]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [campaignsPage, setCampaignsPage] = useState(1);
-  const [campaignsPageSize, setCampaignsPageSize] = useState(15);
+  const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
   const [isOffline, setIsOffline] = useState(false);
 
-  const fetchDashboard = useCallback(async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setIsOffline(true);
-      setLoading(false);
-      return;
-    }
-
-    setIsOffline(false);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/mis/campaigns", { credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load");
-      setCampaigns(data.campaigns ?? []);
-    } catch {
-      message.error("Failed to load campaigns");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
-    if (status !== "authorized") return;
-    fetchDashboard();
-  }, [fetchDashboard, status]);
+    resetPage();
+  }, [debouncedSearch, statusFilter, resetPage]);
+
+  const listEnabled =
+    status === "authorized" &&
+    !isOffline &&
+    typeof navigator !== "undefined" &&
+    navigator.onLine;
+
+  const {
+    items: campaigns,
+    pagination,
+    isLoading,
+    error: campaignsError,
+    refetch,
+  } = usePaginatedListQuery<Campaign>({
+    queryKeyPrefix: ["mis", "campaigns", "list"],
+    url: "/api/mis/campaigns",
+    params: {
+      page,
+      limit: pageSize,
+      q: debouncedSearch || undefined,
+      status: statusFilter || undefined,
+    },
+    listField: "campaigns",
+    enabled: listEnabled,
+  });
+
+  useEffect(() => {
+    if (pagination) applyPaginationMeta(pagination);
+  }, [pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (campaignsError) {
+      message.error("Failed to load campaigns");
+    }
+  }, [campaignsError]);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      fetchDashboard();
+      void refetch();
     };
     const handleOffline = () => {
       setIsOffline(true);
@@ -134,30 +142,9 @@ export default function MISCampaignsPage() {
         window.removeEventListener("offline", handleOffline);
       }
     };
-  }, [fetchDashboard]);
+  }, [refetch]);
 
-  useEffect(() => {
-    setCampaignsPage(1);
-  }, [search, statusFilter]);
-
-  const list = useMemo(() => {
-    let result = campaigns;
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (c) =>
-          (c.name ?? "").toLowerCase().includes(q) ||
-          (c.campaign_code ?? "").toLowerCase().includes(q) ||
-          (c.lead_type ?? "").toLowerCase().includes(q) ||
-          (c.industry ?? "").toLowerCase().includes(q) ||
-          (c.geography ?? "").toLowerCase().includes(q)
-      );
-    }
-    if (statusFilter) {
-      result = result.filter((c) => c.status === statusFilter);
-    }
-    return result;
-  }, [campaigns, search, statusFilter]);
+  const loading = isLoading && campaigns.length === 0;
 
   const columns: ColumnsType<Campaign> = useMemo(
     () => [
@@ -169,7 +156,7 @@ export default function MISCampaignsPage() {
         align: "center",
         render: (_: unknown, __: Campaign, index: number) => (
           <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-            {tableSerialNumber(campaignsPage, campaignsPageSize, index)}
+            {tableSerialNumber(page, pageSize, index)}
           </Typography.Text>
         ),
       },
@@ -268,50 +255,36 @@ export default function MISCampaignsPage() {
       },
       {
         title: "Leads",
-        key: "leads_count",
+        dataIndex: "scored_leads_count",
+        key: "scored_leads_count",
         width: 80,
         align: "center",
         fixed: "right",
-        sorter: (a, b) => getLeadsCount(a.leads) - getLeadsCount(b.leads),
+        sorter: (a, b) => (a.scored_leads_count ?? 0) - (b.scored_leads_count ?? 0),
         sortDirections: ["descend", "ascend"] as const,
-        render: (_: unknown, rec: Campaign) => (
+        render: (v: number | undefined) => (
           <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
-            {getLeadsCount(rec.leads)}
+            {v ?? 0}
           </Typography.Text>
         ),
       },
       {
         title: "Delivered",
-        key: "delivered_count",
+        dataIndex: "delivered_leads_count",
+        key: "delivered_leads_count",
         width: 96,
         align: "center",
         fixed: "right",
-        sorter: (a, b) => getDeliveredCount(a.leads) - getDeliveredCount(b.leads),
+        sorter: (a, b) => (a.delivered_leads_count ?? 0) - (b.delivered_leads_count ?? 0),
         sortDirections: ["descend", "ascend"] as const,
-        render: (_: unknown, rec: Campaign) => (
+        render: (v: number | undefined) => (
           <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
-            {getDeliveredCount(rec.leads)}
+            {v ?? 0}
           </Typography.Text>
         ),
       },
     ],
-    [campaignsPage, campaignsPageSize]
-  );
-
-  const tablePagination: TableProps<Campaign>["pagination"] = useMemo(
-    () => ({
-      current: campaignsPage,
-      pageSize: campaignsPageSize,
-      showSizeChanger: true,
-      pageSizeOptions: ["10", "15", "25", "50"],
-      showTotal: (t: number) => `${t} campaigns`,
-      responsive: true,
-      onChange: (page: number, size: number) => {
-        setCampaignsPage(page);
-        setCampaignsPageSize(size);
-      },
-    }),
-    [campaignsPage, campaignsPageSize]
+    [page, pageSize]
   );
 
   if (status === "loading") {
@@ -357,7 +330,7 @@ export default function MISCampaignsPage() {
             <a
               onClick={(e) => {
                 e.preventDefault();
-                fetchDashboard();
+                void refetch();
               }}
             >
               click here to retry now
@@ -395,7 +368,7 @@ export default function MISCampaignsPage() {
         <Col xs={24} sm={12} md={4} lg={3}>
           <Button
             icon={<ReloadOutlined />}
-            onClick={fetchDashboard}
+            onClick={() => void refetch()}
             loading={loading}
             style={{ width: "100%" }}
           >
@@ -408,7 +381,7 @@ export default function MISCampaignsPage() {
         <div style={{ textAlign: "center", padding: 48 }}>
           <Spin size="large" />
         </div>
-      ) : list.length === 0 ? (
+      ) : campaigns.length === 0 ? (
         <Empty description="No campaigns" style={{ marginTop: 48 }} />
       ) : (
         <Card
@@ -424,7 +397,7 @@ export default function MISCampaignsPage() {
             className="table-single-line mis-campaigns-table"
             size="middle"
             rowKey="id"
-            dataSource={list}
+            dataSource={campaigns}
             columns={columns}
             scroll={{ x: 1280 }}
             tableLayout="fixed"

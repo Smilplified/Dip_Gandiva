@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const {
@@ -26,7 +27,10 @@ export async function GET() {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    // Find campaigns this agent is assigned to
+    const { page, limit, offset } = parseListPagination(request.nextUrl.searchParams);
+    const statusFilter = request.nextUrl.searchParams.get("status")?.trim() || null;
+    const searchRaw = request.nextUrl.searchParams.get("q")?.trim() || "";
+
     const { data: assignments, error: assignmentsError } = await supabase
       .from("campaign_assignments")
       .select("campaign_id")
@@ -37,51 +41,44 @@ export async function GET() {
       return NextResponse.json({ error: assignmentsError.message }, { status: 500 });
     }
 
-    const campaignIds = [...new Set(((assignments ?? []) as { campaign_id: string }[]).map((a) => a.campaign_id))];
+    const campaignIds = [
+      ...new Set(((assignments ?? []) as { campaign_id: string }[]).map((a) => a.campaign_id)),
+    ];
     if (campaignIds.length === 0) {
-      return NextResponse.json({ campaigns: [] });
+      return NextResponse.json({
+        campaigns: [],
+        pagination: buildPaginationMeta(page, limit, 0),
+      });
     }
 
-    const { data: campaigns, error: campaignsError } = await supabase
+    let campaignsQuery = supabase
       .from("campaigns")
       .select(
-        "id, campaign_id, campaign_code, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, region, created_at"
+        "id, campaign_id, campaign_code, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, region, created_at",
+        { count: "exact" }
       )
       .eq("organization_id", orgId)
-      .in("id", campaignIds)
-      .order("created_at", { ascending: false });
+      .in("id", campaignIds);
+
+    if (statusFilter) {
+      campaignsQuery = campaignsQuery.eq("status", statusFilter);
+    }
+    if (searchRaw.length > 0) {
+      const safe = searchRaw.replace(/%/g, "").replace(/_/g, "");
+      if (safe.length > 0) {
+        campaignsQuery = campaignsQuery.or(
+          `name.ilike.%${safe}%,campaign_code.ilike.%${safe}%,industry.ilike.%${safe}%`
+        );
+      }
+    }
+
+    const { data: campaigns, error: campaignsError, count } = await campaignsQuery
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (campaignsError) {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });
     }
-
-    // Lead stats for this agent only
-    const { data: leadsRes, error: leadsError } = await supabase
-      .from("leads")
-      .select("campaign_id, status, qa_status")
-      .in("campaign_id", campaignIds)
-      .eq("assigned_agent_id", user.id);
-
-    if (leadsError) {
-      return NextResponse.json({ error: leadsError.message }, { status: 500 });
-    }
-
-    const leadsByCampaign: Record<
-      string,
-      { total: number; active: number; won: number; qualified: number }
-    > = {};
-
-    ((leadsRes ?? []) as { campaign_id: string; status: string; qa_status: string | null }[]).forEach((l) => {
-      if (!leadsByCampaign[l.campaign_id]) {
-        leadsByCampaign[l.campaign_id] = { total: 0, active: 0, won: 0, qualified: 0 };
-      }
-      const bucket = leadsByCampaign[l.campaign_id];
-      bucket.total += 1;
-      if (["interested", "followup"].includes(l.status)) bucket.active += 1;
-      if (l.status === "closed_won") bucket.won += 1;
-      const qa = String(l.qa_status ?? "").trim().toLowerCase();
-      if (qa === "qualified" || qa === "approved" || qa === "pass") bucket.qualified += 1;
-    });
 
     type CampaignRow = {
       id: string;
@@ -99,7 +96,43 @@ export async function GET() {
       region: string | null;
       created_at: string;
     };
-    const campaignsWithStats = ((campaigns ?? []) as CampaignRow[]).map((c) => ({
+    const campaignsList = (campaigns ?? []) as CampaignRow[];
+    const pageCampaignIds = campaignsList.map((c) => c.id);
+    const total = count ?? campaignsList.length;
+
+    const leadsByCampaign: Record<
+      string,
+      { total: number; active: number; won: number; qualified: number }
+    > = {};
+    for (const id of pageCampaignIds) {
+      leadsByCampaign[id] = { total: 0, active: 0, won: 0, qualified: 0 };
+    }
+
+    if (pageCampaignIds.length > 0) {
+      const { data: leadsRes, error: leadsError } = await supabase
+        .from("leads")
+        .select("campaign_id, status, qa_status")
+        .in("campaign_id", pageCampaignIds)
+        .eq("assigned_agent_id", user.id);
+
+      if (leadsError) {
+        return NextResponse.json({ error: leadsError.message }, { status: 500 });
+      }
+
+      ((leadsRes ?? []) as { campaign_id: string; status: string; qa_status: string | null }[]).forEach(
+        (l) => {
+          const bucket = leadsByCampaign[l.campaign_id];
+          if (!bucket) return;
+          bucket.total += 1;
+          if (["interested", "followup"].includes(l.status)) bucket.active += 1;
+          if (l.status === "closed_won") bucket.won += 1;
+          const qa = String(l.qa_status ?? "").trim().toLowerCase();
+          if (qa === "qualified" || qa === "approved" || qa === "pass") bucket.qualified += 1;
+        }
+      );
+    }
+
+    const campaignsWithStats = campaignsList.map((c) => ({
       ...c,
       total_leads: leadsByCampaign[c.id]?.total ?? 0,
       active_leads: leadsByCampaign[c.id]?.active ?? 0,
@@ -107,10 +140,12 @@ export async function GET() {
       qualified_leads: leadsByCampaign[c.id]?.qualified ?? 0,
     }));
 
-    return NextResponse.json({ campaigns: campaignsWithStats });
+    return NextResponse.json({
+      campaigns: campaignsWithStats,
+      pagination: buildPaginationMeta(page, limit, total),
+    });
   } catch (err) {
     console.error("Agent campaigns error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

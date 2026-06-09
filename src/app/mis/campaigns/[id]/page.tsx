@@ -23,10 +23,8 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import {
-  LEADS_TABLE_PAGE_SIZE_DEFAULT,
-  LEADS_TABLE_PAGE_SIZE_OPTIONS,
-} from "@/lib/leads-table-pagination";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import { buildListApiUrl } from "@/lib/build-list-api-url";
 import {
   ArrowLeftOutlined,
   ReloadOutlined,
@@ -130,8 +128,14 @@ export default function MISCampaignDetailPage() {
   const [savingDrawer, setSavingDrawer] = useState(false);
   const [form] = Form.useForm();
   const [leadSearch, setLeadSearch] = useState("");
-  const [leadsPage, setLeadsPage] = useState(1);
-  const [leadsPageSize, setLeadsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
+  const {
+    page: leadsPage,
+    pageSize: leadsPageSize,
+    total: leadsTotal,
+    applyPaginationMeta,
+    resetPage: resetLeadsPage,
+    tablePagination: leadsTablePagination,
+  } = useServerTablePagination();
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [previousConfirmOpen, setPreviousConfirmOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -148,18 +152,23 @@ export default function MISCampaignDetailPage() {
   const fetchCampaign = useCallback(async (campaignId: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/mis/campaigns/${campaignId}`, { credentials: "include" });
+      const url = buildListApiUrl(`/api/mis/campaigns/${campaignId}`, {
+        page: leadsPage,
+        limit: leadsPageSize,
+      });
+      const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setCampaign(data.campaign);
       setLeads(data.leads ?? []);
+      applyPaginationMeta(data.leads_pagination);
     } catch {
       message.error("Failed to load campaign");
       router.replace("/mis/campaigns");
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, leadsPage, leadsPageSize, applyPaginationMeta]);
 
   useEffect(() => {
     if (!id) {
@@ -189,8 +198,8 @@ export default function MISCampaignDetailPage() {
     return !leadDate.isBefore(start) && !leadDate.isAfter(end);
   });
   useEffect(() => {
-    setLeadsPage(1);
-  }, [leadSearch, dateRange]);
+    resetLeadsPage();
+  }, [leadSearch, dateRange, resetLeadsPage]);
 
   const sortedFilteredLeads = [...filteredLeads].sort((a, b) => {
     const rank = (v: Lead["delivery_status"]) =>
@@ -666,7 +675,7 @@ export default function MISCampaignDetailPage() {
           </Row>
         </Space>
         <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
-          Click a lead row to edit. Agent status = pipeline; QA status = your review outcome. Delivered: {deliveredCount} / Total: {leads.length}. Showing {sortedFilteredLeads.length} of {leads.length} leads.
+          Click a lead row to edit. Agent status = pipeline; QA status = your review outcome. Delivered on page: {deliveredCount}. Total leads: {leadsTotal}.
         </Typography.Text>
         <Table
           className="table-single-line"
@@ -674,17 +683,7 @@ export default function MISCampaignDetailPage() {
           dataSource={sortedFilteredLeads}
           rowKey="id"
           scroll={{ x: 2600 }}
-          pagination={{
-            current: leadsPage,
-            pageSize: leadsPageSize,
-            showSizeChanger: true,
-            pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
-            showTotal: (t) => `Total ${t} leads`,
-            onChange: (page, size) => {
-              setLeadsPage(page);
-              setLeadsPageSize(size);
-            },
-          }}
+          pagination={leadsTablePagination}
           locale={{ emptyText: "No leads yet" }}
           size="middle"
           onRow={(record) => ({

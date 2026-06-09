@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -32,6 +33,8 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
 import { tableSerialNumber } from "@/lib/table-pagination";
 
 type CampaignRow = {
@@ -64,47 +67,82 @@ type Stats = {
 
 export default function SalesCampaignsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { hasRole, isInitialized } = useAuth();
   const hasSalesAccess =
     hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [campaignsPage, setCampaignsPage] = useState(1);
-  const [campaignsPageSize, setCampaignsPageSize] = useState(10);
+  const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [statsRes, campaignsRes] = await Promise.all([
-        fetch("/api/tl/campaigns/stats", { credentials: "include" }),
-        fetch("/api/tl/campaigns", { credentials: "include" }),
-      ]);
-      const statsData = await statsRes.json();
-      const campaignsData = await campaignsRes.json();
-      if (statsRes.ok) setStats(statsData);
-      if (campaignsRes.ok) setCampaigns(campaignsData.campaigns ?? []);
-    } catch {
-      message.error("Failed to load campaigns");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchText]);
+
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, statusFilter, resetPage]);
+
+  const listEnabled = isInitialized && hasSalesAccess;
+
+  const statsQuery = useQuery({
+    queryKey: ["sales", "campaigns", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/tl/campaigns/stats", { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load stats");
+      return data as Stats;
+    },
+    enabled: listEnabled,
+  });
+
+  const {
+    items: campaigns,
+    pagination,
+    isLoading: campaignsLoading,
+    error: campaignsError,
+  } = usePaginatedListQuery<CampaignRow>({
+    queryKeyPrefix: ["sales", "campaigns", "list"],
+    url: "/api/tl/campaigns",
+    params: {
+      page,
+      limit: pageSize,
+      q: debouncedSearch || undefined,
+      status: statusFilter || undefined,
+    },
+    listField: "campaigns",
+    enabled: listEnabled,
+  });
+
+  useEffect(() => {
+    if (pagination) applyPaginationMeta(pagination);
+  }, [pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (campaignsError) {
+      message.error(
+        campaignsError instanceof Error ? campaignsError.message : "Failed to load campaigns"
+      );
     }
-  }, []);
+  }, [campaignsError]);
 
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasSalesAccess) {
       router.replace("/login");
-      return;
     }
-    fetchData();
-  }, [isInitialized, hasSalesAccess, router, fetchData]);
+  }, [isInitialized, hasSalesAccess, router]);
 
-  useEffect(() => {
-    setCampaignsPage(1);
-  }, [searchText, statusFilter]);
+  const loading =
+    (campaignsLoading || statsQuery.isLoading) && campaigns.length === 0;
+  const stats = statsQuery.data ?? null;
+
+  const refreshLists = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["sales", "campaigns"] });
+  }, [queryClient]);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
@@ -116,7 +154,7 @@ export default function SalesCampaignsPage() {
       });
       if (!res.ok) throw new Error("Failed");
       message.success("Campaign updated");
-      fetchData();
+      refreshLists();
     } catch {
       message.error("Failed to update campaign");
     }
@@ -133,7 +171,7 @@ export default function SalesCampaignsPage() {
         throw new Error(data.error || "Failed to delete");
       }
       message.success("Campaign deleted");
-      fetchData();
+      refreshLists();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to delete campaign");
     }
@@ -150,20 +188,6 @@ export default function SalesCampaignsPage() {
   if (!hasSalesAccess) {
     return null;
   }
-
-  const filteredCampaigns = campaigns.filter((c) => {
-    const matchesSearch =
-      !searchText ||
-      (c.name?.toLowerCase().includes(searchText.toLowerCase())) ||
-      (c.client_name?.toLowerCase().includes(searchText.toLowerCase())) ||
-      (c.campaign_id?.toLowerCase().includes(searchText.toLowerCase())) ||
-      (c.campaign_code?.toLowerCase().includes(searchText.toLowerCase())) ||
-      (c.lead_type?.toLowerCase().includes(searchText.toLowerCase())) ||
-      (c.industry?.toLowerCase().includes(searchText.toLowerCase())) ||
-      (c.geography?.toLowerCase().includes(searchText.toLowerCase()));
-    const matchesStatus = !statusFilter || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   const statusOptions = [
     { value: "draft", label: "Draft" },
@@ -188,7 +212,7 @@ export default function SalesCampaignsPage() {
       width: 72,
       fixed: "left" as const,
       render: (_: unknown, __: CampaignRow, index: number) =>
-        tableSerialNumber(campaignsPage, campaignsPageSize, index),
+        tableSerialNumber(page, pageSize, index),
     },
     {
       title: "Campaign Code",
@@ -460,21 +484,11 @@ export default function SalesCampaignsPage() {
             <Table
               className="table-single-line"
               columns={columns}
-              dataSource={filteredCampaigns}
+              dataSource={campaigns}
               rowKey="id"
               scroll={{ x: 1920 }}
-              pagination={{
-                current: campaignsPage,
-                pageSize: campaignsPageSize,
-                showSizeChanger: true,
-                pageSizeOptions: ["10", "15", "25", "50"],
-                showTotal: (t) => `Total ${t} campaigns`,
-                onChange: (page, size) => {
-                  setCampaignsPage(page);
-                  setCampaignsPageSize(size);
-                },
-              }}
-              locale={{ emptyText: searchText || statusFilter ? "No campaigns match the filter." : "No campaigns yet. Create your first campaign." }}
+              pagination={tablePagination}
+              locale={{ emptyText: debouncedSearch || statusFilter ? "No campaigns match the filter." : "No campaigns yet. Create your first campaign." }}
               tableLayout="fixed"
             />
           </Card>

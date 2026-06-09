@@ -2,10 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import dayjs from "dayjs";
-import {
-  LEADS_TABLE_PAGE_SIZE_DEFAULT,
-  LEADS_TABLE_PAGE_SIZE_OPTIONS,
-} from "@/lib/leads-table-pagination";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import { buildListApiUrl } from "@/lib/build-list-api-url";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -165,8 +163,7 @@ export default function SalesCampaignDetailPage() {
     { value: "Whitepaper", label: "Whitepaper" },
   ]);
   const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
-  const [leadsPage, setLeadsPage] = useState(1);
-  const [leadsPageSize, setLeadsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
+  const { page, pageSize, total, applyPaginationMeta, tablePagination } = useServerTablePagination();
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -184,11 +181,13 @@ export default function SalesCampaignDetailPage() {
   const fetchCampaign = useCallback(async (campaignId: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/tl/campaigns/${campaignId}`, { credentials: "include" });
+      const url = buildListApiUrl(`/api/tl/campaigns/${campaignId}`, { page, limit: pageSize });
+      const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setCampaign(data.campaign);
       setLeads(data.leads ?? []);
+      applyPaginationMeta(data.leads_pagination);
       setFiles(data.files ?? []);
     } catch {
       message.error("Failed to load campaign");
@@ -196,7 +195,7 @@ export default function SalesCampaignDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, page, pageSize, applyPaginationMeta]);
 
   useEffect(() => {
     if (!id) {
@@ -462,7 +461,7 @@ export default function SalesCampaignDetailPage() {
       width: 72,
       fixed: "left" as const,
       render: (_: unknown, __: Lead, index: number) =>
-        tableSerialNumber(leadsPage, leadsPageSize, index),
+        tableSerialNumber(page, pageSize, index),
     },
     {
       title: "Lead ID",
@@ -885,7 +884,7 @@ export default function SalesCampaignDetailPage() {
 
       {/* Leads table */}
       <Card
-        title={`Leads (${leads.length})`}
+        title={`Leads (${total})`}
         style={{
           borderRadius: 8,
           border: "1px solid #f0f0f0",
@@ -900,15 +899,8 @@ export default function SalesCampaignDetailPage() {
           rowKey="id"
           scroll={{ x: 1500 }}
           pagination={{
-            current: leadsPage,
-            pageSize: leadsPageSize,
-            showSizeChanger: true,
-            pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
+            ...tablePagination,
             showTotal: (t) => `Total ${t} leads`,
-            onChange: (page, size) => {
-              setLeadsPage(page);
-              setLeadsPageSize(size);
-            },
           }}
           locale={{ emptyText: "No leads yet" }}
           size="middle"

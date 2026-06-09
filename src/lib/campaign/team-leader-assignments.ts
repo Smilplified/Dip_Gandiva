@@ -97,6 +97,53 @@ export async function fetchCampaignTeamLeaderAssignments(
   }));
 }
 
+/** Batch-fetch team leader assignments for many campaigns (2 queries vs N+1). */
+export async function fetchBulkCampaignTeamLeaderAssignments(
+  supabase: SupabaseClient,
+  campaigns: Array<{ id: string; assigned_team_leader_id?: string | null }>
+): Promise<Record<string, CampaignTeamLeaderAssignment[]>> {
+  if (campaigns.length === 0) return {};
+
+  const campaignIds = campaigns.map((c) => c.id);
+  const idsByCampaign = new Map<string, Set<string>>();
+  for (const c of campaigns) {
+    const ids = new Set<string>();
+    if (c.assigned_team_leader_id) ids.add(c.assigned_team_leader_id);
+    idsByCampaign.set(c.id, ids);
+  }
+
+  const { data, error } = await supabase
+    .from("campaign_team_leader_assignments")
+    .select("campaign_id, team_leader_id")
+    .in("campaign_id", campaignIds)
+    .eq("is_active", true);
+
+  if (error) {
+    console.error("fetchBulkCampaignTeamLeaderAssignments:", error.message);
+  } else {
+    for (const row of (data ?? []) as { campaign_id: string; team_leader_id: string }[]) {
+      if (!row.team_leader_id) continue;
+      const bucket = idsByCampaign.get(row.campaign_id);
+      if (bucket) bucket.add(row.team_leader_id);
+    }
+  }
+
+  const allUserIds = [
+    ...new Set([...idsByCampaign.values()].flatMap((ids) => [...ids])),
+  ];
+  const names = await resolveUserDisplayNames(supabase, allUserIds);
+
+  const result: Record<string, CampaignTeamLeaderAssignment[]> = {};
+  for (const c of campaigns) {
+    const ids = [...(idsByCampaign.get(c.id) ?? [])];
+    result[c.id] = ids.map((team_leader_id) => ({
+      team_leader_id,
+      team_leader_name: names[team_leader_id] ?? null,
+    }));
+  }
+  return result;
+}
+
 export function formatTeamLeaderAssignmentLabel(
   assignments: CampaignTeamLeaderAssignment[]
 ): string | null {

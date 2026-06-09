@@ -106,10 +106,6 @@ export async function middleware(request: NextRequest) {
     return redirectWithCookies(request, response, loginPath);
   }
 
-  // If user exists, fetch roles — but only when the middleware actually needs
-  // them to make a redirect decision. For normal sub-path navigation by an
-  // authenticated user (e.g. /dashboard/campaigns, /sales/leads) the role check
-  // is not needed and the DB round-trip only adds latency to every SPA navigation.
   if (user) {
     const needsRoleCheck =
       pathname === "/" ||

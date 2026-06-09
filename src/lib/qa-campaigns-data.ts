@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 import { countAuditedLeads, countPendingAuditLeads } from "@/lib/qa-lead-audit";
+import { buildPaginationMeta } from "@/lib/api-pagination";
 
 const LEADS_PAGE_SIZE = 1000;
 
@@ -134,8 +135,13 @@ export async function loadQaCampaignsForDateRange(
   supabase: SupabaseClient,
   orgId: string,
   startUtc: string,
-  endUtc: string
-): Promise<QaCampaignsListResult> {
+  endUtc: string,
+  options?: { page?: number; limit?: number; includeLeads?: boolean }
+): Promise<QaCampaignsListResult & { pagination?: ReturnType<typeof buildPaginationMeta> }> {
+  const page = Math.max(1, options?.page ?? 1);
+  const limit = Math.max(1, Math.min(100, options?.limit ?? 10));
+  const includeLeads = options?.includeLeads ?? false;
+  const offset = (page - 1) * limit;
   const { data: campaigns, error: campaignsError } = await supabase
     .from("campaigns")
     .select(`
@@ -237,5 +243,13 @@ export async function loadQaCampaignsForDateRange(
     campaign_count: visible.length,
   };
 
-  return { campaigns: visible, summary };
+  const paged = visible.slice(offset, offset + limit).map((c) =>
+    includeLeads ? c : { ...c, leads: [] as Record<string, unknown>[] }
+  );
+
+  return {
+    campaigns: paged,
+    summary,
+    pagination: buildPaginationMeta(page, limit, visible.length),
+  };
 }

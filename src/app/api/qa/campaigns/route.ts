@@ -28,16 +28,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    const range = resolveDateRangeParams(new URL(request.url).searchParams, "UTC");
+    const sp = new URL(request.url).searchParams;
+    const range = resolveDateRangeParams(sp, "UTC");
     if ("error" in range) {
       return NextResponse.json({ error: range.error }, { status: 400 });
     }
 
-    const { campaigns, summary } = await loadQaCampaignsForDateRange(
+    const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(sp.get("limit") ?? "10", 10) || 10));
+    const includeLeads = sp.get("include_leads") === "1";
+
+    const { campaigns, summary, pagination } = await loadQaCampaignsForDateRange(
       supabase,
       orgId,
       range.startUtc,
-      range.endUtc
+      range.endUtc,
+      { page, limit, includeLeads }
     );
 
     return NextResponse.json({
@@ -48,6 +54,7 @@ export async function GET(request: Request) {
       },
       summary,
       campaigns,
+      pagination,
     });
   } catch (err) {
     console.error("QA campaigns list error:", err);

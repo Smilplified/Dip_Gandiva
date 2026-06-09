@@ -12,6 +12,7 @@ import {
   aggregateCommandLeadStatsByCampaign,
   aggregateUnresolvedAlertsByCampaign,
   aggregateDqOverrideAlertCountsByCampaign,
+  aggregateCommandCampaignStatusSummary,
   type CommandListLeadAgg,
   type CommandListAlertAgg,
 } from "@/lib/command/db";
@@ -23,6 +24,7 @@ import {
   campaignQuestionsToDbValue,
   normalizeCampaignQuestions,
 } from "@/lib/campaign-questions";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 /** In-app recipients when a client viewer creates a campaign. */
 const CLIENT_VIEWER_CAMPAIGN_NOTIFY_ROLES = new Set([
@@ -195,6 +197,7 @@ export async function GET(request: NextRequest) {
 
   if (sp.get("enrich") === "1") {
     const orgId = profile?.organization_id ?? "";
+    const { page, limit, offset } = parseListPagination(sp);
     const qRaw = sp.get("q")?.trim() ?? "";
     const statusGroup = (sp.get("status") ?? "all").toLowerCase();
     const dateFrom = sp.get("date_from")?.trim() ?? "";
@@ -202,13 +205,23 @@ export async function GET(request: NextRequest) {
 
     const clientViewerId = profile?.client_id ?? null;
     let clientViewerUserIds: string[] = [];
+    const emptySummary = {
+      total: 0,
+      active: 0,
+      completed: 0,
+      paused: 0,
+      draft: 0,
+    };
+
     if (userRoles.includes("client_viewer")) {
       if (!clientViewerId) {
         return NextResponse.json({
           campaigns: [],
           total: 0,
+          summary: emptySummary,
           truncated: false,
-          limit: LIST_MAX,
+          limit,
+          pagination: buildPaginationMeta(page, limit, 0),
         });
       }
       clientViewerUserIds = await getClientViewerUserIdsForOrg(supabase, orgId);
@@ -216,11 +229,22 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           campaigns: [],
           total: 0,
+          summary: emptySummary,
           truncated: false,
-          limit: LIST_MAX,
+          limit,
+          pagination: buildPaginationMeta(page, limit, 0),
         });
       }
     }
+
+    const scopeFilters = {
+      organizationId: orgId,
+      clientId: userRoles.includes("client_viewer") ? clientViewerId : null,
+      clientViewerUserIds: userRoles.includes("client_viewer") ? clientViewerUserIds : undefined,
+      qRaw,
+      dateFrom,
+      dateTo,
+    };
 
     let listQuery = supabase
       .from("campaigns")
@@ -244,7 +268,7 @@ export async function GET(request: NextRequest) {
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
-      .limit(LIST_MAX);
+      .range(offset, offset + limit - 1);
 
     if (userRoles.includes("client_viewer") && clientViewerId) {
       listQuery = listQuery.eq("client_id", clientViewerId);
@@ -269,7 +293,10 @@ export async function GET(request: NextRequest) {
       listQuery = listQuery.or(`start_date.is.null,start_date.lte.${dateTo}`);
     }
 
-    const { data: listRows, count, error: listErr } = await listQuery;
+    const [{ data: listRows, count, error: listErr }, summary] = await Promise.all([
+      listQuery,
+      aggregateCommandCampaignStatusSummary(supabase, scopeFilters).catch(() => emptySummary),
+    ]);
     if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
 
     const rows = (listRows ?? []) as Record<string, unknown>[];
@@ -359,11 +386,14 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const total = count ?? 0;
     return NextResponse.json({
       campaigns: enriched,
-      total: count ?? 0,
-      truncated: (count ?? 0) > LIST_MAX,
-      limit: LIST_MAX,
+      total,
+      summary,
+      truncated: total > limit,
+      limit,
+      pagination: buildPaginationMeta(page, limit, total),
     });
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -16,12 +16,10 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import {
-  LEADS_TABLE_PAGE_SIZE_DEFAULT,
-  LEADS_TABLE_PAGE_SIZE_OPTIONS,
-} from "@/lib/leads-table-pagination";
 import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
 import { downloadAgentCsv } from "@/lib/leadsExport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import type { Lead } from "@/types/lead.types";
@@ -30,49 +28,65 @@ type LeadWithCampaign = Lead & { campaign_id?: string; campaign_name?: string | 
 
 export default function AgentMyLeadsPage() {
   const { hasRole, isInitialized } = useAuth();
-  const [leads, setLeads] = useState<LeadWithCampaign[]>([]);
-  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
-  const [leadsPage, setLeadsPage] = useState(1);
-  const [leadsPageSize, setLeadsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
   const [isOffline, setIsOffline] = useState(false);
 
-  const fetchLeads = useCallback(async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setIsOffline(true);
-      setLoading(false);
-      return;
-    }
-
-    setIsOffline(false);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/agent/leads", { credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load leads");
-      setLeads(data.leads ?? []);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to load leads");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(leadSearch.trim()), 400);
+    return () => clearTimeout(t);
+  }, [leadSearch]);
 
   useEffect(() => {
-    if (!isInitialized) return;
-    if (!hasRole("agent")) return;
-    fetchLeads();
-  }, [isInitialized, hasRole, fetchLeads]);
+    resetPage();
+  }, [debouncedSearch, dateRange, resetPage]);
+
+  const listEnabled =
+    isInitialized &&
+    hasRole("agent") &&
+    !isOffline &&
+    typeof navigator !== "undefined" &&
+    navigator.onLine;
+
+  const {
+    items: leads,
+    pagination,
+    isLoading,
+    error: leadsError,
+    refetch,
+  } = usePaginatedListQuery<LeadWithCampaign>({
+    queryKeyPrefix: ["agent", "leads", "list"],
+    url: "/api/agent/leads",
+    params: {
+      page,
+      limit: pageSize,
+      q: debouncedSearch || undefined,
+    },
+    listField: "leads",
+    enabled: listEnabled,
+  });
+
+  useEffect(() => {
+    if (pagination) applyPaginationMeta(pagination);
+  }, [pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (leadsError) {
+      message.error(
+        leadsError instanceof Error ? leadsError.message : "Failed to load leads"
+      );
+    }
+  }, [leadsError]);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      fetchLeads();
+      void refetch();
     };
-    const handleOffline = () => {
-      setIsOffline(true);
-    };
+    const handleOffline = () => setIsOffline(true);
 
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
@@ -85,36 +99,23 @@ export default function AgentMyLeadsPage() {
         window.removeEventListener("offline", handleOffline);
       }
     };
-  }, [fetchLeads]);
+  }, [refetch]);
+
+  const loading = isLoading && leads.length === 0;
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {
-      const q = leadSearch.trim().toLowerCase();
-      const matchesSearch = !q
-        ? true
-        : (l.lead_id ?? "").toLowerCase().includes(q) ||
-          (l.name ?? "").toLowerCase().includes(q) ||
-          (l.company_name ?? "").toLowerCase().includes(q) ||
-          (l.email ?? "").toLowerCase().includes(q) ||
-          (l.phone ?? "").toLowerCase().includes(q) ||
-          (l.campaign_name ?? "").toLowerCase().includes(q) ||
-          ([l.first_name, l.last_name].filter(Boolean).join(" ") ?? "").toLowerCase().includes(q);
-      if (!matchesSearch) return false;
       if (!dateRange?.[0] || !dateRange?.[1]) return true;
       const leadDate = dayjs(l.created_at).startOf("day");
       const start = dateRange[0].startOf("day");
       const end = dateRange[1].endOf("day");
       return !leadDate.isBefore(start) && !leadDate.isAfter(end);
     });
-  }, [leads, leadSearch, dateRange]);
-
-  useEffect(() => {
-    setLeadsPage(1);
-  }, [leadSearch, dateRange]);
+  }, [leads, dateRange]);
 
   const baseColumns = getLeadTableColumns({
     showActions: false,
-    pagination: { current: leadsPage, pageSize: leadsPageSize },
+    pagination: { current: page, pageSize },
     showDeliveryStatus: true,
     showFollowupDate: false,
   });
@@ -170,7 +171,7 @@ export default function AgentMyLeadsPage() {
             <Typography.Text type="danger" style={{ fontSize: 14 }}>
               You appear to be offline. Check your internet connection. Data will reload
               automatically once you are back online, or{" "}
-              <Button type="link" onClick={fetchLeads} style={{ padding: 0 }}>
+              <Button type="link" onClick={() => void refetch()} style={{ padding: 0 }}>
                 click here to retry now
               </Button>
               .
@@ -179,7 +180,7 @@ export default function AgentMyLeadsPage() {
         )}
 
         <Card
-          title={`Leads (${filteredLeads.length}${filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""})`}
+          title={`Leads (${filteredLeads.length}${dateRange?.[0] && dateRange?.[1] ? ` of ${total}` : ""})`}
           extra={
             <Button
               icon={<DownloadOutlined />}
@@ -231,8 +232,8 @@ export default function AgentMyLeadsPage() {
             </Col>
           </Row>
           <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
-            {filteredLeads.length !== leads.length
-              ? `Showing ${filteredLeads.length} of ${leads.length} leads. Click a campaign to open it.`
+            {dateRange?.[0] && dateRange?.[1]
+              ? `Showing ${filteredLeads.length} of ${total} leads on this page. Click a campaign to open it.`
               : "Click a campaign name to open that campaign."}
           </Typography.Text>
           <Table
@@ -242,19 +243,9 @@ export default function AgentMyLeadsPage() {
             rowKey="id"
             loading={loading}
             scroll={{ x: 2800 }}
-            pagination={{
-              current: leadsPage,
-              pageSize: leadsPageSize,
-              showSizeChanger: true,
-              pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
-              showTotal: (t) => `Total ${t} leads`,
-              onChange: (page, size) => {
-                setLeadsPage(page);
-                setLeadsPageSize(size);
-              },
-            }}
+            pagination={tablePagination}
             locale={{
-              emptyText: leadSearch || dateRange?.[0] || dateRange?.[1]
+              emptyText: debouncedSearch || dateRange?.[0] || dateRange?.[1]
                 ? "No leads match the filter."
                 : "No leads assigned yet. Your Team Leader can assign you to campaigns.",
             }}

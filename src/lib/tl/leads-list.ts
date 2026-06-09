@@ -12,6 +12,8 @@ const LEADS_SELECT_EXTENDED =
 const QA_EXTRA =
   ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason";
 
+export const TL_LEADS_LIST_SELECT = LEADS_SELECT_EXTENDED + QA_EXTRA;
+
 function isMissingColumnError(message: string | undefined): boolean {
   return Boolean(
     message?.includes("column") || message?.includes("qa_status")
@@ -55,4 +57,78 @@ export async function fetchTlLeadsForCampaigns(
   }
 
   return all;
+}
+
+/** Single-page fetch with total count for TL org leads list API. */
+export async function fetchTlLeadsPageForCampaigns(
+  supabase: SupabaseClient,
+  opts: {
+    campaignIds: string[];
+    offset: number;
+    limit: number;
+    search?: string;
+    select?: string;
+    agentIds?: string[];
+    includeUnassigned?: boolean;
+    dateFrom?: string;
+    dateTo?: string;
+  }
+): Promise<{ rows: Record<string, unknown>[]; total: number }> {
+  const { campaignIds, offset, limit, search, agentIds, includeUnassigned, dateFrom, dateTo } =
+    opts;
+  if (campaignIds.length === 0) return { rows: [], total: 0 };
+
+  let useExtendedSelect = true;
+  let select = opts.select ?? TL_LEADS_LIST_SELECT;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let query = supabase
+      .from("leads")
+      .select(select, { count: "exact" })
+      .in("campaign_id", campaignIds)
+      .order("created_at", { ascending: false });
+
+    if (search) {
+      const safe = search.replace(/%/g, "").replace(/_/g, "");
+      if (safe.length > 0) {
+        query = query.or(
+          `name.ilike.%${safe}%,company_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,lead_id.ilike.%${safe}%`
+        );
+      }
+    }
+
+    const realAgentIds = (agentIds ?? []).filter(Boolean);
+    if (realAgentIds.length > 0 && includeUnassigned) {
+      const idList = realAgentIds.map((id) => `"${id}"`).join(",");
+      query = query.or(`assigned_agent_id.is.null,assigned_agent_id.in.(${idList})`);
+    } else if (realAgentIds.length > 0) {
+      query = query.in("assigned_agent_id", realAgentIds);
+    } else if (includeUnassigned) {
+      query = query.is("assigned_agent_id", null);
+    }
+
+    if (dateFrom) {
+      query = query.gte("created_at", `${dateFrom}T00:00:00.000Z`);
+    }
+    if (dateTo) {
+      query = query.lte("created_at", `${dateTo}T23:59:59.999Z`);
+    }
+
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
+
+    if (error && useExtendedSelect && isMissingColumnError(error.message)) {
+      useExtendedSelect = false;
+      select = LEADS_SELECT_BASE + QA_EXTRA;
+      continue;
+    }
+
+    if (error) throw new Error(error.message);
+
+    return {
+      rows: (data ?? []) as unknown as Record<string, unknown>[],
+      total: count ?? 0,
+    };
+  }
+
+  return { rows: [], total: 0 };
 }

@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ const LEADS_SELECT_EXTENDED =
   LEADS_SELECT_BASE +
   ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const {
@@ -33,27 +34,50 @@ export async function GET() {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    let res = await supabase
+    const { page, limit, offset } = parseListPagination(request.nextUrl.searchParams);
+    const searchRaw = request.nextUrl.searchParams.get("q")?.trim() || "";
+
+    let select = LEADS_SELECT_EXTENDED + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason";
+    let query = supabase
       .from("leads")
-      .select(LEADS_SELECT_EXTENDED + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
+      .select(select, { count: "exact" })
       .eq("assigned_agent_id", user.id)
       .order("created_at", { ascending: false });
 
-    let leadsList = res.data as Record<string, unknown>[] | null;
+    if (searchRaw.length > 0) {
+      const safe = searchRaw.replace(/%/g, "").replace(/_/g, "");
+      if (safe.length > 0) {
+        query = query.or(
+          `name.ilike.%${safe}%,company_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,lead_id.ilike.%${safe}%`
+        );
+      }
+    }
+
+    let res = await query.range(offset, offset + limit - 1);
     if (res.error && (res.error?.message?.includes("column") || res.error?.message?.includes("qa_status"))) {
-      res = await supabase
+      select = LEADS_SELECT_BASE + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason";
+      query = supabase
         .from("leads")
-        .select(LEADS_SELECT_BASE + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
+        .select(select, { count: "exact" })
         .eq("assigned_agent_id", user.id)
         .order("created_at", { ascending: false });
-      leadsList = res.data as Record<string, unknown>[] | null;
+      if (searchRaw.length > 0) {
+        const safe = searchRaw.replace(/%/g, "").replace(/_/g, "");
+        if (safe.length > 0) {
+          query = query.or(
+            `name.ilike.%${safe}%,company_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,lead_id.ilike.%${safe}%`
+          );
+        }
+      }
+      res = await query.range(offset, offset + limit - 1);
     }
 
     if (res.error) {
       return NextResponse.json({ error: res.error.message }, { status: 500 });
     }
 
-    const rawLeads = (leadsList ?? []) as (Record<string, unknown> & { campaign_id?: string })[];
+    const rawLeads = (res.data ?? []) as (Record<string, unknown> & { campaign_id?: string })[];
+    const total = res.count ?? rawLeads.length;
     const campaignIds = [...new Set(rawLeads.map((l) => l.campaign_id).filter(Boolean))] as string[];
 
     let campaignNames: Record<string, string> = {};
@@ -80,7 +104,10 @@ export async function GET() {
       rectified_reason: (row.rectified_reason as string | null) ?? null,
     }));
 
-    return NextResponse.json({ leads });
+    return NextResponse.json({
+      leads,
+      pagination: buildPaginationMeta(page, limit, total),
+    });
   } catch (err) {
     console.error("Agent leads (all) error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

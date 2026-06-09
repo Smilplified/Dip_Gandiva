@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
@@ -61,6 +61,7 @@ import type {
   TLSummary,
 } from "@/app/api/tl/team-performance/route";
 import { TEAM_ASSIGNMENT_CHANNEL } from "@/lib/tl/team-sync";
+import { useCachedApiQuery } from "@/hooks/useCachedApiQuery";
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -378,11 +379,6 @@ function PredictionCard({ c, today }: { c: CampaignPerformance; today: string })
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TeamPerformanceDashboard() {
-  const [data, setData] = useState<TeamPerformanceResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const today = dayjs().format("YYYY-MM-DD");
 
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
@@ -396,7 +392,7 @@ export default function TeamPerformanceDashboard() {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   }, []);
 
-  const buildUrl = useCallback(() => {
+  const apiUrl = useMemo(() => {
     const p = new URLSearchParams();
     p.set("start_date", dateRange[0].format("YYYY-MM-DD"));
     p.set("end_date", dateRange[1].format("YYYY-MM-DD"));
@@ -406,41 +402,41 @@ export default function TeamPerformanceDashboard() {
     return `/api/tl/team-performance?${p.toString()}`;
   }, [dateRange, clientTimeZone, campaignFilter, userFilter]);
 
-  const load = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      else setRefreshing(true);
-      setError(null);
-      try {
-        const res = await fetch(buildUrl(), { credentials: "include" });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? "Failed to load");
-        setData(json);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load");
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [buildUrl]
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch,
+  } = useCachedApiQuery<TeamPerformanceResponse>(
+    ["tl", "team-performance", apiUrl],
+    apiUrl,
+    { refetchInterval: PERF_REFRESH_MS }
   );
 
-  useEffect(() => { void load(); }, [load]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => void load(true), PERF_REFRESH_MS);
-    return () => window.clearInterval(id);
-  }, [load]);
+  const loading = isLoading && !data;
+  const refreshing = isFetching && Boolean(data);
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : "Failed to load"
+    : null;
 
   useEffect(() => {
     let ch: BroadcastChannel | null = null;
     try {
       ch = new BroadcastChannel(TEAM_ASSIGNMENT_CHANNEL);
-      ch.onmessage = () => void load(true);
-    } catch { /* ignore */ }
-    return () => { if (ch) { ch.onmessage = null; ch.close(); } };
-  }, [load]);
+      ch.onmessage = () => void refetch();
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      if (ch) {
+        ch.onmessage = null;
+        ch.close();
+      }
+    };
+  }, [refetch]);
 
   const isOM = data?.scope === "organization";
   const singleDayRange = data?.date_range?.single_day ?? false;
@@ -977,7 +973,7 @@ export default function TeamPerformanceDashboard() {
         <Col xs={24} sm={12} md={24} lg={6}>
           <Button
             icon={<ReloadOutlined spin={refreshing} />}
-            onClick={() => void load(true)}
+            onClick={() => void refetch()}
             style={{ borderRadius: 10, width: "100%" }}
           >
             Refresh

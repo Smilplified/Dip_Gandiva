@@ -3,11 +3,12 @@
 import React, { useState } from "react";
 import type { HTMLAttributes } from "react";
 import { Table, Tag, Tooltip } from "antd";
-import CampaignPerformancePredictionBar from "@/components/command/CampaignPerformancePredictionBar";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import Link from "next/link";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import CampaignPerformancePredictionBar from "@/components/command/CampaignPerformancePredictionBar";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 dayjs.extend(customParseFormat);
 
@@ -64,6 +65,10 @@ interface CampaignTableProps {
   loading?: boolean;
   /** Simplified columns for Client Viewer on /dashboard/campaigns */
   clientViewer?: boolean;
+  /** Server-driven pagination; omit for local client pagination */
+  pagination?: TablePaginationConfig;
+  page?: number;
+  pageSize?: number;
 }
 
 function achievedLeadCount(row: CommandCampaignRow): number {
@@ -145,9 +150,18 @@ const CLIENT_VIEWER_SCROLL_X =
   CAMPAIGN_HEALTH_COL_WIDTH +
   REMAINING_ALLOCATION_COL_WIDTH;
 
-export default function CampaignTable({ campaigns, loading, clientViewer }: CampaignTableProps) {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+export default function CampaignTable({
+  campaigns,
+  loading,
+  clientViewer,
+  pagination: paginationProp,
+  page: pageProp,
+  pageSize: pageSizeProp,
+}: CampaignTableProps) {
+  const [localPage, setLocalPage] = useState(1);
+  const [localPageSize, setLocalPageSize] = useState(25);
+  const page = pageProp ?? localPage;
+  const pageSize = pageSizeProp ?? localPageSize;
 
   const clientViewerColumns: ColumnsType<CommandCampaignRow> = [
     {
@@ -159,7 +173,7 @@ export default function CampaignTable({ campaigns, loading, clientViewer }: Camp
       onHeaderCell: headerCellProps(72, true),
       onCell: fixedBodyCellProps(72),
       render: (_: unknown, __: CommandCampaignRow, index: number) =>
-        (page - 1) * pageSize + index + 1,
+        tableSerialNumber(page, pageSize, index),
     },
     {
       title: "Campaign Name",
@@ -520,17 +534,19 @@ export default function CampaignTable({ campaigns, loading, clientViewer }: Camp
       size="middle"
       tableLayout="fixed"
       scroll={{ x: clientViewer ? CLIENT_VIEWER_SCROLL_X : "max-content" }}
-      pagination={{
-        current: page,
-        pageSize,
-        showSizeChanger: true,
-        pageSizeOptions: [10, 25, 50, 100],
-        showTotal: (t) => `${t} campaigns`,
-        onChange: (nextPage, nextSize) => {
-          setPage(nextPage);
-          setPageSize(nextSize ?? 25);
-        },
-      }}
+      pagination={
+        paginationProp ?? {
+          current: localPage,
+          pageSize: localPageSize,
+          showSizeChanger: true,
+          pageSizeOptions: [10, 25, 50, 100],
+          showTotal: (t) => `${t} campaigns`,
+          onChange: (nextPage, nextSize) => {
+            setLocalPage(nextPage);
+            setLocalPageSize(nextSize ?? 25);
+          },
+        }
+      }
       style={{ background: "#fff", borderRadius: 8 }}
     />
   );

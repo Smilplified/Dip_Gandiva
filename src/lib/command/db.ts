@@ -691,3 +691,72 @@ export async function aggregateDqOverrideAlertCountsByCampaign(
   }
   return out;
 }
+
+export type CommandCampaignScopeFilters = {
+  organizationId: string;
+  clientId?: string | null;
+  clientViewerUserIds?: string[];
+  qRaw?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type CommandCampaignStatusSummary = {
+  total: number;
+  active: number;
+  completed: number;
+  paused: number;
+  draft: number;
+};
+
+/** Status breakdown for campaign list stat cards (search/date scope, not table status filter). */
+export async function aggregateCommandCampaignStatusSummary(
+  supabase: Client,
+  filters: CommandCampaignScopeFilters
+): Promise<CommandCampaignStatusSummary> {
+  type CampaignCountQuery = ReturnType<ReturnType<Client["from"]>["select"]>;
+
+  const applyScope = (q: CampaignCountQuery): CampaignCountQuery => {
+    let x = q.eq("organization_id", filters.organizationId);
+    if (filters.clientId && filters.clientViewerUserIds?.length) {
+      x = x.eq("client_id", filters.clientId).in("created_by", filters.clientViewerUserIds);
+    }
+    const qRaw = filters.qRaw?.trim() ?? "";
+    if (qRaw.length > 0) {
+      const safe = qRaw.replace(/%/g, "").replace(/_/g, "");
+      if (safe.length > 0) x = x.ilike("name", `%${safe}%`);
+    }
+    const dateFrom = filters.dateFrom?.trim() ?? "";
+    const dateTo = filters.dateTo?.trim() ?? "";
+    if (dateFrom && dateTo) {
+      x = x
+        .or(`start_date.is.null,start_date.lte.${dateTo}`)
+        .or(`end_date.is.null,end_date.gte.${dateFrom}`);
+    } else if (dateFrom) {
+      x = x.or(`end_date.is.null,end_date.gte.${dateFrom}`);
+    } else if (dateTo) {
+      x = x.or(`start_date.is.null,start_date.lte.${dateTo}`);
+    }
+    return x;
+  };
+
+  const countScoped = async (status?: string) => {
+    let q = applyScope(
+      supabase.from("campaigns").select("id", { count: "exact", head: true })
+    );
+    if (status) q = q.eq("status", status);
+    const { count, error } = await q;
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  };
+
+  const [total, active, completed, paused, draft] = await Promise.all([
+    countScoped(),
+    countScoped("active"),
+    countScoped("completed"),
+    countScoped("paused"),
+    countScoped("draft"),
+  ]);
+
+  return { total, active, completed, paused, draft };
+}

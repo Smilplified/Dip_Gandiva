@@ -45,6 +45,87 @@ export async function fetchTlDashboardLeads(
   return all;
 }
 
+export type TlCampaignLeadCounts = {
+  total: number;
+  qualified: number;
+  delivered: number;
+};
+
+type TlCampaignLeadCountsRpcRow = {
+  campaign_id: string;
+  total_leads: number | string;
+  qualified_leads: number | string;
+  delivered_leads: number | string;
+};
+
+/** SQL aggregation (fast). Falls back to paginated row scan if RPC is not deployed yet. */
+export async function aggregateTlLeadCountsByCampaign(
+  supabase: SupabaseClient,
+  orgId: string,
+  campaignIds: string[]
+): Promise<Record<string, TlCampaignLeadCounts>> {
+  const empty = (): TlCampaignLeadCounts => ({ total: 0, qualified: 0, delivered: 0 });
+  const out: Record<string, TlCampaignLeadCounts> = {};
+  for (const id of campaignIds) out[id] = empty();
+  if (campaignIds.length === 0) return out;
+
+  const { data, error } = await supabase.rpc("tl_campaign_lead_counts", {
+    p_org_id: orgId,
+    p_campaign_ids: campaignIds,
+  });
+
+  if (!error && data) {
+    for (const row of (data ?? []) as TlCampaignLeadCountsRpcRow[]) {
+      if (!row.campaign_id) continue;
+      out[row.campaign_id] = {
+        total: Number(row.total_leads) || 0,
+        qualified: Number(row.qualified_leads) || 0,
+        delivered: Number(row.delivered_leads) || 0,
+      };
+    }
+    return out;
+  }
+
+  if (error) {
+    console.warn(
+      "aggregateTlLeadCountsByCampaign: RPC unavailable, using paginated fallback:",
+      error.message
+    );
+  }
+
+  const leads = await fetchTlDashboardLeads(supabase, orgId, campaignIds);
+  return tallyTlDashboardLeadCounts(leads);
+}
+
+/** Scored-lead counts per campaign (MIS / DC list views). */
+export async function aggregateScoredLeadCountsByCampaign(
+  supabase: SupabaseClient,
+  orgId: string,
+  campaignIds: string[]
+): Promise<Record<string, { total: number; delivered: number }>> {
+  const out: Record<string, { total: number; delivered: number }> = {};
+  for (const id of campaignIds) out[id] = { total: 0, delivered: 0 };
+  if (campaignIds.length === 0) return out;
+
+  const { data, error } = await supabase
+    .from("leads")
+    .select("campaign_id, delivery_status")
+    .eq("organization_id", orgId)
+    .in("campaign_id", campaignIds)
+    .eq("lead_tagging", "Scored");
+
+  if (error) throw new Error(error.message);
+
+  for (const row of (data ?? []) as { campaign_id: string; delivery_status: string | null }[]) {
+    const bucket = out[row.campaign_id];
+    if (!bucket) continue;
+    bucket.total += 1;
+    const ds = String(row.delivery_status ?? "").trim().toLowerCase();
+    if (ds === "delivered" || ds === "delivered_by_mis") bucket.delivered += 1;
+  }
+  return out;
+}
+
 export function tallyTlDashboardLeadCounts(
   leads: TlDashboardLeadRow[]
 ): Record<string, { total: number; qualified: number; delivered: number }> {

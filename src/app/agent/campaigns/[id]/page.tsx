@@ -26,10 +26,8 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import {
-  LEADS_TABLE_PAGE_SIZE_DEFAULT,
-  LEADS_TABLE_PAGE_SIZE_OPTIONS,
-} from "@/lib/leads-table-pagination";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import { buildListApiUrl } from "@/lib/build-list-api-url";
 import {
   ArrowLeftOutlined,
   PlusOutlined,
@@ -107,8 +105,8 @@ export default function AgentCampaignDetailPage() {
   const [form] = Form.useForm();
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
-  const [leadsPage, setLeadsPage] = useState(1);
-  const [leadsPageSize, setLeadsPageSize] = useState(LEADS_TABLE_PAGE_SIZE_DEFAULT);
+  const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
   const [leadTaggingFilter, setLeadTaggingFilter] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -116,7 +114,7 @@ export default function AgentCampaignDetailPage() {
   const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchCampaign = useCallback(async () => {
     if (!id) return;
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -128,16 +126,10 @@ export default function AgentCampaignDetailPage() {
     setIsOffline(false);
     setLoading(true);
     try {
-      const [campaignRes, leadsRes] = await Promise.all([
-        fetch(`/api/agent/campaigns/${id}`, { credentials: "include" }),
-        fetch(`/api/agent/campaigns/${id}/leads`, { credentials: "include" }),
-      ]);
-
+      const campaignRes = await fetch(`/api/agent/campaigns/${id}`, { credentials: "include" });
       const campaignJson = await campaignRes.json();
-      const leadsJson = await leadsRes.json();
 
       if (!campaignRes.ok) throw new Error(campaignJson.error || "Failed to load campaign");
-      if (!leadsRes.ok) throw new Error(leadsJson.error || "Failed to load leads");
 
       setCampaign({
         id: campaignJson.campaign.id,
@@ -164,7 +156,6 @@ export default function AgentCampaignDetailPage() {
         creatives_url: campaignJson.campaign.creatives_url ?? null,
         campaign_questions: campaignJson.campaign.campaign_questions ?? [],
       });
-      setLeads(leadsJson.leads ?? []);
       setFiles(campaignJson.files ?? []);
     } catch (err) {
       message.error(
@@ -175,6 +166,25 @@ export default function AgentCampaignDetailPage() {
       setLoading(false);
     }
   }, [id, router]);
+
+  const fetchLeads = useCallback(async () => {
+    if (!id) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    try {
+      const url = buildListApiUrl(`/api/agent/campaigns/${id}/leads`, {
+        page,
+        limit: pageSize,
+      });
+      const leadsRes = await fetch(url, { credentials: "include" });
+      const leadsJson = await leadsRes.json();
+      if (!leadsRes.ok) throw new Error(leadsJson.error || "Failed to load leads");
+      setLeads(leadsJson.leads ?? []);
+      applyPaginationMeta(leadsJson.pagination);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to load leads");
+    }
+  }, [id, page, pageSize, applyPaginationMeta]);
 
   useEffect(() => {
     if (!id) {
@@ -187,8 +197,13 @@ export default function AgentCampaignDetailPage() {
       return;
     }
 
-    fetchData();
-  }, [id, isInitialized, hasRole, router, fetchData]);
+    fetchCampaign();
+  }, [id, isInitialized, hasRole, router, fetchCampaign]);
+
+  useEffect(() => {
+    if (!id || !isInitialized || !hasRole("agent")) return;
+    fetchLeads();
+  }, [id, page, pageSize, isInitialized, hasRole, fetchLeads]);
 
   const campaignQuestions = useMemo(
     () => normalizeCampaignQuestions(campaign?.campaign_questions),
@@ -198,7 +213,8 @@ export default function AgentCampaignDetailPage() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      fetchData();
+      fetchCampaign();
+      fetchLeads();
     };
     const handleOffline = () => {
       setIsOffline(true);
@@ -215,7 +231,7 @@ export default function AgentCampaignDetailPage() {
         window.removeEventListener("offline", handleOffline);
       }
     };
-  }, [fetchData]);
+  }, [fetchCampaign, fetchLeads]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {
@@ -241,8 +257,8 @@ export default function AgentCampaignDetailPage() {
   }, [leads, leadSearch, dateRange, leadTaggingFilter]);
 
   useEffect(() => {
-    setLeadsPage(1);
-  }, [leadSearch, dateRange, leadTaggingFilter]);
+    resetPage();
+  }, [leadSearch, dateRange, leadTaggingFilter, resetPage]);
 
   const leadTypeOptions = useMemo(
     () => parseCampaignLeadTypeOptions(campaign?.lead_type),
@@ -274,15 +290,15 @@ export default function AgentCampaignDetailPage() {
       getLeadTableColumns({
         showActions: true,
         onEdit: openEditLeadDrawer,
-        pagination: { current: leadsPage, pageSize: leadsPageSize },
+        pagination: { current: page, pageSize },
         showDeliveryStatus: true,
         showFollowupDate: false,
         showVoiceRecordings: true,
         onVoiceRecordingsChange: () => {
-          void fetchData();
+          void fetchLeads();
         },
       }),
-    [leadsPage, leadsPageSize, fetchData, openEditLeadDrawer]
+    [page, pageSize, fetchLeads, openEditLeadDrawer]
   );
 
   const closeLeadDrawer = () => {
@@ -308,12 +324,7 @@ export default function AgentCampaignDetailPage() {
 
       message.success("Lead added. Add another below or close when done.");
       form.resetFields();
-
-      const leadsRes = await fetch(`/api/agent/campaigns/${id}/leads`, {
-        credentials: "include",
-      });
-      const leadsJson = await leadsRes.json();
-      if (leadsRes.ok) setLeads(leadsJson.leads ?? []);
+      void fetchLeads();
     } catch (err) {
       const isValidationError = err && typeof err === "object" && "errorFields" in err && Array.isArray((err as { errorFields?: unknown }).errorFields);
       if (isValidationError) {
@@ -343,11 +354,7 @@ export default function AgentCampaignDetailPage() {
 
       message.success("Lead updated.");
 
-      const leadsRes = await fetch(`/api/agent/campaigns/${id}/leads`, {
-        credentials: "include",
-      });
-      const leadsJson = await leadsRes.json();
-      if (leadsRes.ok) setLeads(leadsJson.leads ?? []);
+      void fetchLeads();
       closeLeadDrawer();
     } catch (err) {
       const isValidationError = err && typeof err === "object" && "errorFields" in err && Array.isArray((err as { errorFields?: unknown }).errorFields);
@@ -436,11 +443,7 @@ export default function AgentCampaignDetailPage() {
       setUploadFile(null);
       setParsedLeads([]);
 
-      const leadsRes = await fetch(`/api/agent/campaigns/${id}/leads`, {
-        credentials: "include",
-      });
-      const leadsJson = await leadsRes.json();
-      if (leadsRes.ok) setLeads(leadsJson.leads ?? []);
+      void fetchLeads();
     } catch (e) {
       message.error(e instanceof Error ? e.message : "Import failed");
     } finally {
@@ -719,8 +722,8 @@ export default function AgentCampaignDetailPage() {
       </Row>
 
       <Card
-        title={`Leads (${filteredLeads.length}${
-          filteredLeads.length !== leads.length ? ` of ${leads.length}` : ""
+        title={`Leads (${total}${
+          filteredLeads.length !== leads.length ? ` — ${filteredLeads.length} on page` : ""
         })`}
         extra={
           <Space>
@@ -827,7 +830,7 @@ export default function AgentCampaignDetailPage() {
         </Space>
         <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
           {filteredLeads.length !== leads.length
-            ? `Showing ${filteredLeads.length} of ${leads.length} leads. Click a row to edit.`
+            ? `Showing ${filteredLeads.length} of ${total} leads on this page. Click a row to edit.`
             : "Click a row to edit."}
         </Typography.Text>
         <Table
@@ -837,15 +840,8 @@ export default function AgentCampaignDetailPage() {
           rowKey="id"
           scroll={{ x: 2704 }}
           pagination={{
-            current: leadsPage,
-            pageSize: leadsPageSize,
-            showSizeChanger: true,
-            pageSizeOptions: [...LEADS_TABLE_PAGE_SIZE_OPTIONS],
+            ...tablePagination,
             showTotal: (t) => `Total ${t} leads`,
-            onChange: (page, size) => {
-              setLeadsPage(page);
-              setLeadsPageSize(size);
-            },
           }}
           locale={{ emptyText: leadSearch || dateRange?.[0] || dateRange?.[1] || leadTaggingFilter ? "No leads match the filter." : "No leads yet. Use 'Add Lead' to create one." }}
           size="middle"

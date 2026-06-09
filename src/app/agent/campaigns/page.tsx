@@ -1,15 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Table, Tag, Button, Input, Select, Spin, Typography, Tooltip, message } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import {
   EyeOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
+import { tableSerialNumber } from "@/lib/table-pagination";
 
 type AgentCampaignRow = {
   id: string;
@@ -37,54 +41,75 @@ const statusColors: Record<string, string> = {
 export default function AgentCampaignsPage() {
   const router = useRouter();
   const { hasRole, isInitialized } = useAuth();
-  const [campaigns, setCampaigns] = useState<AgentCampaignRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
-  const [search, setSearch] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
+  const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
 
-  const fetchData = useCallback(async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setIsOffline(true);
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchText]);
 
-    setIsOffline(false);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/agent/campaigns", { credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load campaigns");
-      setCampaigns(data.campaigns ?? []);
-    } catch (err) {
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, statusFilter, resetPage]);
+
+  const listEnabled =
+    isInitialized &&
+    hasRole("agent") &&
+    !isOffline &&
+    typeof navigator !== "undefined" &&
+    navigator.onLine;
+
+  const {
+    items: campaigns,
+    pagination,
+    isLoading,
+    error: campaignsError,
+    refetch,
+  } = usePaginatedListQuery<AgentCampaignRow>({
+    queryKeyPrefix: ["agent", "campaigns", "list"],
+    url: "/api/agent/campaigns",
+    params: {
+      page,
+      limit: pageSize,
+      q: debouncedSearch || undefined,
+      status: statusFilter || undefined,
+    },
+    listField: "campaigns",
+    enabled: listEnabled,
+  });
+
+  useEffect(() => {
+    if (pagination) applyPaginationMeta(pagination);
+  }, [pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (campaignsError) {
       message.error(
-        err instanceof Error ? err.message : "Failed to load assigned campaigns"
+        campaignsError instanceof Error
+          ? campaignsError.message
+          : "Failed to load assigned campaigns"
       );
-    } finally {
-      setLoading(false);
     }
-  }, []);
+  }, [campaignsError]);
 
   useEffect(() => {
     if (!isInitialized) return;
     if (!hasRole("agent")) {
       router.replace("/login");
-      return;
     }
-    fetchData();
-  }, [isInitialized, hasRole, router, fetchData]);
+  }, [isInitialized, hasRole, router]);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      fetchData();
+      void refetch();
     };
-    const handleOffline = () => {
-      setIsOffline(true);
-    };
+    const handleOffline = () => setIsOffline(true);
 
     if (typeof window !== "undefined") {
       window.addEventListener("online", handleOnline);
@@ -97,138 +122,124 @@ export default function AgentCampaignsPage() {
         window.removeEventListener("offline", handleOffline);
       }
     };
-  }, [fetchData]);
+  }, [refetch]);
 
-  const filtered = useMemo(() => {
-    let result = campaigns;
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (c) =>
-          (c.name ?? "").toLowerCase().includes(q) ||
-          (c.campaign_code ?? "").toLowerCase().includes(q) ||
-          (c.client_name ?? "").toLowerCase().includes(q) ||
-          (c.industry ?? "").toLowerCase().includes(q) ||
-          (c.region ?? "").toLowerCase().includes(q)
-      );
-    }
-    if (statusFilter) {
-      result = result.filter((c) => c.status === statusFilter);
-    }
-    return result;
-  }, [campaigns, search, statusFilter]);
+  const loading = isLoading && campaigns.length === 0;
 
-  const columns = [
-    {
-      title: "Sr. No",
-      key: "index",
-      width: 80,
-      render: (_: unknown, __: AgentCampaignRow, index: number) =>
-        (page - 1) * pageSize + index + 1,
-    },
-    {
-      title: "Campaign Code",
-      dataIndex: "campaign_code",
-      key: "campaign_code",
-      width: 130,
-      render: (val: string | null) => (
-        <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
-          {val || "—"}
-        </Tag>
-      ),
-    },
-    {
-      title: "Campaign",
-      dataIndex: "name",
-      key: "name",
-      width: 160,
-      ellipsis: true,
-      render: (val: string, r: AgentCampaignRow) => (
-        <Tooltip title={val}>
-          <Link href={`/agent/campaigns/${r.id}`} style={{ fontWeight: 600 }} className="table-text-ellipsis">
+  const columns: ColumnsType<AgentCampaignRow> = useMemo(
+    () => [
+      {
+        title: "Sr. No",
+        key: "index",
+        width: 80,
+        render: (_: unknown, __: AgentCampaignRow, index: number) =>
+          tableSerialNumber(page, pageSize, index),
+      },
+      {
+        title: "Campaign Code",
+        dataIndex: "campaign_code",
+        key: "campaign_code",
+        width: 130,
+        render: (val: string | null) => (
+          <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12 }}>
+            {val || "—"}
+          </Tag>
+        ),
+      },
+      {
+        title: "Campaign",
+        dataIndex: "name",
+        key: "name",
+        width: 160,
+        ellipsis: true,
+        render: (val: string, r: AgentCampaignRow) => (
+          <Tooltip title={val}>
+            <Link href={`/agent/campaigns/${r.id}`} style={{ fontWeight: 600 }} className="table-text-ellipsis">
+              {val}
+            </Link>
+          </Tooltip>
+        ),
+      },
+      {
+        title: "Industry",
+        dataIndex: "industry",
+        key: "industry",
+        width: 200,
+        ellipsis: true,
+        render: (v: string | null) => tableEllipsisCell(v),
+      },
+      {
+        title: "Region",
+        dataIndex: "region",
+        key: "region",
+        width: 120,
+        ellipsis: true,
+        render: (v: string | null) => tableEllipsisCell(v),
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        width: 100,
+        render: (val: string) => (
+          <Tag color={statusColors[val] ?? "default"} style={{ textTransform: "capitalize" }}>
             {val}
-          </Link>
-        </Tooltip>
-      ),
-    },
-    {
-      title: "Industry",
-      dataIndex: "industry",
-      key: "industry",
-      width: 200,
-      ellipsis: true,
-      render: (v: string | null) => tableEllipsisCell(v),
-    },
-    {
-      title: "Region",
-      dataIndex: "region",
-      key: "region",
-      width: 120,
-      ellipsis: true,
-      render: (v: string | null) => tableEllipsisCell(v),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 100,
-      render: (val: string) => (
-        <Tag color={statusColors[val] ?? "default"} style={{ textTransform: "capitalize" }}>
-          {val}
-        </Tag>
-      ),
-    },
-    {
-      title: "Start Date",
-      dataIndex: "start_date",
-      key: "start_date",
-      width: 110,
-      render: (v: string | null) =>
-        v ? new Date(v).toLocaleDateString() : "—",
-    },
-    {
-      title: "End Date",
-      dataIndex: "end_date",
-      key: "end_date",
-      width: 110,
-      render: (v: string | null) =>
-        v ? new Date(v).toLocaleDateString() : "—",
-    },
-    {
-      title: "Leads",
-      dataIndex: "total_leads",
-      key: "total_leads",
-      width: 100,
-    },
-    {
-      title: "Qualified",
-      dataIndex: "qualified_leads",
-      key: "qualified_leads",
-      width: 96,
-      align: "center" as const,
-      sorter: (a: AgentCampaignRow, b: AgentCampaignRow) =>
-        (a.qualified_leads ?? 0) - (b.qualified_leads ?? 0),
-      render: (v: number) => (
-        <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
-          {v ?? 0}
-        </Typography.Text>
-      ),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      width: 100,
-      render: (_: unknown, r: AgentCampaignRow) => (
-        <Button
-          type="link"
-          icon={<EyeOutlined />}
-          onClick={() => router.push(`/agent/campaigns/${r.id}`)}
-        >
-          View
-        </Button>
-      ),
-    },
-  ];
+          </Tag>
+        ),
+      },
+      {
+        title: "Start Date",
+        dataIndex: "start_date",
+        key: "start_date",
+        width: 110,
+        render: (v: string | null) =>
+          v ? new Date(v).toLocaleDateString() : "—",
+      },
+      {
+        title: "End Date",
+        dataIndex: "end_date",
+        key: "end_date",
+        width: 110,
+        render: (v: string | null) =>
+          v ? new Date(v).toLocaleDateString() : "—",
+      },
+      {
+        title: "Leads",
+        dataIndex: "total_leads",
+        key: "total_leads",
+        width: 100,
+      },
+      {
+        title: "Qualified",
+        dataIndex: "qualified_leads",
+        key: "qualified_leads",
+        width: 96,
+        align: "center" as const,
+        sorter: (a: AgentCampaignRow, b: AgentCampaignRow) =>
+          (a.qualified_leads ?? 0) - (b.qualified_leads ?? 0),
+        render: (v: number) => (
+          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+            {v ?? 0}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "Actions",
+        key: "actions",
+        width: 100,
+        render: (_: unknown, r: AgentCampaignRow) => (
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
+            onClick={() => router.push(`/agent/campaigns/${r.id}`)}
+          >
+            View
+          </Button>
+        ),
+      },
+    ],
+    [page, pageSize, router]
+  );
 
   if (!isInitialized) {
     return (
@@ -265,7 +276,7 @@ export default function AgentCampaignsPage() {
           <Typography.Text type="danger" style={{ fontSize: 14 }}>
             You appear to be offline. Check your internet connection. Data will
             reload automatically once you are back online, or{" "}
-            <Button type="link" onClick={fetchData} style={{ padding: 0 }}>
+            <Button type="link" onClick={() => void refetch()} style={{ padding: 0 }}>
               click here to retry now
             </Button>
             .
@@ -287,8 +298,8 @@ export default function AgentCampaignsPage() {
           <Input
             prefix={<SearchOutlined />}
             placeholder="Search campaigns..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
             allowClear
           />
         </div>
@@ -310,21 +321,12 @@ export default function AgentCampaignsPage() {
       <Table
         className="table-single-line"
         columns={columns}
-        dataSource={filtered}
+        dataSource={campaigns}
         rowKey="id"
         loading={loading}
         scroll={{ x: 1230 }}
         tableLayout="fixed"
-        pagination={{
-          current: page,
-          pageSize,
-          showSizeChanger: true,
-          showTotal: (t) => `Total ${t} campaigns`,
-          onChange: (p, ps) => {
-            setPage(p);
-            setPageSize(ps);
-          },
-        }}
+        pagination={tablePagination}
         locale={{
           emptyText:
             "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",

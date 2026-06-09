@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import {
   Card,
@@ -42,6 +42,7 @@ import {
   Cell,
 } from "recharts";
 import { useAuth } from "@/context/AuthContext";
+import { useCachedApiQuery } from "@/hooks/useCachedApiQuery";
 
 const { Text, Title } = Typography;
 
@@ -119,45 +120,43 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function MISDashboardPage() {
   const { hasRole, isInitialized, profile } = useAuth();
-  const [data, setData] = useState<MisDashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
 
   // Stable boolean — avoids re-triggering fetchData when the `hasRole` function
   // reference is replaced (which happens on any roles state update, even silent ones).
   const isMisAuthorized = isInitialized && (hasRole("mis") || hasRole("admin"));
 
-  const fetchData = useCallback(async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setIsOffline(true);
-      setLoading(false);
-      return;
-    }
-    setIsOffline(false);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/mis/dashboard", { credentials: "include" });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to load MIS dashboard");
-      }
-      setData(json as MisDashboardResponse);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to load MIS dashboard");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const listEnabled =
+    isMisAuthorized &&
+    !isOffline &&
+    typeof navigator !== "undefined" &&
+    navigator.onLine;
+
+  const {
+    data,
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useCachedApiQuery<MisDashboardResponse>(
+    ["mis", "dashboard"],
+    "/api/mis/dashboard",
+    { enabled: listEnabled }
+  );
+
+  const loading = isLoading && !data;
 
   useEffect(() => {
-    if (!isMisAuthorized) return;
-    fetchData();
-  }, [isMisAuthorized, fetchData]);
+    if (queryError) {
+      message.error(
+        queryError instanceof Error ? queryError.message : "Failed to load MIS dashboard"
+      );
+    }
+  }, [queryError]);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      fetchData();
+      void refetch();
     };
     const handleOffline = () => setIsOffline(true);
     if (typeof window !== "undefined") {
@@ -170,7 +169,7 @@ export default function MISDashboardPage() {
         window.removeEventListener("offline", handleOffline);
       }
     };
-  }, [fetchData]);
+  }, [refetch]);
 
   const statsCards = useMemo(() => {
     const s = data?.stats;
@@ -302,7 +301,7 @@ export default function MISDashboardPage() {
             You appear to be offline. Data will reload when back online, or{" "}
             <Button
               type="link"
-              onClick={fetchData}
+              onClick={() => void refetch()}
               style={{ padding: 0 }}
             >
               retry now

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Button,
   Input,
@@ -26,8 +26,9 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
+import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
+import { useServerTablePagination } from "@/hooks/useServerTablePagination";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
-import { cache, GANDIV_CACHE_PREFIX } from "@/lib/cache";
 import CampaignTable, { type CommandCampaignRow } from "@/components/command/CampaignTable";
 import { predictCampaignPerformance, type CampaignHealthStatus } from "@/lib/campaign-performance-prediction";
 import dayjs from "dayjs";
@@ -52,29 +53,17 @@ function getCampaignHealthStatus(row: CommandCampaignRow): CampaignHealthStatus 
   return pred.status;
 }
 
-type CampaignsListCache = {
-  campaigns: CommandCampaignRow[];
-  truncated: boolean;
-  total: number;
-};
-
-function campaignsListCacheKey(userId: string | undefined, queryString: string) {
-  return `${GANDIV_CACHE_PREFIX}campaigns:${userId ?? "anon"}:${queryString}`;
-}
-
 export default function CampaignsPage() {
   const router = useRouter();
-  const { hasRole, authVersion, user } = useAuth();
+  const { hasRole, authVersion } = useAuth();
   const authReady = useAuthReady();
-  const [campaigns, setCampaigns] = useState<CommandCampaignRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
-  const [listTruncated, setListTruncated] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
+  const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
 
   const canCreate =
     hasRole("internal_operator") ||
@@ -93,108 +82,70 @@ export default function CampaignsPage() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const fetchCampaigns = useCallback(
-    async (opts?: { background?: boolean; skipCache?: boolean }) => {
-      if (!authReady) return;
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, statusFilter, dateRange, resetPage]);
 
-      const params = new URLSearchParams();
-      params.set("enrich", "1");
-      if (debouncedSearch) params.set("q", debouncedSearch);
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      const [df, dt] = dateRange ?? [null, null];
-      if (df) params.set("date_from", df.format("YYYY-MM-DD"));
-      if (dt) params.set("date_to", dt.format("YYYY-MM-DD"));
+  const [df, dt] = dateRange ?? [null, null];
 
-      const qs = params.toString();
-      const cacheKey = campaignsListCacheKey(user?.id, qs);
-
-      if (opts?.skipCache) {
-        setLoading(true);
-      } else if (!opts?.background) {
-        const hit = cache.get<CampaignsListCache>(cacheKey);
-        if (hit && Array.isArray(hit.campaigns)) {
-          setCampaigns(hit.campaigns);
-          setListTruncated(Boolean(hit.truncated));
-          setTotalCount(hit.total ?? hit.campaigns.length);
-          setLoading(false);
-          // Background revalidation: fire-and-forget without recursive self-ref
-          void (async () => {
-            try {
-              const res = await fetchWithAuthRetry(`/api/command/campaigns?${qs}`);
-              if (!res.ok) return;
-              const data = (await res.json()) as {
-                campaigns?: CommandCampaignRow[];
-                truncated?: boolean;
-                total?: number;
-              };
-              const list = data.campaigns ?? [];
-              setCampaigns(list);
-              setListTruncated(Boolean(data.truncated));
-              setTotalCount(data.total ?? list.length);
-              cache.set<CampaignsListCache>(cacheKey, { campaigns: list, truncated: Boolean(data.truncated), total: data.total ?? list.length }, 5);
-            } catch {
-              // silent background revalidation failure
-            }
-          })();
-          return;
-        }
-        setLoading(true);
-      }
-
-      try {
-        const res = await fetchWithAuthRetry(`/api/command/campaigns?${qs}`);
-        if (!res.ok) {
-          const d = (await res.json()) as { error?: string };
-          if (res.status === 403) {
-            if (!opts?.background) {
-              message.error("You do not have access to the Campaign Command Center.");
-            }
-            return;
-          }
-          if (!opts?.background) {
-            message.error(d.error ?? "Failed to load campaigns");
-          }
-          return;
-        }
-        const data = (await res.json()) as {
-          campaigns?: CommandCampaignRow[];
-          truncated?: boolean;
-          total?: number;
-        };
-        const list = data.campaigns ?? [];
-        const truncated = Boolean(data.truncated);
-        const total = data.total ?? list.length;
-        setCampaigns(list);
-        setListTruncated(truncated);
-        setTotalCount(total);
-        cache.set<CampaignsListCache>(cacheKey, { campaigns: list, truncated, total }, 5);
-      } catch {
-        if (!opts?.background) {
-          message.error("Network error");
-        }
-      } finally {
-        setLoading(false);
-      }
+  const {
+    items: campaigns,
+    pagination,
+    response: campaignsResponse,
+    isLoading,
+    isFetching,
+    error: campaignsError,
+    refetch,
+  } = usePaginatedListQuery<CommandCampaignRow>({
+    queryKeyPrefix: ["command", "campaigns", "list", authVersion],
+    url: "/api/command/campaigns",
+    params: {
+      enrich: 1,
+      page,
+      limit: pageSize,
+      q: debouncedSearch || undefined,
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      date_from: df?.format("YYYY-MM-DD"),
+      date_to: dt?.format("YYYY-MM-DD"),
     },
-    [authReady, debouncedSearch, statusFilter, dateRange, user?.id]
-  );
+    listField: "campaigns",
+    enabled: authReady,
+    fetcher: fetchWithAuthRetry,
+  });
 
   useEffect(() => {
-    if (!authReady) return;
-    void fetchCampaigns();
-  }, [authReady, authVersion, fetchCampaigns]);
+    if (pagination) applyPaginationMeta(pagination);
+  }, [pagination, applyPaginationMeta]);
+
+  useEffect(() => {
+    if (campaignsError) {
+      message.error(
+        campaignsError instanceof Error ? campaignsError.message : "Failed to load campaigns"
+      );
+    }
+  }, [campaignsError]);
+
+  const loading = isLoading && campaigns.length === 0;
+  const tableLoading = isFetching && campaigns.length > 0;
 
   const filteredCampaigns =
     isClientViewerTable && healthFilter !== "all"
       ? campaigns.filter((c) => getCampaignHealthStatus(c) === healthFilter)
       : campaigns;
 
-  const stats = {
-    total: campaigns.length,
-    active: campaigns.filter((c) => c.status === "active").length,
-    completed: campaigns.filter((c) => c.status === "completed").length,
-    paused: campaigns.filter((c) => c.status === "paused").length,
-  };
+  const summary = campaignsResponse?.summary as
+    | { total: number; active: number; completed: number; paused: number }
+    | undefined;
+
+  const stats = useMemo(
+    () => ({
+      total: summary?.total ?? total,
+      active: summary?.active ?? 0,
+      completed: summary?.completed ?? 0,
+      paused: summary?.paused ?? 0,
+    }),
+    [summary, total]
+  );
 
   const cardStyle = {
     borderRadius: 12,
@@ -401,21 +352,21 @@ export default function CampaignsPage() {
           <Col xs={24} flex="auto"
             style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexWrap: "nowrap" }}
           >
-            {listTruncated && (
-              <Text type="warning" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                Showing first 500 of {totalCount}; narrow filters.
-              </Text>
-            )}
             <Text type="secondary" style={{ fontSize: 13, whiteSpace: "nowrap" }}>
               {filteredCampaigns.length}
               {isClientViewerTable && healthFilter !== "all" && (
                 <Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>(filtered)</Text>
               )}
+              {!isClientViewerTable || healthFilter === "all" ? (
+                <Text type="secondary" style={{ fontSize: 12, marginLeft: 4 }}>
+                  of {total}
+                </Text>
+              ) : null}
             </Text>
             <Button
               icon={<ReloadOutlined />}
               size="small"
-              onClick={() => void fetchCampaigns({ skipCache: true })}
+              onClick={() => void refetch()}
               title="Refresh"
             />
           </Col>
@@ -430,8 +381,11 @@ export default function CampaignsPage() {
         <Card style={{ ...cardStyle, padding: 0 }} styles={{ body: { padding: 0 } }}>
           <CampaignTable
             campaigns={filteredCampaigns}
-            loading={loading}
+            loading={tableLoading}
             clientViewer={isClientViewerTable}
+            pagination={tablePagination}
+            page={page}
+            pageSize={pageSize}
           />
         </Card>
       )}

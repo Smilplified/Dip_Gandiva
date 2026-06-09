@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ type LeadRow = {
 };
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -98,14 +99,22 @@ export async function GET(
       assigned_team_leader_name = u ? (u.full_name || u.email || null) : null;
     }
     const campaignWithTlName = { ...(campaign as Record<string, unknown>), assigned_team_leader_name };
+    const { page: leadsPage, limit: leadsLimit, offset: leadsOffset } = parseListPagination(
+      new URL(request.url).searchParams
+    );
+    let leadsTotal = 0;
 
-    let { data: leadsData, error: leadsError } = await admin
+    let { data: leadsData, error: leadsError, count: leadsCount } = await admin
       .from("leads")
-      .select(LEADS_SELECT + ", disqualification_reasons, disqualification_reason, rectified_reason")
+      .select(LEADS_SELECT + ", disqualification_reasons, disqualification_reason, rectified_reason", {
+        count: "exact",
+      })
       .eq("campaign_id", campaignId)
       .eq("lead_tagging", "Scored")
       .order("delivery_status", { ascending: true })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(leadsOffset, leadsOffset + leadsLimit - 1);
+    leadsTotal = leadsCount ?? 0;
 
     if (leadsError && (leadsError.message?.includes("column") || leadsError.message?.includes("disqualification"))) {
       leadsError = null;
@@ -175,6 +184,7 @@ export async function GET(
     return NextResponse.json({
       campaign: campaignWithTlName,
       leads: leadsWithRecordings,
+      leads_pagination: buildPaginationMeta(leadsPage, leadsLimit, leadsTotal),
     });
   } catch (err) {
     console.error("MIS campaign detail error:", err);

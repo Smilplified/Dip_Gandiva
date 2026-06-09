@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import { AGENT_READONLY_LEAD_FIELD_SET } from "@/lib/agent-lead-fields";
 import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
@@ -9,7 +10,7 @@ import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -63,27 +64,37 @@ export async function GET(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
+    const { page, limit, offset } = parseListPagination(new URL(request.url).searchParams);
     const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_type, lead_tagging, lead_disposition, delivery_status, delivered_at";
     const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title";
     let leadsList: unknown[] | null = null;
     let leadsError: { message?: string } | null = null;
+    let total = 0;
     let res = await supabase
       .from("leads")
-      .select(leadsSelectExtended + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
+      .select(leadsSelectExtended + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason", {
+        count: "exact",
+      })
       .eq("campaign_id", campaignId)
       .eq("assigned_agent_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
     leadsList = res.data;
     leadsError = res.error;
+    total = res.count ?? 0;
     if (leadsError && (res.error?.message?.includes("column") || res.error?.message?.includes("qa_status"))) {
       res = await supabase
         .from("leads")
-        .select(leadsSelectBase + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason")
+        .select(leadsSelectBase + ", qa_status, disqualification_reasons, disqualification_reason, rectified_reason", {
+          count: "exact",
+        })
         .eq("campaign_id", campaignId)
         .eq("assigned_agent_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
       leadsList = res.data;
       leadsError = res.error;
+      total = res.count ?? 0;
     }
 
     if (leadsError) {
@@ -147,7 +158,10 @@ export async function GET(
       leadsWithNames
     );
 
-    return NextResponse.json({ leads: leadsWithRecordings });
+    return NextResponse.json({
+      leads: leadsWithRecordings,
+      pagination: buildPaginationMeta(page, limit, total),
+    });
   } catch (err) {
     console.error("Agent leads fetch error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
