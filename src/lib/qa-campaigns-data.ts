@@ -136,13 +136,21 @@ export async function loadQaCampaignsForDateRange(
   orgId: string,
   startUtc: string,
   endUtc: string,
-  options?: { page?: number; limit?: number; includeLeads?: boolean }
+  options?: {
+    page?: number;
+    limit?: number;
+    includeLeads?: boolean;
+    campaignIds?: string[];
+  }
 ): Promise<QaCampaignsListResult & { pagination?: ReturnType<typeof buildPaginationMeta> }> {
   const page = Math.max(1, options?.page ?? 1);
-  const limit = Math.max(1, Math.min(100, options?.limit ?? 10));
+  const campaignIdFilter = (options?.campaignIds ?? []).filter(Boolean);
+  const maxLimit = campaignIdFilter.length > 0 ? 500 : 100;
+  const limit = Math.max(1, Math.min(maxLimit, options?.limit ?? 10));
   const includeLeads = options?.includeLeads ?? false;
   const offset = (page - 1) * limit;
-  const { data: campaigns, error: campaignsError } = await supabase
+
+  let campaignsQuery = supabase
     .from("campaigns")
     .select(`
       id, campaign_id, campaign_code, name, client_name, description, industry, geography, target_designation, lead_type, status,
@@ -152,6 +160,12 @@ export async function loadQaCampaignsForDateRange(
     `)
     .eq("organization_id", orgId)
     .order("created_at", { ascending: false });
+
+  if (campaignIdFilter.length > 0) {
+    campaignsQuery = campaignsQuery.in("id", campaignIdFilter);
+  }
+
+  const { data: campaigns, error: campaignsError } = await campaignsQuery;
 
   if (campaignsError) throw new Error(campaignsError.message);
 

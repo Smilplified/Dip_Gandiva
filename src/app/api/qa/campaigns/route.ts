@@ -35,15 +35,29 @@ export async function GET(request: Request) {
     }
 
     const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
-    const limit = Math.max(1, Math.min(100, parseInt(sp.get("limit") ?? "10", 10) || 10));
+    const requestedLimit = Math.max(1, parseInt(sp.get("limit") ?? "10", 10) || 10);
     const includeLeads = sp.get("include_leads") === "1";
+    const campaignIds = (sp.get("campaign_ids") ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const maxLimit = campaignIds.length > 0 ? 500 : 100;
+    const limit = Math.min(
+      maxLimit,
+      campaignIds.length > 0 ? Math.max(requestedLimit, campaignIds.length) : requestedLimit
+    );
 
     const { campaigns, summary, pagination } = await loadQaCampaignsForDateRange(
       supabase,
       orgId,
       range.startUtc,
       range.endUtc,
-      { page, limit, includeLeads }
+      {
+        page,
+        limit,
+        includeLeads,
+        campaignIds: campaignIds.length > 0 ? campaignIds : undefined,
+      }
     );
 
     return NextResponse.json({

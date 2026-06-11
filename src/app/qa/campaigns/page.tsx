@@ -120,6 +120,7 @@ export default function QACampaignsPage() {
   const router = useRouter();
   const { status } = useRoleGuard(["qa", "admin"]);
   const [exporting, setExporting] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
@@ -133,6 +134,7 @@ export default function QACampaignsPage() {
 
   useEffect(() => {
     resetPage();
+    setSelectedRowKeys([]);
   }, [dateRange, resetPage]);
 
   const clientTimeZone = useMemo(() => {
@@ -141,14 +143,16 @@ export default function QACampaignsPage() {
   }, []);
 
   const buildUrl = useCallback(
-    (opts?: { includeLeads?: boolean; exportLimit?: number }) => {
+    (opts?: { includeLeads?: boolean; campaignIds?: string[] }) => {
+      const exportIds = opts?.campaignIds ?? [];
       return buildListApiUrl("/api/qa/campaigns", {
         start_date: dateRange[0].format("YYYY-MM-DD"),
         end_date: dateRange[1].format("YYYY-MM-DD"),
         tz: clientTimeZone,
-        page: opts?.exportLimit ? 1 : page,
-        limit: opts?.exportLimit ?? pageSize,
+        page: exportIds.length > 0 ? 1 : page,
+        limit: exportIds.length > 0 ? exportIds.length : pageSize,
         include_leads: opts?.includeLeads ? 1 : undefined,
+        campaign_ids: exportIds.length > 0 ? exportIds.join(",") : undefined,
       });
     },
     [dateRange, clientTimeZone, page, pageSize]
@@ -245,55 +249,54 @@ export default function QACampaignsPage() {
   const rangeLabel = `${dateRange[0].format("DD MMM YYYY")} – ${dateRange[1].format("DD MMM YYYY")}`;
 
   const handleExport = async () => {
+    const selectedIds = selectedRowKeys.map(String);
+    if (selectedIds.length === 0) {
+      message.warning("Select one or more campaigns to export");
+      return;
+    }
+
     setExporting(true);
     try {
-      const res = await fetch(buildUrl({ includeLeads: true, exportLimit: 100 }), {
+      const res = await fetch(buildUrl({ includeLeads: true, campaignIds: selectedIds }), {
         credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load export data");
 
-      let exportCampaigns = (data.campaigns ?? []) as Campaign[];
-      const q = search.trim().toLowerCase();
-      if (q) {
-        exportCampaigns = exportCampaigns.filter(
-          (c) =>
-            (c.name ?? "").toLowerCase().includes(q) ||
-            (c.campaign_code ?? "").toLowerCase().includes(q) ||
-            (c.lead_type ?? "").toLowerCase().includes(q) ||
-            (c.industry ?? "").toLowerCase().includes(q) ||
-            (c.geography ?? "").toLowerCase().includes(q)
+      const exportCampaigns = (data.campaigns ?? []) as Campaign[];
+      const returnedIds = new Set(exportCampaigns.map((c) => c.id));
+      const missingIds = selectedIds.filter((id) => !returnedIds.has(id));
+      if (missingIds.length > 0) {
+        message.warning(
+          `${missingIds.length} selected campaign(s) have no leads in this date range and were skipped`
         );
-      }
-      if (statusFilter) {
-        exportCampaigns = exportCampaigns.filter((c) => c.status === statusFilter);
       }
 
       const exportLeads = exportCampaigns.flatMap((c) =>
         enrichLeadsForExport((c.leads ?? []) as Lead[], c.name, c.lead_type)
       );
       if (exportLeads.length === 0) {
-        message.warning("No leads to export for the selected date range");
+        message.warning("No leads to export for the selected campaigns in this date range");
         return;
       }
-      const expected = exportCampaigns.reduce(
-        (sum, c) => sum + (c.leads_uploaded ?? c.leads?.length ?? 0),
-        0
-      );
-      if (exportLeads.length !== expected) {
-        message.error("Export count does not match table — refresh and try again");
-        return;
-      }
+
       const stamp = `${dateRange[0].format("YYYY-MM-DD")}_${dateRange[1].format("YYYY-MM-DD")}`;
       downloadExcel(exportLeads, `qa-campaigns-export_${stamp}.xlsx`);
       message.success(
-        `Exported ${exportLeads.length} leads from ${exportCampaigns.length} campaigns (${rangeLabel})`
+        `Exported ${exportLeads.length} leads from ${exportCampaigns.length} campaign${exportCampaigns.length !== 1 ? "s" : ""} (${rangeLabel})`
       );
     } catch (e) {
       message.error(e instanceof Error ? e.message : "Export failed");
     } finally {
       setExporting(false);
     }
+  };
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+    preserveSelectedRowKeys: true,
+    columnWidth: 48,
   };
 
   if (status === "loading" || status === "redirecting") {
@@ -408,9 +411,9 @@ export default function QACampaignsPage() {
                 icon={<DownloadOutlined />}
                 onClick={handleExport}
                 loading={exporting}
-                disabled={loading || list.length === 0}
+                disabled={loading || selectedRowKeys.length === 0}
               >
-                Export
+                Export{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ""}
               </Button>
             </Space>
           </Col>
@@ -418,6 +421,9 @@ export default function QACampaignsPage() {
         <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 10 }}>
           Showing campaigns with at least one lead uploaded between {rangeLabel} (your local
           timezone).
+          {selectedRowKeys.length > 0
+            ? ` · ${selectedRowKeys.length} campaign${selectedRowKeys.length !== 1 ? "s" : ""} selected for export.`
+            : " · Select campaigns using the checkboxes, then export."}
         </Typography.Text>
       </Card>
 
@@ -479,11 +485,18 @@ export default function QACampaignsPage() {
             size="middle"
             rowKey="id"
             dataSource={list}
-            scroll={{ x: 1480 }}
+            scroll={{ x: 1528 }}
             tableLayout="fixed"
             pagination={tablePagination}
+            rowSelection={rowSelection}
             onRow={(record) => ({
-              onClick: () => router.push(`/qa/campaigns/${record.id}`),
+              onClick: (e) => {
+                const target = e.target as HTMLElement;
+                if (target.closest?.(".ant-checkbox-wrapper, .ant-checkbox, input[type=checkbox]")) {
+                  return;
+                }
+                router.push(`/qa/campaigns/${record.id}`);
+              },
               style: { cursor: "pointer" },
               onMouseEnter: (e) => {
                 e.currentTarget.style.backgroundColor = "#fafafa";
