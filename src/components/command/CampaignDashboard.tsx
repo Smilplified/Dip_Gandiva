@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import type { CSSProperties, Key } from "react";
 import {
   Tabs,
@@ -362,6 +362,8 @@ export default function CampaignDashboard({
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const leadsInitialLoadDoneRef = useRef(false);
+  const leadsFetchGenRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [metricsHistory, setMetricsHistory] = useState<CampaignMetricsHistoryRow[]>([]);
@@ -408,6 +410,9 @@ export default function CampaignDashboard({
 
   useEffect(() => {
     setAllocationBaseline(null);
+    leadsInitialLoadDoneRef.current = false;
+    leadsFetchGenRef.current += 1;
+    setLeadPage(1);
   }, [campaignId]);
   useEffect(() => {
     setDescriptionExpanded(false);
@@ -487,7 +492,10 @@ export default function CampaignDashboard({
   );
 
   const fetchLeads = useCallback(async () => {
-    setLeadsLoading(true);
+    const silent = leadsInitialLoadDoneRef.current;
+    leadsInitialLoadDoneRef.current = true;
+    const gen = ++leadsFetchGenRef.current;
+    if (!silent) setLeadsLoading(true);
     try {
       const sp = new URLSearchParams();
       sp.set("campaign_id", campaignId);
@@ -507,12 +515,16 @@ export default function CampaignDashboard({
       const res = await fetchWithAuthRetry(`/api/command/leads?${sp.toString()}`);
       const data = (await res.json()) as { leads?: LeadRow[]; total?: number; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to load leads");
+      if (gen !== leadsFetchGenRef.current) return;
       setLeads(data.leads ?? []);
       setLeadsTotal(typeof data.total === "number" ? data.total : 0);
     } catch {
+      if (gen !== leadsFetchGenRef.current) return;
       message.error("Failed to load leads");
     } finally {
-      setLeadsLoading(false);
+      if (gen === leadsFetchGenRef.current && !silent) {
+        setLeadsLoading(false);
+      }
     }
   }, [
     campaignId,
@@ -569,6 +581,9 @@ export default function CampaignDashboard({
     if (activeTab === "history") {
       void fetchMetricsHistory();
     }
+    return () => {
+      leadsFetchGenRef.current += 1;
+    };
   }, [authReady, authVersion, activeTab, fetchLeads, fetchMetricsHistory]);
 
   useEffect(() => {
@@ -976,7 +991,7 @@ export default function CampaignDashboard({
             columns={leadColumns}
             dataSource={leads}
             rowKey="id"
-            loading={leadsLoading}
+            loading={leadsLoading && leads.length === 0}
             size="small"
             scroll={{ x: "max-content" }}
             pagination={{

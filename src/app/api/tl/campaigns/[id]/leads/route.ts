@@ -364,11 +364,16 @@ export async function PATCH(
     if (updates.delivery_status !== undefined) {
       const { data: existingLead, error: existingError } = (await dataClient
         .from("leads")
-        .select("id, delivery_status, delivered_at")
+        .select("id, delivery_status, delivered_at, delivered_by")
         .eq("id", leadRowId)
         .eq("campaign_id", campaignId)
         .maybeSingle()) as {
-          data: { id: string; delivery_status: string | null; delivered_at: string | null } | null;
+          data: {
+            id: string;
+            delivery_status: string | null;
+            delivered_at: string | null;
+            delivered_by: string | null;
+          } | null;
           error: { message: string } | null;
         };
       if (existingError) {
@@ -380,15 +385,19 @@ export async function PATCH(
       const alreadyDelivered =
         existingLead.delivery_status === "delivered" && updates.delivery_status === "delivered";
       const missingDeliveredAt = !existingLead.delivered_at;
+      const missingDeliveredBy = !existingLead.delivered_by;
 
-      // Block re-delivery only when delivered_at is already set (idempotent guard)
-      if (alreadyDelivered && !missingDeliveredAt) {
+      // Block re-delivery only when both timestamp and MIS user are already recorded.
+      if (alreadyDelivered && !missingDeliveredAt && !missingDeliveredBy) {
         return NextResponse.json({ error: "Lead is already marked as delivered" }, { status: 409 });
       }
-      // Set delivered_at on first delivery OR when backfilling a legacy delivered lead with no date
-      if (updates.delivery_status === "delivered" && missingDeliveredAt) {
-        (updates as Record<string, unknown>).delivered_at = new Date().toISOString();
-        (updates as Record<string, unknown>).delivered_by = user.id;
+      if (updates.delivery_status === "delivered") {
+        if (missingDeliveredAt) {
+          (updates as Record<string, unknown>).delivered_at = new Date().toISOString();
+        }
+        if (missingDeliveredBy) {
+          (updates as Record<string, unknown>).delivered_by = user.id;
+        }
       }
     }
 

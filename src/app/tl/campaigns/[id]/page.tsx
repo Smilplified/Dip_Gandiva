@@ -28,7 +28,10 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  PAGINATION_SYNC_TOTAL_ONLY,
+  useServerTablePagination,
+} from "@/hooks/useServerTablePagination";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
 import {
   ArrowLeftOutlined,
@@ -149,6 +152,9 @@ export default function CampaignDetailPage() {
   const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination();
   const assignQueryHandledRef = useRef(false);
+  const initialLeadsLoadDoneRef = useRef(false);
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   const assignedAgentCount = assignments.length;
   const assignedAgentNames = useMemo(
@@ -205,7 +211,9 @@ export default function CampaignDetailPage() {
       : "No team leaders assigned yet";
 
   const fetchCampaign = useCallback(async (id: string) => {
-    setLoading(true);
+    const silent = initialLeadsLoadDoneRef.current;
+    initialLeadsLoadDoneRef.current = true;
+    if (!silent) setLoading(true);
     try {
       const url = buildListApiUrl(`/api/tl/campaigns/${id}`, { page, limit: pageSize });
       const res = await fetch(url, { credentials: "include" });
@@ -213,7 +221,7 @@ export default function CampaignDetailPage() {
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setCampaign(data.campaign);
       setLeads(data.leads ?? []);
-      applyPaginationMeta(data.leads_pagination);
+      applyPaginationMeta(data.leads_pagination, PAGINATION_SYNC_TOTAL_ONLY);
       setAssignments(data.assignments ?? []);
       const tlRows =
         data.team_leader_assignments ??
@@ -233,11 +241,11 @@ export default function CampaignDetailPage() {
       setCampaignId(id);
     } catch {
       message.error("Failed to load campaign");
-      router.replace("/tl/dashboard");
+      routerRef.current.replace("/tl/dashboard");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [router, page, pageSize, applyPaginationMeta]);
+  }, [page, pageSize, applyPaginationMeta]);
 
   useEffect(() => {
     if (!id) {
@@ -254,7 +262,9 @@ export default function CampaignDetailPage() {
 
   useEffect(() => {
     assignQueryHandledRef.current = false;
-  }, [id]);
+    initialLeadsLoadDoneRef.current = false;
+    resetPage();
+  }, [id, resetPage]);
 
   useEffect(() => {
     if (!campaignId || assignQueryHandledRef.current) return;

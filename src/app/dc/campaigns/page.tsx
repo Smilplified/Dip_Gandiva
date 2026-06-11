@@ -14,7 +14,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ColumnsType } from "antd/es/table";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { tableSerialNumber } from "@/lib/table-pagination";
 
 const { Title, Text } = Typography;
@@ -82,11 +86,9 @@ export default function DCCampaignsPage() {
     listField: "campaigns",
   });
 
-  useEffect(() => {
-    if (pagination) applyPaginationMeta(pagination);
-  }, [pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
-  const loading = isLoading && campaigns.length === 0;
+  const loading = serverTableInitialLoading(isLoading, campaigns.length);
 
   const stats = useMemo(
     () => ({

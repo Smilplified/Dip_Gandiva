@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -23,7 +23,11 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  PAGINATION_SYNC_TOTAL_ONLY,
+  serverTableInitialLoading,
+  useServerTablePagination,
+} from "@/hooks/useServerTablePagination";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
 import {
   ArrowLeftOutlined,
@@ -119,7 +123,12 @@ export default function MISCampaignDetailPage() {
   const params = useParams();
   const id = params?.id as string | undefined;
   const { hasRole, isInitialized } = useAuth();
+  const isMisAuthorized = isInitialized && (hasRole("mis") || hasRole("admin"));
   const canEditQaAudit = hasRole("qa") || hasRole("admin");
+  const initialLeadsLoadDoneRef = useRef(false);
+  const leadsFetchGenRef = useRef(0);
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,12 +145,18 @@ export default function MISCampaignDetailPage() {
     resetPage: resetLeadsPage,
     tablePagination: leadsTablePagination,
   } = useServerTablePagination();
+  const leadsPageRef = useRef(leadsPage);
+  const leadsPageSizeRef = useRef(leadsPageSize);
+  leadsPageRef.current = leadsPage;
+  leadsPageSizeRef.current = leadsPageSize;
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [previousConfirmOpen, setPreviousConfirmOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [refreshingLeads, setRefreshingLeads] = useState(false);
   const [markingDeliveredLeadId, setMarkingDeliveredLeadId] = useState<string | null>(null);
 
   const campaignQuestions = useMemo(
@@ -149,26 +164,71 @@ export default function MISCampaignDetailPage() {
     [campaign?.campaign_questions]
   );
 
-  const fetchCampaign = useCallback(async (campaignId: string) => {
-    setLoading(true);
-    try {
-      const url = buildListApiUrl(`/api/mis/campaigns/${campaignId}`, {
-        page: leadsPage,
-        limit: leadsPageSize,
-      });
-      const res = await fetch(url, { credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load");
-      setCampaign(data.campaign);
-      setLeads(data.leads ?? []);
-      applyPaginationMeta(data.leads_pagination);
-    } catch {
-      message.error("Failed to load campaign");
-      router.replace("/mis/campaigns");
-    } finally {
-      setLoading(false);
-    }
-  }, [router, leadsPage, leadsPageSize, applyPaginationMeta]);
+  const loadCampaignLeads = useCallback(
+    async (
+      campaignId: string,
+      options?: {
+        silent?: boolean;
+        page?: number;
+        pageSize?: number;
+        syncPageFromResponse?: boolean;
+      }
+    ) => {
+      const silent = options?.silent ?? false;
+      const page = options?.page ?? leadsPageRef.current;
+      const limit = options?.pageSize ?? leadsPageSizeRef.current;
+      const syncPageFromResponse = options?.syncPageFromResponse ?? !silent;
+      const fetchGen = ++leadsFetchGenRef.current;
+
+      if (silent) {
+        setRefreshingLeads(true);
+      } else {
+        setLoading(true);
+      }
+      try {
+        const url = buildListApiUrl(`/api/mis/campaigns/${campaignId}`, {
+          page,
+          limit,
+        });
+        const res = await fetch(url, { credentials: "include" });
+        const data = await res.json();
+        if (fetchGen !== leadsFetchGenRef.current) return false;
+        if (!res.ok) throw new Error(data.error || "Failed to load");
+        setCampaign(data.campaign);
+        setLeads(data.leads ?? []);
+        applyPaginationMeta(
+          data.leads_pagination,
+          syncPageFromResponse ? undefined : PAGINATION_SYNC_TOTAL_ONLY
+        );
+        return true;
+      } catch (err) {
+        if (fetchGen !== leadsFetchGenRef.current) return false;
+        if (silent) {
+          message.error(
+            err instanceof Error ? err.message : "Failed to refresh leads"
+          );
+        } else {
+          message.error("Failed to load campaign");
+          routerRef.current.replace("/mis/campaigns");
+        }
+        return false;
+      } finally {
+        if (fetchGen !== leadsFetchGenRef.current) return;
+        if (silent) {
+          setRefreshingLeads(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [applyPaginationMeta]
+  );
+
+  useEffect(() => {
+    initialLeadsLoadDoneRef.current = false;
+    leadsFetchGenRef.current += 1;
+    resetLeadsPage();
+  }, [id, resetLeadsPage]);
 
   useEffect(() => {
     if (!id) {
@@ -176,12 +236,25 @@ export default function MISCampaignDetailPage() {
       return;
     }
     if (!isInitialized) return;
-    if (!hasRole("mis") && !hasRole("admin")) {
+    if (!isMisAuthorized) {
       router.replace("/login");
       return;
     }
-    fetchCampaign(id);
-  }, [id, isInitialized, hasRole, router, fetchCampaign]);
+  }, [id, isInitialized, isMisAuthorized, router]);
+
+  useEffect(() => {
+    if (!id || !isMisAuthorized) return;
+
+    const silent = initialLeadsLoadDoneRef.current;
+    initialLeadsLoadDoneRef.current = true;
+
+    void loadCampaignLeads(id, {
+      silent,
+      page: leadsPage,
+      pageSize: leadsPageSize,
+      syncPageFromResponse: false,
+    });
+  }, [id, isMisAuthorized, leadsPage, leadsPageSize, loadCampaignLeads]);
 
   const filteredLeads = leads.filter((l) => {
     const matchesSearch = !leadSearch.trim()
@@ -201,22 +274,15 @@ export default function MISCampaignDetailPage() {
     resetLeadsPage();
   }, [leadSearch, dateRange, resetLeadsPage]);
 
-  const sortedFilteredLeads = [...filteredLeads].sort((a, b) => {
-    const rank = (v: Lead["delivery_status"]) =>
-      (v ?? "not_delivered") === "delivered" ? 0 : 1;
-    const rankDiff = rank(a.delivery_status) - rank(b.delivery_status);
-    if (rankDiff !== 0) return rankDiff;
-    return dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf();
-  });
   const deliveredCount = leads.filter(
     (l) => (l.delivery_status ?? "not_delivered") === "delivered"
   ).length;
 
-  const openEditLeadDrawer = (lead: Lead) => {
+  const openEditLeadDrawer = useCallback((lead: Lead) => {
     setEditingLead(lead);
     form.setFieldsValue(leadToFormValues(lead as unknown as Record<string, unknown>));
     setLeadDrawerOpen(true);
-  };
+  }, [form]);
 
   const closeLeadDrawer = () => {
     setLeadDrawerOpen(false);
@@ -261,7 +327,7 @@ export default function MISCampaignDetailPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to update lead");
       message.success("Lead updated");
-      await fetchCampaign(id);
+      await loadCampaignLeads(id, { silent: true });
       if (saveAndContinue) {
         const { nextLead } = getDrawerLeadContext();
         if (nextLead) {
@@ -286,18 +352,35 @@ export default function MISCampaignDetailPage() {
     openEditLeadDrawer(prevLead);
   };
 
-  const handleExport = () => {
-    if (sortedFilteredLeads.length === 0) {
+  const handleExport = async () => {
+    if (!id) return;
+    if (leadsTotal === 0) {
       message.warning("No leads to export");
       return;
     }
-    downloadExcel(
-      sortedFilteredLeads,
-      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
-      campaign?.name,
-      campaign?.lead_type
-    );
-    message.success(`Exported ${sortedFilteredLeads.length} leads`);
+    setExporting(true);
+    try {
+      const url = buildListApiUrl(`/api/mis/campaigns/${id}`, { export: "all" });
+      const res = await fetch(url, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load leads for export");
+      const exportLeads = (data.leads ?? []) as Lead[];
+      if (exportLeads.length === 0) {
+        message.warning("No leads to export");
+        return;
+      }
+      downloadExcel(
+        exportLeads,
+        `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
+        campaign?.name,
+        campaign?.lead_type
+      );
+      message.success(`Exported ${exportLeads.length} leads`);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Failed to export leads");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleUploadFile = (file: File) => {
@@ -364,7 +447,7 @@ export default function MISCampaignDetailPage() {
       setUploadModalOpen(false);
       setUploadFile(null);
       setParsedLeads([]);
-      fetchCampaign(id);
+      void loadCampaignLeads(id, { silent: true });
     } catch (e) {
       message.error(e instanceof Error ? e.message : "Import failed");
     } finally {
@@ -372,16 +455,16 @@ export default function MISCampaignDetailPage() {
     }
   };
 
-  const handleDeliveryStatusChange = async (
+  const handleDeliveryStatusChange = useCallback(async (
     lead: Lead,
     nextStatus: "pending" | "not_delivered" | "delivered"
   ) => {
     if (!id) return;
     const currentStatus = lead.delivery_status ?? "pending";
-    // Allow re-click only when lead is already delivered but delivered_at was never recorded (legacy backfill)
+    // Allow re-click when delivered but date or MIS user was never recorded (legacy backfill)
     const alreadyDelivered = currentStatus === "delivered";
-    const missingDate = !lead.delivered_at;
-    if (nextStatus === currentStatus && !(alreadyDelivered && missingDate)) {
+    const missingDeliveryMeta = !lead.delivered_at || !lead.delivered_by;
+    if (nextStatus === currentStatus && !(alreadyDelivered && missingDeliveryMeta)) {
       message.info("Delivery status is already set");
       return;
     }
@@ -398,13 +481,32 @@ export default function MISCampaignDetailPage() {
       message.success(
         nextStatus === "delivered"
           ? alreadyDelivered
-            ? "Delivery date recorded"
+            ? "Delivery details recorded"
             : "Lead marked as delivered"
           : nextStatus === "not_delivered"
           ? "Lead marked as not delivered"
           : "Delivery status set to pending"
       );
-      await fetchCampaign(id);
+      setLeads((prev) =>
+        prev.map((row) => {
+          if (row.id !== lead.id) return row;
+          if (nextStatus === "delivered") {
+            return {
+              ...row,
+              delivery_status: "delivered",
+              delivered_at: row.delivered_at ?? new Date().toISOString(),
+            };
+          }
+          return {
+            ...row,
+            delivery_status: nextStatus,
+            delivered_at: null,
+            delivered_by: null,
+            delivered_by_name: null,
+          };
+        })
+      );
+      await loadCampaignLeads(id, { silent: true });
     } catch (e) {
       message.error(
         e instanceof Error ? e.message : "Failed to update delivery status"
@@ -412,7 +514,39 @@ export default function MISCampaignDetailPage() {
     } finally {
       setMarkingDeliveredLeadId(null);
     }
-  };
+  }, [id, loadCampaignLeads]);
+
+  const leadColumns = useMemo(
+    () =>
+      getLeadTableColumns({
+        showActions: true,
+        onEdit: openEditLeadDrawer,
+        showDeliveryStatus: true,
+        onDeliveryStatusChange: handleDeliveryStatusChange,
+        markingDeliveredLeadId,
+        pagination: { current: leadsPage, pageSize: leadsPageSize },
+        showMeetingSetDate: false,
+        showFollowupDate: false,
+        showChannel: false,
+        showAuditBy: true,
+        showCreatedBy: true,
+        showVoiceRecordings: true,
+        onVoiceRecordingsChange: id
+          ? () => {
+              void loadCampaignLeads(id, { silent: true });
+            }
+          : undefined,
+      }),
+    [
+      handleDeliveryStatusChange,
+      id,
+      leadsPage,
+      leadsPageSize,
+      loadCampaignLeads,
+      markingDeliveredLeadId,
+      openEditLeadDrawer,
+    ]
+  );
 
   if (!isInitialized) {
     return (
@@ -422,7 +556,7 @@ export default function MISCampaignDetailPage() {
     );
   }
 
-  if (!hasRole("mis") && !hasRole("admin")) {
+  if (!isMisAuthorized) {
     return null;
   }
 
@@ -442,17 +576,6 @@ export default function MISCampaignDetailPage() {
     paused: "orange",
     completed: "blue",
   };
-
-  const leadColumns = getLeadTableColumns({
-    showActions: true,
-    onEdit: openEditLeadDrawer,
-    showDeliveryStatus: true,
-    onDeliveryStatusChange: handleDeliveryStatusChange,
-    markingDeliveredLeadId,
-    pagination: { current: leadsPage, pageSize: leadsPageSize },
-    showVoiceRecordings: true,
-    onVoiceRecordingsChange: id ? () => { void fetchCampaign(id); } : undefined,
-  });
 
   const headerCode = campaignHeaderDisplayCode(campaign);
 
@@ -505,7 +628,11 @@ export default function MISCampaignDetailPage() {
             </Space>
           </Col>
           <Col>
-            <Button icon={<ReloadOutlined />} onClick={() => fetchCampaign(id!)} loading={loading}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => void loadCampaignLeads(id!, { silent: true })}
+              loading={refreshingLeads}
+            >
               Refresh
             </Button>
           </Col>
@@ -616,7 +743,7 @@ export default function MISCampaignDetailPage() {
       </Row>
 
       <Card
-        title={`Leads (${leads.length})`}
+        title={`Leads (${leadsTotal})`}
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
         bodyStyle={{ padding: "24px 28px" }}
       >
@@ -655,8 +782,9 @@ export default function MISCampaignDetailPage() {
               <Space>
                 <Button
                   icon={<DownloadOutlined />}
-                  onClick={handleExport}
-                  disabled={sortedFilteredLeads.length === 0}
+                  onClick={() => void handleExport()}
+                  loading={exporting}
+                  disabled={leadsTotal === 0 || exporting}
                 >
                   Export
                 </Button>
@@ -680,9 +808,10 @@ export default function MISCampaignDetailPage() {
         <Table
           className="table-single-line"
           columns={leadColumns}
-          dataSource={sortedFilteredLeads}
+          dataSource={filteredLeads}
           rowKey="id"
           scroll={{ x: 2600 }}
+          loading={serverTableInitialLoading(loading, leads.length)}
           pagination={leadsTablePagination}
           locale={{ emptyText: "No leads yet" }}
           size="middle"

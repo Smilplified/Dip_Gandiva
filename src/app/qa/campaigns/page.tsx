@@ -22,7 +22,11 @@ import {
 import { DownloadOutlined, ReloadOutlined } from "@ant-design/icons";
 import dayjs, { type Dayjs } from "dayjs";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
 import { tableSerialNumber } from "@/lib/table-pagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
@@ -185,11 +189,7 @@ export default function QACampaignsPage() {
   );
   const summary = campaignsQuery.data?.summary ?? null;
 
-  useEffect(() => {
-    if (campaignsQuery.data?.pagination) {
-      applyPaginationMeta(campaignsQuery.data.pagination);
-    }
-  }, [campaignsQuery.data?.pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(campaignsQuery.data?.pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (campaignsQuery.error) {
@@ -221,7 +221,7 @@ export default function QACampaignsPage() {
     };
   }, [campaignsQuery]);
 
-  const loading = campaignsQuery.isLoading && campaigns.length === 0;
+  const loading = serverTableInitialLoading(campaignsQuery.isLoading, campaigns.length);
 
   const displayedCampaigns = useMemo(() => {
     let result = campaigns;

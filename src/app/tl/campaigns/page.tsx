@@ -33,7 +33,11 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 import { tableSerialNumber } from "@/lib/table-pagination";
 
@@ -117,7 +121,6 @@ export default function TLCampaignsPage() {
     items: campaigns,
     pagination,
     isLoading: campaignsLoading,
-    isFetching: campaignsFetching,
     error: campaignsError,
     refetch: refetchCampaigns,
   } = usePaginatedListQuery<CampaignRow>({
@@ -133,9 +136,7 @@ export default function TLCampaignsPage() {
     enabled: listEnabled,
   });
 
-  useEffect(() => {
-    if (pagination) applyPaginationMeta(pagination);
-  }, [pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (campaignsError) {
@@ -173,7 +174,10 @@ export default function TLCampaignsPage() {
     };
   }, [statsQuery, refetchCampaigns]);
 
-  const loading = (campaignsLoading || statsQuery.isLoading) && campaigns.length === 0;
+  const loading = serverTableInitialLoading(
+    campaignsLoading || statsQuery.isLoading,
+    campaigns.length
+  );
   const summaryStats = {
     totalCampaigns: statsQuery.data?.totalCampaigns ?? 0,
     totalLeads: statsQuery.data?.totalLeads ?? 0,

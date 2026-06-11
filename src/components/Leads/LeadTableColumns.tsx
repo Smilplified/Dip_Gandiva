@@ -52,6 +52,12 @@ type ColumnConfig = {
   pagination?: { current: number; pageSize: number };
   /** Hide the Follow-up date column (default: shown). Pass false for Agent role. */
   showFollowupDate?: boolean;
+  /** Hide the Channel column (default: shown). */
+  showChannel?: boolean;
+  /** Show QA auditor name column (qa_name). */
+  showAuditBy?: boolean;
+  /** Show lead uploader / creator column (created_by_name). Default true. */
+  showCreatedBy?: boolean;
   /** Inline voice log play/upload (agent campaign leads table). */
   showVoiceRecordings?: boolean;
   onVoiceRecordingsChange?: () => void;
@@ -62,6 +68,30 @@ function formatLeadDateTimeCell(value: string | null | undefined): string {
   const d = dayjs(value);
   if (!d.isValid()) return "—";
   return d.format("MMM D, YYYY, h:mm A");
+}
+
+function DeliveryStatusTooltipContent({ record }: { record: Lead }) {
+  const deliveredAt = record.delivered_at
+    ? dayjs(record.delivered_at).format("MMM D, YYYY · h:mm A")
+    : null;
+  const deliveredBy = record.delivered_by_name?.trim() || null;
+
+  if (!deliveredAt && !deliveredBy) {
+    return (
+      <span style={{ fontSize: 12, lineHeight: 1.5 }}>
+        Re-select <strong>Delivered</strong> to record date and MIS user.
+      </span>
+    );
+  }
+
+  return (
+    <div style={{ fontSize: 12, lineHeight: 1.55 }}>
+      {deliveredAt && <div style={{ fontWeight: 600 }}>{deliveredAt}</div>}
+      {deliveredBy && (
+        <div style={{ marginTop: deliveredAt ? 4 : 0, opacity: 0.92 }}>By {deliveredBy}</div>
+      )}
+    </div>
+  );
 }
 
 function leadDisplayNameForFile(lead: Lead): string {
@@ -228,6 +258,9 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     onDeliveryStatusChange,
     pagination,
     showFollowupDate = true,
+    showChannel = true,
+    showAuditBy = false,
+    showCreatedBy = true,
     showVoiceRecordings = false,
     onVoiceRecordingsChange,
   } = config;
@@ -339,14 +372,18 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
       ellipsis: true,
       render: (v: string | null) => v || "—",
     },
-    {
-      title: "Channel",
-      dataIndex: "channel",
-      key: "channel",
-      width: 190,
-      ellipsis: true,
-      render: (v: string | null | undefined) => v || "—",
-    },
+    ...(showChannel
+      ? [
+          {
+            title: "Channel",
+            dataIndex: "channel",
+            key: "channel",
+            width: 190,
+            ellipsis: true,
+            render: (v: string | null | undefined) => v || "—",
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
     {
       title: "Status",
       dataIndex: "status",
@@ -368,21 +405,23 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
             fixed: "right" as const,
             align: "center",
             onCell: () => ({ style: { paddingInline: 6 } }),
-            filters: [
-              { text: "Pending", value: "pending" },
-              { text: "Delivered", value: "delivered" },
-              { text: "Not Delivered", value: "not_delivered" },
-            ],
-            onFilter: (value, record) =>
-              (record.delivery_status ?? "pending") === String(value),
+            ...(onDeliveryStatusChange
+              ? {}
+              : {
+                  filters: [
+                    { text: "Pending", value: "pending" },
+                    { text: "Delivered", value: "delivered" },
+                    { text: "Not Delivered", value: "not_delivered" },
+                  ],
+                  onFilter: (value: unknown, record: Lead) =>
+                    (record.delivery_status ?? "pending") === String(value),
+                }),
             render: (v: Lead["delivery_status"], record: Lead) => {
               const status = (v ?? "pending") as "pending" | "not_delivered" | "delivered";
               const delivered = status === "delivered";
-              const deliveredAt = record.delivered_at
-                ? dayjs(record.delivered_at).format("MMM D, YYYY h:mm A")
-                : null;
-              // Allow re-clicking if delivered but delivered_at was never recorded (legacy)
-              const canRedeliver = delivered && !record.delivered_at;
+              // Allow re-clicking if delivered but delivery metadata was never recorded (legacy)
+              const canRedeliver =
+                delivered && (!record.delivered_at || !record.delivered_by);
               const statusColor =
                 status === "delivered"
                   ? "green"
@@ -395,16 +434,10 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
                   : status === "not_delivered"
                   ? "Not Delivered"
                   : "Pending";
-              const deliveryDateTooltip = delivered
-                ? deliveredAt
-                  ? `Delivered date: ${deliveredAt}`
-                  : "Delivered (date not recorded)"
-                : null;
-
               const wrapWithDeliveryTooltip = (content: React.ReactNode) => {
-                if (!deliveryDateTooltip) return content;
+                if (!delivered) return content;
                 return (
-                  <Tooltip title={deliveryDateTooltip}>
+                  <Tooltip title={<DeliveryStatusTooltipContent record={record} />} placement="top">
                     <span
                       style={{ display: "inline-flex", justifyContent: "center", maxWidth: "100%" }}
                     >
@@ -613,14 +646,38 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
           } as NonNullable<TableProps<Lead>["columns"]>[number],
         ]
       : []),
-    {
-      title: "Created By",
-      dataIndex: "created_by_name",
-      key: "created_by_name",
-      width: 140,
-      ellipsis: true,
-      render: (v: string | null) => v || "—",
-    },
+    ...(showAuditBy
+      ? [
+          {
+            title: "Audit by",
+            key: "audit_by",
+            width: 140,
+            ellipsis: true,
+            render: (_: unknown, record: Lead) =>
+              record.audit_by_name?.trim() || record.qa_name?.trim() || "—",
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
+    ...(showCreatedBy
+      ? [
+          {
+            title: "Created By",
+            key: "created_by_name",
+            width: 140,
+            ellipsis: true,
+            render: (_: unknown, record: Lead) => {
+              const creatorSnapshot = (
+                record as Lead & { creator_display_name?: string | null }
+              ).creator_display_name?.trim();
+              const agentName =
+                record.assigned_agent_name?.trim() ||
+                creatorSnapshot ||
+                record.created_by_name?.trim();
+              return showAuditBy ? agentName || "—" : record.created_by_name?.trim() || "—";
+            },
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
     {
       title: "Created",
       dataIndex: "created_at",

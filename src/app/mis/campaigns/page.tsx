@@ -20,7 +20,11 @@ import type { ColumnsType } from "antd/es/table";
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { tableSerialNumber } from "@/lib/table-pagination";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 
@@ -112,9 +116,7 @@ export default function MISCampaignsPage() {
     enabled: listEnabled,
   });
 
-  useEffect(() => {
-    if (pagination) applyPaginationMeta(pagination);
-  }, [pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (campaignsError) {
@@ -144,7 +146,7 @@ export default function MISCampaignsPage() {
     };
   }, [refetch]);
 
-  const loading = isLoading && campaigns.length === 0;
+  const loading = serverTableInitialLoading(isLoading, campaigns.length);
 
   const columns: ColumnsType<Campaign> = useMemo(
     () => [

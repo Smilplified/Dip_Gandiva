@@ -19,7 +19,11 @@ import type { Dayjs } from "dayjs";
 import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { downloadExcel } from "@/lib/leadsExport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import type { Lead } from "@/types/lead.types";
@@ -61,7 +65,6 @@ export default function TeamLeaderLeadsPage() {
     pagination,
     response,
     isLoading,
-    isFetching,
     error,
     refetch,
   } = usePaginatedListQuery<TLLeadRow>({
@@ -79,9 +82,7 @@ export default function TeamLeaderLeadsPage() {
     enabled: listEnabled,
   });
 
-  useEffect(() => {
-    if (pagination) applyPaginationMeta(pagination);
-  }, [pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (error) {
@@ -131,7 +132,7 @@ export default function TeamLeaderLeadsPage() {
     setSelectedAgentIds([]);
   };
 
-  const showInitialLoading = isLoading && leads.length === 0;
+  const showInitialLoading = serverTableInitialLoading(isLoading, leads.length);
 
   const baseColumns = getLeadTableColumns({
     showActions: false,
@@ -326,7 +327,7 @@ export default function TeamLeaderLeadsPage() {
             columns={columns}
             dataSource={leads}
             rowKey="id"
-            loading={showInitialLoading || (isFetching && leads.length === 0)}
+            loading={showInitialLoading}
             scroll={{ x: 3200 }}
             pagination={tablePagination}
             locale={{

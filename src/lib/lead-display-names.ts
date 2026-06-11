@@ -55,6 +55,13 @@ export async function resolveLeadUserNames(
     if (l.created_by) userIds.add(l.created_by);
     if (l.assigned_agent_id) userIds.add(l.assigned_agent_id);
   }
+  for (const row of leads) {
+    const qaAuditorId =
+      typeof row.qa_audited_by_id === "string" ? row.qa_audited_by_id : null;
+    if (qaAuditorId) userIds.add(qaAuditorId);
+    const deliveredById = typeof row.delivered_by === "string" ? row.delivered_by : null;
+    if (deliveredById) userIds.add(deliveredById);
+  }
 
   const tokensNeedingLookup = new Set<string>();
   for (const l of identities) {
@@ -138,11 +145,42 @@ export async function resolveLeadTokenToUserId(
   return out;
 }
 
+export function leadQaAuditorName(
+  lead: {
+    qa_name?: string | null;
+    qa_audited_by_id?: string | null;
+    qa_status?: string | null;
+    created_by?: string | null;
+  },
+  userNames: Record<string, string>
+): string | null {
+  const stored = (lead.qa_name ?? "").trim();
+  if (stored) return stored;
+  const auditorId = lead.qa_audited_by_id;
+  if (auditorId) {
+    const resolved = userNames[auditorId]?.trim();
+    if (resolved) return resolved;
+  }
+  // Legacy rows: QA outcome recorded on created_by before qa_audited_by_id existed.
+  if (String(lead.qa_status ?? "").trim() && lead.created_by) {
+    const legacy = userNames[lead.created_by]?.trim();
+    if (legacy) return legacy;
+  }
+  return null;
+}
+
 export async function enrichLeadsWithCreatorNames<T extends Record<string, unknown>>(
   supabase: SupabaseClient,
   leads: T[],
   organizationId?: string | null
-): Promise<(T & { assigned_agent_name: string | null; created_by_name: string | null })[]> {
+): Promise<
+  (T & {
+    assigned_agent_name: string | null;
+    created_by_name: string | null;
+    audit_by_name: string | null;
+    delivered_by_name: string | null;
+  })[]
+> {
   const [userNames, tokenToUserId] = await Promise.all([
     resolveLeadUserNames(supabase, leads, organizationId),
     resolveLeadTokenToUserId(supabase, leads, organizationId),
@@ -155,6 +193,20 @@ export async function enrichLeadsWithCreatorNames<T extends Record<string, unkno
         ? userNames[id.assigned_agent_id] ?? null
         : null,
       created_by_name: leadCreatedByName(id, userNames, tokenToUserId),
+      audit_by_name: leadQaAuditorName(
+        {
+          qa_name: typeof l.qa_name === "string" ? l.qa_name : null,
+          qa_audited_by_id:
+            typeof l.qa_audited_by_id === "string" ? l.qa_audited_by_id : null,
+          qa_status: typeof l.qa_status === "string" ? l.qa_status : null,
+          created_by: typeof l.created_by === "string" ? l.created_by : null,
+        },
+        userNames
+      ),
+      delivered_by_name:
+        typeof l.delivered_by === "string" && l.delivered_by
+          ? userNames[l.delivered_by] ?? null
+          : null,
     };
   });
 }

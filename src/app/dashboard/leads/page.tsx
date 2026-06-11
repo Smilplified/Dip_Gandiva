@@ -21,7 +21,11 @@ import type { ColumnsType } from "antd/es/table";
 import { DownloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  PAGINATION_SYNC_TOTAL_ONLY,
+  serverTableInitialLoading,
+  useServerTablePagination,
+} from "@/hooks/useServerTablePagination";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
 import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
@@ -155,19 +159,22 @@ export default function DashboardLeadsPage() {
   });
 
   const rows = leadsQuery.data?.leads ?? [];
-  const loading = leadsQuery.isLoading && rows.length === 0;
-  const tableFetching = leadsQuery.isFetching && rows.length > 0;
+  const loading = serverTableInitialLoading(leadsQuery.isLoading, rows.length);
+
+  const leadsListTotal = leadsQuery.data?.total;
 
   useEffect(() => {
-    const data = leadsQuery.data;
-    if (!data) return;
-    applyPaginationMeta({
-      page: data.page ?? page,
-      limit: data.limit ?? pageSize,
-      total: data.total ?? data.leads?.length ?? 0,
-      totalPages: data.totalPages ?? 0,
-    });
-  }, [leadsQuery.data, page, pageSize, applyPaginationMeta]);
+    if (typeof leadsListTotal !== "number") return;
+    applyPaginationMeta(
+      {
+        page: 1,
+        limit: pageSize,
+        total: leadsListTotal,
+        totalPages: pageSize > 0 ? Math.ceil(leadsListTotal / pageSize) : 0,
+      },
+      PAGINATION_SYNC_TOTAL_ONLY
+    );
+  }, [leadsListTotal, pageSize, applyPaginationMeta]);
 
   useEffect(() => {
     if (leadsQuery.error) {
@@ -566,7 +573,7 @@ export default function DashboardLeadsPage() {
           rowKey="id"
           columns={columns}
           dataSource={rows}
-          loading={loading || tableFetching}
+          loading={loading}
           pagination={tablePagination}
           scroll={{ x: isClientViewer ? 960 : 1100 }}
           tableLayout="fixed"

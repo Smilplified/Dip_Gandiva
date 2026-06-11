@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import dayjs from "dayjs";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  PAGINATION_SYNC_TOTAL_ONLY,
+  useServerTablePagination,
+} from "@/hooks/useServerTablePagination";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
@@ -163,8 +166,17 @@ export default function SalesCampaignDetailPage() {
     { value: "Whitepaper", label: "Whitepaper" },
   ]);
   const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
-  const { page, pageSize, total, applyPaginationMeta, tablePagination } = useServerTablePagination();
+  const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
+    useServerTablePagination();
+  const initialLeadsLoadDoneRef = useRef(false);
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    initialLeadsLoadDoneRef.current = false;
+    resetPage();
+  }, [id, resetPage]);
 
   useEffect(() => {
     if (id && hasSalesAccess) {
@@ -179,7 +191,9 @@ export default function SalesCampaignDetailPage() {
   }, [id, hasSalesAccess]);
 
   const fetchCampaign = useCallback(async (campaignId: string) => {
-    setLoading(true);
+    const silent = initialLeadsLoadDoneRef.current;
+    initialLeadsLoadDoneRef.current = true;
+    if (!silent) setLoading(true);
     try {
       const url = buildListApiUrl(`/api/tl/campaigns/${campaignId}`, { page, limit: pageSize });
       const res = await fetch(url, { credentials: "include" });
@@ -187,15 +201,15 @@ export default function SalesCampaignDetailPage() {
       if (!res.ok) throw new Error(data.error || "Failed to load");
       setCampaign(data.campaign);
       setLeads(data.leads ?? []);
-      applyPaginationMeta(data.leads_pagination);
+      applyPaginationMeta(data.leads_pagination, PAGINATION_SYNC_TOTAL_ONLY);
       setFiles(data.files ?? []);
     } catch {
       message.error("Failed to load campaign");
-      router.replace("/sales/campaigns");
+      routerRef.current.replace("/sales/campaigns");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [router, page, pageSize, applyPaginationMeta]);
+  }, [page, pageSize, applyPaginationMeta]);
 
   useEffect(() => {
     if (!id) {

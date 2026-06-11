@@ -67,7 +67,7 @@ type CampaignPerformanceRow = {
   name: string;
   campaign_code: string | null;
   totalLeads: number;
-  closedWonLeads: number;
+  qualifiedLeads: number;
 };
 
 type LeadStatusSlice = {
@@ -176,7 +176,7 @@ export default function MISDashboardPage() {
     return [
       {
         title: "Total Campaigns",
-        value: String(s?.totalCampaigns ?? 0),
+        value: (s?.totalCampaigns ?? 0).toLocaleString(),
         change: "All active & closed",
         icon: <FundProjectionScreenOutlined />,
         color: "#1890ff",
@@ -184,7 +184,7 @@ export default function MISDashboardPage() {
       },
       {
         title: "Total Leads Uploaded",
-        value: String(s?.totalLeadsUploaded ?? 0),
+        value: (s?.totalLeadsUploaded ?? 0).toLocaleString(),
         change: "All time",
         icon: <DatabaseOutlined />,
         color: "#722ed1",
@@ -192,7 +192,7 @@ export default function MISDashboardPage() {
       },
       {
         title: "Leads Assigned to Agents",
-        value: String(s?.leadsAssignedToAgents ?? 0),
+        value: (s?.leadsAssignedToAgents ?? 0).toLocaleString(),
         change: "Currently assigned",
         icon: <TeamOutlined />,
         color: "#52c41a",
@@ -200,8 +200,8 @@ export default function MISDashboardPage() {
       },
       {
         title: "Pending Leads",
-        value: String(s?.pendingLeads ?? 0),
-        change: "Not completed yet",
+        value: (s?.pendingLeads ?? 0).toLocaleString(),
+        change: "Awaiting QA qualification",
         icon: <ClockCircleOutlined />,
         color: "#faad14",
         bgColor: "#fffbe6",
@@ -214,25 +214,25 @@ export default function MISDashboardPage() {
     return [
       {
         title: "Completed Leads",
-        value: String(s?.completedLeads ?? 0),
+        value: (s?.completedLeads ?? 0).toLocaleString(),
         subtitle: "Closed / completed",
         color: "#389e0d",
       },
       {
         title: "QA Approved Leads",
-        value: String(s?.qaApprovedLeads ?? 0),
+        value: (s?.qaApprovedLeads ?? 0).toLocaleString(),
         subtitle: "Pass / approved",
         color: "#52c41a",
       },
       {
         title: "QA Rejected Leads",
-        value: String(s?.qaRejectedLeads ?? 0),
+        value: (s?.qaRejectedLeads ?? 0).toLocaleString(),
         subtitle: "Failed QA",
         color: "#ff4d4f",
       },
       {
         title: "Call Back Leads",
-        value: String(s?.callBackLeads ?? 0),
+        value: (s?.callBackLeads ?? 0).toLocaleString(),
         subtitle: "Marked for call back",
         color: "#13c2c2",
       },
@@ -452,7 +452,7 @@ export default function MISDashboardPage() {
                     data={
                       campaignPerformanceData.length
                         ? campaignPerformanceData
-                        : [{ name: "—", totalLeads: 0, closedWonLeads: 0 }]
+                        : [{ name: "—", totalLeads: 0, qualifiedLeads: 0 }]
                     }
                     margin={{ top: 5, right: 5, left: -15, bottom: 5 }}
                   >
@@ -485,10 +485,10 @@ export default function MISDashboardPage() {
                       name="Total Leads"
                     />
                     <Bar
-                      dataKey="closedWonLeads"
+                      dataKey="qualifiedLeads"
                       fill="#52c41a"
                       radius={[8, 8, 0, 0]}
-                      name="Closed Won"
+                      name="Qualified leads"
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -656,20 +656,20 @@ export default function MISDashboardPage() {
                       width: 130,
                     },
                     {
-                      title: "Closed Won",
-                      dataIndex: "closedWonLeads",
-                      key: "closedWonLeads",
+                      title: "Qualified Leads",
+                      dataIndex: "qualifiedLeads",
+                      key: "qualifiedLeads",
                       width: 130,
                       render: (v: number) => <Tag color="green">{v}</Tag>,
                     },
                     {
-                      title: "Conversion %",
+                      title: "Qualified %",
                       key: "conversion",
                       width: 130,
                       render: (_: unknown, r: CampaignPerformanceRow) => {
                         const pct =
                           r.totalLeads > 0
-                            ? Math.round((r.closedWonLeads / r.totalLeads) * 100)
+                            ? Math.round((r.qualifiedLeads / r.totalLeads) * 100)
                             : 0;
                         return <span>{pct}%</span>;
                       },

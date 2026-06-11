@@ -34,7 +34,11 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { tableSerialNumber } from "@/lib/table-pagination";
 
 type CampaignRow = {
@@ -117,9 +121,7 @@ export default function SalesCampaignsPage() {
     enabled: listEnabled,
   });
 
-  useEffect(() => {
-    if (pagination) applyPaginationMeta(pagination);
-  }, [pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (campaignsError) {
@@ -137,7 +139,7 @@ export default function SalesCampaignsPage() {
   }, [isInitialized, hasSalesAccess, router]);
 
   const loading =
-    (campaignsLoading || statsQuery.isLoading) && campaigns.length === 0;
+    serverTableInitialLoading(campaignsLoading || statsQuery.isLoading, campaigns.length);
   const stats = statsQuery.data ?? null;
 
   const refreshLists = useCallback(() => {

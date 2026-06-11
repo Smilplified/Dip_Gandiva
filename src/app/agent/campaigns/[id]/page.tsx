@@ -26,7 +26,10 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  PAGINATION_SYNC_TOTAL_ONLY,
+  useServerTablePagination,
+} from "@/hooks/useServerTablePagination";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
 import {
   ArrowLeftOutlined,
@@ -180,7 +183,7 @@ export default function AgentCampaignDetailPage() {
       const leadsJson = await leadsRes.json();
       if (!leadsRes.ok) throw new Error(leadsJson.error || "Failed to load leads");
       setLeads(leadsJson.leads ?? []);
-      applyPaginationMeta(leadsJson.pagination);
+      applyPaginationMeta(leadsJson.pagination, PAGINATION_SYNC_TOTAL_ONLY);
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to load leads");
     }

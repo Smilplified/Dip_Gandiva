@@ -26,7 +26,11 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { LEAD_STATUS_OPTIONS } from "@/constants/salesLeadForm";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
 
 type LeadRow = {
@@ -420,13 +424,9 @@ export default function SalesLeadsPage() {
     () => leadsQuery.data?.lastActivityByLeadId ?? {},
     [leadsQuery.data?.lastActivityByLeadId]
   );
-  const loading = leadsQuery.isLoading && leads.length === 0;
+  const loading = serverTableInitialLoading(leadsQuery.isLoading, leads.length);
 
-  useEffect(() => {
-    if (leadsQuery.data?.pagination) {
-      applyPaginationMeta(leadsQuery.data.pagination);
-    }
-  }, [leadsQuery.data?.pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(leadsQuery.data?.pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (leadsQuery.error) {

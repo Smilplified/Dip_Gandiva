@@ -27,7 +27,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import CampaignTable, { type CommandCampaignRow } from "@/components/command/CampaignTable";
 import { predictCampaignPerformance, type CampaignHealthStatus } from "@/lib/campaign-performance-prediction";
@@ -93,7 +97,6 @@ export default function CampaignsPage() {
     pagination,
     response: campaignsResponse,
     isLoading,
-    isFetching,
     error: campaignsError,
     refetch,
   } = usePaginatedListQuery<CommandCampaignRow>({
@@ -113,9 +116,7 @@ export default function CampaignsPage() {
     fetcher: fetchWithAuthRetry,
   });
 
-  useEffect(() => {
-    if (pagination) applyPaginationMeta(pagination);
-  }, [pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (campaignsError) {
@@ -125,8 +126,7 @@ export default function CampaignsPage() {
     }
   }, [campaignsError]);
 
-  const loading = isLoading && campaigns.length === 0;
-  const tableLoading = isFetching && campaigns.length > 0;
+  const loading = serverTableInitialLoading(isLoading, campaigns.length);
 
   const filteredCampaigns =
     isClientViewerTable && healthFilter !== "all"
@@ -381,7 +381,7 @@ export default function CampaignsPage() {
         <Card style={{ ...cardStyle, padding: 0 }} styles={{ body: { padding: 0 } }}>
           <CampaignTable
             campaigns={filteredCampaigns}
-            loading={tableLoading}
+            loading={loading}
             clientViewer={isClientViewerTable}
             pagination={tablePagination}
             page={page}

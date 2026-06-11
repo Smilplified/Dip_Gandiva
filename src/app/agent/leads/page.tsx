@@ -19,7 +19,11 @@ import dayjs from "dayjs";
 import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
-import { useServerTablePagination } from "@/hooks/useServerTablePagination";
+import {
+  serverTableInitialLoading,
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+} from "@/hooks/useServerTablePagination";
 import { downloadAgentCsv } from "@/lib/leadsExport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import type { Lead } from "@/types/lead.types";
@@ -69,9 +73,7 @@ export default function AgentMyLeadsPage() {
     enabled: listEnabled,
   });
 
-  useEffect(() => {
-    if (pagination) applyPaginationMeta(pagination);
-  }, [pagination, applyPaginationMeta]);
+  useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
   useEffect(() => {
     if (leadsError) {
@@ -101,7 +103,7 @@ export default function AgentMyLeadsPage() {
     };
   }, [refetch]);
 
-  const loading = isLoading && leads.length === 0;
+  const loading = serverTableInitialLoading(isLoading, leads.length);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {

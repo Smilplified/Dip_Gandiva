@@ -21,6 +21,8 @@ export type Lead = {
   updated_at: string;
   assigned_agent_name: string | null;
   created_by_name: string | null;
+  /** QA auditor display name (qa_name or resolved from qa_audited_by_id). */
+  audit_by_name?: string | null;
   channel?: "Email" | "Telemarketing" | null;
   /** Per-lead type set by agent (e.g. MQL, HQL). */
   lead_type?: string | null;
@@ -91,6 +93,8 @@ export type Lead = {
   delivery_status: "pending" | "not_delivered" | "delivered" | null;
   delivered_at: string | null;
   delivered_by: string | null;
+  /** MIS user who marked the lead delivered (resolved from delivered_by). */
+  delivered_by_name?: string | null;
   disqualification_reasons: string | null;
   disqualification_reason: string | null;
   rectified_reason: string | null;
