@@ -24,6 +24,7 @@ import {
   useServerTablePagination,
   useSyncListPaginationTotal,
 } from "@/hooks/useServerTablePagination";
+import { buildListApiUrl } from "@/lib/build-list-api-url";
 import { downloadExcel } from "@/lib/leadsExport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import type { Lead } from "@/types/lead.types";
@@ -47,6 +48,7 @@ export default function TeamLeaderLeadsPage() {
   const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination();
   const [isOffline, setIsOffline] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(leadSearch.trim()), 400);
@@ -130,6 +132,43 @@ export default function TeamLeaderLeadsPage() {
     setLeadSearch("");
     setDateRange(null);
     setSelectedAgentIds([]);
+  };
+
+  const handleExport = async () => {
+    if (total === 0) {
+      message.warning(
+        hasActiveFilters ? "No leads match the current filters to export" : "No leads to export"
+      );
+      return;
+    }
+    setExporting(true);
+    try {
+      const url = buildListApiUrl("/api/tl/leads", {
+        export: "all",
+        q: debouncedSearch || undefined,
+        agent_ids: selectedAgentIds.length > 0 ? selectedAgentIds.join(",") : undefined,
+        date_from: dateRange?.[0]?.format("YYYY-MM-DD"),
+        date_to: dateRange?.[1]?.format("YYYY-MM-DD"),
+      });
+      const res = await fetch(url, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load leads for export");
+      const exportLeads = (data.leads ?? []) as TLLeadRow[];
+      if (exportLeads.length === 0) {
+        message.warning("No leads to export");
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadExcel(
+        exportLeads,
+        `tl-leads-${stamp}${hasActiveFilters ? "-filtered" : ""}.xlsx`
+      );
+      message.success(`Exported ${exportLeads.length} leads`);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Failed to export leads");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const showInitialLoading = serverTableInitialLoading(isLoading, leads.length);
@@ -230,23 +269,9 @@ export default function TeamLeaderLeadsPage() {
           extra={
             <Button
               icon={<DownloadOutlined />}
-              onClick={() => {
-                if (leads.length === 0) {
-                  message.warning(
-                    hasActiveFilters
-                      ? "No leads match the current filters to export"
-                      : "No leads to export"
-                  );
-                  return;
-                }
-                const stamp = new Date().toISOString().slice(0, 10);
-                downloadExcel(
-                  leads,
-                  `tl-leads-${stamp}-page${page}${hasActiveFilters ? "-filtered" : ""}.xlsx`
-                );
-                message.success(`Exported ${leads.length} leads from this page`);
-              }}
-              disabled={leads.length === 0}
+              onClick={() => void handleExport()}
+              loading={exporting}
+              disabled={total === 0 || exporting}
             >
               Export
             </Button>

@@ -5,7 +5,11 @@ import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { fetchCampaignIdsForTeamLeader } from "@/lib/campaign/team-leader-assignments";
 import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
-import { TL_LEADS_LIST_SELECT, fetchTlLeadsPageForCampaigns } from "@/lib/tl/leads-list";
+import {
+  TL_LEADS_LIST_SELECT,
+  fetchAllTlLeadsForCampaigns,
+  fetchTlLeadsPageForCampaigns,
+} from "@/lib/tl/leads-list";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
@@ -35,6 +39,7 @@ export async function GET(request: NextRequest) {
     }
 
     const sp = request.nextUrl.searchParams;
+    const exportAll = sp.get("export") === "all";
     const { page, limit, offset } = parseListPagination(sp);
     const searchRaw = sp.get("q")?.trim() || "";
     const dateFrom = sp.get("date_from")?.trim() || undefined;
@@ -91,22 +96,28 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {});
 
+    const leadsQueryOpts = {
+      campaignIds,
+      search: searchRaw || undefined,
+      select: TL_LEADS_LIST_SELECT,
+      ...(agentIds.length > 0
+        ? {
+            agentIds: realAgentIds.length > 0 ? realAgentIds : undefined,
+            includeUnassigned: wantsUnassigned,
+          }
+        : {}),
+      dateFrom,
+      dateTo,
+    };
+
     const [{ rows: rawLeads, total }, assignmentsRes] = await Promise.all([
-      fetchTlLeadsPageForCampaigns(supabase, {
-        campaignIds,
-        offset,
-        limit,
-        search: searchRaw || undefined,
-        select: TL_LEADS_LIST_SELECT,
-        ...(agentIds.length > 0
-          ? {
-              agentIds: realAgentIds.length > 0 ? realAgentIds : undefined,
-              includeUnassigned: wantsUnassigned,
-            }
-          : {}),
-        dateFrom,
-        dateTo,
-      }),
+      exportAll
+        ? fetchAllTlLeadsForCampaigns(supabase, leadsQueryOpts)
+        : fetchTlLeadsPageForCampaigns(supabase, {
+            ...leadsQueryOpts,
+            offset,
+            limit,
+          }),
       supabase
         .from("campaign_assignments")
         .select("agent_id")
@@ -156,7 +167,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       leads,
-      pagination: buildPaginationMeta(page, limit, total),
+      pagination: buildPaginationMeta(
+        exportAll ? 1 : page,
+        exportAll ? Math.max(total, 1) : limit,
+        total
+      ),
       agents,
     });
   } catch (error) {

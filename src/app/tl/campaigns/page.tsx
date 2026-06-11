@@ -208,6 +208,55 @@ export default function TLCampaignsPage() {
     [refreshLists]
   );
 
+  const leadMetricColumns: ColumnsType<CampaignRow> = useMemo(
+    () => [
+      {
+        title: "Total Leads",
+        dataIndex: "total_leads",
+        key: "total_leads",
+        width: 100,
+        align: "center",
+        sorter: (a, b) => a.total_leads - b.total_leads,
+        render: (v: number) => (
+          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+            {(v ?? 0).toLocaleString()}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "Qualified",
+        dataIndex: "qualified_leads",
+        key: "qualified_leads",
+        width: 100,
+        align: "center",
+        sorter: (a, b) => (a.qualified_leads ?? 0) - (b.qualified_leads ?? 0),
+        render: (v: number) => (
+          <Typography.Text
+            style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#389e0d" : undefined }}
+          >
+            {(v ?? 0).toLocaleString()}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "Delivered",
+        dataIndex: "delivered_leads",
+        key: "delivered_leads",
+        width: 100,
+        align: "center",
+        sorter: (a, b) => (a.delivered_leads ?? 0) - (b.delivered_leads ?? 0),
+        render: (v: number) => (
+          <Typography.Text
+            style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#1677ff" : undefined }}
+          >
+            {(v ?? 0).toLocaleString()}
+          </Typography.Text>
+        ),
+      },
+    ],
+    []
+  );
+
   const columns: ColumnsType<CampaignRow> = useMemo(
     () => [
       {
@@ -287,28 +336,20 @@ export default function TLCampaignsPage() {
           </Tag>
         ),
       },
-      {
-        title: "Total Leads",
-        dataIndex: "total_leads",
-        key: "total_leads",
-        width: 88,
-        align: "center",
-        sorter: (a, b) => a.total_leads - b.total_leads,
-        render: (v: number) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
-            {v ?? 0}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "Agents",
-        dataIndex: "total_agents",
-        key: "total_agents",
-        width: 72,
-        align: "center",
-        sorter: (a, b) => a.total_agents - b.total_agents,
-        render: (v: number) => v ?? 0,
-      },
+      ...(isOperationsManager
+        ? leadMetricColumns
+        : [
+            leadMetricColumns[0],
+            {
+              title: "Agents",
+              dataIndex: "total_agents",
+              key: "total_agents",
+              width: 72,
+              align: "center" as const,
+              sorter: (a: CampaignRow, b: CampaignRow) => a.total_agents - b.total_agents,
+              render: (v: number) => v ?? 0,
+            },
+          ]),
       {
         title: "Team Leader",
         dataIndex: "assigned_team_leader_name",
@@ -353,34 +394,12 @@ export default function TLCampaignsPage() {
           </Typography.Text>
         ),
       },
-      {
-        title: "Qualified",
-        dataIndex: "qualified_leads",
-        key: "qualified_leads",
-        width: 88,
-        align: "center",
-        fixed: "right",
-        sorter: (a, b) => (a.qualified_leads ?? 0) - (b.qualified_leads ?? 0),
-        render: (v: number) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: v > 0 ? "#389e0d" : undefined }}>
-            {v ?? 0}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "Delivered",
-        dataIndex: "delivered_leads",
-        key: "delivered_leads",
-        width: 96,
-        align: "center",
-        fixed: "right",
-        sorter: (a, b) => (a.delivered_leads ?? 0) - (b.delivered_leads ?? 0),
-        render: (v: number) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: v > 0 ? "#1677ff" : undefined }}>
-            {v ?? 0}
-          </Typography.Text>
-        ),
-      },
+      ...(!isOperationsManager
+        ? leadMetricColumns.slice(1).map((col) => ({
+            ...col,
+            fixed: "right" as const,
+          }))
+        : []),
       {
         title: "Actions",
         key: "actions",
@@ -438,7 +457,7 @@ export default function TLCampaignsPage() {
         ),
       },
     ],
-    [page, pageSize, handleStatusChange, isOperationsManager, router]
+    [page, pageSize, handleStatusChange, isOperationsManager, leadMetricColumns, router]
   );
 
   const campaignSummary = summaryStats;
@@ -606,7 +625,7 @@ export default function TLCampaignsPage() {
           dataSource={campaigns}
           rowKey="id"
           size="middle"
-          scroll={{ x: 1480 }}
+          scroll={{ x: isOperationsManager ? 1320 : 1480 }}
           tableLayout="fixed"
           sticky
           loading={loading}

@@ -22,7 +22,7 @@ export async function GET(
 
   let query = supabase
     .from("leads")
-    .select("*, campaigns(id, name, campaign_id, status, client_id, client_name)")
+    .select("*, campaigns(id, name, campaign_id, status, client_id, client_name, campaign_questions)")
     .eq("id", id);
 
   if (userRoles.includes("client_viewer")) {

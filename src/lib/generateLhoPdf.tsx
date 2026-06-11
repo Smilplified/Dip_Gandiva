@@ -15,9 +15,6 @@ import { formatFullAddress } from "@/lib/lho/meeting-report-format";
 const BRAND_GREEN = "#2D5A4C";
 const SECTION_BAR_BG = "#F9E8D4";
 const DEFAULT_LOGO_SRC = "/projects/B2Bindemand_logo.png";
-const FOOTER_LINE_1 =
-  "DemandPro Ltd Reg. Office: 167-169 Great Portland Street, Fifth Floor, London W1W 5PF";
-const FOOTER_LINE_2 = "www.demandpro.co.uk";
 
 const LOGO_WIDTH = 148;
 
@@ -29,7 +26,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     fontFamily: "Helvetica",
     paddingTop: PAGE_HEADER_RESERVE,
-    paddingBottom: 96,
+    paddingBottom: 48,
     paddingHorizontal: 48,
     color: "#1a1a1a",
   },
@@ -96,6 +93,25 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     lineHeight: 1.35,
   },
+  cqBlock: {
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e8e8e8",
+  },
+  cqQuestion: {
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    color: BRAND_GREEN,
+    marginBottom: 4,
+    lineHeight: 1.35,
+  },
+  cqAnswer: {
+    fontSize: 11,
+    color: "#111827",
+    fontFamily: "Helvetica",
+    lineHeight: 1.45,
+  },
   sectionBar: {
     backgroundColor: SECTION_BAR_BG,
     paddingVertical: 7,
@@ -111,22 +127,6 @@ const styles = StyleSheet.create({
   },
   content: {
     marginBottom: 32,
-  },
-  footer: {
-    position: "absolute",
-    bottom: 36,
-    left: 48,
-    right: 48,
-    textAlign: "center",
-    paddingTop: 12,
-  },
-  footerText: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    color: BRAND_GREEN,
-    lineHeight: 1.6,
-    textAlign: "center",
-    marginBottom: 4,
   },
 });
 
@@ -173,6 +173,7 @@ export type LhoData = {
   cq4: string;
   cq5: string;
   extraCq: Record<string, string>;
+  campaignQuestions: { label: string; answer: string }[];
   leadStatus: string;
   leadTagging: string;
   assetTitle: string;
@@ -224,6 +225,32 @@ function SectionBar({ title }: { title: string }) {
   );
 }
 
+function CampaignQuestionsSection({
+  rows,
+}: {
+  rows: { label: string; answer: string }[];
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <SectionBar title="CAMPAIGN QUESTIONS" />
+      {rows.map((row, index) => (
+        <View
+          key={`${row.label}-${index}`}
+          style={
+            index === rows.length - 1
+              ? { ...styles.cqBlock, borderBottomWidth: 0, marginBottom: 0 }
+              : styles.cqBlock
+          }
+        >
+          <Text style={styles.cqQuestion}>{row.label}</Text>
+          <Text style={styles.cqAnswer}>{row.answer}</Text>
+        </View>
+      ))}
+    </>
+  );
+}
+
 function PageHeader({ logoSrc }: { logoSrc?: string | null }) {
   return (
     <View style={styles.pageHeader} fixed>
@@ -238,16 +265,15 @@ function PageHeader({ logoSrc }: { logoSrc?: string | null }) {
   );
 }
 
-function PageFooter() {
-  return (
-    <View style={styles.footer} fixed>
-      <Text style={styles.footerText}>{FOOTER_LINE_1}</Text>
-      <Text style={styles.footerText}>{FOOTER_LINE_2}</Text>
-    </View>
-  );
-}
-
-function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null }) {
+function LhoDocument({
+  data,
+  logoSrc,
+  showClientName = false,
+}: {
+  data: LhoData;
+  logoSrc?: string | null;
+  showClientName?: boolean;
+}) {
   const prospectName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
   const phone = data.phone || data.directNumber;
   const fullAddress = formatFullAddress({
@@ -263,13 +289,12 @@ function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null
     <Document title="Meeting Report">
       <Page size="A4" style={styles.page} wrap>
         <PageHeader logoSrc={logoSrc} />
-        <PageFooter />
 
         <View style={styles.body}>
           <View style={styles.content}>
           <View style={styles.metaBlock}>
-            <FieldRow label="Client" value={data.client} />
-            <FieldRow label="Prepared by" value={data.preparedBy} />
+            {showClientName && <FieldRow label="Client" value={data.client} />}
+            {showClientName && <FieldRow label="Prepared by" value={data.preparedBy} />}
             <FieldRow label="Date Meeting Set" value={data.meetingSetDate} />
             <FieldRow label="Meeting Date" value={data.meetingDate} />
             <FieldRow label="Meeting Time" value={data.meetingTime} />
@@ -289,6 +314,8 @@ function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null
           <FieldRow label="Employee Size" value={data.employeeSize} />
           <FieldRow label="Address" value={fullAddress} />
           <FieldRow label="Website" value={website} />
+
+          <CampaignQuestionsSection rows={data.campaignQuestions} />
           </View>
         </View>
       </Page>
@@ -298,9 +325,15 @@ function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null
 
 export async function generateLhoPdf(
   data: LhoData,
-  options?: { logoSrc?: string | null }
+  options?: { logoSrc?: string | null; showClientName?: boolean }
 ): Promise<void> {
-  const doc = <LhoDocument data={data} logoSrc={options?.logoSrc ?? null} />;
+  const doc = (
+    <LhoDocument
+      data={data}
+      logoSrc={options?.logoSrc ?? null}
+      showClientName={options?.showClientName ?? false}
+    />
+  );
   const blob = await pdf(doc).toBlob();
 
   const companySlug = (data.companyName || "Company").replace(/\s+/g, "_");

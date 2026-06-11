@@ -812,8 +812,10 @@ export default function TeamPerformanceDashboard() {
       key: "qualified_leads",
       align: "center" as const,
       sorter: (a: QASummary, b: QASummary) => a.qualified_leads - b.qualified_leads,
-      render: (v: number) => (
-        <span style={{ fontWeight: 600, color: v > 0 ? "#389e0d" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+      render: (v: number, r: QASummary) => (
+        <Tooltip title={`In app: ${r.app_qualified_leads} · Import sheet: ${r.imported_qualified_leads}`}>
+          <span style={{ fontWeight: 600, color: v > 0 ? "#389e0d" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+        </Tooltip>
       ),
     },
     {
@@ -822,8 +824,10 @@ export default function TeamPerformanceDashboard() {
       key: "disqualified_leads",
       align: "center" as const,
       sorter: (a: QASummary, b: QASummary) => a.disqualified_leads - b.disqualified_leads,
-      render: (v: number) => (
-        <span style={{ fontWeight: 600, color: v > 0 ? "#cf1322" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+      render: (v: number, r: QASummary) => (
+        <Tooltip title={`In app: ${r.app_disqualified_leads} · Import sheet: ${r.imported_disqualified_leads}`}>
+          <span style={{ fontWeight: 600, color: v > 0 ? "#cf1322" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+        </Tooltip>
       ),
     },
     {
@@ -832,8 +836,10 @@ export default function TeamPerformanceDashboard() {
       key: "rectified_leads",
       align: "center" as const,
       sorter: (a: QASummary, b: QASummary) => a.rectified_leads - b.rectified_leads,
-      render: (v: number) => (
-        <span style={{ fontWeight: 600, color: v > 0 ? "#722ed1" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+      render: (v: number, r: QASummary) => (
+        <Tooltip title={`In app: ${r.app_rectified_leads} · Import sheet: ${r.imported_rectified_leads}`}>
+          <span style={{ fontWeight: 600, color: v > 0 ? "#722ed1" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+        </Tooltip>
       ),
     },
     {
@@ -875,64 +881,138 @@ export default function TeamPerformanceDashboard() {
     },
   ];
 
-  const campCols: ColumnsType<CampaignPerformance> = [
-    {
-      title: "Campaign",
-      key: "campaign",
-      render: (_: unknown, r: CampaignPerformance) => (
-        <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 13 }}>{r.campaign_name}</Text>
-          {r.campaign_code && <Text type="secondary" style={{ fontSize: 11 }}>{r.campaign_code}</Text>}
-        </Space>
-      ),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      render: (s: string) => (
-        <Tag color={s === "active" ? "green" : s === "completed" ? "blue" : s === "paused" ? "orange" : "default"} style={{ borderRadius: 20 }}>
-          {s}
-        </Tag>
-      ),
-    },
-    { title: "Allocation", dataIndex: "total_allocation", key: "total_allocation", align: "center" as const, render: (v: number) => v.toLocaleString() },
-    {
-      title: "Uploaded",
-      dataIndex: "total_uploaded",
-      key: "total_uploaded",
-      align: "center" as const,
-      defaultSortOrder: "descend" as const,
-      sorter: (a: CampaignPerformance, b: CampaignPerformance) => a.total_uploaded - b.total_uploaded,
-      render: (v: number) => (
-        <span style={{ fontWeight: 700, color: "#1677ff", background: "#e6f4ff", borderRadius: 8, padding: "2px 10px" }}>
-          {v.toLocaleString()}
-        </span>
-      ),
-    },
-    {
+  const campCols: ColumnsType<CampaignPerformance> = useMemo(() => {
+    const progressCol: ColumnsType<CampaignPerformance>[number] = {
       title: "Progress",
       dataIndex: "progress_pct",
       key: "progress_pct",
-      width: 160,
-      render: (v: number) => (
-        <Space direction="vertical" size={2} style={{ width: "100%" }}>
-          <Progress percent={v} size="small" strokeColor={v >= 100 ? "#52c41a" : v >= 50 ? "#1677ff" : "#fa8c16"} />
-        </Space>
+      width: isOM ? 190 : 160,
+      align: "center",
+      sorter: (a: CampaignPerformance, b: CampaignPerformance) =>
+        (a.progress_pct ?? 0) - (b.progress_pct ?? 0),
+      showSorterTooltip: { target: "sorter-icon" },
+      render: (v: number, r: CampaignPerformance) => (
+        <Tooltip
+          title={
+            isOM
+              ? `${(r.qualified_leads ?? 0).toLocaleString()} qualified of ${r.total_allocation.toLocaleString()} allocation`
+              : `${r.total_uploaded.toLocaleString()} uploaded of ${r.total_allocation.toLocaleString()} allocation`
+          }
+        >
+          <Space direction="vertical" size={2} style={{ width: "100%" }}>
+            <Progress
+              percent={v}
+              size="small"
+              showInfo={isOM}
+              format={(p) => `${p ?? 0}%`}
+              strokeColor={v >= 100 ? "#52c41a" : v >= 50 ? "#1677ff" : "#fa8c16"}
+            />
+          </Space>
+        </Tooltip>
       ),
-    },
-    { title: "Agents", dataIndex: "agents_count", key: "agents_count", align: "center" as const },
-    {
-      title: "Deadline",
-      dataIndex: "end_date",
-      key: "end_date",
-      render: (v: string | null) => {
-        if (!v) return <Text type="secondary">—</Text>;
-        const past = v < today;
-        return <Text style={{ fontSize: 12, color: past ? "#ff4d4f" : "#0f172a" }}>{fmtDate(v)}</Text>;
+    };
+
+    return [
+      {
+        title: "Campaign",
+        key: "campaign",
+        render: (_: unknown, r: CampaignPerformance) => (
+          <Space direction="vertical" size={0}>
+            <Text strong style={{ fontSize: 13 }}>{r.campaign_name}</Text>
+            {r.campaign_code && <Text type="secondary" style={{ fontSize: 11 }}>{r.campaign_code}</Text>}
+          </Space>
+        ),
       },
-    },
-  ];
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        render: (s: string) => (
+          <Tag
+            color={s === "active" ? "green" : s === "completed" ? "blue" : s === "paused" ? "orange" : "default"}
+            style={{ borderRadius: 20 }}
+          >
+            {s}
+          </Tag>
+        ),
+      },
+      {
+        title: "Allocation",
+        dataIndex: "total_allocation",
+        key: "total_allocation",
+        align: "center" as const,
+        render: (v: number) => v.toLocaleString(),
+      },
+      ...(isOM
+        ? [
+            {
+              title: "Qualified",
+              dataIndex: "qualified_leads",
+              key: "qualified_leads",
+              align: "center" as const,
+              defaultSortOrder: "descend" as const,
+              sorter: (a: CampaignPerformance, b: CampaignPerformance) =>
+                (a.qualified_leads ?? 0) - (b.qualified_leads ?? 0),
+              render: (v: number) => (
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: "#389e0d",
+                    background: "#f6ffed",
+                    borderRadius: 8,
+                    padding: "2px 10px",
+                  }}
+                >
+                  {(v ?? 0).toLocaleString()}
+                </span>
+              ),
+            } as ColumnsType<CampaignPerformance>[number],
+          ]
+        : [
+            {
+              title: "Uploaded",
+              dataIndex: "total_uploaded",
+              key: "total_uploaded",
+              align: "center" as const,
+              defaultSortOrder: "descend" as const,
+              sorter: (a: CampaignPerformance, b: CampaignPerformance) =>
+                a.total_uploaded - b.total_uploaded,
+              render: (v: number) => (
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: "#1677ff",
+                    background: "#e6f4ff",
+                    borderRadius: 8,
+                    padding: "2px 10px",
+                  }}
+                >
+                  {v.toLocaleString()}
+                </span>
+              ),
+            } as ColumnsType<CampaignPerformance>[number],
+          ]),
+      progressCol,
+      {
+        title: "Agents",
+        dataIndex: "agents_count",
+        key: "agents_count",
+        align: "center" as const,
+      },
+      {
+        title: "Deadline",
+        dataIndex: "end_date",
+        key: "end_date",
+        render: (v: string | null) => {
+          if (!v) return <Text type="secondary">—</Text>;
+          const past = v < today;
+          return (
+            <Text style={{ fontSize: 12, color: past ? "#ff4d4f" : "#0f172a" }}>{fmtDate(v)}</Text>
+          );
+        },
+      },
+    ];
+  }, [isOM, today]);
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -1337,7 +1417,7 @@ export default function TeamPerformanceDashboard() {
               title="QA-wise Summary"
               extra={
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Counts leads QA saved in the app (with QA status). Uses audit save time — not imported sheet QA status.
+                  In app: QA saves with auditor stamp. Import sheet: QA status from spreadsheet (audit date / QA auditor name).
                 </Text>
               }
             />

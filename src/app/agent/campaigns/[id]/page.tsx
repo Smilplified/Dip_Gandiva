@@ -58,6 +58,7 @@ type Campaign = {
   campaign_id?: string | null;
   campaign_code?: string | null;
   name: string;
+  client_name?: string | null;
   description: string | null;
   industry: string | null;
   geography: string | null;
@@ -139,6 +140,7 @@ export default function AgentCampaignDetailPage() {
         campaign_id: campaignJson.campaign.campaign_id ?? null,
         campaign_code: campaignJson.campaign.campaign_code ?? null,
         name: campaignJson.campaign.name,
+        client_name: campaignJson.campaign.client_name ?? null,
         description: campaignJson.campaign.description,
         industry: campaignJson.campaign.industry,
         geography: campaignJson.campaign.geography,

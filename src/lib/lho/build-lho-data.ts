@@ -1,11 +1,15 @@
 import type { LhoData } from "@/lib/generateLhoPdf";
 import {
+  buildLhoCampaignQuestionRows,
+  resolveCampaignQuestionsFromLeadRaw,
+} from "@/lib/lho/campaign-cq-pdf";
+import {
   formatMeetingReportDate,
   formatMeetingReportTime,
   resolveAgentName,
   resolveClientName,
-  resolvePreparedBy,
 } from "@/lib/lho/meeting-report-format";
+import type { CampaignQuestion } from "@/lib/campaign-questions";
 
 function str(val: unknown): string {
   return val != null ? String(val).trim() : "";
@@ -29,11 +33,26 @@ function formatLegacyDateTime(val: unknown, tz: unknown): string {
   return tzLabel ? `${wall} (${tzLabel})` : wall;
 }
 
-export function buildLhoDataFromLead(raw: Record<string, unknown>): LhoData {
+export function buildLhoDataFromLead(
+  raw: Record<string, unknown>,
+  options?: { campaignQuestions?: CampaignQuestion[] | null }
+): LhoData {
   const scoredAt = str(raw.scored) || null;
   const scoredTimezone = str(raw.scored_timezone) || null;
   const appointmentAt = str(raw.appointment) || null;
   const appointmentTimezone = str(raw.appointment_timezone) || null;
+
+  const cqFields = {
+    cq1: str(raw.cq1),
+    cq2: str(raw.cq2),
+    cq3: str(raw.cq3),
+    cq4: str(raw.cq4),
+    cq5: str(raw.cq5),
+    extraCq: normalizeExtraCqMap(raw.extra_cq),
+  };
+
+  const campaignQuestionConfig =
+    options?.campaignQuestions ?? resolveCampaignQuestionsFromLeadRaw(raw);
 
   return {
     salutation: str(raw.salutation),
@@ -72,12 +91,8 @@ export function buildLhoDataFromLead(raw: Record<string, unknown>): LhoData {
     foundedYearsLink: str(raw.founded_years_link),
     callBack: str(raw.call_back),
     callNotes: str(raw.call_notes),
-    cq1: str(raw.cq1),
-    cq2: str(raw.cq2),
-    cq3: str(raw.cq3),
-    cq4: str(raw.cq4),
-    cq5: str(raw.cq5),
-    extraCq: normalizeExtraCqMap(raw.extra_cq),
+    ...cqFields,
+    campaignQuestions: buildLhoCampaignQuestionRows(cqFields, campaignQuestionConfig),
     leadStatus: str(raw.status),
     leadTagging: str(raw.lead_tagging),
     assetTitle: str(raw.asset_title),
@@ -99,7 +114,7 @@ export function buildLhoDataFromLead(raw: Record<string, unknown>): LhoData {
     scored: formatLegacyDateTime(scoredAt, scoredTimezone),
     appointment: formatLegacyDateTime(appointmentAt, appointmentTimezone),
     client: resolveClientName(raw),
-    preparedBy: resolvePreparedBy(str(raw.prepared_by)),
+    preparedBy: resolveClientName(raw),
     agentName: resolveAgentName(raw),
     meetingSetDate: formatMeetingReportDate(scoredAt, scoredTimezone),
     meetingDate: formatMeetingReportDate(appointmentAt, appointmentTimezone),

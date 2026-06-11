@@ -132,3 +132,32 @@ export async function fetchTlLeadsPageForCampaigns(
 
   return { rows: [], total: 0 };
 }
+
+type TlLeadsListQueryOpts = Omit<
+  Parameters<typeof fetchTlLeadsPageForCampaigns>[1],
+  "offset" | "limit"
+>;
+
+/** All matching leads (paginated internally) — for export. */
+export async function fetchAllTlLeadsForCampaigns(
+  supabase: SupabaseClient,
+  opts: TlLeadsListQueryOpts
+): Promise<{ rows: Record<string, unknown>[]; total: number }> {
+  const all: Record<string, unknown>[] = [];
+  let offset = 0;
+  let total = 0;
+
+  for (;;) {
+    const chunk = await fetchTlLeadsPageForCampaigns(supabase, {
+      ...opts,
+      offset,
+      limit: LEADS_PAGE_SIZE,
+    });
+    total = chunk.total;
+    all.push(...chunk.rows);
+    if (chunk.rows.length < LEADS_PAGE_SIZE || all.length >= total) break;
+    offset += LEADS_PAGE_SIZE;
+  }
+
+  return { rows: all, total };
+}

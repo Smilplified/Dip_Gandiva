@@ -13,6 +13,7 @@ import { tableSerialNumber } from "@/lib/table-pagination";
 import { useAuth } from "@/context/AuthContext";
 import { generateLhoPdf } from "@/lib/generateLhoPdf";
 import { buildLhoDataFromLead } from "@/lib/lho/build-lho-data";
+import { resolveCampaignQuestionsFromLeadRaw } from "@/lib/lho/campaign-cq-pdf";
 import { shouldGenerateLhoPdfWithLogo } from "@/lib/lho/logo-pdf";
 import {
   LEAD_MEETING_DATE_TIME_LABEL,
@@ -201,8 +202,13 @@ function LeadLhoDownloadButton({
               message.error(json.error ?? "Failed to load lead details for LHO");
               return;
             }
-            const lhoData = buildLhoDataFromLead(json.lead);
-            await generateLhoPdf(lhoData, { logoSrc: clientLogoUrl });
+            const lhoData = buildLhoDataFromLead(json.lead, {
+              campaignQuestions: resolveCampaignQuestionsFromLeadRaw(json.lead),
+            });
+            await generateLhoPdf(lhoData, {
+              logoSrc: clientLogoUrl,
+              showClientName: true,
+            });
             message.success("LHO PDF downloaded successfully");
             return;
           }

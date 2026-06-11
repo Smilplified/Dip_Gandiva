@@ -1396,7 +1396,7 @@ export function LeadForm({
         <Input.TextArea rows={3} placeholder="Notes, context, objections..." />
       </Form.Item>
 
-      <GenerateLhoButton form={form} lead={lead} />
+      <GenerateLhoButton form={form} lead={lead} campaignQuestions={campaignQuestions} />
     </Form>
   );
 }
@@ -1406,9 +1406,11 @@ export function LeadForm({
 function GenerateLhoButton({
   form,
   lead,
+  campaignQuestions = null,
 }: {
   form: ReturnType<typeof Form.useForm>[0];
   lead?: Lead | null;
+  campaignQuestions?: CampaignQuestion[] | null;
 }) {
   const [generating, setGenerating] = useState(false);
   const { roles, profile, user } = useAuth();
@@ -1451,7 +1453,7 @@ function GenerateLhoButton({
         null,
     };
 
-    const data = buildLhoDataFromLead(raw);
+    const data = buildLhoDataFromLead(raw, { campaignQuestions });
 
     setGenerating(true);
     try {

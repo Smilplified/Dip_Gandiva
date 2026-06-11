@@ -17,7 +17,9 @@ import {
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import {
   buildQaNameToIdMap,
+  isAppStampedQaAudit,
   leadHasQaOutcome,
+  qaAuditActivityDay,
   resolveQaUserId,
 } from "@/lib/qa-audit-attribution";
 
@@ -50,6 +52,7 @@ export type CampaignPerformance = {
   campaign_code: string | null;
   total_allocation: number;
   total_uploaded: number;
+  qualified_leads: number;
   progress_pct: number;
   agents_count: number;
   status: string;
@@ -77,9 +80,17 @@ export type QASummary = {
   qa_id: string;
   qa_name: string;
   total_audited: number;
+  app_audited: number;
+  imported_audited: number;
   qualified_leads: number;
+  app_qualified_leads: number;
+  imported_qualified_leads: number;
   disqualified_leads: number;
+  app_disqualified_leads: number;
+  imported_disqualified_leads: number;
   rectified_leads: number;
+  app_rectified_leads: number;
+  imported_rectified_leads: number;
   with_qa_comments: number;
   today_audited: number;
   week_audited: number;
@@ -201,6 +212,50 @@ async function fetchLeadActivityRows(
     if (error) throw error;
     const chunk = (data ?? []) as LeadActivityRow[];
     all.push(...chunk);
+    if (chunk.length < LEADS_PAGE_SIZE) break;
+    offset += LEADS_PAGE_SIZE;
+  }
+
+  return all;
+}
+
+type QaAuditLeadRow = {
+  id: string;
+  qa_status: string | null;
+  qa_name: string | null;
+  qa_audited_by_id: string | null;
+  qa_audited_at: string | null;
+  qa_comments: string | null;
+  audit_date: string | null;
+  updated_at: string;
+};
+
+/** All leads with a QA outcome in scope (app saves + imported sheet status). */
+async function fetchQaAuditLeadRows(
+  admin: ReturnType<typeof getAdminClientSafe>,
+  orgId: string,
+  campaignIds: string[]
+): Promise<QaAuditLeadRow[]> {
+  if (!admin || campaignIds.length === 0) return [];
+
+  const select =
+    "id, qa_status, qa_name, qa_audited_by_id, qa_audited_at, qa_comments, audit_date, updated_at";
+  const all: QaAuditLeadRow[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const { data, error } = await admin
+      .from("leads")
+      .select(select)
+      .eq("organization_id", orgId)
+      .in("campaign_id", campaignIds)
+      .not("qa_status", "is", null)
+      .order("updated_at", { ascending: true })
+      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const chunk = (data ?? []) as QaAuditLeadRow[];
+    all.push(...chunk.filter((l) => leadHasQaOutcome(l.qa_status)));
     if (chunk.length < LEADS_PAGE_SIZE) break;
     offset += LEADS_PAGE_SIZE;
   }
@@ -622,63 +677,36 @@ export async function GET(request: Request) {
         return userLabel(row);
       });
 
-      type AuditLeadRow = {
-        id: string;
-        qa_status: string | null;
-        qa_name: string | null;
-        qa_audited_by_id: string | null;
-        qa_audited_at: string | null;
-        qa_comments: string | null;
-        audit_date: string | null;
-        updated_at: string;
-      };
-
-      let auditLeads: AuditLeadRow[] = [];
       const qaCampaignIds = campaignIdFilter
         ? scopedCampaignIds
         : (campaigns ?? []).map((c) => (c as { id: string }).id);
-      const qaIdList = [...qaIds];
-      if (qaCampaignIds.length > 0 && qaIdList.length > 0) {
-        const { data: auditData, error: auditErr } = await admin
-          .from("leads")
-          .select(
-            "id, qa_status, qa_name, qa_audited_by_id, qa_audited_at, qa_comments, audit_date, updated_at"
-          )
-          .eq("organization_id", orgId)
-          .in("campaign_id", qaCampaignIds)
-          .in("qa_audited_by_id", qaIdList);
 
-        if (auditErr) return NextResponse.json({ error: auditErr.message }, { status: 500 });
-        auditLeads = (auditData ?? []) as AuditLeadRow[];
-
-        const { data: legacyByName, error: legacyErr } = await admin
-          .from("leads")
-          .select(
-            "id, qa_status, qa_name, qa_audited_by_id, qa_audited_at, qa_comments, audit_date, updated_at"
-          )
-          .eq("organization_id", orgId)
-          .in("campaign_id", qaCampaignIds)
-          .is("qa_audited_by_id", null)
-          .not("qa_name", "is", null);
-
-        if (legacyErr) return NextResponse.json({ error: legacyErr.message }, { status: 500 });
-        auditLeads = auditLeads.concat((legacyByName ?? []) as AuditLeadRow[]);
+      let auditLeads: QaAuditLeadRow[] = [];
+      if (qaCampaignIds.length > 0 && qaIds.size > 0) {
+        try {
+          auditLeads = await fetchQaAuditLeadRows(admin, orgId, qaCampaignIds);
+        } catch (auditErr) {
+          const message = auditErr instanceof Error ? auditErr.message : "Failed to load QA audits";
+          return NextResponse.json({ error: message }, { status: 500 });
+        }
       }
 
-      const auditActivityDay = (l: AuditLeadRow): string => {
-        if (l.qa_audited_at) {
-          return dayjs(l.qa_audited_at).tz(appTz).format("YYYY-MM-DD");
-        }
-        const ad = l.audit_date?.trim();
-        if (ad) return ad.length >= 10 ? ad.slice(0, 10) : ad;
-        return dayjs(l.updated_at).tz(appTz).format("YYYY-MM-DD");
-      };
+      const formatAuditDay = (iso: string, tz: string) =>
+        dayjs(iso).tz(tz).format("YYYY-MM-DD");
 
       const initQaAgg = () => ({
         total: 0,
+        app: 0,
+        imported: 0,
         qualified: 0,
+        appQualified: 0,
+        importedQualified: 0,
         disqualified: 0,
+        appDisqualified: 0,
+        importedDisqualified: 0,
         rectified: 0,
+        appRectified: 0,
+        importedRectified: 0,
         withComments: 0,
         today: 0,
         week: 0,
@@ -700,11 +728,11 @@ export async function GET(request: Request) {
       const countedLeadKeys = new Set<string>();
 
       for (const l of auditLeads) {
+        const isApp = isAppStampedQaAudit(l.qa_audited_by_id, qaIds);
         const qaId = resolveQaUserId(l.qa_audited_by_id, l.qa_name, qaIds, qaNameToId);
         if (!qaId) continue;
-        if (!leadHasQaOutcome(l.qa_status)) continue;
 
-        const activityDay = auditActivityDay(l);
+        const activityDay = qaAuditActivityDay(l, isApp, appTz, formatAuditDay);
         if (activityDay < startDate || activityDay > endDate) continue;
 
         const dedupeKey = `${qaId}:${l.id}`;
@@ -713,9 +741,24 @@ export async function GET(request: Request) {
 
         const agg = qaAggMap.get(qaId)!;
         agg.total++;
-        if (isQualifiedQaStatus(l.qa_status)) agg.qualified++;
-        if (isDisqualifiedQaStatus(l.qa_status)) agg.disqualified++;
-        if (isRectifiedQaStatus(l.qa_status)) agg.rectified++;
+        if (isApp) agg.app++;
+        else agg.imported++;
+
+        if (isQualifiedQaStatus(l.qa_status)) {
+          agg.qualified++;
+          if (isApp) agg.appQualified++;
+          else agg.importedQualified++;
+        }
+        if (isDisqualifiedQaStatus(l.qa_status)) {
+          agg.disqualified++;
+          if (isApp) agg.appDisqualified++;
+          else agg.importedDisqualified++;
+        }
+        if (isRectifiedQaStatus(l.qa_status)) {
+          agg.rectified++;
+          if (isApp) agg.appRectified++;
+          else agg.importedRectified++;
+        }
         if (String(l.qa_comments ?? "").trim()) agg.withComments++;
         if (activityDay === today) agg.today++;
         if (activityDay >= weekStart) agg.week++;
@@ -728,9 +771,17 @@ export async function GET(request: Request) {
           qa_id: qa.id,
           qa_name: userLabel(qa),
           total_audited: agg.total,
+          app_audited: agg.app,
+          imported_audited: agg.imported,
           qualified_leads: agg.qualified,
+          app_qualified_leads: agg.appQualified,
+          imported_qualified_leads: agg.importedQualified,
           disqualified_leads: agg.disqualified,
+          app_disqualified_leads: agg.appDisqualified,
+          imported_disqualified_leads: agg.importedDisqualified,
           rectified_leads: agg.rectified,
+          app_rectified_leads: agg.appRectified,
+          imported_rectified_leads: agg.importedRectified,
           with_qa_comments: agg.withComments,
           today_audited: agg.today,
           week_audited: agg.week,
@@ -743,9 +794,13 @@ export async function GET(request: Request) {
     // ── Campaign performance ─────────────────────────────────────────────────
     const campAgentMap = new Map<string, Set<string>>();
     const campLeadMap = new Map<string, number>();
+    const campQualifiedMap = new Map<string, number>();
     for (const l of leadsInRange) {
       if (!campById.has(l.campaign_id)) continue;
       campLeadMap.set(l.campaign_id, (campLeadMap.get(l.campaign_id) ?? 0) + 1);
+      if (isQualifiedQa(l.qa_status)) {
+        campQualifiedMap.set(l.campaign_id, (campQualifiedMap.get(l.campaign_id) ?? 0) + 1);
+      }
       if (!campAgentMap.has(l.campaign_id)) campAgentMap.set(l.campaign_id, new Set());
       const agId = resolveLeadAgentId(l);
       if (agId) campAgentMap.get(l.campaign_id)!.add(agId);
@@ -753,14 +808,18 @@ export async function GET(request: Request) {
 
     const campaignPerf: CampaignPerformance[] = scopedCampaigns.map((c) => {
       const uploaded = campLeadMap.get(c.id) ?? 0;
+      const qualified = campQualifiedMap.get(c.id) ?? 0;
       const alloc = c.total_allocation ?? 0;
+      const progressNumerator = isOM ? qualified : uploaded;
       return {
         campaign_id: c.id,
         campaign_name: c.name,
         campaign_code: c.campaign_code,
         total_allocation: alloc,
         total_uploaded: uploaded,
-        progress_pct: alloc > 0 ? Math.min(100, Math.round((uploaded / alloc) * 100)) : 0,
+        qualified_leads: qualified,
+        progress_pct:
+          alloc > 0 ? Math.min(100, Math.round((progressNumerator / alloc) * 100)) : 0,
         agents_count: campAgentMap.get(c.id)?.size ?? 0,
         status: c.status,
         start_date: c.start_date ?? null,
@@ -768,7 +827,9 @@ export async function GET(request: Request) {
       };
     });
 
-    campaignPerf.sort((a, b) => b.total_uploaded - a.total_uploaded);
+    campaignPerf.sort((a, b) =>
+      isOM ? b.qualified_leads - a.qualified_leads : b.total_uploaded - a.total_uploaded
+    );
 
     // ── Daily trend (last 30 days within range) ──────────────────────────────
     const oneMonthAgo = monthsAgoInTz(appTz, 1);
@@ -817,8 +878,14 @@ export async function GET(request: Request) {
     );
     const totalAlloc = scopedCampaigns.reduce((s, c) => s + (c.total_allocation ?? 0), 0);
     const totalUploaded = campaignPerf.reduce((s, c) => s + c.total_uploaded, 0);
+    const totalQualified = campaignPerf.reduce((s, c) => s + c.qualified_leads, 0);
     const completionPct =
-      totalAlloc > 0 ? Math.min(100, Math.round((totalUploaded / totalAlloc) * 100)) : 0;
+      totalAlloc > 0
+        ? Math.min(
+            100,
+            Math.round(((isOM ? totalQualified : totalUploaded) / totalAlloc) * 100)
+          )
+        : 0;
 
     const topPerformer =
       agentRows.length > 0 && agentRows[0].total_leads > 0

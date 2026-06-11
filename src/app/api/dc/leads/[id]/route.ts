@@ -51,7 +51,7 @@ export async function GET(
 
     const { data: lead, error } = await admin
       .from("leads")
-      .select("*")
+      .select("*, campaigns(campaign_questions, client_name)")
       .eq("id", leadId)
       .eq("organization_id", orgId)
       .single();

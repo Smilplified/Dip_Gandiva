@@ -87,14 +87,11 @@ export function resolvePreparedBy(value?: string | null): string {
   return v || PREPARED_BY_DEFAULT;
 }
 
-export function resolveClientName(
-  raw: Record<string, unknown>
-): string {
-  const campaigns = raw.campaigns as { client_name?: string; name?: string } | null | undefined;
+export function resolveClientName(raw: Record<string, unknown>): string {
+  const campaigns = raw.campaigns as { client_name?: string } | null | undefined;
   return (
     String(raw.client_name ?? "").trim() ||
     campaigns?.client_name?.trim() ||
-    campaigns?.name?.trim() ||
     ""
   );
 }

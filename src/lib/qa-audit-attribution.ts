@@ -154,6 +154,37 @@ export function leadHasQaOutcome(qaStatus: string | null | undefined): boolean {
   return normField(qaStatus).length > 0;
 }
 
+/** QA saved in the app (auditor stamped on the lead). */
+export function isAppStampedQaAudit(
+  qaAuditedById: string | null | undefined,
+  qaUserIds: Set<string>
+): boolean {
+  return Boolean(qaAuditedById && qaUserIds.has(qaAuditedById));
+}
+
+export type QaAuditActivityLead = {
+  qa_audited_at?: string | null;
+  audit_date?: string | null;
+  updated_at: string;
+};
+
+/** Calendar day for QA audit activity (app saves vs imported sheet). */
+export function qaAuditActivityDay(
+  lead: QaAuditActivityLead,
+  isAppAudit: boolean,
+  appTz: string,
+  formatDay: (iso: string, tz: string) => string
+): string {
+  if (isAppAudit) {
+    if (lead.qa_audited_at) return formatDay(lead.qa_audited_at, appTz);
+    return formatDay(lead.updated_at, appTz);
+  }
+  const ad = lead.audit_date?.trim();
+  if (ad) return ad.length >= 10 ? ad.slice(0, 10) : ad;
+  if (lead.qa_audited_at) return formatDay(lead.qa_audited_at, appTz);
+  return formatDay(lead.updated_at, appTz);
+}
+
 export function applyQaAuditorToImportPayload(
   payload: Record<string, unknown>,
   existing: ExistingLeadQaSnapshot,
