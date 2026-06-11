@@ -10,110 +10,127 @@ import {
   StyleSheet,
   pdf,
 } from "@react-pdf/renderer";
+import { formatFullAddress } from "@/lib/lho/meeting-report-format";
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+const BRAND_GREEN = "#2D5A4C";
+const SECTION_BAR_BG = "#F9E8D4";
+const DEFAULT_LOGO_SRC = "/projects/B2Bindemand_logo.png";
+const FOOTER_LINE_1 =
+  "DemandPro Ltd Reg. Office: 167-169 Great Portland Street, Fifth Floor, London W1W 5PF";
+const FOOTER_LINE_2 = "www.demandpro.co.uk";
+
+const LOGO_WIDTH = 148;
+
+/** Reserved top space: fixed header (logo + title) must stay above body content. */
+const PAGE_HEADER_RESERVE = 132;
 
 const styles = StyleSheet.create({
   page: {
-  backgroundColor: "#ffffff",
-  fontFamily: "Helvetica",
-  paddingTop: 26,
-  paddingBottom: 18,
-},
-  container: {
-    margin: 16,
     backgroundColor: "#ffffff",
-    borderRadius: 8,
-    padding: "28 32 36",
+    fontFamily: "Helvetica",
+    paddingTop: PAGE_HEADER_RESERVE,
+    paddingBottom: 96,
+    paddingHorizontal: 48,
     color: "#1a1a1a",
-    position: "relative",
-    flexGrow: 1,
   },
-  header: {
+  pageHeader: {
+    position: "absolute",
+    top: 20,
+    left: 48,
+    right: 48,
     alignItems: "center",
-    marginBottom: 16,
+  },
+  logoWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  logoBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 2,
+    paddingBottom: 10,
   },
   logoImage: {
-    width: 200,
-    height: 52,
+    width: LOGO_WIDTH,
+    height: 55,
     objectFit: "contain",
-    alignSelf: "center",
-    marginBottom: 6,
   },
-  subTitle: {
-    marginTop: 4,
-    fontSize: 11,
-    color: "#374151",
-    fontFamily: "Helvetica",
-    textAlign: "center",
-  },
-  sectionHeading: {
-    fontSize: 11,
-    color: "#111827",
+  reportTitle: {
+    marginTop: 0,
+    fontSize: 18,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 6,
-    marginTop: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: "#d1d5db",
+    color: BRAND_GREEN,
+    textAlign: "center",
+    letterSpacing: 0.3,
+    lineHeight: 1.35,
     paddingBottom: 4,
+  },
+  body: {
+    marginTop: 16,
+  },
+  metaBlock: {
+    marginBottom: 8,
   },
   row: {
     flexDirection: "row",
-    marginBottom: 5,
+    marginBottom: 7,
+    alignItems: "flex-start",
   },
   label: {
-    width: 148,
-    fontSize: 9,
-    color: "#374151",
+    width: 132,
+    fontSize: 11,
+    color: BRAND_GREEN,
     fontFamily: "Helvetica-Bold",
   },
   colon: {
-    width: 10,
-    fontSize: 9,
-    color: "#374151",
+    width: 8,
+    fontSize: 11,
+    color: BRAND_GREEN,
     fontFamily: "Helvetica-Bold",
   },
   value: {
     flex: 1,
-    fontSize: 9,
+    fontSize: 11,
     color: "#111827",
     fontFamily: "Helvetica",
-    lineHeight: 1.3,
+    lineHeight: 1.35,
   },
-  divider: {
-    height: 1,
-    backgroundColor: "#e5e7eb",
-    marginVertical: 10,
+  sectionBar: {
+    backgroundColor: SECTION_BAR_BG,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    marginTop: 16,
+    marginBottom: 10,
   },
-  notePoint: {
-    flexDirection: "row",
-    marginBottom: 6,
-    alignItems: "flex-start",
-  },
-  noteBullet: {
-    width: 14,
-    fontSize: 9,
-    color: "#0ea5e9",
+  sectionBarText: {
+    fontSize: 11,
     fontFamily: "Helvetica-Bold",
-    marginTop: 1,
+    color: BRAND_GREEN,
+    letterSpacing: 0.6,
   },
-  noteText: {
-    flex: 1,
+  content: {
+    marginBottom: 32,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 36,
+    left: 48,
+    right: 48,
+    textAlign: "center",
+    paddingTop: 12,
+  },
+  footerText: {
     fontSize: 9,
-    color: "#111827",
-    fontFamily: "Helvetica",
-    lineHeight: 1.3,
-  },
-  // Section wrapper — keeps heading + first rows together across page breaks
-  section: {
-    marginBottom: 2,
+    fontFamily: "Helvetica-Bold",
+    color: BRAND_GREEN,
+    lineHeight: 1.6,
+    textAlign: "center",
+    marginBottom: 4,
   },
 });
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 export type LhoData = {
-  // Prospect / Contact
   salutation: string;
   firstName: string;
   lastName: string;
@@ -126,7 +143,6 @@ export type LhoData = {
   jobFunction: string;
   jobTitleLink: string;
   contactLinkedIn: string;
-  // Company
   companyName: string;
   domain: string;
   companyNumber: string;
@@ -149,7 +165,6 @@ export type LhoData = {
   naicsCodeLink: string;
   foundedYears: string;
   foundedYearsLink: string;
-  // Custom / CQ
   callBack: string;
   callNotes: string;
   cq1: string;
@@ -157,11 +172,9 @@ export type LhoData = {
   cq3: string;
   cq4: string;
   cq5: string;
-  extraCq: Record<string, string>; // For CQ6, CQ7, etc.
-  // Lead status / tagging
+  extraCq: Record<string, string>;
   leadStatus: string;
   leadTagging: string;
-  // QA / Audit fields
   assetTitle: string;
   status: string;
   qaStatus: string;
@@ -174,21 +187,24 @@ export type LhoData = {
   primaryReason: string;
   secondaryReason: string;
   qaComments: string;
-  // Scheduling
+  scoredAt?: string | null;
+  scoredTimezone?: string | null;
+  appointmentAt?: string | null;
+  appointmentTimezone?: string | null;
   scored: string;
   appointment: string;
-  // Voice log (url or reference)
-  // voiceLog: string;
+  client?: string;
+  preparedBy?: string;
+  agentName?: string;
+  meetingSetDate?: string;
+  meetingDate?: string;
+  meetingTime?: string;
   raComment: string;
   specialComments: string;
-  // Notes (raw text — parsed into numbered points)
   notes: string;
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Render a row only when value is non-empty */
-function FieldRow({ label, value }: { label: string | undefined; value: string | undefined | null }) {
+function FieldRow({ label, value }: { label: string; value: string | undefined | null }) {
   const v = value == null ? "" : String(value).trim();
   if (!v) return null;
   return (
@@ -200,174 +216,85 @@ function FieldRow({ label, value }: { label: string | undefined; value: string |
   );
 }
 
-/**
- * Parse notes into bullet points.
- * - Numbered prefixes (1. 1)) are stripped, each becomes a bullet
- * - Double space = new bullet on next line
- * - Single newline = new bullet
- */
-function parseNotes(raw: string): string[] {
-  if (!raw || !raw.trim()) return [];
-
-  return raw
-    .replace(/(\d+[.)]) */g, "\n")   // strip numbered prefixes, insert newline
-    .replace(/  +/g, "\n")            // double space → newline
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-}
-
-// ── Logo component ────────────────────────────────────────────────────────────
-
-// Default B2Bindemand logo from public assets
-const LOGO_BASE64 = "/projects/B2Bindemand_logo.png";
-
-function Logo({ logoSrc }: { logoSrc?: string | null }) {
+function SectionBar({ title }: { title: string }) {
   return (
-    <View style={styles.header} wrap={false}>
-      <Image style={styles.logoImage} src={logoSrc || LOGO_BASE64} />
-      <Text style={styles.subTitle}>Lead Handover Document</Text>
+    <View style={styles.sectionBar} wrap={false}>
+      <Text style={styles.sectionBarText}>{title}</Text>
     </View>
   );
 }
 
-// ── Main Document ─────────────────────────────────────────────────────────────
+function PageHeader({ logoSrc }: { logoSrc?: string | null }) {
+  return (
+    <View style={styles.pageHeader} fixed>
+      <View style={styles.logoWrap}>
+        <View style={styles.logoBox}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image (not HTML img) */}
+          <Image style={styles.logoImage} src={logoSrc || DEFAULT_LOGO_SRC} />
+        </View>
+      </View>
+      <Text style={styles.reportTitle}>Meeting Report</Text>
+    </View>
+  );
+}
+
+function PageFooter() {
+  return (
+    <View style={styles.footer} fixed>
+      <Text style={styles.footerText}>{FOOTER_LINE_1}</Text>
+      <Text style={styles.footerText}>{FOOTER_LINE_2}</Text>
+    </View>
+  );
+}
 
 function LhoDocument({ data, logoSrc }: { data: LhoData; logoSrc?: string | null }) {
-  const prospectName = [data.firstName, data.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-
-  const notePoints = parseNotes(data.notes);
-  const hasNotes = notePoints.length > 0;
-
-  // Collect CQ fields that are filled (CQ1-CQ5 + dynamic CQ6+)
-  let cqFields: { label: string; value: string }[] = [
-    { label: "CQ1", value: data.cq1 },
-    { label: "CQ2", value: data.cq2 },
-    { label: "CQ3", value: data.cq3 },
-    { label: "CQ4", value: data.cq4 },
-    { label: "CQ5", value: data.cq5 },
-  ];
-
-  if (data.extraCq && typeof data.extraCq === "object") {
-    Object.entries(data.extraCq)
-      .sort(([keyA], [keyB]) => {
-        const numA = parseInt(keyA.replace(/\D/g, "")) || 0;
-        const numB = parseInt(keyB.replace(/\D/g, "")) || 0;
-        return numA - numB;
-      })
-      .forEach(([key, value]) => {
-        cqFields.push({ label: key.toUpperCase(), value: String(value ?? "") });
-      });
-  }
-
-  cqFields = cqFields.filter((f) => f.value?.trim());
+  const prospectName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
+  const phone = data.phone || data.directNumber;
+  const fullAddress = formatFullAddress({
+    address: data.address,
+    city: data.city,
+    state: data.state,
+    zipCode: data.zipCode,
+    country: data.country,
+  });
+  const website = data.companyWebsite || data.domain;
 
   return (
-    <Document title="Lead Handover Document">
+    <Document title="Meeting Report">
       <Page size="A4" style={styles.page} wrap>
-        <View style={styles.container}>
+        <PageHeader logoSrc={logoSrc} />
+        <PageFooter />
 
-          {/* Header — never split */}
-          <Logo logoSrc={logoSrc} />
-
-          {/* ── Company Details ──
-              wrap={false} on the anchor block keeps heading + first 3 rows together.
-              Remaining rows are allowed to flow naturally. */}
-          <View wrap={false} style={styles.section}>
-            <Text style={styles.sectionHeading}>Company Details</Text>
-            <FieldRow label="Company Name" value={data.companyName} />
-            <FieldRow label="Domain" value={data.domain} />
-            <FieldRow label="Corporate Number / Board Dial" value={data.companyNumber} />
+        <View style={styles.body}>
+          <View style={styles.content}>
+          <View style={styles.metaBlock}>
+            <FieldRow label="Client" value={data.client} />
+            <FieldRow label="Prepared by" value={data.preparedBy} />
+            <FieldRow label="Date Meeting Set" value={data.meetingSetDate} />
+            <FieldRow label="Meeting Date" value={data.meetingDate} />
+            <FieldRow label="Meeting Time" value={data.meetingTime} />
+            <FieldRow label="Agent Name" value={data.agentName} />
           </View>
-          <FieldRow label="Company Website Link" value={data.companyWebsite} />
-          <FieldRow label="Address Line 1" value={data.address} />
-          <FieldRow label="City" value={data.city} />
-          <FieldRow label="State" value={data.state} />
-          <FieldRow label="Country" value={data.country} />
-          <FieldRow label="Zip / Postal Code" value={data.zipCode} />
+
+          <SectionBar title="PROSPECT INFORMATION" />
+          <FieldRow label="Name" value={prospectName} />
+          <FieldRow label="Title" value={data.jobTitle} />
+          <FieldRow label="Email" value={data.email} />
+          <FieldRow label="Phone" value={phone} />
+          <FieldRow label="LinkedIn" value={data.contactLinkedIn} />
+
+          <SectionBar title="COMPANY INFORMATION" />
+          <FieldRow label="Account" value={data.companyName} />
+          <FieldRow label="Industry" value={data.industry} />
           <FieldRow label="Employee Size" value={data.employeeSize} />
-          <FieldRow label="See All Employees" value={data.seeAllEmployees} />
-          <FieldRow label="Employee Size Link" value={data.employeeSizeLink} />
-          <FieldRow label="Industry Type" value={data.industry} />
-          <FieldRow label="Revenue Size / Revenue Range" value={data.revenueRange} />
-          <FieldRow label="Revenue Link" value={data.revenueLink} />
-          <FieldRow label="Founded Year" value={data.foundedYears} />
-          <FieldRow label="Founded Year Link" value={data.foundedYearsLink} />
-          <FieldRow label="SIC Code" value={data.sicCode} />
-          <FieldRow label="SIC Code Link" value={data.sicCodeLink} />
-          <FieldRow label="NAICS Code" value={data.naicsCode} />
-          <FieldRow label="NAICS Code Link" value={data.naicsCodeLink} />
-          <FieldRow label="Company LinkedIn URL" value={data.companyLinkedIn} />
-
-          <View style={styles.divider} />
-
-          {/* ── Prospect Details ── */}
-          <View wrap={false} style={styles.section}>
-            <Text style={styles.sectionHeading}>Prospect Details</Text>
-            <FieldRow label="Full Name" value={prospectName} />
+          <FieldRow label="Address" value={fullAddress} />
+          <FieldRow label="Website" value={website} />
           </View>
-          <FieldRow label="Email Address" value={data.email} />
-          <FieldRow label="Phone Number" value={data.phone} />
-          <FieldRow label="Direct Number" value={data.directNumber} />
-          <FieldRow label="Job Title" value={data.jobTitle} />
-          <FieldRow label="Job Title Level" value={data.jobLevel} />
-          <FieldRow label="Department" value={data.department} />
-          <FieldRow label="Job Function" value={data.jobFunction} />
-          <FieldRow label="Job Title Link" value={data.jobTitleLink} />
-
-          <View style={styles.divider} />
-
-          {/* ── Custom Questions ── */}
-          <View wrap={false} style={styles.section}>
-            <Text style={styles.sectionHeading}>Custom Questions</Text>
-            <FieldRow label="Call Notes" value={data.callNotes} />
-          </View>
-          {cqFields.map((f) => (
-            <FieldRow key={f.label} label={f.label} value={f.value} />
-          ))}
-          <FieldRow label="Special Comments" value={data.specialComments} />
-
-          <View style={styles.divider} />
-
-          {/* ── Scheduling ── */}
-          <View wrap={false} style={styles.section}>
-            <Text style={styles.sectionHeading}>Scheduling Information</Text>
-            <FieldRow label="Scored" value={data.scored} />
-            <FieldRow label="Appointment" value={data.appointment} />
-          </View>
-
-          {/* ── Notes ── */}
-          {hasNotes && (
-            <>
-              <View style={styles.divider} />
-              <View wrap={false} style={styles.section}>
-                <Text style={styles.sectionHeading}>Notes</Text>
-                {notePoints.slice(0, 3).map((point, i) => (
-                  <View key={i} style={styles.notePoint}>
-                    <Text style={styles.noteBullet}>•</Text>
-                    <Text style={styles.noteText}>{point}</Text>
-                  </View>
-                ))}
-              </View>
-              {notePoints.slice(3).map((point, i) => (
-                <View key={i + 3} style={styles.notePoint}>
-                  <Text style={styles.noteBullet}>•</Text>
-                  <Text style={styles.noteText}>{point}</Text>
-                </View>
-              ))}
-            </>
-          )}
-
         </View>
       </Page>
     </Document>
   );
 }
-
-// ── Public export ─────────────────────────────────────────────────────────────
 
 export async function generateLhoPdf(
   data: LhoData,
@@ -377,8 +304,9 @@ export async function generateLhoPdf(
   const blob = await pdf(doc).toBlob();
 
   const companySlug = (data.companyName || "Company").replace(/\s+/g, "_");
-  const prospectSlug = [data.firstName, data.lastName].filter(Boolean).join("_") || "Prospect";
-  const fileName = `LHO_${companySlug}_${prospectSlug}.pdf`;
+  const prospectSlug =
+    [data.firstName, data.lastName].filter(Boolean).join("_") || "Prospect";
+  const fileName = `Meeting_Report_${companySlug}_${prospectSlug}.pdf`;
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

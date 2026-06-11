@@ -149,17 +149,9 @@ export default function DCCampaignDetailPage() {
 
   useEffect(() => { setLeadsPage(1); }, [leadSearch]);
 
-  const sortedFilteredLeads = [...filteredLeads].sort((a, b) => {
-    const rank = (v: Lead["delivery_status"]) =>
-      (v ?? "not_delivered") === "delivered" ? 0 : 1;
-    const rankDiff = rank(a.delivery_status) - rank(b.delivery_status);
-    if (rankDiff !== 0) return rankDiff;
-    return dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf();
-  });
-
-  const deliveredCount = leads.filter(
-    (l) => (l.delivery_status ?? "not_delivered") === "delivered"
-  ).length;
+  const sortedFilteredLeads = [...filteredLeads].sort(
+    (a, b) => dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf()
+  );
 
   const handleExportLeads = () => {
     if (leads.length === 0) {
@@ -190,6 +182,7 @@ export default function DCCampaignDetailPage() {
   const leadColumns = getLeadTableColumns({
     showActions: false,
     showDeliveryStatus: true,
+    showQaStatus: false,
     showLhoFile: true,
     lhoApiPrefix: "/api/dc/leads",
     pagination: { current: leadsPage, pageSize: leadsPageSize },
@@ -399,7 +392,7 @@ export default function DCCampaignDetailPage() {
         }
       >
         <Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
-          Delivered: {deliveredCount} / Total: {leads.length}. Showing {sortedFilteredLeads.length} of {leads.length} leads.
+          Showing {sortedFilteredLeads.length} of {leads.length} delivered leads (MIS delivered only).
         </Text>
         <Table
           className="table-single-line"
@@ -416,7 +409,11 @@ export default function DCCampaignDetailPage() {
             showTotal: (t) => `Total ${t} leads`,
             onChange: (page, size) => { setLeadsPage(page); setLeadsPageSize(size); },
           }}
-          locale={{ emptyText: leadSearch ? "No leads match the search." : "No leads yet for this campaign." }}
+          locale={{
+            emptyText: leadSearch
+              ? "No delivered leads match the search."
+              : "No delivered leads for this campaign yet.",
+          }}
         />
       </Card>
     </div>

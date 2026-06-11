@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { coerceParsedImportCell, isImportPlaceholder } from "@/lib/lead-import-sanitize";
+import { resolveLeadDatetimeImportHeader } from "@/lib/lead-field-labels";
 
 /**
  * Parse CSV file and return array of lead objects for bulk import.
@@ -64,6 +65,13 @@ const HEADER_MAP: Record<string, string> = {
   "campaign_lead_type": "lead_type",
 };
 
+function mapImportHeader(header: string): string {
+  const lower = header.toLowerCase().trim();
+  const datetimeKey = resolveLeadDatetimeImportHeader(lower);
+  if (datetimeKey) return datetimeKey;
+  return HEADER_MAP[lower] ?? lower.replace(/\s+/g, "_");
+}
+
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
   let current = "";
@@ -94,8 +102,8 @@ export function parseLeadsCsv(csvText: string): Record<string, unknown>[] {
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
 
-  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().trim());
-  const colMap = headers.map((h) => HEADER_MAP[h] ?? h.replace(/\s+/g, "_"));
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+  const colMap = headers.map((h) => mapImportHeader(h));
 
   const leads: Record<string, unknown>[] = [];
   for (let i = 1; i < lines.length; i++) {
@@ -131,8 +139,8 @@ export function parseLeadsExcel(buffer: ArrayBuffer): Record<string, unknown>[] 
   const ws = wb.Sheets[firstSheet];
   const aoa = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: "" });
   if (aoa.length < 2) return [];
-  const headers = (aoa[0] ?? []).map((h) => String(h ?? "").trim().toLowerCase());
-  const colMap = headers.map((h) => HEADER_MAP[h] ?? h.replace(/\s+/g, "_"));
+  const headers = (aoa[0] ?? []).map((h) => String(h ?? "").trim());
+  const colMap = headers.map((h) => mapImportHeader(h));
   const leads: Record<string, unknown>[] = [];
   for (let i = 1; i < aoa.length; i++) {
     const values = aoa[i] ?? [];

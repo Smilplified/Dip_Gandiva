@@ -80,7 +80,7 @@ export async function GET(
         .select(leadsSelect)
         .eq("campaign_id", campaignId)
         .eq("lead_tagging", "Scored")
-        .order("delivery_status", { ascending: true })
+        .eq("delivery_status", "delivered")
         .order("created_at", { ascending: false }),
     ])) as [
       SupabaseRowResult<DcCampaignRow>,

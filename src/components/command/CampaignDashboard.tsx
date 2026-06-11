@@ -51,6 +51,11 @@ import {
   applyLeadTableHeaderCells,
   getLeadTableColumns,
 } from "@/components/Leads/LeadTableColumns";
+import {
+  clientViewerHidesAppointment,
+  clientViewerShowsLhoFile,
+  isAgCampaignType,
+} from "@/lib/command/client-viewer-lead-columns";
 
 const { Text, Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -644,7 +649,12 @@ export default function CampaignDashboard({
       showActions: false,
       showDeliveryStatus: false,
       showQaStatus: false,
-      showLhoFile: true,
+      showAppointment: isClientViewer
+        ? !clientViewerHidesAppointment(campaign.campaign_type)
+        : true,
+      showLhoFile: isClientViewer
+        ? clientViewerShowsLhoFile(campaign.campaign_type)
+        : true,
       pagination: { current: leadPage, pageSize: leadPageSize },
       showVoiceRecordings: true,
       onVoiceRecordingsChange: () => { void fetchLeads(); },
@@ -1331,12 +1341,14 @@ export default function CampaignDashboard({
             </div>
           </Card>
 
-          <Card size="small" bordered styles={{ body: { padding: "14px 16px" } }} style={kpiCardStyle}>
-            <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
-              Channel Split
-            </Text>
-            <ChannelSplitMiniBar email={emailLeads} tele={teleLeads} />
-          </Card>
+          {!isAgCampaignType(campaign.campaign_type) && (
+            <Card size="small" bordered styles={{ body: { padding: "14px 16px" } }} style={kpiCardStyle}>
+              <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
+                Channel Split
+              </Text>
+              <ChannelSplitMiniBar email={emailLeads} tele={teleLeads} />
+            </Card>
+          )}
 
           {!isClientViewer && (
             <Card

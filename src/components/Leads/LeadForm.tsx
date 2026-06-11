@@ -15,7 +15,9 @@ import {
 import type { FormInstance } from "antd/es/form";
 import type { Dayjs } from "dayjs";
 import { generateLhoPdf } from "@/lib/generateLhoPdf";
+import { buildLhoDataFromLead } from "@/lib/lho/build-lho-data";
 import { shouldGenerateLhoPdfWithLogo } from "@/lib/lho/logo-pdf";
+import { wallClockDayjsToUtcIso } from "@/lib/timezones";
 import {
   DEFAULT_TIMEZONE,
   TIMEZONE_OPTIONS,
@@ -42,6 +44,10 @@ import {
   normalizePhoneNumeric,
   phoneNumericFormRules,
 } from "@/lib/lead-field-validation";
+import {
+  LEAD_MEETING_DATE_TIME_LABEL,
+  LEAD_MEETING_SET_DATE_TIME_LABEL,
+} from "@/lib/lead-field-labels";
 
 function toExternalUrl(value: unknown): string | null {
   const raw = String(value ?? "").trim();
@@ -1123,7 +1129,7 @@ export function LeadForm({
                 </Col>
                 <Col xs={24}>
                   <Form.Item
-                    label="Scored"
+                    label={LEAD_MEETING_SET_DATE_TIME_LABEL}
                     tooltip="The time you enter is interpreted in the selected time zone and stored in UTC."
                     style={{ marginBottom: 16 }}
                   >
@@ -1168,7 +1174,7 @@ export function LeadForm({
                 </Col>
                 <Col xs={24}>
                   <Form.Item
-                    label="Appointment"
+                    label={LEAD_MEETING_DATE_TIME_LABEL}
                     tooltip="The time you enter is interpreted in the selected time zone and stored in UTC."
                     style={{ marginBottom: 16 }}
                   >
@@ -1390,16 +1396,22 @@ export function LeadForm({
         <Input.TextArea rows={3} placeholder="Notes, context, objections..." />
       </Form.Item>
 
-      <GenerateLhoButton form={form} />
+      <GenerateLhoButton form={form} lead={lead} />
     </Form>
   );
 }
 
 // ── Generate LHO Button ───────────────────────────────────────────────────────
 
-function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
+function GenerateLhoButton({
+  form,
+  lead,
+}: {
+  form: ReturnType<typeof Form.useForm>[0];
+  lead?: Lead | null;
+}) {
   const [generating, setGenerating] = useState(false);
-  const { roles, profile } = useAuth();
+  const { roles, profile, user } = useAuth();
 
   const firstName = Form.useWatch("first_name", form);
   const lastName = Form.useWatch("last_name", form);
@@ -1411,91 +1423,35 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
     (typeof companyName === "string" && companyName.trim().length > 0);
 
   const handleGenerate = async () => {
-    const v = form.getFieldsValue() as Record<string, any>;
-    const str = (val: unknown) => (val != null ? String(val).trim() : "");
-    const formatDateTimeWithTz = (val: unknown, tz: unknown): string => {
-      if (!val || typeof (val as { format?: unknown }).format !== "function") return "";
-      const wall = (val as { format: (f: string) => string }).format("YYYY-MM-DD HH:mm");
-      const tzLabel = typeof tz === "string" && tz.trim() ? ` (${tz})` : "";
-      return `${wall}${tzLabel}`;
-    };
-    const normalizeExtraCqMap = (raw: unknown): Record<string, string> => {
-      if (!raw || typeof raw !== "object") return {};
-      const out: Record<string, string> = {};
-      for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-        if (value != null && String(value).trim()) {
-          out[key] = String(value).trim();
-        }
-      }
-      return out;
+    const v = form.getFieldsValue() as Record<string, unknown>;
+    const scoredTz =
+      (typeof v.scored_timezone === "string" && v.scored_timezone.trim()) ||
+      DEFAULT_TIMEZONE;
+    const appointmentTz =
+      (typeof v.appointment_timezone === "string" && v.appointment_timezone.trim()) ||
+      DEFAULT_TIMEZONE;
+
+    const raw: Record<string, unknown> = {
+      ...(lead as Record<string, unknown> | undefined),
+      ...v,
+      scored: wallClockDayjsToUtcIso(
+        v.scored as Parameters<typeof wallClockDayjsToUtcIso>[0],
+        scoredTz
+      ),
+      appointment: wallClockDayjsToUtcIso(
+        v.appointment as Parameters<typeof wallClockDayjsToUtcIso>[0],
+        appointmentTz
+      ),
+      scored_timezone: scoredTz,
+      appointment_timezone: appointmentTz,
+      creator_display_name:
+        (lead as Record<string, unknown> | null | undefined)?.creator_display_name ??
+        (profile as { full_name?: string | null } | null)?.full_name ??
+        user?.email ??
+        null,
     };
 
-    const data = {
-      salutation: str(v.salutation),
-      firstName: str(v.first_name),
-      lastName: str(v.last_name),
-      email: str(v.email),
-      phone: str(v.phone),
-      directNumber: str(v.direct_number),
-      jobTitle: str(v.job_title),
-      jobLevel: str(v.job_level),
-      department: str(v.department),
-      jobFunction: str(v.job_function),
-      jobTitleLink: str(v.job_title_link),
-      contactLinkedIn: str(v.contact_linkedin_url),
-      companyName: str(v.company_name),
-      domain: str(v.domain),
-      companyNumber: str(v.company_number),
-      address: str(v.address),
-      city: str(v.city),
-      state: str(v.state),
-      country: str(v.country),
-      zipCode: str(v.zip_code),
-      employeeSize: str(v.employee_size),
-      seeAllEmployees: str(v.see_all_employees),
-      industry: str(v.industry),
-      employeeSizeLink: str(v.employee_size_link),
-      companyWebsite: str(v.company_website_link),
-      companyLinkedIn: str(v.company_linkedin_url),
-      revenueRange: str(v.revenue_range),
-      revenueLink: str(v.revenue_link),
-      sicCode: str(v.sic_code),
-      sicCodeLink: str(v.sic_code_link),
-      naicsCode: str(v.naics_code),
-      naicsCodeLink: str(v.naics_code_link),
-      foundedYears: str(v.founded_years),
-      foundedYearsLink: str(v.founded_years_link),
-      callBack: str(v.call_back),
-      callNotes: str(v.call_notes),
-      cq1: str(v.cq1),
-      cq2: str(v.cq2),
-      cq3: str(v.cq3),
-      cq4: str(v.cq4),
-      cq5: str(v.cq5),
-      extraCq: normalizeExtraCqMap(v.extra_cq),
-      leadStatus: str(v.status),
-      leadTagging: str(v.lead_tagging),
-      assetTitle: str(v.asset_title),
-      status: str(v.status),
-      qaStatus: str(v.qa_status),
-      auditDate:
-        v.audit_date && typeof v.audit_date.format === "function"
-          ? v.audit_date.format("YYYY-MM-DD")
-          : "",
-      qaName: str(v.qa_name),
-      tenurity: str(v.tenurity),
-      vvStatus: str(v.vv_status),
-      emailStatus: str(v.email_status),
-      evTool: str(v.ev_tool),
-      primaryReason: str(v.primary_reason),
-      secondaryReason: str(v.secondary_reason),
-      qaComments: str(v.qa_comments),
-      scored: formatDateTimeWithTz(v.scored, v.scored_timezone),
-      appointment: formatDateTimeWithTz(v.appointment, v.appointment_timezone),
-      raComment: str(v.ra_comment),
-      specialComments: str(v.special_comments),
-      notes: str(v.notes),
-    };
+    const data = buildLhoDataFromLead(raw);
 
     setGenerating(true);
     try {
@@ -1506,10 +1462,10 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
         ? ((profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null)
         : null;
       await generateLhoPdf(data, { logoSrc: clientLogoUrl });
-      message.success("LHO PDF downloaded successfully");
+      message.success("Meeting Report PDF downloaded successfully");
     } catch (err) {
       console.error("LHO generation error:", err);
-      message.error("Failed to generate LHO PDF");
+      message.error("Failed to generate Meeting Report PDF");
     } finally {
       setGenerating(false);
     }
@@ -1528,7 +1484,7 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
       }}
     >
       <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-        Generate a Lead Handover Sheet PDF from the current form data.
+        Generate a Meeting Report PDF from the current form data.
       </Typography.Text>
       <Button
         icon={<FilePdfOutlined />}
@@ -1541,7 +1497,7 @@ function GenerateLhoButton({ form }: { form: ReturnType<typeof Form.useForm>[0] 
             : undefined
         }
       >
-        Generate LHO
+        Generate Meeting Report
       </Button>
     </div>
   );

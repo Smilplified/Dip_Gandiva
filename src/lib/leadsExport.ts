@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import type { Lead } from "@/types/lead.types";
 import { isHiddenFromAgentExport } from "@/lib/agent-lead-fields";
+import { LEAD_DATETIME_EXPORT_HEADERS } from "@/lib/lead-field-labels";
 
 /**
  * All lead fields in export order (matches database / Lead type).
@@ -52,10 +53,13 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "founded_years_link", header: "founded_years_link" },
   { key: "contact_linkedin_url", header: "contact_linkedin_url" },
   { key: "company_linkedin_url", header: "company_linkedin_url" },
-  { key: "scored", header: "scored" },
-  { key: "scored_timezone", header: "scored_timezone" },
-  { key: "appointment", header: "appointment" },
-  { key: "appointment_timezone", header: "appointment_timezone" },
+  { key: "scored", header: LEAD_DATETIME_EXPORT_HEADERS.scored },
+  { key: "scored_timezone", header: LEAD_DATETIME_EXPORT_HEADERS.scored_timezone },
+  { key: "appointment", header: LEAD_DATETIME_EXPORT_HEADERS.appointment },
+  {
+    key: "appointment_timezone",
+    header: LEAD_DATETIME_EXPORT_HEADERS.appointment_timezone,
+  },
   { key: "lead_tagging", header: "lead_tagging" },
   { key: "ra_comment", header: "ra_comment" },
   { key: "special_comments", header: "special_comments" },
@@ -142,15 +146,20 @@ export function enrichLeadsForExport(
 export function leadsToCsv(
   leads: Lead[],
   campaignName?: string | null,
-  campaignLeadType?: string | null
+  campaignLeadType?: string | null,
+  options?: { excludeKeys?: readonly string[] }
 ): string {
   const prepared = enrichLeadsForExport(leads, campaignName, campaignLeadType);
-  const headers = CSV_COLUMNS.map((c) => c.header).join(",");
+  const exclude = new Set(options?.excludeKeys ?? []);
+  const columns = exclude.size
+    ? CSV_COLUMNS.filter((c) => !exclude.has(String(c.key)))
+    : CSV_COLUMNS;
+  const headers = columns.map((c) => c.header).join(",");
   const rows = prepared.map((lead) => {
     const record = lead as Record<string, unknown>;
-    return CSV_COLUMNS.map((c) =>
-      escapeCsvValue(serializeExportCell(String(c.key), record))
-    ).join(",");
+    return columns
+      .map((c) => escapeCsvValue(serializeExportCell(String(c.key), record)))
+      .join(",");
   });
   return [headers, ...rows].join("\n");
 }

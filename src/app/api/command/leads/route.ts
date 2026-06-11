@@ -19,6 +19,10 @@ import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 import type { Lead } from "@/types/lead.types";
 import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 import { getClientViewerCampaignIds } from "@/lib/command/client-viewer-scope";
+import {
+  CLIENT_VIEWER_HIDDEN_EXPORT_KEYS,
+  clientViewerHidesAppointment,
+} from "@/lib/command/client-viewer-lead-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +209,7 @@ const SORT_FIELDS = new Set([
   "channel",
   "assigned_agent_id",
   "appointment",
+  "scored",
 ]);
 
 function escapeCsvCell(v: unknown): string {
@@ -483,19 +488,27 @@ export async function GET(request: NextRequest) {
     const withUsers = await attachAssignedUsers(supabase, rows);
     const withHist = await enrichWithHistory(supabase, withUsers);
 
-    const campaignMetaById = new Map<string, { name: string; lead_type: string }>();
+    const campaignMetaById = new Map<
+      string,
+      { name: string; lead_type: string; campaign_type: string | null }
+    >();
     if (campaignId) {
       const { data: camp } = await supabase
         .from("campaigns")
-        .select("name, lead_type")
+        .select("name, lead_type, campaign_type")
         .eq("id", campaignId)
         .maybeSingle();
-      const row = camp as { name?: string; lead_type?: string | null } | null;
+      const row = camp as {
+        name?: string;
+        lead_type?: string | null;
+        campaign_type?: string | null;
+      } | null;
       const name = row?.name?.trim();
       if (name) {
         campaignMetaById.set(campaignId, {
           name,
           lead_type: row?.lead_type?.trim() ?? "",
+          campaign_type: row?.campaign_type?.trim() ?? null,
         });
       }
     } else {
@@ -509,13 +522,21 @@ export async function GET(request: NextRequest) {
       if (ids.length > 0) {
         const { data: camps } = await supabase
           .from("campaigns")
-          .select("id, name, lead_type")
+          .select("id, name, lead_type, campaign_type")
           .in("id", ids);
-        ((camps ?? []) as { id: string; name: string; lead_type: string | null }[]).forEach((c) => {
+        (
+          (camps ?? []) as {
+            id: string;
+            name: string;
+            lead_type: string | null;
+            campaign_type: string | null;
+          }[]
+        ).forEach((c) => {
           if (c.name?.trim()) {
             campaignMetaById.set(c.id, {
               name: c.name.trim(),
               lead_type: c.lead_type?.trim() ?? "",
+              campaign_type: c.campaign_type?.trim() ?? null,
             });
           }
         });
@@ -536,10 +557,16 @@ export async function GET(request: NextRequest) {
     });
 
     const singleCampaignMeta = campaignId ? campaignMetaById.get(campaignId) : undefined;
+    const hideAppointmentExport =
+      isClientViewer &&
+      clientViewerHidesAppointment(singleCampaignMeta?.campaign_type);
     return leadsToCsv(
       withCampaignNames as unknown as Lead[],
       singleCampaignMeta?.name,
-      singleCampaignMeta?.lead_type
+      singleCampaignMeta?.lead_type,
+      hideAppointmentExport
+        ? { excludeKeys: CLIENT_VIEWER_HIDDEN_EXPORT_KEYS }
+        : undefined
     );
   };
 
