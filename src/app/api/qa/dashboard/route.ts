@@ -79,7 +79,7 @@ export async function GET() {
       .select(`
         id, campaign_id, campaign_code, name, client_name, description, industry, geography, target_designation, lead_type, status,
         start_date, end_date, created_at, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation,
-        region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id,
+        weekly_call, weekly_report, additional_comments, assigned_team_leader_id,
         employee_size, abm, seniority, job_function, creatives_url
       `)
       .eq("organization_id", orgId)
@@ -89,7 +89,7 @@ export async function GET() {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });
     }
 
-    const campaignsList = (campaigns ?? []) as { id: string; campaign_id: string; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; target_designation: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; created_at: string; cpl: number | null; revenue: number | null; booked: number | null; total_allocation: number | null; post_qa: number | null; achieved: number | null; pending_allocation: number | null; region: string | null; weekly_call: string | null; weekly_report: string | null; additional_comments: string | null; assigned_team_leader_id: string | null; employee_size: string[] | null; abm: boolean | null; seniority: string | null; job_function: string | null; creatives_url: string[] | null }[];
+    const campaignsList = (campaigns ?? []) as { id: string; campaign_id: string; name: string; client_name: string | null; description: string | null; industry: string | null; geography: string | null; target_designation: string | null; lead_type: string | null; status: string; start_date: string | null; end_date: string | null; created_at: string; cpl: number | null; revenue: number | null; booked: number | null; total_allocation: number | null; post_qa: number | null; achieved: number | null; pending_allocation: number | null; weekly_call: string | null; weekly_report: string | null; additional_comments: string | null; assigned_team_leader_id: string | null; employee_size: string[] | null; abm: boolean | null; seniority: string | null; job_function: string | null; creatives_url: string[] | null }[];
     const tlIds = [...new Set(campaignsList.map((c) => c.assigned_team_leader_id).filter(Boolean))] as string[];
     let tlNames: Record<string, string> = {};
     if (tlIds.length > 0) {

@@ -59,7 +59,7 @@ export async function GET(
 
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("id, campaign_id, campaign_code, client_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, region, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, employee_size, abm, seniority, job_function, creatives_url, campaign_questions, created_at")
+      .select("id, campaign_id, campaign_code, client_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, employee_size, abm, seniority, job_function, creatives_url, campaign_questions, created_at")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -296,7 +296,6 @@ export async function PATCH(
       post_qa,
       achieved,
       pending_allocation,
-      region,
       weekly_call,
       weekly_report,
       additional_comments,
@@ -340,7 +339,6 @@ export async function PATCH(
     if (post_qa !== undefined) updates.post_qa = post_qa != null ? Number(post_qa) : null;
     if (achieved !== undefined) updates.achieved = achieved != null ? Number(achieved) : null;
     if (pending_allocation !== undefined) updates.pending_allocation = pending_allocation != null ? Number(pending_allocation) : null;
-    if (region !== undefined) updates.region = region?.trim() || null;
     if (weekly_call !== undefined) updates.weekly_call = weekly_call?.trim() || null;
     if (weekly_report !== undefined) updates.weekly_report = weekly_report?.trim() || null;
     if (additional_comments !== undefined) updates.additional_comments = additional_comments?.trim() || null;

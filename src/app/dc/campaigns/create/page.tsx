@@ -70,7 +70,7 @@ export default function DCCampaignCreatePage() {
           status: values.status ?? "draft",
           cpl: values.cpl,
           total_allocation: values.total_allocation,
-          region: values.region,
+          geography: values.geography?.trim() || null,
           employee_size: values.employee_size,
           industry: values.industry?.trim() || null,
           abm: values.abm,
@@ -249,7 +249,7 @@ export default function DCCampaignCreatePage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12} lg={8}>
-              <Form.Item name="region" label="Region">
+              <Form.Item name="geography" label="Geography">
                 <Input placeholder="e.g. North America, APAC, EMEA" />
               </Form.Item>
             </Col>

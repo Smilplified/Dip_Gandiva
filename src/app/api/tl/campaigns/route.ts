@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
         `
         id, campaign_id, campaign_code, name, client_name, client_id, description, industry, geography, lead_type, status,
         start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved,
-        pending_allocation, region, weekly_call, weekly_report, additional_comments,
+        pending_allocation, weekly_call, weekly_report, additional_comments,
         assigned_team_leader_id, created_by, created_at
       `,
         { count: "exact" }
@@ -106,7 +106,6 @@ export async function GET(request: NextRequest) {
       post_qa: number | null;
       achieved: number | null;
       pending_allocation: number | null;
-      region: string | null;
       weekly_call: string | null;
       weekly_report: string | null;
       additional_comments: string | null;

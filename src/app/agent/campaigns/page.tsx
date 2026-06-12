@@ -29,7 +29,6 @@ type AgentCampaignRow = {
   status: string;
   start_date: string | null;
   end_date: string | null;
-  region: string | null;
   created_at: string;
   total_leads: number;
   qualified_leads: number;
@@ -171,9 +170,9 @@ export default function AgentCampaignsPage() {
         render: (v: string | null) => tableEllipsisCell(v),
       },
       {
-        title: "Region",
-        dataIndex: "region",
-        key: "region",
+        title: "Geography",
+        dataIndex: "geography",
+        key: "geography",
         width: 120,
         ellipsis: true,
         render: (v: string | null) => tableEllipsisCell(v),

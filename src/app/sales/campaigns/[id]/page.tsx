@@ -99,7 +99,6 @@ type Campaign = {
   post_qa: number | null;
   achieved: number | null;
   pending_allocation: number | null;
-  region: string | null;
   weekly_call: string | null;
   weekly_report: string | null;
   additional_comments: string | null;
@@ -287,7 +286,6 @@ export default function SalesCampaignDetailPage() {
         post_qa: campaign.post_qa,
         achieved: campaign.achieved,
         pending_allocation: campaign.pending_allocation,
-        region: campaign.region ?? "",
         weekly_call: campaign.weekly_call ?? "",
         weekly_report: campaign.weekly_report ?? "",
         additional_comments: campaign.additional_comments ?? "",
@@ -353,7 +351,6 @@ export default function SalesCampaignDetailPage() {
           post_qa: values.post_qa,
           achieved: values.achieved,
           pending_allocation: values.pending_allocation,
-          region: values.region || null,
           weekly_call: values.weekly_call || null,
           weekly_report: values.weekly_report || null,
           additional_comments: values.additional_comments || null,
@@ -784,7 +781,7 @@ export default function SalesCampaignDetailPage() {
                 label: "End Date",
                 value: campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null,
               },
-              { label: "Region", value: campaign.region },
+              { label: "Geography", value: campaign.geography },
               {
                 label: "Assigned Team Leader",
                 value:
@@ -1009,9 +1006,6 @@ export default function SalesCampaignDetailPage() {
             </Form.Item>
             <Form.Item name="pending_allocation" label="Pending Allocation">
               <InputNumber style={{ width: "100%" }} min={0} precision={0} />
-            </Form.Item>
-            <Form.Item name="region" label="Region">
-              <Input placeholder="e.g. North America, APAC" />
             </Form.Item>
             <Form.Item name="weekly_call" label="Weekly Call">
               <Input placeholder="e.g. Monday 10:00 AM" />

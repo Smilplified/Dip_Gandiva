@@ -57,7 +57,6 @@ type CampaignRow = {
   revenue: number | null;
   total_allocation: number | null;
   achieved: number | null;
-  region: string | null;
   created_at: string;
   total_leads: number;
   assigned_team_leader_name: string | null;
@@ -326,14 +325,6 @@ export default function SalesCampaignsPage() {
       key: "revenue",
       width: 100,
       render: (v: number | null) => (v != null ? `$${Number(v).toLocaleString()}` : "—"),
-    },
-    {
-      title: "Region",
-      dataIndex: "region",
-      key: "region",
-      width: 120,
-      ellipsis: true,
-      render: (v: string | null) => textCell(v),
     },
     {
       title: "Created",

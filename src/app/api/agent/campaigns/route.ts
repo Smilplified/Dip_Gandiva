@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     let campaignsQuery = supabase
       .from("campaigns")
       .select(
-        "id, campaign_id, campaign_code, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, region, created_at",
+        "id, campaign_id, campaign_code, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, created_at",
         { count: "exact" }
       )
       .eq("organization_id", orgId)
@@ -93,7 +93,6 @@ export async function GET(request: NextRequest) {
       status: string;
       start_date: string | null;
       end_date: string | null;
-      region: string | null;
       created_at: string;
     };
     const campaignsList = (campaigns ?? []) as CampaignRow[];
@@ -146,6 +145,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (err) {
     console.error("Agent campaigns error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -71,7 +71,6 @@ type Campaign = {
   post_qa?: number | null;
   achieved?: number | null;
   pending_allocation?: number | null;
-  region?: string | null;
   weekly_call?: string | null;
   weekly_report?: string | null;
   additional_comments?: string | null;
@@ -727,7 +726,7 @@ export default function MISCampaignDetailPage() {
                 label: "End Date",
                 value: campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null,
               },
-              { label: "Region", value: campaign.region },
+              { label: "Geography", value: campaign.geography },
               { label: "Assigned Team Leader", value: campaign.assigned_team_leader_name },
               { label: "Weekly Call", value: campaign.weekly_call },
               { label: "Weekly Report", value: campaign.weekly_report },

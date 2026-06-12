@@ -127,7 +127,7 @@ export default function TLCampaignCreatePage() {
           total_allocation: values.total_allocation,
           revenue: revenueBooked,
           booked: revenueBooked,
-          region: values.region,
+          geography: values.geography?.trim() || null,
           employee_size: values.employee_size,
           industry: values.industry?.trim() || null,
           abm: values.abm,
@@ -417,7 +417,7 @@ export default function TLCampaignCreatePage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12} lg={8}>
-              <Form.Item name="region" label="Region">
+              <Form.Item name="geography" label="Geography">
                 <Input placeholder="e.g. North America, APAC, EMEA" />
               </Form.Item>
             </Col>

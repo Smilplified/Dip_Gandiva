@@ -29,7 +29,6 @@ export type AgentDashboardCampaignRow = {
   status: string;
   start_date: string | null;
   end_date: string | null;
-  region: string | null;
   created_at: string;
   total_leads: number;
   active_leads: number;

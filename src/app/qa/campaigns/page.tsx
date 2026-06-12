@@ -55,7 +55,6 @@ type Campaign = {
   post_qa?: number | null;
   achieved?: number | null;
   pending_allocation?: number | null;
-  region?: string | null;
   weekly_call?: string | null;
   weekly_report?: string | null;
   additional_comments?: string | null;

@@ -116,7 +116,7 @@ export async function GET(request: Request) {
     const { data: campaignsData, error: campaignsError } = await supabase
       .from("campaigns")
       .select(
-        "id, campaign_id, campaign_code, name, client_name, industry, geography, status, start_date, end_date, region, total_allocation, created_at"
+        "id, campaign_id, campaign_code, name, client_name, industry, geography, status, start_date, end_date, total_allocation, created_at"
       )
       .eq("organization_id", orgId)
       .in("id", campaignIds)
@@ -137,7 +137,6 @@ export async function GET(request: Request) {
       status: string;
       start_date: string | null;
       end_date: string | null;
-      region: string | null;
       total_allocation: number | null;
       created_at: string;
     }[];

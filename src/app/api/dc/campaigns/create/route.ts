@@ -59,9 +59,9 @@ export async function POST(request: Request) {
       status = "draft",
       cpl,
       total_allocation,
-      region,
       employee_size,
       industry,
+      geography,
       abm,
       seniority,
       job_function,
@@ -123,11 +123,11 @@ export async function POST(request: Request) {
         revenue: revenueBooked,
         booked: revenueBooked,
         total_allocation: total_allocation != null ? Number(total_allocation) : null,
-        region: typeof region === "string" ? region.trim() || null : null,
         employee_size: Array.isArray(employee_size) && employee_size.length > 0
           ? (employee_size as string[]).filter(Boolean).map((v) => String(v).trim())
           : null,
         industry: typeof industry === "string" ? industry.trim() || null : null,
+        geography: typeof geography === "string" ? geography.trim() || null : null,
         abm: abm === true || abm === "true" ? true : abm === false || abm === "false" ? false : null,
         seniority: typeof seniority === "string" ? seniority.trim() || null : null,
         job_function: typeof job_function === "string" ? job_function.trim() || null : null,

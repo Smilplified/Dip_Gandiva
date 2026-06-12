@@ -77,7 +77,6 @@ type Campaign = {
   post_qa?: number | null;
   achieved?: number | null;
   pending_allocation?: number | null;
-  region?: string | null;
   weekly_call?: string | null;
   weekly_report?: string | null;
   additional_comments?: string | null;
@@ -814,7 +813,7 @@ export default function CampaignDetailPage() {
                 label: "End Date",
                 value: campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null,
               },
-              { label: "Region", value: campaign.region },
+              { label: "Geography", value: campaign.geography },
               {
                 label: "Assigned Team Leaders",
                 value:

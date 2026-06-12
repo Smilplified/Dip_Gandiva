@@ -1035,13 +1035,8 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item
-                    label="Zip / Postal Code"
-                    name="zip_code"
-                    rules={isAgentEntry ? phoneNumericFormRules("Zip / Postal Code") : undefined}
-                    normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
-                  >
-                    <Input placeholder="Zip / Postal code" />
+                  <Form.Item label="Zip / Postal Code" name="zip_code">
+                    <Input placeholder="e.g. 90210, SW1A 1AA" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>

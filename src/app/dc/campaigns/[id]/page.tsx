@@ -42,7 +42,6 @@ type Campaign = {
   post_qa: number | null;
   achieved: number | null;
   pending_allocation: number | null;
-  region: string | null;
   additional_comments: string | null;
   employee_size: string[] | null;
   abm: boolean | null;
@@ -269,7 +268,7 @@ export default function DCCampaignDetailPage() {
                 <OverviewRowOrEmpty label="Lead Type" value={campaign.lead_type} />
                 <OverviewRowOrEmpty label="Start Date" value={campaign.start_date ? new Date(campaign.start_date).toLocaleDateString() : null} />
                 <OverviewRowOrEmpty label="End Date" value={campaign.end_date ? new Date(campaign.end_date).toLocaleDateString() : null} />
-                <OverviewRowOrEmpty label="Region" value={campaign.region} />
+                <OverviewRowOrEmpty label="Geography" value={campaign.geography} />
                 <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
                 <OverviewRowOrEmpty label="CPL" value={campaign.cpl != null ? `$${campaign.cpl}` : null} />
                 <OverviewRowOrEmpty label="Revenue / Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
