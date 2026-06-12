@@ -4,7 +4,6 @@ import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import { AGENT_READONLY_LEAD_FIELD_SET } from "@/lib/agent-lead-fields";
 import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
-import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
@@ -152,14 +151,11 @@ export async function GET(
     })) as LeadRow[];
     const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leads, orgId);
 
-    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
-      orgId,
-      campaignId,
-      leadsWithNames
-    );
-
+    // Voice recordings are fetched lazily by the table cells via
+    // POST /api/leads/voice-recordings — embedding them here cost one storage
+    // listing per lead and made the list crawl.
     return NextResponse.json({
-      leads: leadsWithRecordings,
+      leads: leadsWithNames,
       pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (err) {

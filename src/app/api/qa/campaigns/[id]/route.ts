@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
-import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
@@ -120,12 +119,8 @@ export async function GET(
       rectified_reason: row.rectified_reason ?? null,
     }));
 
-    const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
-    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
-      orgId,
-      campaignId,
-      leadsWithNames
-    );
+    // Voice recordings load lazily via POST /api/leads/voice-recordings.
+    const leadsWithRecordings = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
 
     type FileRow = {
       id: string;

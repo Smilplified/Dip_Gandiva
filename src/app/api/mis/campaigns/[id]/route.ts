@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
-import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
   fetchAllMisCampaignScoredLeads,
@@ -114,12 +113,8 @@ export async function GET(
       leadsTotal = page.total;
     }
 
-    const leadsWithNames = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
-    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
-      orgId,
-      campaignId,
-      leadsWithNames
-    );
+    // Voice recordings load lazily via POST /api/leads/voice-recordings.
+    const leadsWithRecordings = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
 
     return NextResponse.json({
       campaign: campaignWithTlName,

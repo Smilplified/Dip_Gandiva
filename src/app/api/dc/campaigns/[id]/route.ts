@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
-import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
@@ -101,14 +100,10 @@ export async function GET(
       })
     );
 
+    // Voice recordings load lazily via POST /api/leads/voice-recordings.
     const leads = (leadsResult.data ?? []) as DcLeadRow[];
-    const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
-      orgId,
-      campaignId,
-      leads
-    );
 
-    return NextResponse.json({ campaign, files: filesWithUrls, leads: leadsWithRecordings });
+    return NextResponse.json({ campaign, files: filesWithUrls, leads });
   } catch (err) {
     console.error("DC campaign detail error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

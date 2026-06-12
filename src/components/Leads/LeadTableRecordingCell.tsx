@@ -9,6 +9,7 @@ import {
 } from "@ant-design/icons";
 import type { VoiceRecording } from "@/lib/voice-recordings";
 import { MAX_VOICE_RECORDINGS_PER_LEAD } from "@/lib/voice-recordings";
+import { fetchLeadRecordingsBatched } from "@/lib/voice-recordings-client";
 
 type LeadTableRecordingCellProps = {
   leadId: string;
@@ -58,10 +59,26 @@ export function LeadTableRecordingCell({
   }, [initialRecordings]);
 
   useEffect(() => {
-    if (initialRecordings === undefined) {
-      void refreshRecordings();
-    }
-  }, [initialRecordings, refreshRecordings]);
+    if (initialRecordings !== undefined) return;
+    // Lazy path: list APIs no longer embed recordings, so cells load them via a
+    // coalesced batch request (one call per table page, not one per row).
+    let cancelled = false;
+    setLoading(true);
+    fetchLeadRecordingsBatched(leadId)
+      .then((recs) => {
+        if (!cancelled) setRecordings(recs);
+      })
+      .catch(() => {
+        // Silent per-cell failure — a toast per row would flood the page.
+        if (!cancelled) setRecordings([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId, initialRecordings]);
 
   useEffect(() => {
     return () => {

@@ -17,7 +17,6 @@ import type { Database } from "@/types/database.types";
 import { leadsToCsv } from "@/lib/leadsExport";
 import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 import type { Lead } from "@/types/lead.types";
-import { enrichCampaignLeadsWithVoiceRecordings } from "@/lib/voice-recordings";
 import { getClientViewerCampaignIds } from "@/lib/command/client-viewer-scope";
 import {
   CLIENT_VIEWER_HIDDEN_EXPORT_KEYS,
@@ -472,10 +471,8 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .order("id", { ascending: false });
 
-  const attachVoiceIfCampaign = async (rows: LeadListRow[]): Promise<LeadListRow[]> => {
-    if (!campaignId || rows.length === 0) return rows;
-    return enrichCampaignLeadsWithVoiceRecordings(orgId, campaignId, rows);
-  };
+  // Voice recordings load lazily via POST /api/leads/voice-recordings.
+  const attachVoiceIfCampaign = async (rows: LeadListRow[]): Promise<LeadListRow[]> => rows;
 
   const rowDisplayName = (row: LeadListRow) => {
     const fn = (row.first_name as string | null) ?? "";
