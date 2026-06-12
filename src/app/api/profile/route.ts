@@ -11,6 +11,27 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Fast path: one RPC round-trip instead of ~8 sequential queries. The SQL
+  // function replicates the legacy logic below 1:1 (roles, manager name,
+  // assigned campaigns incl. the OM/TL/agent branching, client logo + DC
+  // fallback). If the function is missing or errors, fall through to the
+  // legacy path so deploys never depend on migration order.
+  try {
+    const rpc = await supabase.rpc("get_my_profile_context" as never);
+    const rpcProfile = rpc.data as Record<string, unknown> | null;
+    if (!rpc.error && rpcProfile && typeof rpcProfile === "object") {
+      return NextResponse.json({ profile: rpcProfile });
+    }
+    if (rpc.error) {
+      console.warn(
+        "get_my_profile_context RPC unavailable, using legacy profile path:",
+        rpc.error.message
+      );
+    }
+  } catch (err) {
+    console.warn("get_my_profile_context RPC threw, using legacy profile path:", err);
+  }
+
   const { data: profileRaw, error } = await supabase
     .from("users")
     .select(`
