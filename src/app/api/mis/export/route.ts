@@ -73,33 +73,35 @@ export async function GET(request: Request) {
       );
     }
 
-    let leadsQuery = supabase
-      .from("leads")
-      .select(
-        "id, lead_id, name, company_name, email, phone, status, qa_status, assigned_agent_id, campaign_id, lead_type, created_at"
-      )
-      .eq("organization_id", orgId);
+    if (type === "campaign_leads" && !campaignId) {
+      return NextResponse.json(
+        { error: "campaignId is required for campaign_leads export" },
+        { status: 400 }
+      );
+    }
 
-    if (type === "campaign_leads") {
-      if (!campaignId) {
-        return NextResponse.json(
-          { error: "campaignId is required for campaign_leads export" },
-          { status: 400 }
-        );
+    // Query builders are single-use, so rebuild per page.
+    const buildLeadsQuery = () => {
+      let q = supabase
+        .from("leads")
+        .select(
+          "id, lead_id, name, company_name, email, phone, status, qa_status, assigned_agent_id, campaign_id, lead_type, created_at"
+        )
+        .eq("organization_id", orgId);
+
+      if (type === "campaign_leads") {
+        q = q.eq("campaign_id", campaignId as string);
+      } else if (type === "qa_approved_leads") {
+        q = q.in("qa_status", ["approved", "pass"]);
+      } else if (type === "qa_rejected_leads") {
+        // `.not(col, "in", ...)` needs the PostgREST list literal, not a JS array.
+        q = q.not("qa_status", "in", "(approved,pass)");
       }
-      leadsQuery = leadsQuery.eq("campaign_id", campaignId);
-    } else if (type === "qa_approved_leads") {
-      leadsQuery = leadsQuery.in("qa_status", ["approved", "pass"]);
-    } else if (type === "qa_rejected_leads") {
-      leadsQuery = leadsQuery.not("qa_status", "in", ["approved", "pass"]);
-    }
 
-    const { data: leadsData, error: leadsError } = await leadsQuery;
-    if (leadsError) {
-      return NextResponse.json({ error: leadsError.message }, { status: 500 });
-    }
+      return q;
+    };
 
-    const leads = (leadsData ?? []) as {
+    type ExportLeadRow = {
       id: string;
       lead_id: string | null;
       name: string | null;
@@ -112,7 +114,26 @@ export async function GET(request: Request) {
       campaign_id: string;
       lead_type: string | null;
       created_at: string;
-    }[];
+    };
+
+    // PostgREST caps a single response at 1000 rows — page through everything
+    // so exports include all leads, not just the first 1000.
+    const EXPORT_PAGE_SIZE = 1000;
+    const leads: ExportLeadRow[] = [];
+    for (let offset = 0; ; offset += EXPORT_PAGE_SIZE) {
+      const { data: pageData, error: leadsError } = await buildLeadsQuery()
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(offset, offset + EXPORT_PAGE_SIZE - 1);
+
+      if (leadsError) {
+        return NextResponse.json({ error: leadsError.message }, { status: 500 });
+      }
+
+      const chunk = (pageData ?? []) as ExportLeadRow[];
+      leads.push(...chunk);
+      if (chunk.length < EXPORT_PAGE_SIZE) break;
+    }
 
     const agentIds = Array.from(
       new Set(leads.map((l) => l.assigned_agent_id).filter(Boolean))
@@ -220,7 +241,6 @@ export async function GET(request: Request) {
       }));
     }
 
-    const csv = toCsv(rows);
     const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     const ext = format === "excel" ? "xlsx" : "csv";
     const filename = `mis-${type}-${ts}.${ext}`;
@@ -237,7 +257,18 @@ export async function GET(request: Request) {
       `attachment; filename="${filename}"`
     );
 
-    return new NextResponse(csv, { status: 200, headers });
+    if (format === "excel") {
+      // Previously this branch shipped CSV bytes with an .xlsx name, which
+      // Excel rejects as corrupt. Build a real workbook instead.
+      const XLSX = await import("xlsx");
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Export");
+      const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+      return new NextResponse(new Uint8Array(buffer), { status: 200, headers });
+    }
+
+    return new NextResponse(toCsv(rows), { status: 200, headers });
   } catch (err) {
     console.error("MIS export error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

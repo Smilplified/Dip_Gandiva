@@ -77,11 +77,25 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  let user = null;
+  let user: { id: string } | null = null;
+  // Roles embedded in the JWT by the custom_access_token_hook. Null means the
+  // claim is absent (hook disabled or pre-hook token) — fall back to the DB.
+  let claimRoles: string[] | null = null;
 
   try {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
+    const { data, error } = await supabase.auth.getClaims();
+    const claims = data?.claims as
+      | (Record<string, unknown> & { sub?: string })
+      | null
+      | undefined;
+
+    if (!error && claims?.sub) {
+      user = { id: claims.sub };
+      const rawRoles = claims["app_roles"];
+      if (Array.isArray(rawRoles)) {
+        claimRoles = rawRoles.filter((r): r is string => typeof r === "string");
+      }
+    }
 
     // Refresh cookies ONLY ONCE
     response = getResponse();
@@ -107,12 +121,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    const needsRoleCheck =
-      pathname === "/" ||
-      pathname === "/dashboard" ||
-      !canAccessPath(pathname, []) === false; // always check unknown paths
-
-    // Only hit the DB when we actually need to make a role-based redirect.
+    // Only resolve roles when we actually need a role-based redirect.
     // For /dashboard/* and other role-gated prefixes we still need the check.
     const isRoleGatedPath =
       pathname === "/" ||
@@ -127,7 +136,12 @@ export async function middleware(request: NextRequest) {
 
     if (isRoleGatedPath) {
       try {
-        const roleNames = await getUserRoleNames(supabase, user.id);
+        // JWT claim first (no DB round-trip); DB fallback covers tokens issued
+        // before the hook was enabled and users with an empty claim.
+        const roleNames =
+          claimRoles && claimRoles.length > 0
+            ? normalizeRoleNames(claimRoles)
+            : await getUserRoleNames(supabase, user.id);
 
         // Root/dashboard redirect
         if (pathname === "/" || pathname === "/dashboard") {
