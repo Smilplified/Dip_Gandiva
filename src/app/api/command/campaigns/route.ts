@@ -138,48 +138,6 @@ async function sendClientViewerCampaignAlertEmail(args: {
   }
 }
 
-async function getClientViewerUserIdsForOrg(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  organizationId: string
-): Promise<string[]> {
-  const admin = getAdminClientSafe();
-  const lookupClient = admin ?? supabase;
-
-  let rolesQuery = lookupClient
-    .from("roles")
-    .select("id, name")
-    .eq("organization_id", organizationId);
-  const { data: roleRows, error: roleErr } = await rolesQuery;
-  if (roleErr) throw new Error(roleErr.message);
-
-  const clientViewerRoleIds = ((roleRows ?? []) as { id: string; name: string | null }[])
-    .filter((r) => (r.name ?? "").toLowerCase().trim().replace(/\s+/g, "_") === "client_viewer")
-    .map((r) => r.id);
-
-  if (clientViewerRoleIds.length === 0) return [];
-
-  const { data: links, error: linkErr } = await lookupClient
-    .from("user_roles")
-    .select("user_id")
-    .in("role_id", clientViewerRoleIds);
-  if (linkErr) throw new Error(linkErr.message);
-
-  const userIds = [
-    ...new Set(((links ?? []) as { user_id: string }[]).map((r) => r.user_id).filter(Boolean)),
-  ];
-  if (userIds.length === 0) return [];
-
-  // Keep scope within same organization to avoid accidental cross-org leakage.
-  const { data: usersRows, error: usersErr } = await lookupClient
-    .from("users")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .in("id", userIds);
-  if (usersErr) throw new Error(usersErr.message);
-
-  return ((usersRows ?? []) as { id: string }[]).map((u) => u.id);
-}
-
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -204,7 +162,6 @@ export async function GET(request: NextRequest) {
     const dateTo = sp.get("date_to")?.trim() ?? "";
 
     const clientViewerId = profile?.client_id ?? null;
-    let clientViewerUserIds: string[] = [];
     const emptySummary = {
       total: 0,
       active: 0,
@@ -213,34 +170,20 @@ export async function GET(request: NextRequest) {
       draft: 0,
     };
 
-    if (userRoles.includes("client_viewer")) {
-      if (!clientViewerId) {
-        return NextResponse.json({
-          campaigns: [],
-          total: 0,
-          summary: emptySummary,
-          truncated: false,
-          limit,
-          pagination: buildPaginationMeta(page, limit, 0),
-        });
-      }
-      clientViewerUserIds = await getClientViewerUserIdsForOrg(supabase, orgId);
-      if (clientViewerUserIds.length === 0) {
-        return NextResponse.json({
-          campaigns: [],
-          total: 0,
-          summary: emptySummary,
-          truncated: false,
-          limit,
-          pagination: buildPaginationMeta(page, limit, 0),
-        });
-      }
+    if (userRoles.includes("client_viewer") && !clientViewerId) {
+      return NextResponse.json({
+        campaigns: [],
+        total: 0,
+        summary: emptySummary,
+        truncated: false,
+        limit,
+        pagination: buildPaginationMeta(page, limit, 0),
+      });
     }
 
     const scopeFilters = {
       organizationId: orgId,
       clientId: userRoles.includes("client_viewer") ? clientViewerId : null,
-      clientViewerUserIds: userRoles.includes("client_viewer") ? clientViewerUserIds : undefined,
       qRaw,
       dateFrom,
       dateTo,
@@ -272,7 +215,6 @@ export async function GET(request: NextRequest) {
 
     if (userRoles.includes("client_viewer") && clientViewerId) {
       listQuery = listQuery.eq("client_id", clientViewerId);
-      listQuery = listQuery.in("created_by", clientViewerUserIds);
     }
 
     if (qRaw.length > 0) {
@@ -424,20 +366,12 @@ export async function GET(request: NextRequest) {
     .order("id", { ascending: false })
     .limit(limit + 1);
 
-  // client_viewer: restrict to their own client's campaigns
+  // client_viewer: restrict to their bound client's campaigns
   if (userRoles.includes("client_viewer")) {
     if (!profile?.client_id || !profile?.organization_id) {
       return NextResponse.json({ campaigns: [], total: 0, limit, nextCursor: null, hasMore: false });
     }
-    const clientViewerUserIds = await getClientViewerUserIdsForOrg(
-      supabase,
-      profile.organization_id
-    );
-    if (clientViewerUserIds.length === 0) {
-      return NextResponse.json({ campaigns: [], total: 0, limit, nextCursor: null, hasMore: false });
-    }
     query = query.eq("client_id", profile.client_id);
-    query = query.in("created_by", clientViewerUserIds);
   }
 
   // Cursor-based pagination

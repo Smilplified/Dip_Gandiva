@@ -695,7 +695,6 @@ export async function aggregateDqOverrideAlertCountsByCampaign(
 export type CommandCampaignScopeFilters = {
   organizationId: string;
   clientId?: string | null;
-  clientViewerUserIds?: string[];
   qRaw?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -718,8 +717,8 @@ export async function aggregateCommandCampaignStatusSummary(
 
   const applyScope = (q: CampaignCountQuery): CampaignCountQuery => {
     let x = q.eq("organization_id", filters.organizationId);
-    if (filters.clientId && filters.clientViewerUserIds?.length) {
-      x = x.eq("client_id", filters.clientId).in("created_by", filters.clientViewerUserIds);
+    if (filters.clientId) {
+      x = x.eq("client_id", filters.clientId);
     }
     const qRaw = filters.qRaw?.trim() ?? "";
     if (qRaw.length > 0) {
