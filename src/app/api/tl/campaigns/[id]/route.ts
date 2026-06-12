@@ -21,6 +21,11 @@ import {
   syncCampaignTeamLeaderAssignments,
 } from "@/lib/campaign/team-leader-assignments";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
+import {
+  fetchAllTlLeadsForCampaigns,
+  fetchTlLeadsPageForCampaigns,
+  TL_LEADS_LIST_SELECT,
+} from "@/lib/tl/leads-list";
 
 export const dynamic = "force-dynamic";
 
@@ -102,18 +107,38 @@ export async function GET(
     };
 
     const sp = new URL(request.url).searchParams;
+    const exportAll = sp.get("export") === "all";
+    const searchRaw = sp.get("q")?.trim() || "";
+    const dateFrom = sp.get("date_from")?.trim() || undefined;
+    const dateTo = sp.get("date_to")?.trim() || undefined;
     const { page: leadsPage, limit: leadsLimit, offset: leadsOffset } = parseListPagination(sp);
 
-    const [leadsRes, assignmentsRes, filesRes] = await Promise.all([
-      supabase
-        .from("leads")
-        .select(
-          "id, lead_id, name, company_name, phone, email, city, status, qa_status, disqualification_reasons, disqualification_reason, rectified_reason, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, delivery_status, delivered_at",
-          { count: "exact" }
-        )
-        .eq("campaign_id", campaignId)
-        .order("created_at", { ascending: false })
-        .range(leadsOffset, leadsOffset + leadsLimit - 1),
+    let leadsList: Record<string, unknown>[] = [];
+    let leadsTotal = 0;
+
+    const [leadsFetchRes, assignmentsRes, filesRes] = await Promise.all([
+      exportAll
+        ? fetchAllTlLeadsForCampaigns(supabase, {
+            campaignIds: [campaignId],
+            search: searchRaw || undefined,
+            dateFrom,
+            dateTo,
+            select: TL_LEADS_LIST_SELECT,
+          }).then(({ rows, total }) => ({ rows, total, error: null as { message: string } | null }))
+        : fetchTlLeadsPageForCampaigns(supabase, {
+            campaignIds: [campaignId],
+            offset: leadsOffset,
+            limit: leadsLimit,
+            search: searchRaw || undefined,
+            dateFrom,
+            dateTo,
+            select: TL_LEADS_LIST_SELECT,
+          }).then(({ rows, total }) => ({ rows, total, error: null as { message: string } | null }))
+            .catch((err: Error) => ({
+              rows: [] as Record<string, unknown>[],
+              total: 0,
+              error: { message: err.message },
+            })),
       supabase
         .from("campaign_assignments")
         .select("id, agent_id, assigned_by, assigned_at, is_active")
@@ -126,9 +151,12 @@ export async function GET(
         .order("created_at", { ascending: false }),
     ]);
 
-    if (leadsRes.error) {
-      return NextResponse.json({ error: leadsRes.error.message }, { status: 500 });
+    if (leadsFetchRes.error) {
+      return NextResponse.json({ error: leadsFetchRes.error.message }, { status: 500 });
     }
+    leadsList = leadsFetchRes.rows;
+    leadsTotal = leadsFetchRes.total;
+
     if (assignmentsRes.error) {
       return NextResponse.json({ error: assignmentsRes.error.message }, { status: 500 });
     }
@@ -153,45 +181,6 @@ export async function GET(
       agent_name: agentNames[a.agent_id] || "Unknown",
     }));
 
-    type LeadRow = {
-      id: string;
-      lead_id: string | null;
-      name: string | null;
-      company_name: string | null;
-      phone: string | null;
-      email: string | null;
-      city: string | null;
-      status: string;
-      followup_date: string | null;
-      notes: string | null;
-      assigned_agent_id: string | null;
-      created_by: string | null;
-      created_at: string;
-      updated_at: string;
-      job_title: string | null;
-      job_function: string | null;
-      job_level: string | null;
-      direct_number: string | null;
-      industry: string | null;
-      company_number: string | null;
-      employee_size: string | null;
-      address: string | null;
-      state: string | null;
-      country: string | null;
-      zip_code: string | null;
-      founded_years: number | null;
-      founded_years_link: string | null;
-      revenue_range: string | null;
-      revenue_link: string | null;
-      contact_linkedin_url: string | null;
-      company_linkedin_url: string | null;
-      scored: string | null;
-      appointment: string | null;
-      lead_tagging: string | null;
-      lead_disposition: string | null;
-      qa_status: string | null;
-    };
-    const leadsList = (leadsRes.data ?? []) as LeadRow[];
     const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, leadsList, orgId);
     const leadsWithRecordings = await enrichCampaignLeadsWithVoiceRecordings(
       orgId,
@@ -219,7 +208,11 @@ export async function GET(
     return NextResponse.json({
       campaign: campaignWithTlName,
       leads: leadsWithRecordings,
-      leads_pagination: buildPaginationMeta(leadsPage, leadsLimit, leadsRes.count ?? leadsWithRecordings.length),
+      leads_pagination: buildPaginationMeta(
+        exportAll ? 1 : leadsPage,
+        exportAll ? Math.max(leadsTotal, 1) : leadsLimit,
+        leadsTotal
+      ),
       assignments: assignmentsWithNames,
       files: filesWithUrls,
     });

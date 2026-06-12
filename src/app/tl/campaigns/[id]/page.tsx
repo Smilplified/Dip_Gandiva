@@ -147,6 +147,7 @@ export default function CampaignDetailPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [leadSearch, setLeadSearch] = useState("");
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
@@ -215,7 +216,13 @@ export default function CampaignDetailPage() {
     initialLeadsLoadDoneRef.current = true;
     if (!silent) setLoading(true);
     try {
-      const url = buildListApiUrl(`/api/tl/campaigns/${id}`, { page, limit: pageSize });
+      const url = buildListApiUrl(`/api/tl/campaigns/${id}`, {
+        page,
+        limit: pageSize,
+        q: leadSearch.trim() || undefined,
+        date_from: dateRange?.[0]?.format("YYYY-MM-DD"),
+        date_to: dateRange?.[1]?.format("YYYY-MM-DD"),
+      });
       const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load");
@@ -245,7 +252,7 @@ export default function CampaignDetailPage() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [page, pageSize, applyPaginationMeta]);
+  }, [page, pageSize, applyPaginationMeta, leadSearch, dateRange]);
 
   useEffect(() => {
     if (!id) {
@@ -434,18 +441,46 @@ export default function CampaignDetailPage() {
     }
   };
 
-  const handleExport = () => {
-    if (leads.length === 0) {
-      message.warning("No leads to export");
+  const hasActiveLeadFilters = Boolean(
+    leadSearch.trim() || (dateRange?.[0] && dateRange?.[1])
+  );
+
+  const handleExport = async () => {
+    if (!campaignId) return;
+    if (total === 0) {
+      message.warning(
+        hasActiveLeadFilters ? "No leads match the current filters to export" : "No leads to export"
+      );
       return;
     }
-    downloadExcel(
-      leads,
-      `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      campaign?.name,
-      campaign?.lead_type
-    );
-    message.success(`Exported ${leads.length} leads`);
+    setExporting(true);
+    try {
+      const url = buildListApiUrl(`/api/tl/campaigns/${campaignId}`, {
+        export: "all",
+        q: leadSearch.trim() || undefined,
+        date_from: dateRange?.[0]?.format("YYYY-MM-DD"),
+        date_to: dateRange?.[1]?.format("YYYY-MM-DD"),
+      });
+      const res = await fetch(url, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load leads for export");
+      const exportLeads = (data.leads ?? []) as Lead[];
+      if (exportLeads.length === 0) {
+        message.warning("No leads to export");
+        return;
+      }
+      downloadExcel(
+        exportLeads,
+        `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
+        campaign?.name,
+        campaign?.lead_type
+      );
+      message.success(`Exported ${exportLeads.length} leads`);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Failed to export leads");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleUploadFile = (file: File) => {
@@ -519,22 +554,6 @@ export default function CampaignDetailPage() {
       setImporting(false);
     }
   };
-
-  const filteredLeads = leads.filter((l) => {
-    const matchesSearch = !leadSearch.trim()
-      ? true
-      : (l.name ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
-        (l.company_name ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
-        (l.email ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
-        (l.phone ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase()) ||
-        ([l.first_name, l.last_name].filter(Boolean).join(" ") ?? "").toLowerCase().includes(leadSearch.trim().toLowerCase());
-    if (!matchesSearch) return false;
-    if (!dateRange || !dateRange[0] || !dateRange[1]) return true;
-    const leadDate = dayjs(l.created_at).startOf("day");
-    const start = dateRange[0].startOf("day");
-    const end = dateRange[1].endOf("day");
-    return !leadDate.isBefore(start) && !leadDate.isAfter(end);
-  });
 
   useEffect(() => {
     resetPage();
@@ -950,7 +969,12 @@ export default function CampaignDetailPage() {
         title={`Leads (${total})`}
         extra={
           <Space>
-            <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={leads.length === 0}>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => void handleExport()}
+              loading={exporting}
+              disabled={total === 0 || exporting}
+            >
               Export
             </Button>
             <Button icon={<UploadOutlined />} onClick={() => { setUploadModalOpen(true); setUploadFile(null); setParsedLeads([]); }}>
@@ -995,12 +1019,12 @@ export default function CampaignDetailPage() {
           </Row>
         </Space>
         <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
-          Showing {filteredLeads.length} of {total} leads on this page. Click a row to edit.
+          Showing {leads.length} of {total} leads{hasActiveLeadFilters ? " (filtered)" : ""}. Click a row to edit.
         </Typography.Text>
         <Table
           className="table-single-line"
           columns={leadColumns}
-          dataSource={filteredLeads}
+          dataSource={leads}
           rowKey="id"
           scroll={{ x: 2600 }}
           pagination={{

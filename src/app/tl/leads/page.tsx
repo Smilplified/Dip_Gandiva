@@ -155,7 +155,9 @@ export default function TeamLeaderLeadsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to load leads for export");
       const exportLeads = (data.leads ?? []) as TLLeadRow[];
       if (exportLeads.length === 0) {
-        message.warning("No leads to export");
+        message.warning(
+          hasActiveFilters ? "No leads match the current filters to export" : "No leads to export"
+        );
         return;
       }
       const stamp = new Date().toISOString().slice(0, 10);
@@ -163,7 +165,11 @@ export default function TeamLeaderLeadsPage() {
         exportLeads,
         `tl-leads-${stamp}${hasActiveFilters ? "-filtered" : ""}.xlsx`
       );
-      message.success(`Exported ${exportLeads.length} leads`);
+      message.success(
+        `Exported ${exportLeads.length} lead${exportLeads.length !== 1 ? "s" : ""}${
+          hasActiveFilters ? " (filtered)" : ""
+        }`
+      );
     } catch (e) {
       message.error(e instanceof Error ? e.message : "Failed to export leads");
     } finally {
