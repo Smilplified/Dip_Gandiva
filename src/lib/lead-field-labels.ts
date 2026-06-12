@@ -1,3 +1,6 @@
+/** User-facing label for `leads.special_comments`. */
+export const LEAD_MEETING_NOTES_LABEL = "MEETING NOTES";
+
 /** User-facing labels for lead datetime fields (DB columns: scored, appointment). */
 export const LEAD_MEETING_SET_DATE_TIME_LABEL = "Date Meeting Set";
 export const LEAD_MEETING_SET_TIMEZONE_LABEL = "Date Meeting Set Time Zone";
@@ -10,6 +13,11 @@ export const LEAD_DATETIME_EXPORT_HEADERS: Record<string, string> = {
   scored_timezone: LEAD_MEETING_SET_TIMEZONE_LABEL,
   appointment: LEAD_MEETING_DATE_TIME_LABEL,
   appointment_timezone: LEAD_MEETING_DATE_TIMEZONE_LABEL,
+};
+
+/** CSV/Excel export headers for selected lead text fields (key = DB column). */
+export const LEAD_FIELD_EXPORT_HEADERS: Record<string, string> = {
+  special_comments: LEAD_MEETING_NOTES_LABEL,
 };
 
 function normalizeImportHeader(header: string): string {

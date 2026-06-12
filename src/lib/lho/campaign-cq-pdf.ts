@@ -26,7 +26,7 @@ function answerForKey(
   return data.extraCq[k] ?? "";
 }
 
-/** Campaign questions + answers for LHO / Meeting Report PDF. */
+/** Demand & Qualification Insights (campaign questions) + answers for LHO PDF. */
 export function buildLhoCampaignQuestionRows(
   data: Pick<LhoData, "cq1" | "cq2" | "cq3" | "cq4" | "cq5" | "extraCq">,
   campaignQuestions?: CampaignQuestion[] | null

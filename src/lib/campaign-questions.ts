@@ -1,5 +1,8 @@
 /** Campaign-defined custom questions mapped to lead cq1–cq5 and extra_cq. */
 
+/** User-facing section title (lead forms, campaign setup, LHO PDF). */
+export const DEMAND_QUALIFICATION_INSIGHTS_LABEL = "DEMAND & QUALIFICATION INSIGHTS";
+
 export type CampaignQuestion = {
   key: string;
   label: string;

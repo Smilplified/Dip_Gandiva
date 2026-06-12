@@ -2,7 +2,10 @@
 
 import { Button, Col, Form, Input, Row, Typography } from "antd";
 import { MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import type { CampaignQuestionFormRow } from "@/lib/campaign-questions";
+import {
+  DEMAND_QUALIFICATION_INSIGHTS_LABEL,
+  type CampaignQuestionFormRow,
+} from "@/lib/campaign-questions";
 
 const { Text } = Typography;
 
@@ -17,11 +20,11 @@ export function CampaignQuestionsEditor({
   return (
     <div style={{ marginTop: 8, marginBottom: 8 }}>
       <Text strong style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
-        Campaign questions (CQ)
+        {DEMAND_QUALIFICATION_INSIGHTS_LABEL}
       </Text>
       <Text type="secondary" style={{ display: "block", marginBottom: 12, fontSize: 12 }}>
-        Define questions agents will answer when adding leads. CQ1–CQ5 use standard lead fields;
-        additional questions are stored dynamically.
+        Define demand & qualification questions agents answer when adding or editing leads.
+        CQ1–CQ5 use standard lead fields; additional questions are stored dynamically.
       </Text>
       <Form.List
         name={listName}

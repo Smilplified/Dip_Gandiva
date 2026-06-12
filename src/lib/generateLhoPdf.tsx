@@ -10,6 +10,8 @@ import {
   StyleSheet,
   pdf,
 } from "@react-pdf/renderer";
+import { DEMAND_QUALIFICATION_INSIGHTS_LABEL } from "@/lib/campaign-questions";
+import { LEAD_MEETING_NOTES_LABEL } from "@/lib/lead-field-labels";
 import { formatFullAddress } from "@/lib/lho/meeting-report-format";
 
 const BRAND_GREEN = "#2D5A4C";
@@ -18,19 +20,19 @@ const DEFAULT_LOGO_SRC = "/projects/B2Bindemand_logo.png";
 
 const LOGO_WIDTH = 148;
 
-/** Reserved top space: fixed header (logo + title) must stay above body content. */
-const PAGE_HEADER_RESERVE = 132;
+/** Reserved top space for the fixed logo on every page. */
+const LOGO_HEADER_RESERVE = 88;
 
 const styles = StyleSheet.create({
   page: {
     backgroundColor: "#ffffff",
     fontFamily: "Helvetica",
-    paddingTop: PAGE_HEADER_RESERVE,
+    paddingTop: LOGO_HEADER_RESERVE,
     paddingBottom: 48,
     paddingHorizontal: 48,
     color: "#1a1a1a",
   },
-  pageHeader: {
+  pageLogo: {
     position: "absolute",
     top: 20,
     left: 48,
@@ -53,18 +55,18 @@ const styles = StyleSheet.create({
     height: 55,
     objectFit: "contain",
   },
-  reportTitle: {
-    marginTop: 0,
+  reportTitleFirstPage: {
     fontSize: 18,
     fontFamily: "Helvetica-Bold",
     color: BRAND_GREEN,
     textAlign: "center",
     letterSpacing: 0.3,
     lineHeight: 1.35,
-    paddingBottom: 4,
+    marginTop: 4,
+    marginBottom: 14,
   },
   body: {
-    marginTop: 16,
+    marginTop: 0,
   },
   metaBlock: {
     marginBottom: 8,
@@ -143,6 +145,8 @@ export type LhoData = {
   jobFunction: string;
   jobTitleLink: string;
   contactLinkedIn: string;
+  phoneNumberLink: string;
+  channel: string;
   companyName: string;
   domain: string;
   companyNumber: string;
@@ -176,6 +180,7 @@ export type LhoData = {
   campaignQuestions: { label: string; answer: string }[];
   leadStatus: string;
   leadTagging: string;
+  leadDisposition: string;
   assetTitle: string;
   status: string;
   qaStatus: string;
@@ -205,6 +210,16 @@ export type LhoData = {
   notes: string;
 };
 
+type PdfField = {
+  label: string;
+  value: string | undefined | null;
+  multiline?: boolean;
+};
+
+function hasFieldValue(value: string | undefined | null): boolean {
+  return value != null && String(value).trim().length > 0;
+}
+
 function FieldRow({ label, value }: { label: string; value: string | undefined | null }) {
   const v = value == null ? "" : String(value).trim();
   if (!v) return null;
@@ -214,6 +229,34 @@ function FieldRow({ label, value }: { label: string; value: string | undefined |
       <Text style={styles.colon}>:</Text>
       <Text style={styles.value}>{v}</Text>
     </View>
+  );
+}
+
+function MultilineField({ label, value }: { label: string; value: string | undefined | null }) {
+  const v = value == null ? "" : String(value).trim();
+  if (!v) return null;
+  return (
+    <View style={styles.cqBlock}>
+      <Text style={styles.cqQuestion}>{label}</Text>
+      <Text style={styles.cqAnswer}>{v}</Text>
+    </View>
+  );
+}
+
+function FieldsSection({ title, fields }: { title: string; fields: PdfField[] }) {
+  const visible = fields.filter((f) => hasFieldValue(f.value));
+  if (visible.length === 0) return null;
+  return (
+    <>
+      <SectionBar title={title} />
+      {visible.map((field) =>
+        field.multiline ? (
+          <MultilineField key={field.label} label={field.label} value={field.value} />
+        ) : (
+          <FieldRow key={field.label} label={field.label} value={field.value} />
+        )
+      )}
+    </>
   );
 }
 
@@ -233,7 +276,7 @@ function CampaignQuestionsSection({
   if (rows.length === 0) return null;
   return (
     <>
-      <SectionBar title="CAMPAIGN QUESTIONS" />
+      <SectionBar title={DEMAND_QUALIFICATION_INSIGHTS_LABEL} />
       {rows.map((row, index) => (
         <View
           key={`${row.label}-${index}`}
@@ -251,16 +294,15 @@ function CampaignQuestionsSection({
   );
 }
 
-function PageHeader({ logoSrc }: { logoSrc?: string | null }) {
+function PageLogo({ logoSrc }: { logoSrc?: string | null }) {
   return (
-    <View style={styles.pageHeader} fixed>
+    <View style={styles.pageLogo} fixed>
       <View style={styles.logoWrap}>
         <View style={styles.logoBox}>
           {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image (not HTML img) */}
           <Image style={styles.logoImage} src={logoSrc || DEFAULT_LOGO_SRC} />
         </View>
       </View>
-      <Text style={styles.reportTitle}>Meeting Report</Text>
     </View>
   );
 }
@@ -274,8 +316,10 @@ function LhoDocument({
   logoSrc?: string | null;
   showClientName?: boolean;
 }) {
-  const prospectName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
-  const phone = data.phone || data.directNumber;
+  const prospectName = [data.salutation, data.firstName, data.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
   const fullAddress = formatFullAddress({
     address: data.address,
     city: data.city,
@@ -288,34 +332,109 @@ function LhoDocument({
   return (
     <Document title="Meeting Report">
       <Page size="A4" style={styles.page} wrap>
-        <PageHeader logoSrc={logoSrc} />
+        <PageLogo logoSrc={logoSrc} />
 
         <View style={styles.body}>
+          <Text style={styles.reportTitleFirstPage}>Meeting Report</Text>
           <View style={styles.content}>
-          <View style={styles.metaBlock}>
-            {showClientName && <FieldRow label="Client" value={data.client} />}
-            {showClientName && <FieldRow label="Prepared by" value={data.preparedBy} />}
-            <FieldRow label="Date Meeting Set" value={data.meetingSetDate} />
-            <FieldRow label="Meeting Date" value={data.meetingDate} />
-            <FieldRow label="Meeting Time" value={data.meetingTime} />
-            <FieldRow label="Agent Name" value={data.agentName} />
-          </View>
+            <FieldsSection
+              title="MEETING DETAILS"
+              fields={[
+                ...(showClientName
+                  ? [
+                      { label: "Client", value: data.client },
+                      { label: "Prepared by", value: data.preparedBy },
+                    ]
+                  : []),
+                { label: "Date Meeting Set", value: data.meetingSetDate },
+                { label: "Meeting Date", value: data.meetingDate },
+                { label: "Meeting Time", value: data.meetingTime },
+                { label: "Agent Name", value: data.agentName },
+                { label: "Asset Title", value: data.assetTitle },
+                { label: "Lead Tagging", value: data.leadTagging },
+                { label: "Lead Status", value: data.status || data.leadStatus },
+                { label: "Lead Disposition", value: data.leadDisposition },
+                { label: "Channel", value: data.channel },
+              ]}
+            />
 
-          <SectionBar title="PROSPECT INFORMATION" />
-          <FieldRow label="Name" value={prospectName} />
-          <FieldRow label="Title" value={data.jobTitle} />
-          <FieldRow label="Email" value={data.email} />
-          <FieldRow label="Phone" value={phone} />
-          <FieldRow label="LinkedIn" value={data.contactLinkedIn} />
+            <FieldsSection
+              title="PROSPECT INFORMATION"
+              fields={[
+                { label: "Name", value: prospectName },
+                { label: "Job Title", value: data.jobTitle },
+                { label: "Job Title Link", value: data.jobTitleLink },
+                { label: "Email", value: data.email },
+                { label: "Phone", value: data.phone },
+                { label: "Direct Number", value: data.directNumber },
+                { label: "LinkedIn", value: data.contactLinkedIn },
+              ]}
+            />
 
-          <SectionBar title="COMPANY INFORMATION" />
-          <FieldRow label="Account" value={data.companyName} />
-          <FieldRow label="Industry" value={data.industry} />
-          <FieldRow label="Employee Size" value={data.employeeSize} />
-          <FieldRow label="Address" value={fullAddress} />
-          <FieldRow label="Website" value={website} />
+            <FieldsSection
+              title="COMPANY INFORMATION"
+              fields={[
+                { label: "Account", value: data.companyName },
+                { label: "Domain", value: data.domain },
+                { label: "Company Number", value: data.companyNumber },
+                { label: "Industry", value: data.industry },
+                { label: "Employee Size", value: data.employeeSize },
+                { label: "Employee Size Link", value: data.employeeSizeLink },
+                { label: "See All Employees", value: data.seeAllEmployees },
+                { label: "Address", value: fullAddress },
+                { label: "Website", value: website },
+                { label: "Company LinkedIn", value: data.companyLinkedIn },
+                { label: "Revenue Range", value: data.revenueRange },
+                { label: "Revenue Link", value: data.revenueLink },
+                { label: "SIC Code", value: data.sicCode },
+                { label: "SIC Code Link", value: data.sicCodeLink },
+                { label: "NAICS Code", value: data.naicsCode },
+                { label: "NAICS Code Link", value: data.naicsCodeLink },
+                { label: "Founded Years", value: data.foundedYears },
+                { label: "Founded Years Link", value: data.foundedYearsLink },
+              ]}
+            />
 
-          <CampaignQuestionsSection rows={data.campaignQuestions} />
+            <FieldsSection
+              title="COMPLIANCE & VERIFICATION"
+              fields={[
+                { label: "Tenurity", value: data.tenurity },
+                { label: "VV Status", value: data.vvStatus },
+                { label: "Email Status", value: data.emailStatus },
+                { label: "EV Tool", value: data.evTool },
+              ]}
+            />
+
+            <FieldsSection
+              title="CALL INFORMATION"
+              fields={[
+                { label: "Call Back", value: data.callBack },
+                { label: "Call Notes", value: data.callNotes, multiline: true },
+              ]}
+            />
+
+            <FieldsSection
+              title="COMMENTS & NOTES"
+              fields={[
+                { label: "RA Comment", value: data.raComment, multiline: true },
+                { label: LEAD_MEETING_NOTES_LABEL, value: data.specialComments, multiline: true },
+                { label: "Notes", value: data.notes, multiline: true },
+              ]}
+            />
+
+            <FieldsSection
+              title="QA INFORMATION"
+              fields={[
+                { label: "QA Status", value: data.qaStatus },
+                { label: "Audit Date", value: data.auditDate },
+                { label: "QA Auditor", value: data.qaName },
+                { label: "Primary Reason", value: data.primaryReason },
+                { label: "Secondary Reason", value: data.secondaryReason },
+                { label: "QA Comments", value: data.qaComments, multiline: true },
+              ]}
+            />
+
+            <CampaignQuestionsSection rows={data.campaignQuestions} />
           </View>
         </View>
       </Page>

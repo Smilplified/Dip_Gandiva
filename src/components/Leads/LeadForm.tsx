@@ -36,7 +36,11 @@ import {
 import type { Lead } from "@/types/lead.types";
 import { useAuth } from "@/context/AuthContext";
 import { nextExtraCqIndex, parseExtraCqIndexes } from "@/lib/extra-cq";
-import type { CampaignQuestion } from "@/lib/campaign-questions";
+import {
+  DEMAND_QUALIFICATION_INSIGHTS_LABEL,
+  type CampaignQuestion,
+} from "@/lib/campaign-questions";
+import { LEAD_MEETING_NOTES_LABEL } from "@/lib/lead-field-labels";
 import { CampaignCqAnswerFields } from "@/components/Leads/CampaignCqAnswerFields";
 import {
   digitsOnlyFormRules,
@@ -1249,8 +1253,8 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
-                  <Form.Item label="Special Comments" name="special_comments">
-                    <Input.TextArea rows={2} placeholder="Special Comments" />
+                  <Form.Item label={LEAD_MEETING_NOTES_LABEL} name="special_comments">
+                    <Input.TextArea rows={2} placeholder={LEAD_MEETING_NOTES_LABEL} />
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
@@ -1385,7 +1389,7 @@ export function LeadForm({
         >
           {renderSection(
             "campaign-cq",
-            "Campaign Questions",
+            DEMAND_QUALIFICATION_INSIGHTS_LABEL,
             "❓",
             <CampaignCqAnswerFields questions={campaignQuestions!} />
           )}

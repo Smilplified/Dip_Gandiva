@@ -26,6 +26,7 @@ import { CampaignQuestionsEditor } from "@/components/Campaigns/CampaignQuestion
 import {
   campaignQuestionsPayloadFromFormValues,
   campaignQuestionsToFormRows,
+  DEMAND_QUALIFICATION_INSIGHTS_LABEL,
   normalizeCampaignQuestions,
 } from "@/lib/campaign-questions";
 
@@ -453,7 +454,7 @@ export default function CampaignForm({
       </Row>
 
       <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
-        Campaign Questions
+        {DEMAND_QUALIFICATION_INSIGHTS_LABEL}
       </Divider>
       <CampaignQuestionsEditor />
 

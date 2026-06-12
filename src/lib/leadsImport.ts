@@ -1,6 +1,9 @@
 import * as XLSX from "xlsx";
 import { coerceParsedImportCell, isImportPlaceholder } from "@/lib/lead-import-sanitize";
-import { resolveLeadDatetimeImportHeader } from "@/lib/lead-field-labels";
+import {
+  LEAD_MEETING_NOTES_LABEL,
+  resolveLeadDatetimeImportHeader,
+} from "@/lib/lead-field-labels";
 
 /**
  * Parse CSV file and return array of lead objects for bulk import.
@@ -63,6 +66,11 @@ const HEADER_MAP: Record<string, string> = {
   "lead type": "lead_type",
   "lead_type": "lead_type",
   "campaign_lead_type": "lead_type",
+  "special comments": "special_comments",
+  special_comments: "special_comments",
+  [LEAD_MEETING_NOTES_LABEL.toLowerCase()]: "special_comments",
+  "meeting notes": "special_comments",
+  meeting_notes: "special_comments",
 };
 
 function mapImportHeader(header: string): string {

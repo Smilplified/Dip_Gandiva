@@ -1,7 +1,10 @@
 import * as XLSX from "xlsx";
 import type { Lead } from "@/types/lead.types";
 import { isHiddenFromAgentExport } from "@/lib/agent-lead-fields";
-import { LEAD_DATETIME_EXPORT_HEADERS } from "@/lib/lead-field-labels";
+import {
+  LEAD_DATETIME_EXPORT_HEADERS,
+  LEAD_FIELD_EXPORT_HEADERS,
+} from "@/lib/lead-field-labels";
 
 /**
  * All lead fields in export order (matches database / Lead type).
@@ -62,7 +65,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   },
   { key: "lead_tagging", header: "lead_tagging" },
   { key: "ra_comment", header: "ra_comment" },
-  { key: "special_comments", header: "special_comments" },
+  { key: "special_comments", header: LEAD_FIELD_EXPORT_HEADERS.special_comments },
   { key: "call_back", header: "call_back" },
   { key: "call_notes", header: "call_notes" },
   { key: "qa_status", header: "qa_status" },
