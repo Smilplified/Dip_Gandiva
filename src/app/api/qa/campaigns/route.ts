@@ -37,6 +37,8 @@ export async function GET(request: Request) {
     const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1);
     const requestedLimit = Math.max(1, parseInt(sp.get("limit") ?? "10", 10) || 10);
     const includeLeads = sp.get("include_leads") === "1";
+    const searchQuery = sp.get("q")?.trim() || undefined;
+    const statusFilter = sp.get("status")?.trim() || undefined;
     const campaignIds = (sp.get("campaign_ids") ?? "")
       .split(",")
       .map((id) => id.trim())
@@ -57,6 +59,8 @@ export async function GET(request: Request) {
         limit,
         includeLeads,
         campaignIds: campaignIds.length > 0 ? campaignIds : undefined,
+        q: searchQuery,
+        status: statusFilter,
       }
     );
 

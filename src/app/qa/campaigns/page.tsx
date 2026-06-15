@@ -121,6 +121,7 @@ export default function QACampaignsPage() {
   const [exporting, setExporting] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination();
@@ -136,6 +137,15 @@ export default function QACampaignsPage() {
     setSelectedRowKeys([]);
   }, [dateRange, resetPage]);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    resetPage();
+  }, [debouncedSearch, statusFilter, resetPage]);
+
   const clientTimeZone = useMemo(() => {
     if (typeof Intl === "undefined") return "UTC";
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -150,11 +160,13 @@ export default function QACampaignsPage() {
         tz: clientTimeZone,
         page: exportIds.length > 0 ? 1 : page,
         limit: exportIds.length > 0 ? exportIds.length : pageSize,
+        q: debouncedSearch || undefined,
+        status: statusFilter || undefined,
         include_leads: opts?.includeLeads ? 1 : undefined,
         campaign_ids: exportIds.length > 0 ? exportIds.join(",") : undefined,
       });
     },
-    [dateRange, clientTimeZone, page, pageSize]
+    [dateRange, clientTimeZone, page, pageSize, debouncedSearch, statusFilter]
   );
 
   const listUrl = buildUrl();
@@ -226,25 +238,6 @@ export default function QACampaignsPage() {
 
   const loading = serverTableInitialLoading(campaignsQuery.isLoading, campaigns.length);
 
-  const displayedCampaigns = useMemo(() => {
-    let result = campaigns;
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (c) =>
-          (c.name ?? "").toLowerCase().includes(q) ||
-          (c.campaign_code ?? "").toLowerCase().includes(q) ||
-          (c.lead_type ?? "").toLowerCase().includes(q) ||
-          (c.industry ?? "").toLowerCase().includes(q) ||
-          (c.geography ?? "").toLowerCase().includes(q)
-      );
-    }
-    if (statusFilter) {
-      result = result.filter((c) => c.status === statusFilter);
-    }
-    return result;
-  }, [campaigns, search, statusFilter]);
-
   const rangeLabel = `${dateRange[0].format("DD MMM YYYY")} – ${dateRange[1].format("DD MMM YYYY")}`;
 
   const handleExport = async () => {
@@ -306,7 +299,7 @@ export default function QACampaignsPage() {
     );
   }
 
-  const list = displayedCampaigns;
+  const list = campaigns;
   const s = summary;
   const campaignStatusColors: Record<string, string> = {
     draft: "default",
@@ -322,8 +315,8 @@ export default function QACampaignsPage() {
           Campaigns
         </Typography.Title>
         <Typography.Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 4 }}>
-          Campaigns with lead uploads in the selected date range (by upload date). Click a row to
-          open campaign details.
+          All campaigns. Upload and audit counts reflect the selected date range. Click a row to open
+          campaign details.
         </Typography.Text>
       </div>
 
@@ -374,7 +367,7 @@ export default function QACampaignsPage() {
           </Col>
           <Col flex="auto" style={{ minWidth: 200 }}>
             <Input.Search
-              placeholder="Search campaigns (name, code, lead type, industry, geography)"
+              placeholder="Search campaigns (name, client, code, description, industry…)"
               allowClear
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -418,8 +411,8 @@ export default function QACampaignsPage() {
           </Col>
         </Row>
         <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 10 }}>
-          Showing campaigns with at least one lead uploaded between {rangeLabel} (your local
-          timezone).
+          Showing all campaigns. Upload/audit columns count scored leads uploaded between{" "}
+          {rangeLabel} (your local timezone).
           {selectedRowKeys.length > 0
             ? ` · ${selectedRowKeys.length} campaign${selectedRowKeys.length !== 1 ? "s" : ""} selected for export.`
             : " · Select campaigns using the checkboxes, then export."}
@@ -467,7 +460,11 @@ export default function QACampaignsPage() {
         </div>
       ) : list.length === 0 ? (
         <Empty
-          description="No campaigns with uploads in this date range"
+          description={
+            debouncedSearch || statusFilter
+              ? "No campaigns match your search or filters"
+              : "No campaigns found"
+          }
           style={{ marginTop: 48 }}
         />
       ) : (

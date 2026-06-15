@@ -130,6 +130,10 @@ export async function fetchScoredLeadsForCampaigns(
   return all;
 }
 
+function escapeIlikePattern(value: string): string {
+  return value.replace(/%/g, "").replace(/_/g, "");
+}
+
 export async function loadQaCampaignsForDateRange(
   supabase: SupabaseClient,
   orgId: string,
@@ -140,6 +144,8 @@ export async function loadQaCampaignsForDateRange(
     limit?: number;
     includeLeads?: boolean;
     campaignIds?: string[];
+    q?: string;
+    status?: string;
   }
 ): Promise<QaCampaignsListResult & { pagination?: ReturnType<typeof buildPaginationMeta> }> {
   const page = Math.max(1, options?.page ?? 1);
@@ -148,6 +154,8 @@ export async function loadQaCampaignsForDateRange(
   const limit = Math.max(1, Math.min(maxLimit, options?.limit ?? 10));
   const includeLeads = options?.includeLeads ?? false;
   const offset = (page - 1) * limit;
+  const searchRaw = (options?.q ?? "").trim();
+  const statusFilter = (options?.status ?? "").trim() || null;
 
   let campaignsQuery = supabase
     .from("campaigns")
@@ -162,6 +170,19 @@ export async function loadQaCampaignsForDateRange(
 
   if (campaignIdFilter.length > 0) {
     campaignsQuery = campaignsQuery.in("id", campaignIdFilter);
+  }
+
+  if (statusFilter) {
+    campaignsQuery = campaignsQuery.eq("status", statusFilter);
+  }
+
+  if (searchRaw.length > 0) {
+    const safe = escapeIlikePattern(searchRaw);
+    if (safe.length > 0) {
+      campaignsQuery = campaignsQuery.or(
+        `name.ilike.%${safe}%,campaign_code.ilike.%${safe}%,client_name.ilike.%${safe}%,description.ilike.%${safe}%,lead_type.ilike.%${safe}%,industry.ilike.%${safe}%,geography.ilike.%${safe}%`
+      );
+    }
   }
 
   const { data: campaigns, error: campaignsError } = await campaignsQuery;
@@ -218,7 +239,6 @@ export async function loadQaCampaignsForDateRange(
 
   for (const c of campaignsList) {
     const leads = (leadsByCampaign[c.id] ?? []) as Record<string, unknown>[];
-    if (leads.length === 0) continue;
 
     let activityMs = 0;
     for (const l of leads) {
@@ -240,6 +260,10 @@ export async function loadQaCampaignsForDateRange(
   }
 
   visible.sort((a, b) => {
+    const aHasUploads = (a.leads_uploaded ?? 0) > 0;
+    const bHasUploads = (b.leads_uploaded ?? 0) > 0;
+    if (aHasUploads !== bHasUploads) return aHasUploads ? -1 : 1;
+
     const aMs = a.last_lead_activity_at ? new Date(a.last_lead_activity_at).getTime() : 0;
     const bMs = b.last_lead_activity_at ? new Date(b.last_lead_activity_at).getTime() : 0;
     if (bMs !== aMs) return bMs - aMs;
@@ -248,12 +272,12 @@ export async function loadQaCampaignsForDateRange(
     return bCreated - aCreated;
   });
 
-  const allLeads = visible.flatMap((c) => c.leads);
+  const leadsInRange = visible.flatMap((c) => c.leads);
   const summary: QaCampaignsSummary = {
-    total_leads_uploaded: allLeads.length,
-    total_audited: countAuditedLeads(allLeads as { qa_status?: string | null }[]),
-    pending_audit: countPendingAuditLeads(allLeads as { qa_status?: string | null }[]),
-    campaign_count: visible.length,
+    total_leads_uploaded: leadsInRange.length,
+    total_audited: countAuditedLeads(leadsInRange as { qa_status?: string | null }[]),
+    pending_audit: countPendingAuditLeads(leadsInRange as { qa_status?: string | null }[]),
+    campaign_count: visible.filter((c) => (c.leads_uploaded ?? 0) > 0).length,
   };
 
   const paged = visible.slice(offset, offset + limit).map((c) =>
