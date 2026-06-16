@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
-import { PRIVILEGED_VOICE_ROLES } from "@/lib/voice-recordings";
+import { getLeadForLeadAssetApi } from "@/lib/lead-api-access";
 
 export const dynamic = "force-dynamic";
 
@@ -42,38 +42,19 @@ export async function POST(
     }
 
     const { id: leadId } = await params;
-    const { data: lead, error: leadError } = await supabase
-      .from("leads")
-      .select("id, campaign_id, organization_id")
-      .eq("id", leadId)
-      .single();
-
-    if (leadError || !lead || (lead as LeadRecord).organization_id !== orgId) {
-      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    if (!leadId) {
+      return NextResponse.json({ error: "Lead ID required" }, { status: 400 });
     }
-    const l = lead as LeadRecord;
 
-    // Check agent is assigned (same logic as voice-lock POST)
-    const { data: roleRows } = await supabase
-      .from("user_roles").select("roles(name)").eq("user_id", user.id);
-    const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[])
-      .map((r) => r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_"))
-      .filter((n): n is string => !!n);
-    const isAgent = roleNames.includes("agent");
-    const isPrivileged = roleNames.some((r) => PRIVILEGED_VOICE_ROLES.has(r));
-
-    if (isAgent && !isPrivileged) {
-      const { data: assignment } = await supabase
-        .from("campaign_assignments")
-        .select("id")
-        .eq("campaign_id", l.campaign_id)
-        .eq("agent_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (!assignment) {
-        return NextResponse.json({ error: "You are not assigned to this campaign" }, { status: 403 });
-      }
-    }
+    const leadResult = await getLeadForLeadAssetApi({
+      supabase,
+      admin,
+      orgId,
+      userId: user.id,
+      leadId,
+    });
+    if ("error" in leadResult) return leadResult.error;
+    const l = leadResult.lead;
 
     // Check current recording count
     const prefix = `${orgId}/${l.campaign_id}/${l.id}`;

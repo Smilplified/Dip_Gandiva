@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
-import { PRIVILEGED_VOICE_ROLES } from "@/lib/voice-recordings";
+import { getLeadForLeadAssetApi } from "@/lib/lead-api-access";
 
 export const dynamic = "force-dynamic";
 
@@ -72,60 +72,6 @@ async function getAuthContext() {
   return { supabase, admin, userId: user.id, orgId };
 }
 
-async function getLeadForUser(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  orgId: string,
-  userId: string,
-  leadId: string
-) {
-  const { data: lead, error: leadError } = await supabase
-    .from("leads")
-    .select("id, campaign_id, organization_id")
-    .eq("id", leadId)
-    .single();
-
-  if (leadError || !lead || (lead as LeadRecord).organization_id !== orgId) {
-    return { error: NextResponse.json({ error: "Lead not found" }, { status: 404 }) };
-  }
-
-  const l = lead as LeadRecord;
-
-  // Determine user roles to decide how strictly to enforce campaign assignment.
-  // Agents must be explicitly assigned; TL/QA/Admin/Sales can access any lead in their organization.
-  const { data: roleRows } = await supabase
-    .from("user_roles")
-    .select("roles(name)")
-    .eq("user_id", userId);
-  const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[])
-    .map((r) => r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_"))
-    .filter((n): n is string => !!n);
-
-  const isAgent = roleNames.includes("agent");
-  const isPrivileged = roleNames.some((r) => PRIVILEGED_VOICE_ROLES.has(r));
-
-  if (isAgent && !isPrivileged) {
-    // For pure Agent users, require an active campaign assignment
-    const { data: assignment } = await supabase
-      .from("campaign_assignments")
-      .select("id")
-      .eq("campaign_id", l.campaign_id)
-      .eq("agent_id", userId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!assignment) {
-      return {
-        error: NextResponse.json(
-          { error: "You are not assigned to this campaign" },
-          { status: 403 }
-        ),
-      };
-    }
-  }
-
-  return { lead: l };
-}
-
 async function listVoiceObjects(
   storageClient: { storage: NonNullable<ReturnType<typeof getAdminClientSafe>>["storage"] },
   orgId: string,
@@ -189,7 +135,13 @@ export async function GET(
       return NextResponse.json({ error: "Lead ID required" }, { status: 400 });
     }
 
-    const leadResult = await getLeadForUser(supabase, orgId, userId, leadId);
+    const leadResult = await getLeadForLeadAssetApi({
+      supabase,
+      admin,
+      orgId,
+      userId,
+      leadId,
+    });
     if ("error" in leadResult) return leadResult.error;
     const { lead } = leadResult;
 
@@ -217,7 +169,13 @@ export async function POST(
       return NextResponse.json({ error: "Lead ID required" }, { status: 400 });
     }
 
-    const leadResult = await getLeadForUser(supabase, orgId, userId, leadId);
+    const leadResult = await getLeadForLeadAssetApi({
+      supabase,
+      admin,
+      orgId,
+      userId,
+      leadId,
+    });
     if ("error" in leadResult) return leadResult.error;
     const { lead } = leadResult;
 
@@ -300,7 +258,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Lead ID required" }, { status: 400 });
     }
 
-    const leadResult = await getLeadForUser(supabase, orgId, userId, leadId);
+    const leadResult = await getLeadForLeadAssetApi({
+      supabase,
+      admin,
+      orgId,
+      userId,
+      leadId,
+    });
     if ("error" in leadResult) return leadResult.error;
     const { lead } = leadResult;
 
