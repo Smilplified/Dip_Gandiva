@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import {
+  countCampaignLeads,
+  enrichCampaignAllocationFields,
+} from "@/lib/campaign-allocation";
+import {
   getRoleNames,
   upsertCampaignMetrics,
   appendCampaignMetricsHistory,
@@ -91,7 +95,24 @@ export async function GET(
     campaignObj.campaign_files = filesWithUrls;
   }
 
-  return NextResponse.json({ campaign: campaignObj });
+  const isClientViewer = userRoles.includes("client_viewer");
+  const [totalLeads, deliveredLeads] = await Promise.all([
+    countCampaignLeads(supabase, id, { orgId: profile?.organization_id ?? undefined }),
+    countCampaignLeads(supabase, id, {
+      orgId: profile?.organization_id ?? undefined,
+      deliveredOnly: true,
+    }),
+  ]);
+  const enrichedCampaign = enrichCampaignAllocationFields(
+    campaignObj,
+    { total: totalLeads, delivered: deliveredLeads },
+    {
+      achievedFallback: isClientViewer ? "delivered" : "total",
+      capToAllocation: false,
+    }
+  );
+
+  return NextResponse.json({ campaign: enrichedCampaign });
 }
 
 export async function PATCH(

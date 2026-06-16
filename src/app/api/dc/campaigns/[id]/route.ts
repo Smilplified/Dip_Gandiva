@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import {
-  countCampaignLeads,
   enrichCampaignAllocationFields,
 } from "@/lib/campaign-allocation";
+import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 
 export const dynamic = "force-dynamic";
 
@@ -107,8 +107,11 @@ export async function GET(
     // Voice recordings load lazily via POST /api/leads/voice-recordings.
     const leads = (leadsResult.data ?? []) as DcLeadRow[];
 
-    const leadCount = await countCampaignLeads(admin, campaignId, orgId);
-    const enrichedCampaign = enrichCampaignAllocationFields(campaign, leadCount);
+    const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]);
+    const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
+    const enrichedCampaign = enrichCampaignAllocationFields(campaign, metrics, {
+      achievedFallback: "delivered",
+    });
 
     return NextResponse.json({ campaign: enrichedCampaign, files: filesWithUrls, leads });
   } catch (err) {

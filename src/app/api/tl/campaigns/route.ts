@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
+import { enrichCampaignAllocationFields } from "@/lib/campaign-allocation";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import {
   fetchBulkCampaignTeamLeaderAssignments,
@@ -137,15 +138,24 @@ export async function GET(request: NextRequest) {
     const campaignsWithCounts = campaignsList.map((c) => {
       const tlAssignments = tlAssignmentsByCampaign[c.id] ?? [];
       const leadCounts = leadsByCampaign[c.id];
-      return {
-        ...c,
-        assigned_team_leader_name: formatTeamLeaderAssignmentLabel(tlAssignments),
-        team_leader_count: tlAssignments.length,
-        total_leads: leadCounts?.total ?? 0,
-        total_agents: agentsByCampaign[c.id] ?? 0,
-        qualified_leads: leadCounts?.qualified ?? 0,
-        delivered_leads: leadCounts?.delivered ?? 0,
-      };
+      const totalLeads = leadCounts?.total ?? 0;
+      return enrichCampaignAllocationFields(
+        {
+          ...c,
+          assigned_team_leader_name: formatTeamLeaderAssignmentLabel(tlAssignments),
+          team_leader_count: tlAssignments.length,
+          total_leads: totalLeads,
+          total_agents: agentsByCampaign[c.id] ?? 0,
+          qualified_leads: leadCounts?.qualified ?? 0,
+          delivered_leads: leadCounts?.delivered ?? 0,
+        },
+        {
+          total: totalLeads,
+          qualified: leadCounts?.qualified ?? 0,
+          delivered: leadCounts?.delivered ?? 0,
+        },
+        { achievedFallback: "qualified" }
+      );
     });
 
     return NextResponse.json({

@@ -4,9 +4,9 @@ import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
-  countCampaignLeads,
   enrichCampaignAllocationFields,
 } from "@/lib/campaign-allocation";
+import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 import {
   fetchAllMisCampaignScoredLeads,
   fetchMisCampaignScoredLeadsPage,
@@ -120,8 +120,11 @@ export async function GET(
     // Voice recordings load lazily via POST /api/leads/voice-recordings.
     const leadsWithRecordings = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
 
-    const leadCount = await countCampaignLeads(admin, campaignId, orgId);
-    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, leadCount);
+    const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]);
+    const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
+    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, metrics, {
+      achievedFallback: "qualified",
+    });
 
     return NextResponse.json({
       campaign: campaignWithAllocation,

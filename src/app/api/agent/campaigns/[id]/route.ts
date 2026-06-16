@@ -3,9 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { normalizeRoleName } from "@/lib/auth/config";
 import {
-  countCampaignLeads,
   enrichCampaignAllocationFields,
 } from "@/lib/campaign-allocation";
+import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 
 export const dynamic = "force-dynamic";
 
@@ -116,8 +116,11 @@ export async function GET(
       })
     );
 
-    const leadCount = await countCampaignLeads(supabase, campaignId, orgId);
-    const enrichedCampaign = enrichCampaignAllocationFields(campaign, leadCount);
+    const leadCounts = await aggregateTlLeadCountsByCampaign(supabase, orgId, [campaignId]);
+    const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
+    const enrichedCampaign = enrichCampaignAllocationFields(campaign, metrics, {
+      achievedFallback: "qualified",
+    });
 
     return NextResponse.json({ campaign: enrichedCampaign, files: filesWithUrls });
   } catch (err) {

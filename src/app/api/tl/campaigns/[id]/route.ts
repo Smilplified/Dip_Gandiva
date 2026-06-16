@@ -21,9 +21,9 @@ import {
 } from "@/lib/campaign/team-leader-assignments";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
-  countCampaignLeads,
   enrichCampaignAllocationFields,
 } from "@/lib/campaign-allocation";
+import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 import {
   fetchAllTlLeadsForCampaigns,
   fetchTlLeadsPageForCampaigns,
@@ -204,8 +204,11 @@ export async function GET(
       })
     );
 
-    const leadCount = await countCampaignLeads(supabase, campaignId, orgId);
-    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, leadCount);
+    const leadCounts = await aggregateTlLeadCountsByCampaign(supabase, orgId, [campaignId]);
+    const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
+    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, metrics, {
+      achievedFallback: "qualified",
+    });
 
     return NextResponse.json({
       campaign: campaignWithAllocation,
