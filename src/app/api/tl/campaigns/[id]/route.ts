@@ -21,6 +21,10 @@ import {
 } from "@/lib/campaign/team-leader-assignments";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
+  countCampaignLeads,
+  enrichCampaignAllocationFields,
+} from "@/lib/campaign-allocation";
+import {
   fetchAllTlLeadsForCampaigns,
   fetchTlLeadsPageForCampaigns,
   TL_LEADS_LIST_SELECT,
@@ -200,8 +204,11 @@ export async function GET(
       })
     );
 
+    const leadCount = await countCampaignLeads(supabase, campaignId, orgId);
+    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, leadCount);
+
     return NextResponse.json({
-      campaign: campaignWithTlName,
+      campaign: campaignWithAllocation,
       leads: leadsWithRecordings,
       leads_pagination: buildPaginationMeta(
         exportAll ? 1 : leadsPage,

@@ -539,14 +539,11 @@ export default function QACampaignDetailPage() {
               },
               { label: "Geography", value: campaign.geography },
               { label: "Assigned Team Leader", value: campaign.assigned_team_leader_name },
-              { label: "Weekly Call", value: campaign.weekly_call },
-              { label: "Weekly Report", value: campaign.weekly_report },
               { label: "Total Allocation", value: campaign.total_allocation },
               { label: "Post QA", value: campaign.post_qa },
               { label: "Achieved", value: campaign.achieved },
               { label: "Pending Allocation", value: campaign.pending_allocation },
               { label: "Industry", value: campaign.industry },
-              { label: "Geography", value: campaign.geography },
             ]}
           />
           <CampaignFilesCard files={files} />

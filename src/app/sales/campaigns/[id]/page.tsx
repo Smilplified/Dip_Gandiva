@@ -790,8 +790,6 @@ export default function SalesCampaignDetailPage() {
                       teamLeaders.find((tl) => tl.id === campaign.assigned_team_leader_id)?.email
                     : null,
               },
-              { label: "Weekly Call", value: campaign.weekly_call },
-              { label: "Weekly Report", value: campaign.weekly_report },
               {
                 label: "CPL",
                 value: campaign.cpl != null ? `$${Number(campaign.cpl).toLocaleString()}` : null,

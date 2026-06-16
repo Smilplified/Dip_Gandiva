@@ -821,8 +821,6 @@ export default function CampaignDetailPage() {
                     ? campaign.assigned_team_leader_name ?? assignedTlNames.join(", ")
                     : null,
               },
-              { label: "Weekly Call", value: campaign.weekly_call },
-              { label: "Weekly Report", value: campaign.weekly_report },
               { label: "Total Allocation", value: campaign.total_allocation },
               { label: "Post QA", value: campaign.post_qa },
               { label: "Achieved", value: campaign.achieved },

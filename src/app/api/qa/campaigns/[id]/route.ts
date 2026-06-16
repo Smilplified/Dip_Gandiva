@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  countCampaignLeads,
+  enrichCampaignAllocationFields,
+} from "@/lib/campaign-allocation";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 
@@ -145,8 +149,11 @@ export async function GET(
       })
     );
 
+    const leadCount = await countCampaignLeads(supabase, campaignId, orgId);
+    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, leadCount);
+
     return NextResponse.json({
-      campaign: campaignWithTlName,
+      campaign: campaignWithAllocation,
       leads: leadsWithRecordings,
       files: filesWithUrls,
     });

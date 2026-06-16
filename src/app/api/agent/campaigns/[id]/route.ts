@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { normalizeRoleName } from "@/lib/auth/config";
+import {
+  countCampaignLeads,
+  enrichCampaignAllocationFields,
+} from "@/lib/campaign-allocation";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +116,10 @@ export async function GET(
       })
     );
 
-    return NextResponse.json({ campaign, files: filesWithUrls });
+    const leadCount = await countCampaignLeads(supabase, campaignId, orgId);
+    const enrichedCampaign = enrichCampaignAllocationFields(campaign, leadCount);
+
+    return NextResponse.json({ campaign: enrichedCampaign, files: filesWithUrls });
   } catch (err) {
     console.error("Agent campaign detail error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

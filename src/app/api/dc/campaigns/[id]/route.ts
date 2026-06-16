@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
+import {
+  countCampaignLeads,
+  enrichCampaignAllocationFields,
+} from "@/lib/campaign-allocation";
 
 export const dynamic = "force-dynamic";
 
@@ -103,7 +107,10 @@ export async function GET(
     // Voice recordings load lazily via POST /api/leads/voice-recordings.
     const leads = (leadsResult.data ?? []) as DcLeadRow[];
 
-    return NextResponse.json({ campaign, files: filesWithUrls, leads });
+    const leadCount = await countCampaignLeads(admin, campaignId, orgId);
+    const enrichedCampaign = enrichCampaignAllocationFields(campaign, leadCount);
+
+    return NextResponse.json({ campaign: enrichedCampaign, files: filesWithUrls, leads });
   } catch (err) {
     console.error("DC campaign detail error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

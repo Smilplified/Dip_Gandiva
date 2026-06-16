@@ -277,8 +277,6 @@ export default function DCCampaignDetailPage() {
                 <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
                 <OverviewRowOrEmpty label="Achieved" value={campaign.achieved} />
                 <OverviewRowOrEmpty label="Pending Allocation" value={campaign.pending_allocation} />
-                <OverviewRowOrEmpty label="Weekly Call" value={campaign.weekly_call} />
-                <OverviewRowOrEmpty label="Weekly Report" value={campaign.weekly_report} />
               </div>
             </div>
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (

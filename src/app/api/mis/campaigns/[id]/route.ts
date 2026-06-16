@@ -4,6 +4,10 @@ import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
+  countCampaignLeads,
+  enrichCampaignAllocationFields,
+} from "@/lib/campaign-allocation";
+import {
   fetchAllMisCampaignScoredLeads,
   fetchMisCampaignScoredLeadsPage,
   type MisCampaignLeadRow,
@@ -116,8 +120,11 @@ export async function GET(
     // Voice recordings load lazily via POST /api/leads/voice-recordings.
     const leadsWithRecordings = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
 
+    const leadCount = await countCampaignLeads(admin, campaignId, orgId);
+    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, leadCount);
+
     return NextResponse.json({
-      campaign: campaignWithTlName,
+      campaign: campaignWithAllocation,
       leads: leadsWithRecordings,
       leads_pagination: buildPaginationMeta(leadsPage, leadsLimit, leadsTotal),
     });
