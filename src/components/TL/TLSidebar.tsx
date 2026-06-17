@@ -7,10 +7,12 @@ import Image from "next/image";
 import {
   BarChartOutlined,
   DashboardOutlined,
+  DollarOutlined,
   FileSearchOutlined,
   FundProjectionScreenOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
+import { useAuth } from "@/context/AuthContext";
 
 const { Sider } = Layout;
 
@@ -22,11 +24,25 @@ const tlMenuItems = [
   { key: "/tl/team-performance", icon: <BarChartOutlined />, label: "Performance", href: "/tl/team-performance" },
 ];
 
+const omMenuItems = [
+  {
+    key: "/tl/revenue-report",
+    icon: <DollarOutlined />,
+    label: "Revenue",
+    href: "/tl/revenue-report",
+  },
+];
+
 export default function TLSidebar() {
   const pathname = usePathname();
+  const { hasRole } = useAuth();
+  const isOm = hasRole("operations_manager");
+  const menuItems = isOm ? [...tlMenuItems, ...omMenuItems] : tlMenuItems;
 
   const selectedKey =
-    pathname?.startsWith("/tl/team-performance")
+    pathname?.startsWith("/tl/revenue-report")
+      ? "/tl/revenue-report"
+      : pathname?.startsWith("/tl/team-performance")
       ? "/tl/team-performance"
       : pathname?.startsWith("/tl/campaigns")
       ? "/tl/campaigns"
@@ -83,7 +99,7 @@ export default function TLSidebar() {
           gap: 20,
         }}
       >
-        {tlMenuItems.map((item) => {
+        {menuItems.map((item) => {
           const active = selectedKey === item.key;
           return (
             <Tooltip key={item.key} title={item.label} placement="right">
