@@ -305,7 +305,7 @@ export default function QACampaignsPage() {
     draft: "default",
     active: "green",
     paused: "orange",
-    completed: "blue",
+    completed: "success",
   };
 
   return (
@@ -425,7 +425,7 @@ export default function QACampaignsPage() {
             title="Campaign Count"
             value={(s?.campaign_count ?? 0).toLocaleString()}
             sub="With uploads in range"
-            color="#1677ff"
+            color="#4f46e5"
           />
         </Col>
         <Col xs={24} sm={12} md={6}>
@@ -449,7 +449,7 @@ export default function QACampaignsPage() {
             title="Pending Audit"
             value={(s?.pending_audit ?? 0).toLocaleString()}
             sub="Awaiting QA review"
-            color="#fa8c16"
+            color="#f59e0b"
           />
         </Col>
       </Row>
@@ -636,7 +636,7 @@ export default function QACampaignsPage() {
                 sorter: (a: Campaign, b: Campaign) =>
                   (a.leads_pending_audit ?? 0) - (b.leads_pending_audit ?? 0),
                 render: (_: unknown, rec: Campaign) => (
-                  <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#fa8c16" }}>
+                  <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#f59e0b" }}>
                     {(rec.leads_pending_audit ?? 0).toLocaleString()}
                   </Typography.Text>
                 ),

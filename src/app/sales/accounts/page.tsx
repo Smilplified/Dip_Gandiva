@@ -370,7 +370,7 @@ export default function SalesAccountsPage() {
       ellipsis: true,
       render: (v: string | null, record: AccountRow) =>
         v ? (
-          <Link href={`/sales/accounts/${record.id}`} style={{ fontWeight: 600, color: "#1677ff" }}>
+          <Link href={`/sales/accounts/${record.id}`} style={{ fontWeight: 600, color: "#4f46e5" }}>
             {v}
           </Link>
         ) : (
@@ -517,7 +517,7 @@ export default function SalesAccountsPage() {
             <Input
               allowClear
               placeholder="Search by company, industry, website, phone or address..."
-              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+              prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -573,8 +573,8 @@ export default function SalesAccountsPage() {
 
       <style>{`
         .sales-account-row-highlight td {
-          background: #e6f4ff !important;
-          box-shadow: inset 3px 0 0 0 #1677ff;
+          background: #eef2ff !important;
+          box-shadow: inset 3px 0 0 0 #4f46e5;
         }
       `}</style>
 

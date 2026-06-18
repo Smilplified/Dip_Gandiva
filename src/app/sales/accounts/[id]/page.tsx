@@ -104,10 +104,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
   note: { label: "Note", color: "#7c3aed" },
-  call: { label: "Call", color: "#2563eb" },
+  call: { label: "Call", color: "#4f46e5" },
   email: { label: "Email", color: "#0891b2" },
   meeting: { label: "Meeting", color: "#7c3aed" },
-  demo: { label: "Demo", color: "#d97706" },
+  demo: { label: "Demo", color: "#f59e0b" },
   task: { label: "Task", color: "#4f46e5" },
   lifecycle_change: { label: "Update", color: "#0d9488" },
   system: { label: "System", color: "#64748b" },
@@ -606,7 +606,7 @@ export default function AccountDetailPage() {
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                        <Link href={`/sales/leads/${l.id}`} style={{ fontWeight: 600, color: "#1677ff", fontSize: 14 }}>
+                        <Link href={`/sales/leads/${l.id}`} style={{ fontWeight: 600, color: "#4f46e5", fontSize: 14 }}>
                           {l.lead_name}
                         </Link>
                         <Tag color={STATUS_COLORS[l.status] ?? "default"} style={{ margin: 0, fontSize: 11 }}>
@@ -666,7 +666,7 @@ export default function AccountDetailPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {deals.map((d) => (
                     <div key={d.id} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #eaf0f6", background: "#fafcfe" }}>
-                      <Link href="/sales/deals" style={{ fontWeight: 600, color: "#1677ff", fontSize: 14 }}>
+                      <Link href="/sales/deals" style={{ fontWeight: 600, color: "#4f46e5", fontSize: 14 }}>
                         {d.deal_name || "Deal"}
                       </Link>
                       {d.value != null && (

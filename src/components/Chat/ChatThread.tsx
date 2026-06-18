@@ -119,7 +119,7 @@ export default function ChatThread({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[14px] font-semibold text-[#101828]">{thread.companyName}</span>
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-[#1677ff] px-2 py-0.5 text-[11px] font-medium text-white">
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-[#4f46e5] px-2 py-0.5 text-[11px] font-medium text-white">
                 <IconBrandWhatsapp size={13} stroke={1.5} aria-hidden />
                 WhatsApp
               </span>
@@ -135,7 +135,7 @@ export default function ChatThread({
           className={[
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
             clientInfoOpen
-              ? "border-[#1d9e75] bg-emerald-50 text-[#1d9e75]"
+              ? "border-[#16a34a] bg-emerald-50 text-[#16a34a]"
               : "border-[#e4e7ec] bg-white text-[#475467] hover:bg-[#f7f8fa]",
           ].join(" ")}
         >
@@ -180,7 +180,7 @@ export default function ChatThread({
                 key={c.label}
                 type="button"
                 onClick={() => onDraftChange(c.text)}
-                className="rounded-full border border-[#e4e7ec] bg-[#f7f8fa] px-3 py-1.5 text-[12px] font-medium text-[#344054] hover:border-[#1d9e75] hover:text-[#1d9e75]"
+                className="rounded-full border border-[#e4e7ec] bg-[#f7f8fa] px-3 py-1.5 text-[12px] font-medium text-[#344054] hover:border-[#16a34a] hover:text-[#16a34a]"
               >
                 {c.emoji} {c.label}
               </button>
@@ -198,7 +198,7 @@ export default function ChatThread({
                 }
               }}
               placeholder="Message this client…"
-              className="min-h-[44px] flex-1 resize-none rounded-[20px] border-0 bg-[#f7f8fa] px-4 py-2.5 text-[14px] text-[#101828] outline-none ring-1 ring-transparent placeholder:text-[#98a2b3] focus:ring-[#1d9e75]"
+              className="min-h-[44px] flex-1 resize-none rounded-[20px] border-0 bg-[#f7f8fa] px-4 py-2.5 text-[14px] text-[#101828] outline-none ring-1 ring-transparent placeholder:text-[#98a2b3] focus:ring-[#16a34a]"
             />
             <button
               type="button"
@@ -210,7 +210,7 @@ export default function ChatThread({
             <button
               type="button"
               onClick={onSend}
-              className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full border-0 bg-[var(--green,#1d9e75)] text-white shadow-sm hover:opacity-95"
+              className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full border-0 bg-[var(--green,#16a34a)] text-white shadow-sm hover:opacity-95"
               aria-label="Send"
             >
               <IconSend size={18} stroke={1.5} />

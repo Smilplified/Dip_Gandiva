@@ -104,13 +104,13 @@ const cardStyle = {
 } as const;
 
 const kpiCards = [
-  { key: "total_revenue", label: "Total Revenue", icon: <DollarOutlined />, color: "#1677ff", format: "currency" },
+  { key: "total_revenue", label: "Total Revenue", icon: <DollarOutlined />, color: "#4f46e5", format: "currency" },
   { key: "total_booked", label: "Total Booked", icon: <CheckCircleOutlined />, color: "#52c41a", format: "currency" },
-  { key: "total_pending_revenue", label: "Pending Revenue", icon: <ClockCircleOutlined />, color: "#faad14", format: "currency" },
+  { key: "total_pending_revenue", label: "Pending Revenue", icon: <ClockCircleOutlined />, color: "#f59e0b", format: "currency" },
   { key: "total_allocation", label: "Total Allocation", icon: <FundProjectionScreenOutlined />, color: "#722ed1", format: "number" },
   { key: "total_achieved", label: "Total Achieved", icon: <RiseOutlined />, color: "#13c2c2", format: "number" },
-  { key: "total_post_qa", label: "Total Post QA", icon: <TeamOutlined />, color: "#2f54eb", format: "number" },
-  { key: "total_leads_rejected", label: "Leads Rejected", icon: <CloseCircleOutlined />, color: "#ff4d4f", format: "number" },
+  { key: "total_post_qa", label: "Total Post QA", icon: <TeamOutlined />, color: "#4f46e5", format: "number" },
+  { key: "total_leads_rejected", label: "Leads Rejected", icon: <CloseCircleOutlined />, color: "#ef4444", format: "number" },
   { key: "avg_cpl", label: "Avg CPL", icon: <BarChartOutlined />, color: "#eb2f96", format: "currency" },
 ] as const;
 
@@ -134,7 +134,7 @@ function formatKpiValue(
 
 const STATUS_COLORS: Record<string, string> = {
   active: "green",
-  completed: "blue",
+  completed: "success",
   paused: "orange",
   draft: "default",
 };
@@ -168,7 +168,7 @@ function CampaignRevenueTooltip({
       <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4, lineHeight: 1.4 }}>
         {row.name}
       </div>
-      <div style={{ fontSize: 13, color: "#1677ff", fontWeight: 600 }}>
+      <div style={{ fontSize: 13, color: "#4f46e5", fontWeight: 600 }}>
         {formatCurrency(row.revenue)}
       </div>
     </div>
@@ -186,7 +186,6 @@ export default function RevenueReportDashboard() {
   const [leadTypeFilter, setLeadTypeFilter] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<string | null>(null);
   const [campaignTypeFilter, setCampaignTypeFilter] = useState<string | null>(null);
-  const [campaignNameFilter, setCampaignNameFilter] = useState("");
   const [clientNameFilter, setClientNameFilter] = useState<string | null>(null);
   const [teamLeaderFilter, setTeamLeaderFilter] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
@@ -213,7 +212,6 @@ export default function RevenueReportDashboard() {
     leadTypeFilter,
     channelFilter,
     campaignTypeFilter,
-    campaignNameFilter,
     clientNameFilter,
     teamLeaderFilter,
     agentFilter,
@@ -230,7 +228,6 @@ export default function RevenueReportDashboard() {
       lead_type: leadTypeFilter || undefined,
       channel: channelFilter || undefined,
       campaign_type: campaignTypeFilter || undefined,
-      campaign_name: campaignNameFilter.trim() || undefined,
       client_name: clientNameFilter || undefined,
       team_leader_id: teamLeaderFilter || undefined,
       agent_id: agentFilter || undefined,
@@ -248,7 +245,6 @@ export default function RevenueReportDashboard() {
       leadTypeFilter,
       channelFilter,
       campaignTypeFilter,
-      campaignNameFilter,
       clientNameFilter,
       teamLeaderFilter,
       agentFilter,
@@ -511,7 +507,7 @@ export default function RevenueReportDashboard() {
           <Col xs={24} sm={12} md={8} lg={6}>
             <Input
               allowClear
-              placeholder="Search campaigns..."
+              placeholder="Search campaigns (name, client, code, industry…)"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />
@@ -554,14 +550,6 @@ export default function RevenueReportDashboard() {
               value={campaignTypeFilter}
               onChange={setCampaignTypeFilter}
               options={(filterOptions?.campaign_types ?? []).map((s) => ({ value: s, label: s }))}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Input
-              allowClear
-              placeholder="Campaign Name"
-              value={campaignNameFilter}
-              onChange={(e) => setCampaignNameFilter(e.target.value)}
             />
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
@@ -607,11 +595,12 @@ export default function RevenueReportDashboard() {
           </Col>
           <Col xs={24} sm={12} md={8} lg={6}>
             <RangePicker
+              allowClear
               style={{ width: "100%" }}
               value={dateRange}
               onChange={(vals) => setDateRange(vals)}
               presets={[
-                { label: "This Month", value: [dayjs().startOf("month"), dayjs().endOf("month")] },
+                { label: "This Month", value: currentMonthRange() },
                 { label: "Last 3 Months", value: [dayjs().subtract(3, "month"), dayjs()] },
               ]}
             />
@@ -669,8 +658,8 @@ export default function RevenueReportDashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                 <XAxis dataKey="name" hide />
                 <YAxis tick={{ fontSize: 11 }} width={52} />
-                <RechartsTooltip content={<CampaignRevenueTooltip />} cursor={{ fill: "rgba(22,119,255,0.06)" }} />
-                <Bar dataKey="revenue" fill="#1677ff" radius={[4, 4, 0, 0]} />
+                <RechartsTooltip content={<CampaignRevenueTooltip />} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+                <Bar dataKey="revenue" fill="#4f46e5" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -726,7 +715,7 @@ export default function RevenueReportDashboard() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <RechartsTooltip formatter={(v: number) => formatCurrency(v)} />
                 <Legend />
-                <Line type="monotone" dataKey="revenue" stroke="#1677ff" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="revenue" stroke="#4f46e5" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </Card>

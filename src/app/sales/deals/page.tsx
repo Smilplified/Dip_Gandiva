@@ -89,17 +89,17 @@ const STAGES = [
   { value: "strategy_proposal",     label: "Strategy proposal",     color: "#7c3aed", probability: 50  },
   { value: "strategy_presentation", label: "Strategy presentation", color: "#db2777", probability: 65  },
   { value: "objection_handling",    label: "Objection handling",    color: "#ea580c", probability: 75  },
-  { value: "finalizing_terms",      label: "Finalizing terms",      color: "#ca8a04", probability: 90  },
+  { value: "finalizing_terms",      label: "Finalizing terms",      color: "#f59e0b", probability: 90  },
   { value: "closed_won",            label: "Closed won",            color: "#16a34a", probability: 100 },
-  { value: "closed_lost",           label: "Closed lost",           color: "#dc2626", probability: 0   },
+  { value: "closed_lost",           label: "Closed lost",           color: "#ef4444", probability: 0   },
 ] as const;
 
 const PIPELINES   = ["Client Acquisition pipeline", "Renewal pipeline", "Upsell pipeline"];
 const DEAL_TYPES  = ["New business", "Existing business", "Partner deal", "Renewal"];
 const PRIORITIES  = [
   { value: "low",    label: "Low",    color: "#6b7280" },
-  { value: "medium", label: "Medium", color: "#ca8a04" },
-  { value: "high",   label: "High",   color: "#dc2626" },
+  { value: "medium", label: "Medium", color: "#f59e0b" },
+  { value: "high",   label: "High",   color: "#ef4444" },
 ];
 
 const stageColor = (v: string) => STAGES.find((s) => s.value === v)?.color ?? "#6b7280";
@@ -836,7 +836,7 @@ export default function SalesDealsPage() {
       <Card style={{ borderRadius: 16, boxShadow: "0 2px 8px rgba(15,23,42,0.06)", marginBottom: 16 }}>
         <Row gutter={[12, 12]}>
           <Col xs={24} md={12}>
-            <Input allowClear placeholder="Search deals, accounts, contacts, owners..." prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />} value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input allowClear placeholder="Search deals, accounts, contacts, owners..." prefix={<SearchOutlined style={{ color: "#9ca3af" }} />} value={search} onChange={(e) => setSearch(e.target.value)} />
           </Col>
           <Col xs={24} md={12}>
             <Select allowClear placeholder="Filter by stage" style={{ width: "100%" }} value={stageFilter} onChange={setStageFilter} options={STAGES.map((s) => ({ value: s.value, label: s.label }))} />

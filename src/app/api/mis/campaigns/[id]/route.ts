@@ -5,6 +5,7 @@ import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
   enrichCampaignAllocationFields,
+  MIS_DELIVERED_ACHIEVED_OPTIONS,
 } from "@/lib/campaign-allocation";
 import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 import {
@@ -122,9 +123,11 @@ export async function GET(
 
     const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]);
     const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
-    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, metrics, {
-      achievedFallback: "qualified",
-    });
+    const campaignWithAllocation = enrichCampaignAllocationFields(
+      campaignWithTlName,
+      metrics,
+      MIS_DELIVERED_ACHIEVED_OPTIONS
+    );
 
     return NextResponse.json({
       campaign: campaignWithAllocation,

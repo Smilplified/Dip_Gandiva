@@ -70,7 +70,7 @@ const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
   draft: "default",
   active: "green",
   paused: "orange",
-  completed: "blue",
+  completed: "success",
 };
 
 export default function TLCampaignsPage() {
@@ -247,7 +247,7 @@ export default function TLCampaignsPage() {
         sorter: (a, b) => (a.delivered_leads ?? 0) - (b.delivered_leads ?? 0),
         render: (v: number) => (
           <Typography.Text
-            style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#1677ff" : undefined }}
+            style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#4f46e5" : undefined }}
           >
             {(v ?? 0).toLocaleString()}
           </Typography.Text>
@@ -468,8 +468,8 @@ export default function TLCampaignsPage() {
         title: "Total Campaigns",
         value: campaignSummary.totalCampaigns,
         icon: <FundProjectionScreenOutlined />,
-        color: "#1890ff",
-        bgColor: "#e6f4ff",
+        color: "#4f46e5",
+        bgColor: "#eef2ff",
       },
       {
         title: "Total Leads",
@@ -489,8 +489,8 @@ export default function TLCampaignsPage() {
         title: "Total Delivered",
         value: campaignSummary.deliveredLeads,
         icon: <SendOutlined />,
-        color: "#1677ff",
-        bgColor: "#e6f4ff",
+        color: "#4f46e5",
+        bgColor: "#eef2ff",
       },
     ],
     [campaignSummary]
@@ -599,7 +599,7 @@ export default function TLCampaignsPage() {
             <Col xs={24} md={14} lg={12}>
               <Input
                 placeholder="Search campaigns..."
-                prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 allowClear

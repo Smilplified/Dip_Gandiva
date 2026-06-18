@@ -79,7 +79,7 @@ const cardStyle = {
 
 const statusColors: Record<string, string> = {
   active: "green",
-  completed: "blue",
+  completed: "success",
   paused: "orange",
 };
 
@@ -88,8 +88,8 @@ const statCardItems = [
     key: "totalCampaigns",
     title: "Total Campaigns",
     icon: <FundProjectionScreenOutlined />,
-    color: "#1890ff",
-    bg: "#e6f4ff",
+    color: "#4f46e5",
+    bg: "#eef2ff",
     trendKey: "campaigns",
   },
   {
@@ -111,7 +111,7 @@ const statCardItems = [
 ];
 
 const sparklineColors: Record<string, string> = {
-  campaigns: "#1890ff",
+  campaigns: "#4f46e5",
   leads: "#722ed1",
   qualifiedLeads: "#52c41a",
 };
@@ -213,8 +213,8 @@ export default function DCDashboardPage() {
   const statusData = stats
     ? [
       { name: "Active", value: campaignStatus.active, color: "#52c41a" },
-      { name: "Completed", value: campaignStatus.completed, color: "#1890ff" },
-      { name: "Paused", value: campaignStatus.paused, color: "#fa8c16" },
+      { name: "Completed", value: campaignStatus.completed, color: "#4f46e5" },
+      { name: "Paused", value: campaignStatus.paused, color: "#f59e0b" },
     ].filter((item) => item.value > 0)
     : [];
 
@@ -373,7 +373,7 @@ export default function DCDashboardPage() {
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
-                    data={statusData.length > 0 ? statusData : [{ name: "No Campaigns", value: 1, color: "#d9d9d9" }]}
+                    data={statusData.length > 0 ? statusData : [{ name: "No Campaigns", value: 1, color: "#d1d5db" }]}
                     dataKey="value"
                     cx="50%"
                     cy="50%"
@@ -382,7 +382,7 @@ export default function DCDashboardPage() {
                     paddingAngle={3}
                     cornerRadius={2}
                   >
-                    {(statusData.length > 0 ? statusData : [{ name: "No Campaigns", value: 1, color: "#d9d9d9" }]).map((entry, index) => (
+                    {(statusData.length > 0 ? statusData : [{ name: "No Campaigns", value: 1, color: "#d1d5db" }]).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -406,8 +406,8 @@ export default function DCDashboardPage() {
             <div style={{ display: "flex", gap: 12, justifyContent: "space-between", marginTop: 20, alignItems: "stretch" }}>
               {[
                 { label: "Active", count: campaignStatus.active, color: "#52c41a" },
-                { label: "Completed", count: campaignStatus.completed, color: "#1890ff" },
-                { label: "Paused", count: campaignStatus.paused, color: "#fa8c16" },
+                { label: "Completed", count: campaignStatus.completed, color: "#4f46e5" },
+                { label: "Paused", count: campaignStatus.paused, color: "#f59e0b" },
               ].map((item) => {
                 const percent = statusTotal > 0 ? Math.round((item.count / statusTotal) * 100) : 0;
                 return (

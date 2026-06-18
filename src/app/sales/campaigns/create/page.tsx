@@ -298,7 +298,7 @@ export default function SalesCreateCampaignPage() {
             </Col>
             <Col xs={24} sm={12} md={8} lg={6}>
               <Form.Item label="Revenue / Booked (auto)">
-                <div style={{ padding: "4px 11px", minHeight: 32, lineHeight: "22px", background: "#fafafa", borderRadius: 6, border: "1px solid #d9d9d9", color: calculatedRevenue != null ? "inherit" : "#999" }}>
+                <div style={{ padding: "4px 11px", minHeight: 32, lineHeight: "22px", background: "#fafafa", borderRadius: 6, border: "1px solid #d1d5db", color: calculatedRevenue != null ? "inherit" : "#999" }}>
                   {calculatedRevenue != null ? `$${Number(calculatedRevenue).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                 </div>
                 <div style={{ fontSize: 12, color: "#999", marginTop: 4 }}>CPL × Total Allocation</div>
@@ -430,7 +430,7 @@ export default function SalesCreateCampaignPage() {
                   maxCount={20}
                 >
                   <p className="ant-upload-drag-icon">
-                    <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
+                    <InboxOutlined style={{ fontSize: 48, color: "#4f46e5" }} />
                   </p>
                   <p className="ant-upload-text">Click or drag files to upload</p>
                   <p className="ant-upload-hint">

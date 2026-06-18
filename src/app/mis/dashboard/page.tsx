@@ -179,8 +179,8 @@ export default function MISDashboardPage() {
         value: (s?.totalCampaigns ?? 0).toLocaleString(),
         change: "All active & closed",
         icon: <FundProjectionScreenOutlined />,
-        color: "#1890ff",
-        bgColor: "#e6f4ff",
+        color: "#4f46e5",
+        bgColor: "#eef2ff",
       },
       {
         title: "Total Leads Uploaded",
@@ -203,7 +203,7 @@ export default function MISDashboardPage() {
         value: (s?.pendingLeads ?? 0).toLocaleString(),
         change: "Awaiting QA qualification",
         icon: <ClockCircleOutlined />,
-        color: "#faad14",
+        color: "#f59e0b",
         bgColor: "#fffbe6",
       },
     ];
@@ -228,7 +228,7 @@ export default function MISDashboardPage() {
         title: "QA Rejected Leads",
         value: (s?.qaRejectedLeads ?? 0).toLocaleString(),
         subtitle: "Failed QA",
-        color: "#ff4d4f",
+        color: "#ef4444",
       },
       {
         title: "Call Back Leads",
@@ -242,9 +242,9 @@ export default function MISDashboardPage() {
   const leadStatusPieData = useMemo(() => {
     const slices = data?.leadStatus ?? [];
     if (!slices.length) {
-      return [{ name: "No data", value: 1, color: "#d9d9d9" }];
+      return [{ name: "No data", value: 1, color: "#d1d5db" }];
     }
-    const palette = ["#1890ff", "#52c41a", "#faad14", "#722ed1", "#13c2c2", "#ff4d4f", "#8c8c8c"];
+    const palette = ["#4f46e5", "#52c41a", "#f59e0b", "#722ed1", "#13c2c2", "#ef4444", "#6b7280"];
     return slices.map((s, idx) => ({
       name: s.status || "Unknown",
       value: s.count,
@@ -369,7 +369,7 @@ export default function MISDashboardPage() {
                         <Text
                           style={{
                             fontSize: 12,
-                            color: "#8c8c8c",
+                            color: "#6b7280",
                             fontWeight: 500,
                           }}
                         >
@@ -463,13 +463,13 @@ export default function MISDashboardPage() {
                     />
                     <XAxis
                       dataKey="name"
-                      stroke="#8c8c8c"
+                      stroke="#6b7280"
                       fontSize={11}
                       tickFormatter={(v) =>
                         v && v.length > 14 ? `${String(v).slice(0, 14)}…` : v
                       }
                     />
-                    <YAxis stroke="#8c8c8c" fontSize={11} />
+                    <YAxis stroke="#6b7280" fontSize={11} />
                     <RechartsTooltip
                       contentStyle={{
                         borderRadius: 8,
@@ -480,7 +480,7 @@ export default function MISDashboardPage() {
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                     <Bar
                       dataKey="totalLeads"
-                      fill="#1890ff"
+                      fill="#4f46e5"
                       radius={[8, 8, 0, 0]}
                       name="Total Leads"
                     />
@@ -539,7 +539,7 @@ export default function MISDashboardPage() {
                           }
                           return `${name} ${pct}%`;
                         }}
-                        labelLine={{ stroke: "#d9d9d9", strokeWidth: 1 }}
+                        labelLine={{ stroke: "#d1d5db", strokeWidth: 1 }}
                       >
                         {leadStatusPieData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
@@ -579,13 +579,13 @@ export default function MISDashboardPage() {
                   >
                     <defs>
                       <linearGradient id="colorUploads" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#1890ff" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" stroke="#8c8c8c" fontSize={11} />
-                    <YAxis stroke="#8c8c8c" fontSize={11} />
+                    <XAxis dataKey="date" stroke="#6b7280" fontSize={11} />
+                    <YAxis stroke="#6b7280" fontSize={11} />
                     <RechartsTooltip
                       contentStyle={{
                         borderRadius: 8,
@@ -596,7 +596,7 @@ export default function MISDashboardPage() {
                     <Area
                       type="monotone"
                       dataKey="count"
-                      stroke="#1890ff"
+                      stroke="#4f46e5"
                       strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#colorUploads)"

@@ -40,6 +40,7 @@ import {
   useSyncListPaginationTotal,
 } from "@/hooks/useServerTablePagination";
 import { tableSerialNumber } from "@/lib/table-pagination";
+import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
 
 type CampaignRow = {
   id: string;
@@ -286,7 +287,7 @@ export default function SalesCampaignsPage() {
           draft: "default",
           active: "green",
           paused: "orange",
-          completed: "blue",
+          completed: "success",
         };
         const label = val ? val.charAt(0).toUpperCase() + val.slice(1).toLowerCase() : val;
         return (
@@ -321,10 +322,9 @@ export default function SalesCampaignsPage() {
     },
     {
       title: "Revenue",
-      dataIndex: "revenue",
       key: "revenue",
       width: 100,
-      render: (v: number | null) => (v != null ? `$${Number(v).toLocaleString()}` : "—"),
+      render: (_: unknown, row: CampaignRow) => formatEarnedRevenue(row.cpl, row.achieved),
     },
     {
       title: "Created",
@@ -457,7 +457,7 @@ export default function SalesCampaignsPage() {
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                 <Input
                   placeholder="Search campaigns..."
-                  prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                  prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   allowClear

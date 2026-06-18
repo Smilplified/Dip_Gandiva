@@ -55,7 +55,7 @@ const statusColors: Record<string, string> = {
   draft: "default",
   active: "green",
   paused: "orange",
-  completed: "blue",
+  completed: "success",
 };
 
 function ChartsRowSkeleton() {
@@ -117,8 +117,8 @@ export default function AgentDashboardPage() {
         value: s.totalCampaigns.toLocaleString(),
         change: `${s.activeCampaigns} active`,
         icon: <FundProjectionScreenOutlined />,
-        color: "#1677ff",
-        bgColor: "#e6f4ff",
+        color: "#4f46e5",
+        bgColor: "#eef2ff",
       },
       {
         title: "My Leads",
@@ -141,7 +141,7 @@ export default function AgentDashboardPage() {
         value: s.disqualifiedLeads.toLocaleString(),
         change: "Audited, not qualified",
         icon: <RiseOutlined />,
-        color: "#ff4d4f",
+        color: "#ef4444",
         bgColor: "#fff1f0",
       },
     ];
@@ -231,7 +231,7 @@ export default function AgentDashboardPage() {
                     >
                       {stat.value}
                     </div>
-                    <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
+                    <Text style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>{stat.change}</Text>
                   </div>
                   <div
                     style={{
@@ -286,7 +286,7 @@ export default function AgentDashboardPage() {
             <Card
               title={
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <ClockCircleOutlined style={{ color: "#1677ff" }} />
+                  <ClockCircleOutlined style={{ color: "#4f46e5" }} />
                   <Text strong style={{ fontSize: 16 }}>
                     My Assigned Campaigns
                   </Text>
@@ -298,7 +298,7 @@ export default function AgentDashboardPage() {
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
                   <Input
                     placeholder="Search campaigns..."
-                    prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                    prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
                     allowClear

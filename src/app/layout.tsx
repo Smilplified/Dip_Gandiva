@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { ConfigProvider } from "antd";
 import { AuthProvider } from "@/context/AuthContext";
+import { antdThemeColors } from "@/design-tokens";
 import { Providers } from "./providers";
 import "./globals.css";
 
 const theme = {
   token: {
-    colorPrimary: "#1677ff",
+    colorPrimary: antdThemeColors.colorPrimary,
+    colorSuccess: antdThemeColors.colorSuccess,
+    colorWarning: antdThemeColors.colorWarning,
+    colorError: antdThemeColors.colorError,
     borderRadius: 8,
     fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     fontSize: 14,

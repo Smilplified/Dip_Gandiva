@@ -254,7 +254,7 @@ export default function CampaignForm({
       size="middle"
       style={{ maxWidth: 800 }}
     >
-      <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
+      <Divider orientation="left" style={{ fontSize: 13, color: "#6b7280" }}>
         Campaign Identity
       </Divider>
 
@@ -331,7 +331,7 @@ export default function CampaignForm({
         <Input.TextArea rows={2} placeholder="Campaign objective / brief" />
       </Form.Item>
 
-      <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
+      <Divider orientation="left" style={{ fontSize: 13, color: "#6b7280" }}>
         Timeline &amp; Budget
       </Divider>
 
@@ -390,7 +390,7 @@ export default function CampaignForm({
         )}
       </Row>
 
-      <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
+      <Divider orientation="left" style={{ fontSize: 13, color: "#6b7280" }}>
         Metrics Targets
       </Divider>
 
@@ -453,7 +453,7 @@ export default function CampaignForm({
         )}
       </Row>
 
-      <Divider orientation="left" style={{ fontSize: 13, color: "#8c8c8c" }}>
+      <Divider orientation="left" style={{ fontSize: 13, color: "#6b7280" }}>
         {DEMAND_QUALIFICATION_INSIGHTS_LABEL}
       </Divider>
       <CampaignQuestionsEditor />

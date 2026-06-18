@@ -146,8 +146,8 @@ export default function QADashboardPage() {
         value: metrics.totalCampaigns.toLocaleString(),
         change: `${metrics.activeCampaigns} active`,
         icon: <FundProjectionScreenOutlined />,
-        color: "#1677ff",
-        bgColor: "#e6f4ff",
+        color: "#4f46e5",
+        bgColor: "#eef2ff",
       },
       {
         title: "Total Leads",
@@ -217,7 +217,7 @@ export default function QADashboardPage() {
                     <div style={{ fontSize: 32, fontWeight: 700, color: "#1f1f1f", lineHeight: 1, marginBottom: 12 }}>
                       {stat.value}
                     </div>
-                    <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
+                    <Text style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>{stat.change}</Text>
                   </div>
                   <div
                     style={{

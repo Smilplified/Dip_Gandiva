@@ -60,9 +60,9 @@ export default function ActivityFeed() {
               icon={a.icon}
               style={{
                 backgroundColor:
-                  a.color === "blue" ? "#1677ff" :
+                  a.color === "blue" ? "#4f46e5" :
                   a.color === "green" ? "#52c41a" :
-                  a.color === "cyan" ? "#13c2c2" : "#fa8c16",
+                  a.color === "cyan" ? "#13c2c2" : "#f59e0b",
               }}
             />
           ),

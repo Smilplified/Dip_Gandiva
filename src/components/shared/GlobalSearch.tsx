@@ -42,7 +42,7 @@ const ALL_CATEGORIES: {
   icon: React.ReactNode;
   color: string;
 }[] = [
-  { key: "all",       label: "All",       icon: <SearchOutlined />,      color: "#1677ff" },
+  { key: "all",       label: "All",       icon: <SearchOutlined />,      color: "#4f46e5" },
   { key: "campaigns", label: "Campaigns", icon: <RocketOutlined />,       color: "#7c3aed" },
   { key: "leads",     label: "Leads",     icon: <FunnelPlotOutlined />,   color: "#ea580c" },
   { key: "users",     label: "Users",     icon: <TeamOutlined />,         color: "#0891b2" },
@@ -347,14 +347,14 @@ export default function GlobalSearch() {
             height: 38,
             padding: "0 12px",
             background: open ? "#fff" : "#f4f6f8",
-            border: `1.5px solid ${open ? "#1677ff" : "#e5e7eb"}`,
+            border: `1.5px solid ${open ? "#4f46e5" : "#e5e7eb"}`,
             borderRadius: 10,
-            boxShadow: open ? "0 0 0 3px rgba(22,119,255,0.08)" : "none",
+            boxShadow: open ? "0 0 0 3px rgba(79,70,229,0.08)" : "none",
             transition: "all 0.18s ease",
           }}
         >
           <SearchOutlined
-            style={{ fontSize: 14, color: open ? "#1677ff" : "#9ca3af", flexShrink: 0 }}
+            style={{ fontSize: 14, color: open ? "#4f46e5" : "#9ca3af", flexShrink: 0 }}
           />
           <input
             ref={inputRef}

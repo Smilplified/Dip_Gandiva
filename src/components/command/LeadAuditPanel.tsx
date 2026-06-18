@@ -175,7 +175,7 @@ export default function LeadAuditPanel({
         placement="right"
         title={
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <SafetyOutlined style={{ color: "#1890ff" }} />
+            <SafetyOutlined style={{ color: "#4f46e5" }} />
             <span style={{ fontWeight: 700 }}>Lead Audit Panel</span>
             {lead && (
               <Tag color={CONSENT_COLORS[lead.consent_status ?? "pending"] ?? "default"}>
@@ -307,12 +307,12 @@ export default function LeadAuditPanel({
                         {h.change_type.replace(/_/g, " ")}
                       </div>
                       {h.old_value && h.new_value && (
-                        <div style={{ fontSize: 12, color: "#595959", marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: "#4b5563", marginTop: 2 }}>
                           {JSON.stringify(h.old_value)} → {JSON.stringify(h.new_value)}
                         </div>
                       )}
                       {h.reason && (
-                        <div style={{ fontSize: 12, color: "#8c8c8c", marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
                           Reason: {h.reason}
                         </div>
                       )}

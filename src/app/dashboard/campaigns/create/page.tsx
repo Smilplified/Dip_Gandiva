@@ -22,7 +22,7 @@ export default function CreateCampaignPage() {
     return (
       <div style={{ display: "flex", justifyContent: "center", paddingTop: 60 }}>
         <Result
-          icon={<LockOutlined style={{ color: "#faad14" }} />}
+          icon={<LockOutlined style={{ color: "#f59e0b" }} />}
           title="Access Restricted"
           subTitle="You need client_viewer, internal_operator, internal_admin, or admin to create campaigns."
           extra={

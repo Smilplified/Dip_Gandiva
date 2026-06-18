@@ -54,9 +54,9 @@ export default function DCSidebar() {
                 <div
                   style={{
                     width: 44, height: 44, borderRadius: "999px", display: "flex", alignItems: "center",
-                    justifyContent: "center", background: active ? "#1677ff" : "#f3f4f6",
+                    justifyContent: "center", background: active ? "#4f46e5" : "#f3f4f6",
                     color: active ? "#ffffff" : "#4b5563",
-                    boxShadow: active ? "0 6px 14px rgba(22,119,255,0.28)" : "none", fontSize: 20,
+                    boxShadow: active ? "0 6px 14px rgba(79,70,229,0.28)" : "none", fontSize: 20,
                   }}
                 >
                   {item.icon}

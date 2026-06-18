@@ -243,7 +243,7 @@ export default function TeamLeaderLeadsPage() {
               alignItems: "center",
               gap: 6,
               fontSize: 14,
-              color: "#1677ff",
+              color: "#4f46e5",
               textDecoration: "none",
               marginBottom: 16,
             }}

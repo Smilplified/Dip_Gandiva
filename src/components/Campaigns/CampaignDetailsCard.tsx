@@ -17,7 +17,7 @@ const overviewRowStyle = {
   borderBottom: "1px solid #f0f0f0",
 } as const;
 
-const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+const overviewLabelStyle = { fontSize: 13, color: "#6b7280", fontWeight: 500 } as const;
 const overviewValueStyle = {
   fontSize: 14,
   whiteSpace: "pre-wrap" as const,

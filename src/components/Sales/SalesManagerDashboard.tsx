@@ -56,11 +56,11 @@ const repPerformanceData = [
 ];
 
 const pipelineStages = [
-  { stage: "New", count: 342, color: "#1890ff", max: 342 },
+  { stage: "New", count: 342, color: "#4f46e5", max: 342 },
   { stage: "Contacted", count: 248, color: "#40a9ff", max: 342 },
   { stage: "Qualified", count: 189, color: "#52c41a", max: 342 },
-  { stage: "Proposal", count: 124, color: "#faad14", max: 342 },
-  { stage: "Negotiation", count: 87, color: "#fa8c16", max: 342 },
+  { stage: "Proposal", count: 124, color: "#f59e0b", max: 342 },
+  { stage: "Negotiation", count: 87, color: "#f59e0b", max: 342 },
   { stage: "Closed Won", count: 56, color: "#389e0d", max: 342 },
 ];
 
@@ -91,8 +91,8 @@ export default function SalesManagerDashboard() {
         change: "+2 this month",
         trend: "up",
         icon: <TeamOutlined />,
-        color: "#1890ff",
-        bgColor: "#e6f4ff",
+        color: "#4f46e5",
+        bgColor: "#eef2ff",
       },
       {
         title: "Team Deals Closed",
@@ -118,7 +118,7 @@ export default function SalesManagerDashboard() {
         change: "+3.1% vs last month",
         trend: "up",
         icon: <RiseOutlined />,
-        color: "#faad14",
+        color: "#f59e0b",
         bgColor: "#fffbe6",
       },
     ],
@@ -131,7 +131,7 @@ export default function SalesManagerDashboard() {
       key: "name",
       render: (record: (typeof teamMembers)[number]) => (
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar style={{ backgroundColor: "#1890ff", flexShrink: 0 }}>{record.name[0]}</Avatar>
+          <Avatar style={{ backgroundColor: "#4f46e5", flexShrink: 0 }}>{record.name[0]}</Avatar>
           <Text strong style={{ fontSize: 14 }}>
             {record.name}
           </Text>
@@ -167,7 +167,7 @@ export default function SalesManagerDashboard() {
             percent={v}
             size="small"
             showInfo={false}
-            strokeColor={v >= 35 ? "#52c41a" : v >= 28 ? "#faad14" : "#ff4d4f"}
+            strokeColor={v >= 35 ? "#52c41a" : v >= 28 ? "#f59e0b" : "#ef4444"}
           />
         </div>
       ),
@@ -221,12 +221,12 @@ export default function SalesManagerDashboard() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     {stat.trend === "up" && <ArrowUpOutlined style={{ color: "#52c41a", fontSize: 12 }} />}
-                    {stat.trend === "down" && <ArrowDownOutlined style={{ color: "#ff4d4f", fontSize: 12 }} />}
+                    {stat.trend === "down" && <ArrowDownOutlined style={{ color: "#ef4444", fontSize: 12 }} />}
                     <Text
                       style={{
                         fontSize: 12,
                         color:
-                          stat.trend === "up" ? "#52c41a" : stat.trend === "down" ? "#ff4d4f" : "#8c8c8c",
+                          stat.trend === "up" ? "#52c41a" : stat.trend === "down" ? "#ef4444" : "#6b7280",
                         fontWeight: 500,
                       }}
                     >
@@ -267,14 +267,14 @@ export default function SalesManagerDashboard() {
               <AreaChart data={monthlyTeamData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                 <defs>
                   <linearGradient id="colorRevSM" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#1890ff" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" stroke="#8c8c8c" fontSize={11} />
+                <XAxis dataKey="month" stroke="#6b7280" fontSize={11} />
                 <YAxis
-                  stroke="#8c8c8c"
+                  stroke="#6b7280"
                   fontSize={11}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
                 />
@@ -286,7 +286,7 @@ export default function SalesManagerDashboard() {
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#1890ff"
+                  stroke="#4f46e5"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorRevSM)"
@@ -337,8 +337,8 @@ export default function SalesManagerDashboard() {
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={repPerformanceData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis dataKey="name" stroke="#8c8c8c" fontSize={11} />
-                <YAxis stroke="#8c8c8c" fontSize={11} />
+                <XAxis dataKey="name" stroke="#6b7280" fontSize={11} />
+                <YAxis stroke="#6b7280" fontSize={11} />
                 <RechartsTooltip
                   contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
                   formatter={(v: number, name: string) => [
@@ -347,7 +347,7 @@ export default function SalesManagerDashboard() {
                   ]}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="deals" fill="#1890ff" radius={[6, 6, 0, 0]} name="Deals" />
+                <Bar dataKey="deals" fill="#4f46e5" radius={[6, 6, 0, 0]} name="Deals" />
                 <Bar dataKey="revenue" fill="#52c41a" radius={[6, 6, 0, 0]} name="Revenue ($k)" />
               </BarChart>
             </ResponsiveContainer>
@@ -367,7 +367,7 @@ export default function SalesManagerDashboard() {
                   <Avatar
                     size={34}
                     style={{
-                      backgroundColor: activity.type === "success" ? "#52c41a" : "#1890ff",
+                      backgroundColor: activity.type === "success" ? "#52c41a" : "#4f46e5",
                       flexShrink: 0,
                       fontSize: 13,
                     }}

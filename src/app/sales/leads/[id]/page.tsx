@@ -136,10 +136,10 @@ const LIFECYCLE_LABELS: Record<string, string> = {
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
   note: { label: "Note", color: "#7c3aed" },
-  call: { label: "Call", color: "#2563eb" },
+  call: { label: "Call", color: "#4f46e5" },
   email: { label: "Email", color: "#0891b2" },
   meeting: { label: "Meeting", color: "#7c3aed" },
-  demo: { label: "Demo", color: "#d97706" },
+  demo: { label: "Demo", color: "#f59e0b" },
   task: { label: "Task", color: "#4f46e5" },
   lifecycle_change: { label: "Update", color: "#0d9488" },
   system: { label: "System", color: "#64748b" },
@@ -788,7 +788,7 @@ export default function LeadDetailPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: 600 }}>
-                      <Link href={`/sales/accounts/${lead.account_id}`} style={{ color: "#1677ff" }}>
+                      <Link href={`/sales/accounts/${lead.account_id}`} style={{ color: "#4f46e5" }}>
                         {(lead.company || lead.account_company_name || "Account").trim()}
                       </Link>
                     </div>
@@ -831,7 +831,7 @@ export default function LeadDetailPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {deals.map((d) => (
                     <div key={d.id} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid #eaf0f6", background: "#fafcfe" }}>
-                      <Link href="/sales/deals" style={{ fontWeight: 600, color: "#1677ff", fontSize: 14 }}>
+                      <Link href="/sales/deals" style={{ fontWeight: 600, color: "#4f46e5", fontSize: 14 }}>
                         {d.deal_name || "Deal"}
                       </Link>
                       {d.value != null && (
@@ -983,13 +983,13 @@ export default function LeadDetailPage() {
 
       {/* ── Quick-log: Call ── */}
       <Modal
-        title={<Space><PhoneOutlined style={{ color: "#2563eb" }} /><span>Log a call</span></Space>}
+        title={<Space><PhoneOutlined style={{ color: "#4f46e5" }} /><span>Log a call</span></Space>}
         open={logCallOpen}
         onCancel={() => setLogCallOpen(false)}
         onOk={() => void logActivity("call", () => setLogCallOpen(false))}
         confirmLoading={logSaving}
         okText="Log call"
-        okButtonProps={{ style: { background: "#2563eb", borderColor: "#2563eb" } }}
+        okButtonProps={{ style: { background: "#4f46e5", borderColor: "#4f46e5" } }}
         destroyOnClose
       >
         <Form form={logForm} layout="vertical">
@@ -1100,7 +1100,7 @@ function ActivityFeed({
   const ACTION_BTN_STYLES: Record<string, React.CSSProperties> = {
     all:     { background: accent,    borderColor: accent },
     notes:   { background: accent,    borderColor: accent },
-    call:    { background: "#2563eb", borderColor: "#2563eb" },
+    call:    { background: "#4f46e5", borderColor: "#4f46e5" },
     email:   { background: "#0891b2", borderColor: "#0891b2" },
     task:    { background: "#4f46e5", borderColor: "#4f46e5" },
     meeting: { background: "#7c3aed", borderColor: "#7c3aed" },

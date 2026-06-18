@@ -107,13 +107,13 @@ export default function DashboardHeader() {
             <Avatar
               size={36}
               icon={<UserOutlined />}
-              style={{ backgroundColor: "#1677ff", flexShrink: 0 }}
+              style={{ backgroundColor: "#4f46e5", flexShrink: 0 }}
             />
             <div style={{ textAlign: "left", lineHeight: 1.3 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>
                 {signingOut ? "Signing out..." : (profile?.full_name || user?.email || "User")}
               </div>
-              <div style={{ fontSize: 12, color: "#8c8c8c" }}>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
                 {signingOut ? "Signing out..." : roleLabel}
               </div>
             </div>

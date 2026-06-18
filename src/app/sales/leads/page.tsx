@@ -483,7 +483,7 @@ export default function SalesLeadsPage() {
       ellipsis: true,
       render: (v: string | null, record: LeadRow) =>
         v ? (
-          <Link href={`/sales/leads/${record.id}`} style={{ fontWeight: 600, color: "#1677ff" }}>
+          <Link href={`/sales/leads/${record.id}`} style={{ fontWeight: 600, color: "#4f46e5" }}>
             {v}
           </Link>
         ) : (
@@ -545,7 +545,7 @@ export default function SalesLeadsPage() {
               : LEAD_STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v}
           </Tag>
           {record.converted && record.converted_at && (
-            <span style={{ fontSize: 11, color: "#8c8c8c" }}>
+            <span style={{ fontSize: 11, color: "#6b7280" }}>
               {new Date(record.converted_at).toLocaleDateString()}
             </span>
           )}
@@ -600,7 +600,7 @@ export default function SalesLeadsPage() {
             <Input
               allowClear
               placeholder="Search by name, company, email, phone or source..."
-              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+              prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />

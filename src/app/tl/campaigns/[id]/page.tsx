@@ -580,7 +580,7 @@ export default function CampaignDetailPage() {
     draft: "default",
     active: "green",
     paused: "orange",
-    completed: "blue",
+    completed: "success",
   };
 
   const leadColumns = getLeadTableColumns({
@@ -600,7 +600,7 @@ export default function CampaignDetailPage() {
     borderBottom: "1px solid #f0f0f0",
     alignItems: "start",
   } as const;
-  const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+  const overviewLabelStyle = { fontSize: 13, color: "#6b7280", fontWeight: 500 } as const;
   const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
 
   const OverviewRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
@@ -628,7 +628,7 @@ export default function CampaignDetailPage() {
       <div style={{ marginBottom: 20 }}>
         <Link
           href="/tl/campaigns"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#4f46e5", textDecoration: "none", marginBottom: 16 }}
         >
           <ArrowLeftOutlined /> Back to Campaigns
         </Link>
@@ -705,7 +705,7 @@ export default function CampaignDetailPage() {
                     size="small"
                     overflowCount={99}
                     offset={[-6, 6]}
-                    style={{ backgroundColor: "#1677ff" }}
+                    style={{ backgroundColor: "#4f46e5" }}
                   >
                     <Button icon={<UserAddOutlined />} onClick={openAssignModal}>
                       {assignedAgentCount > 0 ? "Manage Agents" : "Assign Agents"}
@@ -743,7 +743,7 @@ export default function CampaignDetailPage() {
             )}
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
                   <div>
                     <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
@@ -771,7 +771,7 @@ export default function CampaignDetailPage() {
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                color: "#1677ff",
+                                color: "#4f46e5",
                               }}
                             >
                               {url}
@@ -840,8 +840,8 @@ export default function CampaignDetailPage() {
             bodyStyle={{ padding: "24px 28px" }}
           >
             {files.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#8c8c8c", fontSize: 14 }}>
-                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#6b7280", fontSize: 14 }}>
+                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d1d5db" }} />
                 No files uploaded for this campaign.
               </div>
             ) : (
@@ -859,7 +859,7 @@ export default function CampaignDetailPage() {
                     }}
                   >
                     <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
-                      <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                      <FileOutlined style={{ color: "#6b7280", flexShrink: 0 }} />
                       <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</span>
                       {f.file_size != null && (
                         <Typography.Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
@@ -888,7 +888,7 @@ export default function CampaignDetailPage() {
                     count={assignedTlCount}
                     showZero
                     overflowCount={99}
-                    style={{ backgroundColor: assignedTlCount > 0 ? "#722ed1" : "#d9d9d9" }}
+                    style={{ backgroundColor: assignedTlCount > 0 ? "#722ed1" : "#d1d5db" }}
                   />
                 </Space>
               }
@@ -929,7 +929,7 @@ export default function CampaignDetailPage() {
                     count={assignedAgentCount}
                     showZero
                     overflowCount={99}
-                    style={{ backgroundColor: assignedAgentCount > 0 ? "#1677ff" : "#d9d9d9" }}
+                    style={{ backgroundColor: assignedAgentCount > 0 ? "#4f46e5" : "#d1d5db" }}
                   />
                 </Space>
               }
@@ -942,7 +942,7 @@ export default function CampaignDetailPage() {
               bodyStyle={{ padding: "24px 28px" }}
             >
               {assignments.length === 0 ? (
-                <p style={{ color: "#8c8c8c", margin: 0 }}>
+                <p style={{ color: "#6b7280", margin: 0 }}>
                   No agents assigned.{" "}
                   <Button type="link" onClick={openAssignModal} style={{ padding: 0 }}>
                     Assign agents
@@ -1059,7 +1059,7 @@ export default function CampaignDetailPage() {
           maxCount={1}
         >
           <p className="ant-upload-drag-icon">
-            <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
+            <InboxOutlined style={{ fontSize: 48, color: "#4f46e5" }} />
           </p>
           <p className="ant-upload-text">Click or drag CSV or Excel file here</p>
           <p className="ant-upload-hint">Export as Excel, edit (keep the lead_id or id column), then re-upload to update existing leads. Rows without an id are added as new leads.</p>
@@ -1089,7 +1089,7 @@ export default function CampaignDetailPage() {
         }
         width={560}
       >
-        <p style={{ marginBottom: 16, color: "#595959" }}>
+        <p style={{ marginBottom: 16, color: "#4b5563" }}>
           Move team leaders between lists to assign or unassign them from this campaign. Assigned team leaders can manage the campaign and assign agents.
         </p>
         {teamLeadersLoading ? (
@@ -1098,7 +1098,7 @@ export default function CampaignDetailPage() {
           </div>
         ) : teamLeaders.length === 0 ? (
           <Empty
-            image={<TeamOutlined style={{ fontSize: 48, color: "#d9d9d9" }} />}
+            image={<TeamOutlined style={{ fontSize: 48, color: "#d1d5db" }} />}
             description="No Team Leaders found in your organization"
           />
         ) : (
@@ -1110,7 +1110,7 @@ export default function CampaignDetailPage() {
             render={(item) => (
               <span>
                 <strong>{item.title}</strong>
-                {item.description && <span style={{ color: "#8c8c8c", marginLeft: 8 }}>({item.description})</span>}
+                {item.description && <span style={{ color: "#6b7280", marginLeft: 8 }}>({item.description})</span>}
               </span>
             )}
             showSearch
@@ -1139,7 +1139,7 @@ export default function CampaignDetailPage() {
         okText={selectedAgentIds.length > 0 ? `Assign ${selectedAgentIds.length} agent${selectedAgentIds.length === 1 ? "" : "s"}` : "Save (no agents)"}
         width={560}
       >
-        <p style={{ marginBottom: 16, color: "#595959" }}>
+        <p style={{ marginBottom: 16, color: "#4b5563" }}>
           Move agents between lists to assign or unassign them from this campaign. Assigned agents can view and manage leads.
         </p>
         {agentsLoading ? (
@@ -1148,11 +1148,11 @@ export default function CampaignDetailPage() {
           </div>
         ) : agents.length === 0 ? (
           <Empty
-            image={<TeamOutlined style={{ fontSize: 48, color: "#d9d9d9" }} />}
+            image={<TeamOutlined style={{ fontSize: 48, color: "#d1d5db" }} />}
             description={
               <div>
                 <p style={{ marginBottom: 8 }}>No agents in your organization.</p>
-                <p style={{ fontSize: 13, color: "#8c8c8c", marginBottom: 16 }}>
+                <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
                   Create Agent users from the Team → Users page, then assign them here.
                 </p>
                 <Button type="primary" onClick={() => { setAssignModalOpen(false); router.push("/tl/users"); }}>
@@ -1170,7 +1170,7 @@ export default function CampaignDetailPage() {
             render={(item) => (
               <span>
                 <strong>{item.title}</strong>
-                {item.description && <span style={{ color: "#8c8c8c", marginLeft: 8 }}>({item.description})</span>}
+                {item.description && <span style={{ color: "#6b7280", marginLeft: 8 }}>({item.description})</span>}
               </span>
             )}
             showSearch

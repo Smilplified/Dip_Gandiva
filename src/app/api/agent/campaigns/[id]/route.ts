@@ -4,6 +4,7 @@ import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { normalizeRoleName } from "@/lib/auth/config";
 import {
   enrichCampaignAllocationFields,
+  MIS_DELIVERED_ACHIEVED_OPTIONS,
 } from "@/lib/campaign-allocation";
 import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 
@@ -118,9 +119,11 @@ export async function GET(
 
     const leadCounts = await aggregateTlLeadCountsByCampaign(supabase, orgId, [campaignId]);
     const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
-    const enrichedCampaign = enrichCampaignAllocationFields(campaign, metrics, {
-      achievedFallback: "qualified",
-    });
+    const enrichedCampaign = enrichCampaignAllocationFields(
+      campaign,
+      metrics,
+      MIS_DELIVERED_ACHIEVED_OPTIONS
+    );
 
     return NextResponse.json({ campaign: enrichedCampaign, files: filesWithUrls });
   } catch (err) {

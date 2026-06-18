@@ -13,14 +13,14 @@ export type CampaignPredictionRow = {
   achieved: number | null;
   start_date: string | null;
   end_date: string | null;
-  list_stats?: { total_leads?: number } | null;
+  list_stats?: { total_leads?: number; delivered_count?: number } | null;
 };
 
 const METER_SEGMENTS = [
   { key: "bad", className: "bg-[#ef4444]", title: "Bad" },
-  { key: "fair", className: "bg-[#f97316]", title: "Fair" },
-  { key: "good", className: "bg-[#eab308]", title: "Good" },
-  { key: "very_good", className: "bg-[#22c55e]", title: "Very Good" },
+  { key: "fair", className: "bg-[#f59e0b]", title: "Fair" },
+  { key: "good", className: "bg-[#f59e0b]", title: "Good" },
+  { key: "very_good", className: "bg-[#16a34a]", title: "Very Good" },
 ] as const;
 
 const STATUS_EMOJI: Record<CampaignPerformancePrediction["status"], string> = {
@@ -34,7 +34,7 @@ function achievedLeadCount(row: CampaignPredictionRow): number {
   if (row.achieved != null && !Number.isNaN(Number(row.achieved))) {
     return Number(row.achieved);
   }
-  return row.list_stats?.total_leads ?? 0;
+  return row.list_stats?.delivered_count ?? 0;
 }
 
 function buildTooltipContent(pred: CampaignPerformancePrediction) {

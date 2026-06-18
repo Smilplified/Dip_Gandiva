@@ -260,7 +260,7 @@ export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanel
         <div>
           <div style={{ fontWeight: 600, fontSize: 13 }}>{row.title}</div>
           {row.message ? (
-            <div style={{ fontSize: 12, color: "#8c8c8c" }}>{row.message}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>{row.message}</div>
           ) : null}
         </div>
       ),
@@ -303,7 +303,7 @@ export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanel
               {resolutionCategoryLabel(row.resolution_category)}
             </div>
             <Tooltip title={row.resolution_note ?? ""}>
-              <div style={{ color: "#595959" }}>{row.resolution_note ?? "—"}</div>
+              <div style={{ color: "#4b5563" }}>{row.resolution_note ?? "—"}</div>
             </Tooltip>
           </div>
         ) : (
@@ -391,7 +391,7 @@ export default function AlertsPanel({ campaignId, onOpenLeadAudit }: AlertsPanel
         }}
       >
         <Space>
-          <Badge count={criticalCount} style={{ backgroundColor: "#ff4d4f" }}>
+          <Badge count={criticalCount} style={{ backgroundColor: "#ef4444" }}>
             <Tag color="red" style={{ fontSize: 13, padding: "4px 10px" }}>
               {unresolvedCount} unresolved
             </Tag>

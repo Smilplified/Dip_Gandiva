@@ -269,7 +269,7 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
                   }
                   icon={<UserOutlined />}
                   style={{
-                    backgroundColor: (p.avatar_url || authProfile?.avatar_url) ? "transparent" : "#1677ff",
+                    backgroundColor: (p.avatar_url || authProfile?.avatar_url) ? "transparent" : "#4f46e5",
                     border: "4px solid #f0f0f0",
                   }}
                 />
@@ -281,7 +281,7 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
                     width: 36,
                     height: 36,
                     borderRadius: "50%",
-                    background: "#1677ff",
+                    background: "#4f46e5",
                     color: "#fff",
                     display: "flex",
                     alignItems: "center",
@@ -570,7 +570,7 @@ function ProfileRow({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
-        <span style={{ color: "#8c8c8c", fontSize: 16 }}>{icon}</span>
+        <span style={{ color: "#6b7280", fontSize: 16 }}>{icon}</span>
         <div>
           <Typography.Text type="secondary" style={{ fontSize: 12, display: "block" }}>
             {label}

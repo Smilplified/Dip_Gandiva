@@ -46,7 +46,9 @@ type HealthFilter = "all" | CampaignHealthStatus;
 
 function getCampaignHealthStatus(row: CommandCampaignRow): CampaignHealthStatus | null {
   const achieved =
-    row.achieved != null ? Number(row.achieved) : row.list_stats?.total_leads ?? 0;
+    row.achieved != null
+      ? Number(row.achieved)
+      : row.list_stats?.delivered_count ?? 0;
   if (!row.total_allocation) return null;
   const pred = predictCampaignPerformance({
     totalAllocation: row.total_allocation,
@@ -167,7 +169,7 @@ export default function CampaignsPage() {
       >
         <div>
           <Title level={3} style={{ margin: 0 }}>
-            <RocketOutlined style={{ color: "#1890ff", marginRight: 10 }} />
+            <RocketOutlined style={{ color: "#4f46e5", marginRight: 10 }} />
             Campaign Command Center
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
@@ -193,8 +195,8 @@ export default function CampaignsPage() {
             title: "Total Campaigns",
             value: stats.total,
             icon: <RocketOutlined />,
-            color: "#1890ff",
-            bg: "#e6f4ff",
+            color: "#4f46e5",
+            bg: "#eef2ff",
           },
           {
             title: "Active",
@@ -214,7 +216,7 @@ export default function CampaignsPage() {
             title: "Paused",
             value: stats.paused,
             icon: <ClockCircleOutlined />,
-            color: "#faad14",
+            color: "#f59e0b",
             bg: "#fffbe6",
           },
         ].map((stat) => (
@@ -264,7 +266,7 @@ export default function CampaignsPage() {
           {/* Search */}
           <Col xs={24} sm={24} md={isClientViewerTable ? 7 : 9} lg={isClientViewerTable ? 6 : 8}>
             <Input
-              prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+              prefix={<SearchOutlined style={{ color: "#6b7280" }} />}
               placeholder="Search by campaign name…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -318,7 +320,7 @@ export default function CampaignsPage() {
                     value: "fair",
                     label: (
                       <span>
-                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#d46b08", marginRight: 7, verticalAlign: "middle" }} />
+                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#f59e0b", marginRight: 7, verticalAlign: "middle" }} />
                         Fair
                       </span>
                     ),
@@ -327,7 +329,7 @@ export default function CampaignsPage() {
                     value: "bad",
                     label: (
                       <span>
-                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#cf1322", marginRight: 7, verticalAlign: "middle" }} />
+                        <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#ef4444", marginRight: 7, verticalAlign: "middle" }} />
                         Bad
                       </span>
                     ),

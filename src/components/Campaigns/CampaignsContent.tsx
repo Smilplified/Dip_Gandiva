@@ -73,7 +73,7 @@ export default function CampaignsContent() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Campaigns</h1>
-            <p style={{ margin: "4px 0 0", color: "#8c8c8c", fontSize: 14 }}>
+            <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>
               Create and manage your marketing campaigns.
             </p>
           </div>
@@ -89,7 +89,7 @@ export default function CampaignsContent() {
             <Statistic
               title="Total Campaigns"
               value={12}
-              prefix={<SendOutlined style={{ color: "#1677ff" }} />}
+              prefix={<SendOutlined style={{ color: "#4f46e5" }} />}
             />
           </Card>
         </Col>

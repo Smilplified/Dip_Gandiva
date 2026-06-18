@@ -320,7 +320,7 @@ export default function DashboardLeadsPage() {
               </div>
               <div
                 className="table-text-ellipsis"
-                style={{ fontSize: 12, color: "#8c8c8c" }}
+                style={{ fontSize: 12, color: "#6b7280" }}
               >
                 {r.company_name ?? "—"}
               </div>
@@ -407,7 +407,7 @@ export default function DashboardLeadsPage() {
         render: (_, r) => (
           <div>
             <div style={{ fontWeight: 600 }}>{r.name ?? "—"}</div>
-            <div style={{ fontSize: 12, color: "#8c8c8c" }}>{r.company_name ?? "—"}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>{r.company_name ?? "—"}</div>
           </div>
         ),
       },

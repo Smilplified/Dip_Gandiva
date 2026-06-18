@@ -54,7 +54,7 @@ export default function ClientInfoPanel({ thread, open, messageCount }: ClientIn
                 ) : null}
                 <div>
                   <dt className="text-[10px] font-medium uppercase text-[#98a2b3]">WhatsApp</dt>
-                  <dd className="m-0 flex items-center gap-1 text-[13px] font-medium text-[#d92d20]">
+                  <dd className="m-0 flex items-center gap-1 text-[13px] font-medium text-[#ef4444]">
                     <IconLock size={14} stroke={1.5} aria-hidden />
                     {thread.hasWhatsApp ? "Linked from client Mobile" : "Add Mobile in Sales → Clients"}
                   </dd>
@@ -72,13 +72,13 @@ export default function ClientInfoPanel({ thread, open, messageCount }: ClientIn
               </h3>
               <div className="mt-3 space-y-2">
                 <div className="flex items-start gap-2 text-[12px] text-[#344054]">
-                  <IconMessage2 className="mt-0.5 shrink-0 text-[#1d9e75]" size={16} stroke={1.5} aria-hidden />
+                  <IconMessage2 className="mt-0.5 shrink-0 text-[#16a34a]" size={16} stroke={1.5} aria-hidden />
                   <span>
                     {messageCount} messages · last {lastMsg}
                   </span>
                 </div>
                 <div className="flex items-start gap-2 text-[12px] text-[#344054]">
-                  <IconCalendar className="mt-0.5 shrink-0 text-[#1677ff]" size={16} stroke={1.5} aria-hidden />
+                  <IconCalendar className="mt-0.5 shrink-0 text-[#4f46e5]" size={16} stroke={1.5} aria-hidden />
                   <span>
                     Thread started{" "}
                     {new Date(thread.firstContactAt).toLocaleDateString(undefined, {

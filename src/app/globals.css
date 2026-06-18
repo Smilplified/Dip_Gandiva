@@ -5,13 +5,13 @@
 @tailwind utilities;
 
 :root {
-  --crm-primary: #1677ff;
-  --crm-success: #52c41a;
-  --crm-warning: #faad14;
-  --crm-error: #ff4d4f;
+  --crm-primary: #4f46e5;
+  --crm-success: #16a34a;
+  --crm-warning: #f59e0b;
+  --crm-error: #ef4444;
 
   /* CRM WhatsApp chat module tokens (src/components/Chat) */
-  --green: #1d9e75;
+  --green: #16a34a;
   --bg: #ffffff;
   --bg2: #f7f8fa;
   --bg3: #f0f2f5;
@@ -19,7 +19,7 @@
   --text: #101828;
   --text2: #475467;
   --text3: #98a2b3;
-  --danger: #d92d20;
+  --danger: #ef4444;
 }
 
 html, body {
@@ -233,7 +233,7 @@ html, body {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 .delivery-status-select--delivered .ant-select-selection-item {
-  color: #2e7d32;
+  color: #16a34a;
   font-weight: 500;
 }
 .delivery-status-select--delivered:hover .ant-select-selector,
@@ -353,7 +353,7 @@ td:has(.lead-phone-cell) a {
 
 /* Edit Lead / Add Lead form: labels in grey */
 .lead-form .ant-form-item-label > label {
-  color: #8c8c8c !important;
+  color: #6b7280 !important;
 }
 
 /* Campaign CQ: full-width stacked questions with wrapping labels */
@@ -387,8 +387,8 @@ td:has(.lead-phone-cell) a {
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96.1%;
@@ -414,8 +414,8 @@ td:has(.lead-phone-cell) a {
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 14.9%;
     --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 14.9%;

@@ -38,7 +38,7 @@ const statusColors: Record<string, string> = {
   draft: "default",
   active: "green",
   paused: "orange",
-  completed: "blue",
+  completed: "success",
 };
 
 export default function AgentCampaignsPage() {

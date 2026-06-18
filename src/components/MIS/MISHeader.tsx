@@ -96,7 +96,7 @@ export default function MISHeader() {
               }
               icon={<UserOutlined />}
               style={{
-                backgroundColor: profile?.avatar_url ? "transparent" : "#1677ff",
+                backgroundColor: profile?.avatar_url ? "transparent" : "#4f46e5",
                 flexShrink: 0,
               }}
             />
@@ -104,7 +104,7 @@ export default function MISHeader() {
               <div style={{ fontWeight: 600, fontSize: 14 }}>
                 {signingOut ? "Signing out..." : (profile?.full_name || user?.email || "MIS User")}
               </div>
-              <div style={{ fontSize: 12, color: "#8c8c8c" }}>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
                 {signingOut ? "Signing out..." : "MIS"}
               </div>
             </div>

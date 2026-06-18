@@ -12,7 +12,7 @@ export default function DashboardLayout() {
     <AppLayout>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>Dashboard</h1>
-        <p style={{ margin: "4px 0 0", color: "#8c8c8c", fontSize: 14 }}>
+        <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 14 }}>
           Welcome back! Here&apos;s what&apos;s happening with your pipeline.
         </p>
       </div>

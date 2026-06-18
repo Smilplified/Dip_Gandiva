@@ -253,7 +253,7 @@ export async function GET() {
     }
 
     const sourcesSorted = [...sourceCounts.entries()].sort((a, b) => b[1] - a[1]);
-    const palette = ["#1890ff", "#52c41a", "#722ed1", "#faad14", "#eb2f96", "#13c2c2", "#595959", "#8c8c8c"];
+    const palette = ["#4f46e5", "#52c41a", "#722ed1", "#f59e0b", "#eb2f96", "#13c2c2", "#4b5563", "#6b7280"];
     const top = sourcesSorted.slice(0, 5);
     const restCount = sourcesSorted.slice(5).reduce((s, [, c]) => s + c, 0);
     const leadSourceData: { name: string; value: number; color: string }[] = top.map(([name, value], i) => ({
@@ -265,7 +265,7 @@ export async function GET() {
       leadSourceData.push({
         name: "Others",
         value: restCount,
-        color: "#d9d9d9",
+        color: "#d1d5db",
       });
     }
 

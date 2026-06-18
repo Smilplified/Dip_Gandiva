@@ -233,7 +233,7 @@ export function LeadTableRecordingCell({
                   onClick={() => togglePlay(rec)}
                   style={{
                     ...iconBtnStyle,
-                    color: isPlaying ? "#1677ff" : undefined,
+                    color: isPlaying ? "#4f46e5" : undefined,
                   }}
                   aria-label={isPlaying ? `Pause ${playTooltip}` : `Play ${playTooltip}`}
                 />

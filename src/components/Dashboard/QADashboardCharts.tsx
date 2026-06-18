@@ -72,7 +72,7 @@ function ChartEmpty({ description }: { description: string }) {
 
 /** Donut: Pending vs Qualified vs Disqualified */
 export function QAPipelineChart({ data }: { data: QaPipelineSlice[] }) {
-  const slices = data.length > 0 ? data : [{ name: "No leads", value: 1, color: "#d9d9d9" }];
+  const slices = data.length > 0 ? data : [{ name: "No leads", value: 1, color: "#d1d5db" }];
   const total = data.reduce((s, d) => s + d.value, 0);
 
   return (
@@ -156,7 +156,7 @@ export function QATopPendingCampaignsChart({ data }: { data: QaPendingCampaignBa
                 return [`${v} pending (${row?.total ?? 0} total)`, "Pending"];
               }}
             />
-            <Bar dataKey="pending" name="Pending" fill="#faad14" radius={[0, 6, 6, 0]} />
+            <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[0, 6, 6, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -180,7 +180,7 @@ export function QAUploadAuditTrendChart({ data }: { data: QaActivityDay[] }) {
             <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
             <Tooltip contentStyle={tooltipStyle} />
             <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="uploaded" name="Uploaded" fill="#1677ff" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="uploaded" name="Uploaded" fill="#4f46e5" radius={[4, 4, 0, 0]} />
             <Bar dataKey="audited" name="Audited" fill="#52c41a" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

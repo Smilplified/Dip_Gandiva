@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
     borderBottomWidth: 2,
-    borderBottomColor: "#2563eb",
+    borderBottomColor: "#4f46e5",
     paddingBottom: 10,
   },
   title: {
@@ -79,8 +79,8 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
   },
   badgeGreen: { backgroundColor: "#d1fae5", color: "#065f46" },
-  badgeRed: { backgroundColor: "#fee2e2", color: "#991b1b" },
-  badgeYellow: { backgroundColor: "#fef9c3", color: "#854d0e" },
+  badgeRed: { backgroundColor: "#fee2e2", color: "#b91c1c" },
+  badgeYellow: { backgroundColor: "#fef9c3", color: "#b45309" },
   historyRow: {
     flexDirection: "row",
     borderBottomWidth: 1,

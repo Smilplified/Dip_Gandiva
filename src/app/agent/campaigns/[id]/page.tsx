@@ -509,7 +509,7 @@ export default function AgentCampaignDetailPage() {
     borderBottom: "1px solid #f0f0f0",
     alignItems: "start",
   } as const;
-  const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+  const overviewLabelStyle = { fontSize: 13, color: "#6b7280", fontWeight: 500 } as const;
   const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
 
   const OverviewRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
@@ -537,7 +537,7 @@ export default function AgentCampaignDetailPage() {
       <div style={{ marginBottom: 20 }}>
         <Link
           href="/agent/campaigns"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#4f46e5", textDecoration: "none", marginBottom: 16 }}
         >
           <ArrowLeftOutlined /> Back to Campaigns
         </Link>
@@ -602,7 +602,7 @@ export default function AgentCampaignDetailPage() {
             )}
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
                   <div>
                     <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
@@ -630,7 +630,7 @@ export default function AgentCampaignDetailPage() {
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                color: "#1677ff",
+                                color: "#4f46e5",
                               }}
                             >
                               {url}
@@ -684,8 +684,8 @@ export default function AgentCampaignDetailPage() {
             bodyStyle={{ padding: "24px 28px" }}
           >
             {files.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#8c8c8c", fontSize: 14 }}>
-                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#6b7280", fontSize: 14 }}>
+                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d1d5db" }} />
                 No files uploaded for this campaign.
               </div>
             ) : (
@@ -703,7 +703,7 @@ export default function AgentCampaignDetailPage() {
                     }}
                   >
                     <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
-                      <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                      <FileOutlined style={{ color: "#6b7280", flexShrink: 0 }} />
                       <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</span>
                       {f.file_size != null && (
                         <Typography.Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
@@ -920,7 +920,7 @@ export default function AgentCampaignDetailPage() {
           maxCount={1}
         >
           <p className="ant-upload-drag-icon">
-            <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
+            <InboxOutlined style={{ fontSize: 48, color: "#4f46e5" }} />
           </p>
           <p className="ant-upload-text">
             Click or drag CSV or Excel file here

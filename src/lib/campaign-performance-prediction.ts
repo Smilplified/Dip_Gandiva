@@ -50,9 +50,9 @@ const STATUS_META: Record<
   CampaignHealthStatus,
   { label: string; color: string }
 > = {
-  bad: { label: "Bad", color: "#ff4d4f" },
-  fair: { label: "Fair", color: "#fa8c16" },
-  good: { label: "Good", color: "#fadb14" },
+  bad: { label: "Bad", color: "#ef4444" },
+  fair: { label: "Fair", color: "#f59e0b" },
+  good: { label: "Good", color: "#f59e0b" },
   very_good: { label: "Very Good", color: "#52c41a" },
 };
 

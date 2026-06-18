@@ -56,6 +56,7 @@ import {
   clientViewerShowsLhoFile,
   isAgCampaignType,
 } from "@/lib/command/client-viewer-lead-columns";
+import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
 
 const { Text, Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -272,7 +273,7 @@ function renderDescriptionWithLinks(raw: string) {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  color: "#1677ff",
+                  color: "#4f46e5",
                   textDecoration: "underline",
                   wordBreak: "break-all",
                 }}
@@ -316,7 +317,7 @@ function ChannelSplitMiniBar({ email, tele }: { email: number; tele: number }) {
               style={{
                 width: `${emailPct}%`,
                 minWidth: email > 0 ? 3 : 0,
-                background: "#1890ff",
+                background: "#4f46e5",
                 transition: "width 0.2s ease",
               }}
             />
@@ -341,7 +342,7 @@ function ChannelSplitMiniBar({ email, tele }: { email: number; tele: number }) {
           justifyContent: "space-between",
           marginTop: 8,
           fontSize: 11,
-          color: "#8c8c8c",
+          color: "#6b7280",
         }}
       >
         <span>Email {email}</span>
@@ -895,7 +896,7 @@ export default function CampaignDashboard({
                 <Input
                   allowClear
                   placeholder="Lead ID, name, company, email, phone"
-                  prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+                  prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
                   value={leadSearchDraft}
                   onChange={(e) => setLeadSearchDraft(e.target.value)}
                   onPressEnter={() => {
@@ -1062,7 +1063,7 @@ export default function CampaignDashboard({
                     count={openAlerts}
                     style={{
                       marginLeft: 8,
-                      backgroundColor: criticalAlerts > 0 ? "#ff4d4f" : "#faad14",
+                      backgroundColor: criticalAlerts > 0 ? "#ef4444" : "#f59e0b",
                     }}
                   />
                 )}
@@ -1179,7 +1180,7 @@ export default function CampaignDashboard({
                 color={
                   campaign.status === "active" ? "green" :
                   campaign.status === "paused" ? "orange" :
-                  campaign.status === "completed" ? "blue" : "default"
+                  campaign.status === "completed" ? "green" : "default"
                 }
               >
                 {campaign.status.toUpperCase()}
@@ -1325,9 +1326,7 @@ export default function CampaignDashboard({
                       ? `$${Number(campaign.cpl).toLocaleString()}`
                       : "—"}
                     {" / "}
-                    {(campaign.revenue ?? null) != null
-                      ? `$${Number(campaign.revenue).toLocaleString()}`
-                      : "—"}
+                    {formatEarnedRevenue(campaign.cpl, campaign.achieved)}
                   </Text>
                 </div>
               </Space>
@@ -1398,7 +1397,7 @@ export default function CampaignDashboard({
                   Alerts
                 </Text>
                 {openAlerts > 0 && (
-                  <Badge count={openAlerts} style={{ backgroundColor: "#ff4d4f" }} />
+                  <Badge count={openAlerts} style={{ backgroundColor: "#ef4444" }} />
                 )}
               </div>
               <div
@@ -1406,7 +1405,7 @@ export default function CampaignDashboard({
                   fontSize: 28,
                   fontWeight: 700,
                   lineHeight: 1.2,
-                  color: openAlerts > 0 ? "#cf1322" : "#262626",
+                  color: openAlerts > 0 ? "#ef4444" : "#262626",
                 }}
               >
                 {openAlerts}
@@ -1453,8 +1452,8 @@ export default function CampaignDashboard({
                         width: 28,
                         height: 28,
                         padding: 0,
-                        background: "#ff4d4f",
-                        borderColor: "#cf1322",
+                        background: "#ef4444",
+                        borderColor: "#ef4444",
                       }}
                     />
                   </Tooltip>
@@ -1510,8 +1509,8 @@ export default function CampaignDashboard({
                   filledPct >= 100
                     ? { color: "#389e0d", bg: "#f6ffed", border: "#b7eb8f" }
                     : filledPct >= 60
-                      ? { color: "#1677ff", bg: "#e6f4ff", border: "#91caff" }
-                      : { color: "#d4380d", bg: "#fff2e8", border: "#ffbb96" };
+                      ? { color: "#4f46e5", bg: "#eef2ff", border: "#c7d2fe" }
+                      : { color: "#b91c1c", bg: "#fff2e8", border: "#ffbb96" };
                 return (
                   <Tooltip title={`${totalLeadsKpi.toLocaleString()} of ${allocationNow.toLocaleString()} leads delivered`}>
                     <span
@@ -1540,7 +1539,7 @@ export default function CampaignDashboard({
                     style={{
                       fontSize: 12,
                       fontWeight: 600,
-                      color: allocationDelta > 0 ? "#389e0d" : "#cf1322",
+                      color: allocationDelta > 0 ? "#389e0d" : "#ef4444",
                       background: allocationDelta > 0 ? "#f6ffed" : "#fff1f0",
                       border: `1px solid ${allocationDelta > 0 ? "#b7eb8f" : "#ffa39e"}`,
                       padding: "2px 8px",

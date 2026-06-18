@@ -48,13 +48,13 @@ export default function MessageBubble({ message, leadInitials, avatarHue }: Mess
 
   return (
     <div className="flex max-w-[70%] flex-col items-end self-end">
-      <div className="rounded-[12px_12px_2px_12px] bg-[var(--green,#1d9e75)] px-3 py-2 text-[14px] leading-snug text-white">
+      <div className="rounded-[12px_12px_2px_12px] bg-[var(--green,#16a34a)] px-3 py-2 text-[14px] leading-snug text-white">
         {message.body}
       </div>
       <div className="mt-1 flex w-full items-center justify-end gap-1 text-[10px] text-[var(--text3,#98a2b3)]">
         <span>{formatTime(message.createdAt)}</span>
         {message.status === "read" || message.status === "delivered" || message.status === "sent" ? (
-          <IconChecks size={14} className="text-[var(--green,#1d9e75)]" aria-hidden />
+          <IconChecks size={14} className="text-[var(--green,#16a34a)]" aria-hidden />
         ) : null}
       </div>
     </div>

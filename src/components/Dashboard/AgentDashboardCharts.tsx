@@ -87,9 +87,9 @@ export function AgentLeadTrendChart({ data }: { data: AgentLeadTrendDay[] }) {
             <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
             <Tooltip contentStyle={tooltipStyle} />
             <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="pending" name="Pending" stackId="qa" fill="#faad14" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="pending" name="Pending" stackId="qa" fill="#f59e0b" radius={[0, 0, 0, 0]} />
             <Bar dataKey="qualified" name="Qualified" stackId="qa" fill="#52c41a" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="disqualified" name="Disqualified" stackId="qa" fill="#ff4d4f" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="disqualified" name="Disqualified" stackId="qa" fill="#ef4444" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -127,7 +127,7 @@ export function AgentCampaignLeadsChart({ data }: { data: AgentCampaignLeadBar[]
                 return [v, name];
               }}
             />
-            <Bar dataKey="uploads" name="Your uploads" fill="#1677ff" radius={[0, 6, 6, 0]} />
+            <Bar dataKey="uploads" name="Your uploads" fill="#4f46e5" radius={[0, 6, 6, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -175,10 +175,10 @@ function PredictionCard({ c }: { c: AgentCompletionPrediction }) {
   const borderColor = c.is_complete
     ? "#52c41a"
     : c.is_overdue
-    ? "#ff4d4f"
+    ? "#ef4444"
     : c.is_nearing
-    ? "#fa8c16"
-    : "#1677ff";
+    ? "#f59e0b"
+    : "#4f46e5";
 
   return (
     <Card
@@ -256,7 +256,7 @@ function PredictionCard({ c }: { c: AgentCompletionPrediction }) {
             label="Your uploads"
             value={c.agent_uploaded.toLocaleString()}
             sub={`${c.agent_qualified.toLocaleString()} qualified by you`}
-            valueColor="#1677ff"
+            valueColor="#4f46e5"
           />
         </Col>
         <Col span={12}>
@@ -264,7 +264,7 @@ function PredictionCard({ c }: { c: AgentCompletionPrediction }) {
             label="Days left"
             value={c.days_left !== null ? (c.is_overdue ? "Overdue" : `${c.days_left} days`) : "—"}
             sub={c.is_overdue ? "Past end date" : undefined}
-            valueColor={c.is_overdue ? "#ff4d4f" : undefined}
+            valueColor={c.is_overdue ? "#ef4444" : undefined}
           />
         </Col>
       </Row>
@@ -281,8 +281,8 @@ function PredictionCard({ c }: { c: AgentCompletionPrediction }) {
             gap: 8,
           }}
         >
-          <ThunderboltOutlined style={{ color: "#1677ff", fontSize: 14, marginTop: 2 }} />
-          <Text style={{ fontSize: 12, color: "#1677ff", fontWeight: 600, lineHeight: 1.5 }}>
+          <ThunderboltOutlined style={{ color: "#4f46e5", fontSize: 14, marginTop: 2 }} />
+          <Text style={{ fontSize: 12, color: "#4f46e5", fontWeight: 600, lineHeight: 1.5 }}>
             Campaign needs ~{c.required_per_day} more qualified leads/day ({c.remaining_qualified.toLocaleString()}{" "}
             qualified remaining) by {fmtDate(c.end_date)}
           </Text>
@@ -308,7 +308,7 @@ export function AgentCompletionPredictions({
       styles={{ body: { padding: "20px 22px" } }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-        <ClockCircleOutlined style={{ color: "#1677ff", fontSize: 18 }} />
+        <ClockCircleOutlined style={{ color: "#4f46e5", fontSize: 18 }} />
         <div>
           <Text strong style={{ fontSize: 16, display: "block" }}>
             Campaign Completion Predictions

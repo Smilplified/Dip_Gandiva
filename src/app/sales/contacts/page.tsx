@@ -772,7 +772,7 @@ export default function SalesContactsPage() {
             <Input
               allowClear
               placeholder="Search by contact, email, phone, job title or account..."
-              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+              prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />

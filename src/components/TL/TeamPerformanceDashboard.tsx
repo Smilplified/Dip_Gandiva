@@ -75,7 +75,7 @@ const card: React.CSSProperties = {
   boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
 };
 
-const PALETTE = ["#1677ff", "#52c41a", "#fa8c16", "#722ed1", "#eb2f96", "#13c2c2", "#faad14", "#ff4d4f"];
+const PALETTE = ["#4f46e5", "#52c41a", "#f59e0b", "#722ed1", "#eb2f96", "#13c2c2", "#f59e0b", "#ef4444"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ function SectionHeader({ icon, title, extra }: { icon: React.ReactNode; title: s
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
       <Space size={8}>
-        <span style={{ color: "#1677ff", fontSize: 18 }}>{icon}</span>
+        <span style={{ color: "#4f46e5", fontSize: 18 }}>{icon}</span>
         <Title level={5} style={{ margin: 0, fontWeight: 700 }}>{title}</Title>
       </Space>
       {extra}
@@ -306,7 +306,7 @@ function PredictionCard({ c, today }: { c: CampaignPerformance; today: string })
   const isNearing = !isOverdue && daysLeft !== null && daysLeft <= 7 && c.progress_pct < 100;
   const isComplete = c.progress_pct >= 100;
 
-  const borderColor = isComplete ? "#52c41a" : isOverdue ? "#ff4d4f" : isNearing ? "#fa8c16" : "#1677ff";
+  const borderColor = isComplete ? "#52c41a" : isOverdue ? "#ef4444" : isNearing ? "#f59e0b" : "#4f46e5";
 
   return (
     <Card
@@ -331,7 +331,7 @@ function PredictionCard({ c, today }: { c: CampaignPerformance; today: string })
       <Progress
         percent={c.progress_pct}
         size="small"
-        strokeColor={isComplete ? "#52c41a" : isOverdue ? "#ff4d4f" : isNearing ? "#fa8c16" : "#1677ff"}
+        strokeColor={isComplete ? "#52c41a" : isOverdue ? "#ef4444" : isNearing ? "#f59e0b" : "#4f46e5"}
         style={{ marginBottom: 10 }}
       />
 
@@ -342,13 +342,13 @@ function PredictionCard({ c, today }: { c: CampaignPerformance; today: string })
         </Col>
         <Col span={8}>
           <Text type="secondary" style={{ fontSize: 10, display: "block" }}>Remaining</Text>
-          <Text strong style={{ fontSize: 13, color: remaining > 0 ? "#fa8c16" : "#52c41a" }}>
+          <Text strong style={{ fontSize: 13, color: remaining > 0 ? "#f59e0b" : "#52c41a" }}>
             {remaining.toLocaleString()}
           </Text>
         </Col>
         <Col span={8}>
           <Text type="secondary" style={{ fontSize: 10, display: "block" }}>Days Left</Text>
-          <Text strong style={{ fontSize: 13, color: isOverdue ? "#ff4d4f" : "#0f172a" }}>
+          <Text strong style={{ fontSize: 13, color: isOverdue ? "#ef4444" : "#0f172a" }}>
             {daysLeft !== null ? (isOverdue ? "Overdue" : `${daysLeft}d`) : "—"}
           </Text>
         </Col>
@@ -366,8 +366,8 @@ function PredictionCard({ c, today }: { c: CampaignPerformance; today: string })
             gap: 6,
           }}
         >
-          <ThunderboltOutlined style={{ color: "#1677ff", fontSize: 13 }} />
-          <Text style={{ fontSize: 12, color: "#1677ff", fontWeight: 600 }}>
+          <ThunderboltOutlined style={{ color: "#4f46e5", fontSize: 13 }} />
+          <Text style={{ fontSize: 12, color: "#4f46e5", fontWeight: 600 }}>
             Need {requiredPerDay} uploads/day to finish by {fmtDate(c.end_date)}
           </Text>
         </div>
@@ -588,7 +588,7 @@ export default function TeamPerformanceDashboard() {
             <span
               style={{
                 fontWeight: 600,
-                color: v > 0 ? "#52c41a" : "#bfbfbf",
+                color: v > 0 ? "#52c41a" : "#9ca3af",
                 background: v > 0 ? "#f6ffed" : "transparent",
                 borderRadius: 8,
                 padding: "2px 10px",
@@ -627,7 +627,7 @@ export default function TeamPerformanceDashboard() {
       key: "agent",
       render: (_: unknown, r: AgentPerformance) => (
         <Space size={10}>
-          <Avatar size={32} style={{ background: "#1677ff", fontSize: 12 }}>{initials(r.agent_name)}</Avatar>
+          <Avatar size={32} style={{ background: "#4f46e5", fontSize: 12 }}>{initials(r.agent_name)}</Avatar>
           <div>
             <Text strong style={{ fontSize: 13 }}>{r.agent_name}</Text>
             {r.agent_code && <Text type="secondary" style={{ display: "block", fontSize: 11 }}>{r.agent_code}</Text>}
@@ -652,7 +652,7 @@ export default function TeamPerformanceDashboard() {
       defaultSortOrder: singleDayRange ? ("descend" as const) : undefined,
       align: "center" as const,
       render: (v: number) => (
-        <span style={{ fontWeight: 700, fontSize: 14, color: "#1677ff", background: "#e6f4ff", borderRadius: 8, padding: "2px 10px" }}>
+        <span style={{ fontWeight: 700, fontSize: 14, color: "#4f46e5", background: "#eef2ff", borderRadius: 8, padding: "2px 10px" }}>
           {v.toLocaleString()}
         </span>
       ),
@@ -668,7 +668,7 @@ export default function TeamPerformanceDashboard() {
           style={{
             fontWeight: 600,
             fontSize: 13,
-            color: v > 0 ? "#389e0d" : "#bfbfbf",
+            color: v > 0 ? "#389e0d" : "#9ca3af",
             background: v > 0 ? "#f6ffed" : "transparent",
             borderRadius: 8,
             padding: "2px 10px",
@@ -749,7 +749,7 @@ export default function TeamPerformanceDashboard() {
       align: "center" as const,
       defaultSortOrder: "descend" as const,
       sorter: (a: TLSummary, b: TLSummary) => a.total_leads - b.total_leads,
-      render: (v: number) => <span style={{ fontWeight: 700, color: "#1677ff" }}>{v.toLocaleString()}</span>,
+      render: (v: number) => <span style={{ fontWeight: 700, color: "#4f46e5" }}>{v.toLocaleString()}</span>,
     },
     ...(singleDayRange
       ? []
@@ -760,7 +760,7 @@ export default function TeamPerformanceDashboard() {
             key: "today_leads",
             align: "center" as const,
             render: (v: number) => (
-              <span style={{ color: v > 0 ? "#52c41a" : "#bfbfbf", fontWeight: 600 }}>{v}</span>
+              <span style={{ color: v > 0 ? "#52c41a" : "#9ca3af", fontWeight: 600 }}>{v}</span>
             ),
           },
           {
@@ -804,7 +804,7 @@ export default function TeamPerformanceDashboard() {
       align: "center" as const,
       defaultSortOrder: "descend" as const,
       sorter: (a: QASummary, b: QASummary) => a.total_audited - b.total_audited,
-      render: (v: number) => <span style={{ fontWeight: 700, color: "#1677ff" }}>{v.toLocaleString()}</span>,
+      render: (v: number) => <span style={{ fontWeight: 700, color: "#4f46e5" }}>{v.toLocaleString()}</span>,
     },
     {
       title: "Qualified",
@@ -814,7 +814,7 @@ export default function TeamPerformanceDashboard() {
       sorter: (a: QASummary, b: QASummary) => a.qualified_leads - b.qualified_leads,
       render: (v: number, r: QASummary) => (
         <Tooltip title={`In app: ${r.app_qualified_leads} · Import sheet: ${r.imported_qualified_leads}`}>
-          <span style={{ fontWeight: 600, color: v > 0 ? "#389e0d" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+          <span style={{ fontWeight: 600, color: v > 0 ? "#389e0d" : "#9ca3af" }}>{v.toLocaleString()}</span>
         </Tooltip>
       ),
     },
@@ -826,7 +826,7 @@ export default function TeamPerformanceDashboard() {
       sorter: (a: QASummary, b: QASummary) => a.disqualified_leads - b.disqualified_leads,
       render: (v: number, r: QASummary) => (
         <Tooltip title={`In app: ${r.app_disqualified_leads} · Import sheet: ${r.imported_disqualified_leads}`}>
-          <span style={{ fontWeight: 600, color: v > 0 ? "#cf1322" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+          <span style={{ fontWeight: 600, color: v > 0 ? "#ef4444" : "#9ca3af" }}>{v.toLocaleString()}</span>
         </Tooltip>
       ),
     },
@@ -838,7 +838,7 @@ export default function TeamPerformanceDashboard() {
       sorter: (a: QASummary, b: QASummary) => a.rectified_leads - b.rectified_leads,
       render: (v: number, r: QASummary) => (
         <Tooltip title={`In app: ${r.app_rectified_leads} · Import sheet: ${r.imported_rectified_leads}`}>
-          <span style={{ fontWeight: 600, color: v > 0 ? "#722ed1" : "#bfbfbf" }}>{v.toLocaleString()}</span>
+          <span style={{ fontWeight: 600, color: v > 0 ? "#722ed1" : "#9ca3af" }}>{v.toLocaleString()}</span>
         </Tooltip>
       ),
     },
@@ -862,7 +862,7 @@ export default function TeamPerformanceDashboard() {
       key: "today_audited",
       align: "center" as const,
       render: (v: number) => (
-        <span style={{ color: v > 0 ? "#52c41a" : "#bfbfbf", fontWeight: 600 }}>{v}</span>
+        <span style={{ color: v > 0 ? "#52c41a" : "#9ca3af", fontWeight: 600 }}>{v}</span>
       ),
     },
     {
@@ -905,7 +905,7 @@ export default function TeamPerformanceDashboard() {
               size="small"
               showInfo={isOM}
               format={(p) => `${p ?? 0}%`}
-              strokeColor={v >= 100 ? "#52c41a" : v >= 50 ? "#1677ff" : "#fa8c16"}
+              strokeColor={v >= 100 ? "#52c41a" : v >= 50 ? "#4f46e5" : "#f59e0b"}
             />
           </Space>
         </Tooltip>
@@ -929,7 +929,7 @@ export default function TeamPerformanceDashboard() {
         key: "status",
         render: (s: string) => (
           <Tag
-            color={s === "active" ? "green" : s === "completed" ? "blue" : s === "paused" ? "orange" : "default"}
+            color={s === "active" ? "green" : s === "completed" ? "green" : s === "paused" ? "orange" : "default"}
             style={{ borderRadius: 20 }}
           >
             {s}
@@ -981,8 +981,8 @@ export default function TeamPerformanceDashboard() {
                 <span
                   style={{
                     fontWeight: 700,
-                    color: "#1677ff",
-                    background: "#e6f4ff",
+                    color: "#4f46e5",
+                    background: "#eef2ff",
                     borderRadius: 8,
                     padding: "2px 10px",
                   }}
@@ -1007,7 +1007,7 @@ export default function TeamPerformanceDashboard() {
           if (!v) return <Text type="secondary">—</Text>;
           const past = v < today;
           return (
-            <Text style={{ fontSize: 12, color: past ? "#ff4d4f" : "#0f172a" }}>{fmtDate(v)}</Text>
+            <Text style={{ fontSize: 12, color: past ? "#ef4444" : "#0f172a" }}>{fmtDate(v)}</Text>
           );
         },
       },
@@ -1082,7 +1082,7 @@ export default function TeamPerformanceDashboard() {
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<FundProjectionScreenOutlined />} title="Total Campaigns" value={s?.total_campaigns ?? 0}
-              sub={`${s?.active_campaigns ?? 0} active`} color="#1677ff" />
+              sub={`${s?.active_campaigns ?? 0} active`} color="#4f46e5" />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<RiseOutlined />} title="Total Leads Uploaded" value={(s?.total_leads ?? 0).toLocaleString()}
@@ -1103,7 +1103,7 @@ export default function TeamPerformanceDashboard() {
                   ? "Matches total for the selected date"
                   : `${(s?.month_leads ?? 0).toLocaleString()} in last 30 days (within range)`
               }
-              color="#fa8c16"
+              color="#f59e0b"
               badge={
                 (singleDayRange ? (s?.total_leads ?? 0) : (s?.today_leads ?? 0)) === 0 ? (
                   <Tag color="error">No uploads</Tag>
@@ -1121,11 +1121,11 @@ export default function TeamPerformanceDashboard() {
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<BarChartOutlined />} title="Avg Upload / Day" value={(s?.avg_per_day ?? 0).toFixed(1)}
-              sub="Across all agents" color="#1677ff" />
+              sub="Across all agents" color="#4f46e5" />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<AlertOutlined />} title="Pending Allocation" value={(s?.pending_allocation ?? 0).toLocaleString()}
-              sub="Leads not yet uploaded" color="#ff4d4f" />
+              sub="Leads not yet uploaded" color="#ef4444" />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard
@@ -1134,7 +1134,7 @@ export default function TeamPerformanceDashboard() {
               value={`${s?.completion_pct ?? 0}%`}
               sub={
                 <Progress percent={s?.completion_pct ?? 0} size="small" showInfo={false}
-                  strokeColor={s?.completion_pct && s.completion_pct >= 80 ? "#52c41a" : "#1677ff"}
+                  strokeColor={s?.completion_pct && s.completion_pct >= 80 ? "#52c41a" : "#4f46e5"}
                   style={{ marginTop: 4 }} />
               }
               color="#52c41a"
@@ -1153,7 +1153,7 @@ export default function TeamPerformanceDashboard() {
               icon={<FireOutlined />}
               title={singleDayRange && selectedDayLabel ? `Uploads on ${selectedDayLabel}` : "Today Uploads"}
               value={(singleDayRange ? (s?.total_leads ?? 0) : (s?.today_leads ?? 0)).toLocaleString()}
-              color="#fa8c16"
+              color="#f59e0b"
               sub={
                 singleDayRange
                   ? "In your selected date range"
@@ -1172,7 +1172,7 @@ export default function TeamPerformanceDashboard() {
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<FundProjectionScreenOutlined />} title="Active Campaigns" value={s?.active_campaigns ?? 0}
-              sub={`${s?.total_campaigns ?? 0} total`} color="#1677ff" />
+              sub={`${s?.total_campaigns ?? 0} total`} color="#4f46e5" />
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<BarChartOutlined />} title="Avg Upload / Day" value={(s?.avg_per_day ?? 0).toFixed(1)}
@@ -1180,7 +1180,7 @@ export default function TeamPerformanceDashboard() {
           </Col>
           <Col xs={24} sm={12} md={8} xl={6}>
             <KpiCard icon={<AlertOutlined />} title="Pending Leads" value={(s?.pending_allocation ?? 0).toLocaleString()}
-              sub="Allocation remaining" color="#ff4d4f" />
+              sub="Allocation remaining" color="#ef4444" />
           </Col>
         </Row>
       )}
@@ -1195,15 +1195,15 @@ export default function TeamPerformanceDashboard() {
                 <AreaChart data={data?.daily_trend.map((d) => ({ ...d, date: dayjs(d.date).format("DD MMM") })) ?? []}>
                   <defs>
                     <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1677ff" stopOpacity={0.18} />
-                      <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.18} />
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 11 }} />
                   <RTooltip contentStyle={{ borderRadius: 10 }} />
-                  <Area type="monotone" dataKey="leads" stroke="#1677ff" strokeWidth={2} fill="url(#trendGrad)" name="Uploads" dot={false} />
+                  <Area type="monotone" dataKey="leads" stroke="#4f46e5" strokeWidth={2} fill="url(#trendGrad)" name="Uploads" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -1222,7 +1222,7 @@ export default function TeamPerformanceDashboard() {
                     <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={70} />
                     <RTooltip contentStyle={{ borderRadius: 10 }} />
                     <Legend />
-                    <Bar dataKey="total" name="Total" fill="#1677ff" radius={[0, 6, 6, 0]}>
+                    <Bar dataKey="total" name="Total" fill="#4f46e5" radius={[0, 6, 6, 0]}>
                       {tlChartData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                     </Bar>
                   </BarChart>
@@ -1249,8 +1249,8 @@ export default function TeamPerformanceDashboard() {
                   <RTooltip contentStyle={{ borderRadius: 10 }} />
                   <Legend />
                   <Area type="monotone" dataKey="actual" stroke="#52c41a" strokeWidth={2} fill="#f6ffed" name="Actual (cumulative)" dot={false} />
-                  <Line type="monotone" dataKey="expected" stroke="#faad14" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Expected (linear)" />
-                  <Bar dataKey="daily" fill="#1677ff" opacity={0.4} name="Daily uploads" radius={[3, 3, 0, 0]} />
+                  <Line type="monotone" dataKey="expected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Expected (linear)" />
+                  <Bar dataKey="daily" fill="#4f46e5" opacity={0.4} name="Daily uploads" radius={[3, 3, 0, 0]} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
@@ -1269,7 +1269,7 @@ export default function TeamPerformanceDashboard() {
                   <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={80} />
                   <RTooltip contentStyle={{ borderRadius: 10 }} />
                   <Legend />
-                  <Bar dataKey="uploaded" name="Uploaded" fill="#1677ff" stackId="a" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="uploaded" name="Uploaded" fill="#4f46e5" stackId="a" radius={[0, 0, 0, 0]} />
                   <Bar dataKey="remaining" name="Remaining" fill="#f0f0f0" stackId="a" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -1343,7 +1343,7 @@ export default function TeamPerformanceDashboard() {
           <LeaderboardCard
             title="Lowest Performers"
             icon={<WarningOutlined />}
-            color="#ff4d4f"
+            color="#ef4444"
             loading={loading}
             rows={bottom5Agents.map((a) => ({ name: a.agent_name, value: a.total_leads, sub: `Avg ${a.avg_per_day.toFixed(1)}/day` }))}
           />

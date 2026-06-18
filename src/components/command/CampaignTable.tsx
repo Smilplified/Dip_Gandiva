@@ -26,6 +26,8 @@ interface CampaignMetrics {
 
 export interface CampaignListStats {
   total_leads: number;
+  /** MIS-delivered leads (`delivery_status = 'delivered'`). */
+  delivered_count: number;
   qualified_count: number;
   qualified_pct: number;
   /** % of leads past QA (qualified / registered / attended / no_show). */
@@ -75,7 +77,7 @@ function achievedLeadCount(row: CommandCampaignRow): number {
   if (row.achieved != null && !Number.isNaN(Number(row.achieved))) {
     return Number(row.achieved);
   }
-  return row.list_stats?.total_leads ?? 0;
+  return row.list_stats?.delivered_count ?? 0;
 }
 
 function remainingAllocation(row: CommandCampaignRow): number {
@@ -102,7 +104,7 @@ function countPillStyle(color: string, bg: string): React.CSSProperties {
 const STATUS_TAG_PROPS: Record<string, { color: string }> = {
   active: { color: "success" },
   paused: { color: "warning" },
-  completed: { color: "default" },
+  completed: { color: "success" },
   cancelled: { color: "error" },
   draft: { color: "default" },
 };
@@ -236,9 +238,7 @@ export default function CampaignTable({
         const tag = STATUS_TAG_PROPS[s] ?? { color: "default" };
         const label = s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
         return (
-          <Tag color={tag.color} style={s === "completed" ? { color: "#595959", borderColor: "#d9d9d9" } : undefined}>
-            {label}
-          </Tag>
+          <Tag color={tag.color}>{label}</Tag>
         );
       },
     },
@@ -276,7 +276,7 @@ export default function CampaignTable({
       onHeaderCell: headerCellProps(140),
       onCell: () => ({ style: { minWidth: 140, whiteSpace: "nowrap", textAlign: "center" } }),
       render: (v: number | null) => (
-        <span style={countPillStyle("#1677ff", "#e6f4ff")}>
+        <span style={countPillStyle("#4f46e5", "#eef2ff")}>
           {v != null ? v.toLocaleString() : "—"}
         </span>
       ),
@@ -349,7 +349,7 @@ export default function CampaignTable({
         return (
           <span
             style={countPillStyle(
-              exhausted ? "#52c41a" : "#d4380d",
+              exhausted ? "#52c41a" : "#b91c1c",
               exhausted ? "#f6ffed" : "#fff2e8"
             )}
           >
@@ -423,9 +423,7 @@ export default function CampaignTable({
         const tag = STATUS_TAG_PROPS[s] ?? { color: "default" };
         const label = s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
         return (
-          <Tag color={tag.color} style={s === "completed" ? { color: "#595959", borderColor: "#d9d9d9" } : undefined}>
-            {label}
-          </Tag>
+          <Tag color={tag.color}>{label}</Tag>
         );
       },
     },

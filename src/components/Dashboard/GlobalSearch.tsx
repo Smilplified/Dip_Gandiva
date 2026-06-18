@@ -30,16 +30,16 @@ type SearchResults = {
 };
 
 const CATEGORIES: { key: Category; label: string; icon: React.ReactNode; color: string }[] = [
-  { key: "all", label: "All", icon: <SearchOutlined />, color: "#1677ff" },
+  { key: "all", label: "All", icon: <SearchOutlined />, color: "#4f46e5" },
   { key: "campaigns", label: "Campaigns", icon: <RocketOutlined />, color: "#7c3aed" },
   { key: "leads", label: "Leads", icon: <FunnelPlotOutlined />, color: "#ea580c" },
-  { key: "alerts", label: "Alerts", icon: <AlertOutlined />, color: "#cf1322" },
+  { key: "alerts", label: "Alerts", icon: <AlertOutlined />, color: "#ef4444" },
 ];
 
 const TYPE_CONFIG: Record<ResultType, { color: string; bg: string; icon: React.ReactNode }> = {
   campaign: { color: "#6d28d9", bg: "#ede9fe", icon: <RocketOutlined /> },
   lead: { color: "#c2410c", bg: "#ffedd5", icon: <FunnelPlotOutlined /> },
-  alert: { color: "#cf1322", bg: "#fff1f0", icon: <AlertOutlined /> },
+  alert: { color: "#ef4444", bg: "#fff1f0", icon: <AlertOutlined /> },
 };
 
 const SECTION_ORDER: (keyof SearchResults)[] = ["campaigns", "leads", "alerts"];
@@ -233,13 +233,13 @@ export default function DashboardGlobalSearch() {
           height: 38,
           padding: "0 12px",
           background: open ? "#fff" : "#f4f6f8",
-          border: `1.5px solid ${open ? "#1677ff" : "#e5e7eb"}`,
+          border: `1.5px solid ${open ? "#4f46e5" : "#e5e7eb"}`,
           borderRadius: 10,
-          boxShadow: open ? "0 0 0 3px rgba(22,119,255,0.08)" : "none",
+          boxShadow: open ? "0 0 0 3px rgba(79,70,229,0.08)" : "none",
           transition: "all 0.18s ease",
         }}
       >
-        <SearchOutlined style={{ fontSize: 14, color: open ? "#1677ff" : "#9ca3af", flexShrink: 0 }} />
+        <SearchOutlined style={{ fontSize: 14, color: open ? "#4f46e5" : "#9ca3af", flexShrink: 0 }} />
         <input
           ref={inputRef}
           value={query}

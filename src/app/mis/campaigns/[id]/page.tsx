@@ -93,7 +93,7 @@ const overviewRowStyle = {
   borderBottom: "1px solid #f0f0f0",
   alignItems: "start",
 } as const;
-const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+const overviewLabelStyle = { fontSize: 13, color: "#6b7280", fontWeight: 500 } as const;
 const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
 
 function OverviewRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -573,7 +573,7 @@ export default function MISCampaignDetailPage() {
     draft: "default",
     active: "green",
     paused: "orange",
-    completed: "blue",
+    completed: "success",
   };
 
   const headerCode = campaignHeaderDisplayCode(campaign);
@@ -588,7 +588,7 @@ export default function MISCampaignDetailPage() {
             alignItems: "center",
             gap: 6,
             fontSize: 14,
-            color: "#1677ff",
+            color: "#4f46e5",
             textDecoration: "none",
             marginBottom: 16,
           }}
@@ -657,7 +657,7 @@ export default function MISCampaignDetailPage() {
               campaign.job_function ||
               campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
                   <div>
                     <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
@@ -684,7 +684,7 @@ export default function MISCampaignDetailPage() {
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                color: "#1677ff",
+                                color: "#4f46e5",
                               }}
                             >
                               {url}
@@ -898,10 +898,14 @@ export default function MISCampaignDetailPage() {
           maxCount={1}
         >
           <p className="ant-upload-drag-icon">
-            <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
+            <InboxOutlined style={{ fontSize: 48, color: "#4f46e5" }} />
           </p>
           <p className="ant-upload-text">Click or drag CSV or Excel file here</p>
-          <p className="ant-upload-hint">Export as Excel, edit (keep the lead_id or id column), then re-upload to update existing leads. Rows without an id are added as new leads.</p>
+          <p className="ant-upload-hint">
+            Export as Excel, edit (keep the lead_id or id column), then re-upload to update existing leads.
+            Rows without an id are added as new leads. Imported leads are marked <strong>delivered</strong> by default
+            (set delivery_status in the file to override).
+          </p>
         </Upload.Dragger>
         {parsedLeads.length > 0 && (
           <Typography.Text style={{ display: "block", marginTop: 12, color: "#52c41a" }}>

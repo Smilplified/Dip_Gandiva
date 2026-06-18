@@ -145,11 +145,15 @@ export async function POST(
     }
 
     const existingQaByLeadId = new Map<string, ExistingLeadQaSnapshot>();
+    const existingDeliveryByLeadId = new Map<
+      string,
+      { delivery_status: string | null; delivered_at: string | null; delivered_by: string | null }
+    >();
     if (importRowIds.length > 0) {
       const { data: existingRows, error: existingErr } = await dataClient
         .from("leads")
         .select(
-          "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id, qa_audited_at, qa_name"
+          "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id, qa_audited_at, qa_name, delivery_status, delivered_at, delivered_by"
         )
         .eq("campaign_id", campaignId)
         .eq("organization_id", orgId)
@@ -158,8 +162,18 @@ export async function POST(
         return NextResponse.json({ error: existingErr.message }, { status: 500 });
       }
       for (const row of existingRows ?? []) {
-        const r = row as ExistingLeadQaSnapshot & { id: string };
+        const r = row as ExistingLeadQaSnapshot & {
+          id: string;
+          delivery_status: string | null;
+          delivered_at: string | null;
+          delivered_by: string | null;
+        };
         existingQaByLeadId.set(r.id, r);
+        existingDeliveryByLeadId.set(r.id, {
+          delivery_status: r.delivery_status,
+          delivered_at: r.delivered_at,
+          delivered_by: r.delivered_by,
+        });
       }
     }
 
@@ -203,7 +217,7 @@ export async function POST(
       const leadStatus = typeof fields.status === "string" && fields.status.length > 0 ? fields.status : "new";
       const deliveryStatusRaw = typeof fields.delivery_status === "string" ? fields.delivery_status.trim().toLowerCase() : "";
       const normalizedDeliveryStatus =
-        canEditDelivery && (deliveryStatusRaw === "delivered")
+        canEditDelivery && deliveryStatusRaw === "delivered"
           ? "delivered"
           : canEditDelivery &&
             (deliveryStatusRaw === "not_delivered" || deliveryStatusRaw === "not delivered")
@@ -211,14 +225,26 @@ export async function POST(
           : canEditDelivery && deliveryStatusRaw === "pending"
           ? "pending"
           : null;
-      // delivered_at from CSV (re-import / backfill), or auto-set when marking delivered
+      // MIS file upload = client delivery; default to delivered unless the file specifies otherwise.
+      const effectiveDeliveryStatus = canEditDelivery
+        ? normalizedDeliveryStatus ?? "delivered"
+        : normalizedDeliveryStatus;
       const deliveredAtFromCsv = normalizeImportTimestampField(fields.delivered_at);
+      const existingDelivery = rowId ? existingDeliveryByLeadId.get(rowId) : undefined;
       const resolvedDeliveredAt =
-        normalizedDeliveryStatus === "delivered"
-          ? deliveredAtFromCsv ?? new Date().toISOString()
-          : normalizedDeliveryStatus === "not_delivered" || normalizedDeliveryStatus === "pending"
+        effectiveDeliveryStatus === "delivered"
+          ? deliveredAtFromCsv ??
+            existingDelivery?.delivered_at ??
+            new Date().toISOString()
+          : effectiveDeliveryStatus === "not_delivered" || effectiveDeliveryStatus === "pending"
           ? null
-          : undefined; // don't touch if delivery_status not provided
+          : undefined;
+      const resolvedDeliveredBy =
+        effectiveDeliveryStatus === "delivered"
+          ? existingDelivery?.delivered_by ?? user.id
+          : effectiveDeliveryStatus === "not_delivered" || effectiveDeliveryStatus === "pending"
+          ? null
+          : undefined;
       const channelRaw = typeof fields.channel === "string" ? fields.channel.trim().toLowerCase() : "";
       const normalizedChannel =
         channelRaw === "email"
@@ -290,8 +316,11 @@ export async function POST(
         lead_disposition: fields.lead_disposition || null,
         followup_date: fields.followup_date || null,
         notes: fields.notes || null,
-        delivery_status: normalizedDeliveryStatus ?? undefined,
+        ...(effectiveDeliveryStatus != null
+          ? { delivery_status: effectiveDeliveryStatus }
+          : {}),
         ...(resolvedDeliveredAt !== undefined ? { delivered_at: resolvedDeliveredAt } : {}),
+        ...(resolvedDeliveredBy !== undefined ? { delivered_by: resolvedDeliveredBy } : {}),
       } as Record<string, unknown>;
 
       Object.assign(upsertPayload, buildQaUpdatesFromImportRow(fields));
@@ -327,8 +356,10 @@ export async function POST(
 
       // If CSV has existing id, update that lead; otherwise create new one
       if (rowId) {
-        if (!normalizedDeliveryStatus) {
+        if (effectiveDeliveryStatus == null) {
           delete upsertPayload.delivery_status;
+          delete upsertPayload.delivered_at;
+          delete upsertPayload.delivered_by;
         }
         let updateError: { message: string } | null = null;
         for (const candidateChannel of channelCandidates) {
@@ -390,7 +421,13 @@ export async function POST(
               campaign_id: campaignId,
               assigned_agent_id: firstAgentId,
               ...upsertPayload,
-              delivery_status: normalizedDeliveryStatus ?? "not_delivered",
+              delivery_status: effectiveDeliveryStatus ?? "not_delivered",
+              delivered_at:
+                effectiveDeliveryStatus === "delivered"
+                  ? (resolvedDeliveredAt as string)
+                  : null,
+              delivered_by:
+                effectiveDeliveryStatus === "delivered" ? user.id : null,
               channel: candidateChannel,
               created_by: user.id,
             } as never);

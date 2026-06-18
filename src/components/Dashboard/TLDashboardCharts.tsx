@@ -73,8 +73,8 @@ export function TLLeadTrendChart({ data }: { data?: TLLeadTrendPoint[] }) {
         <AreaChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
           <defs>
             <linearGradient id="colorTLLeads" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#1890ff" stopOpacity={0} />
+              <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorTLConv" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#52c41a" stopOpacity={0.3} />
@@ -82,14 +82,14 @@ export function TLLeadTrendChart({ data }: { data?: TLLeadTrendPoint[] }) {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="date" stroke="#8c8c8c" fontSize={11} />
-          <YAxis stroke="#8c8c8c" fontSize={11} />
+          <XAxis dataKey="date" stroke="#6b7280" fontSize={11} />
+          <YAxis stroke="#6b7280" fontSize={11} />
           <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
           <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
           <Area
             type="monotone"
             dataKey="leads"
-            stroke="#1890ff"
+            stroke="#4f46e5"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorTLLeads)"
@@ -123,11 +123,11 @@ export function TLCampaignPerformanceChart({ data }: { data?: CampaignPerformanc
       <ResponsiveContainer width="100%" height={320}>
         <BarChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-          <XAxis dataKey="name" stroke="#8c8c8c" fontSize={11} />
-          <YAxis stroke="#8c8c8c" fontSize={11} />
+          <XAxis dataKey="name" stroke="#6b7280" fontSize={11} />
+          <YAxis stroke="#6b7280" fontSize={11} />
           <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
           <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-          <Bar dataKey="leads" fill="#1890ff" radius={[8, 8, 0, 0]} name="Leads" />
+          <Bar dataKey="leads" fill="#4f46e5" radius={[8, 8, 0, 0]} name="Leads" />
           <Bar dataKey="qualified" fill="#52c41a" radius={[8, 8, 0, 0]} name="Qualified" />
         </BarChart>
       </ResponsiveContainer>
@@ -136,7 +136,7 @@ export function TLCampaignPerformanceChart({ data }: { data?: CampaignPerformanc
 }
 
 export function TLCampaignStatusPieChart({ data }: { data: PieSlice[] }) {
-  const pieData = data.length > 0 ? data : [{ name: "No data", value: 1, color: "#d9d9d9" }];
+  const pieData = data.length > 0 ? data : [{ name: "No data", value: 1, color: "#d1d5db" }];
   return (
     <Card
       title={<Text strong style={{ fontSize: 16 }}>Campaign Status</Text>}
@@ -155,7 +155,7 @@ export function TLCampaignStatusPieChart({ data }: { data: PieSlice[] }) {
             paddingAngle={2}
             dataKey="value"
             label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-            labelLine={{ stroke: "#d9d9d9", strokeWidth: 1 }}
+            labelLine={{ stroke: "#d1d5db", strokeWidth: 1 }}
           >
             {pieData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} />

@@ -63,7 +63,7 @@ export default function DealsTable() {
         <Progress
           percent={prob}
           size="small"
-          strokeColor={prob >= 70 ? "#52c41a" : prob >= 40 ? "#faad14" : "#ff4d4f"}
+          strokeColor={prob >= 70 ? "#52c41a" : prob >= 40 ? "#f59e0b" : "#ef4444"}
         />
       ),
     },

@@ -54,7 +54,7 @@ const statusColors: Record<string, string> = {
   draft: "default",
   active: "green",
   paused: "orange",
-  completed: "blue",
+  completed: "success",
 };
 
 export default function TeamLeaderDashboardPage() {
@@ -98,8 +98,8 @@ export default function TeamLeaderDashboardPage() {
         change: "All time",
         trend: "neutral" as const,
         icon: <FundProjectionScreenOutlined />,
-        color: "#1890ff",
-        bgColor: "#e6f4ff",
+        color: "#4f46e5",
+        bgColor: "#eef2ff",
       },
       {
         title: "Active Campaigns",
@@ -160,9 +160,9 @@ export default function TeamLeaderDashboardPage() {
     const active = s?.activeCampaigns ?? 0;
     return [
       { name: "Active", value: active, color: "#52c41a" },
-      { name: "Paused", value: Math.max(0, total - active - 1), color: "#faad14" },
-      { name: "Draft", value: 1, color: "#8c8c8c" },
-      { name: "Completed", value: 0, color: "#1890ff" },
+      { name: "Paused", value: Math.max(0, total - active - 1), color: "#f59e0b" },
+      { name: "Draft", value: 1, color: "#6b7280" },
+      { name: "Completed", value: 0, color: "#4f46e5" },
     ].filter((d) => d.value > 0);
   }, [statsData]);
 
@@ -209,7 +209,7 @@ export default function TeamLeaderDashboardPage() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       {stat.trend === "up" && <ArrowUpOutlined style={{ color: "#52c41a", fontSize: 12 }} />}
-                      <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
+                      <Text style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>{stat.change}</Text>
                     </div>
                   </div>
                   <div

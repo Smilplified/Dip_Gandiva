@@ -44,7 +44,7 @@ type MetricsTabProps = {
   onRangeReset: () => void;
 };
 
-const BAR_COLORS = ["#1890ff", "#597ef7", "#85a5ff", "#adc6ff"];
+const BAR_COLORS = ["#4f46e5", "#6366f1", "#818cf8", "#a5b4fc"];
 
 export default function CampaignLeadMetricsTab({
   totalLeads,
@@ -118,8 +118,8 @@ export default function CampaignLeadMetricsTab({
       value: totalLeads,
       sub: "Delivered on this campaign",
       icon: <FundOutlined />,
-      color: "#1890ff",
-      bg: "#e6f4ff",
+      color: "#4f46e5",
+      bg: "#eef2ff",
     },
     {
       title: "Today",
@@ -142,7 +142,7 @@ export default function CampaignLeadMetricsTab({
       value: summary.month,
       sub: dayjs().format("MMMM YYYY"),
       icon: <RiseOutlined />,
-      color: "#fa8c16",
+      color: "#f59e0b",
       bg: "#fff7e6",
     },
   ];

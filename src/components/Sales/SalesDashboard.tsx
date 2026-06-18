@@ -41,11 +41,11 @@ const leadTrendData = [
 ];
 
 const leadSourceData = [
-  { name: "Website", value: 435, color: "#1890ff" },
+  { name: "Website", value: 435, color: "#4f46e5" },
   { name: "Referral", value: 312, color: "#52c41a" },
   { name: "Social Media", value: 245, color: "#722ed1" },
-  { name: "Email Campaign", value: 189, color: "#faad14" },
-  { name: "Others", value: 66, color: "#8c8c8c" },
+  { name: "Email Campaign", value: 189, color: "#f59e0b" },
+  { name: "Others", value: 66, color: "#6b7280" },
 ];
 
 const pipelineData = [
@@ -202,8 +202,8 @@ export default function SalesDashboard() {
       change: dashboard?.stats.totalLeads.change ?? "—",
       trend: dashboard?.stats.totalLeads.trend ?? "neutral",
       icon: <UserAddOutlined />,
-      color: "#1890ff",
-      bgColor: "#e6f4ff",
+      color: "#4f46e5",
+      bgColor: "#eef2ff",
     },
     {
       title: "Today's Leads",
@@ -220,7 +220,7 @@ export default function SalesDashboard() {
       change: dashboard?.stats.followUps.change ?? "—",
       trend: dashboard?.stats.followUps.trend ?? "neutral",
       icon: <ClockCircleOutlined />,
-      color: "#faad14",
+      color: "#f59e0b",
       bgColor: "#fffbe6",
     },
     {
@@ -240,7 +240,7 @@ export default function SalesDashboard() {
       key: "lead",
       render: (record: (typeof recentLeadsData)[number]) => (
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar style={{ backgroundColor: "#1890ff" }}>{record.name[0]}</Avatar>
+          <Avatar style={{ backgroundColor: "#4f46e5" }}>{record.name[0]}</Avatar>
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{record.name}</div>
             <Text type="secondary" style={{ fontSize: 12 }}>
@@ -324,7 +324,7 @@ export default function SalesDashboard() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     {stat.trend === "up" && <ArrowUpOutlined style={{ color: "#52c41a", fontSize: 12 }} />}
-                    {stat.trend === "down" && <ArrowDownOutlined style={{ color: "#ff4d4f", fontSize: 12 }} />}
+                    {stat.trend === "down" && <ArrowDownOutlined style={{ color: "#ef4444", fontSize: 12 }} />}
                     <Text
                       style={{
                         fontSize: 12,
@@ -332,8 +332,8 @@ export default function SalesDashboard() {
                           stat.trend === "up"
                             ? "#52c41a"
                             : stat.trend === "down"
-                              ? "#ff4d4f"
-                              : "#8c8c8c",
+                              ? "#ef4444"
+                              : "#6b7280",
                         fontWeight: 500,
                       }}
                     >
@@ -378,8 +378,8 @@ export default function SalesDashboard() {
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={pipelineDataLive} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis dataKey="stage" stroke="#8c8c8c" fontSize={11} />
-                <YAxis stroke="#8c8c8c" fontSize={11} />
+                <XAxis dataKey="stage" stroke="#6b7280" fontSize={11} />
+                <YAxis stroke="#6b7280" fontSize={11} />
                 <RechartsTooltip
                   contentStyle={{
                     borderRadius: 8,
@@ -391,7 +391,7 @@ export default function SalesDashboard() {
                     name === "count" ? "Leads" : "Value",
                   ]}
                 />
-                <Bar dataKey="count" fill="#1890ff" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="count" fill="#4f46e5" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -413,8 +413,8 @@ export default function SalesDashboard() {
               <AreaChart data={leadTrendDataLive} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <defs>
                   <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#1890ff" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorConversions" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#52c41a" stopOpacity={0.3} />
@@ -422,8 +422,8 @@ export default function SalesDashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" stroke="#8c8c8c" fontSize={11} />
-                <YAxis stroke="#8c8c8c" fontSize={11} />
+                <XAxis dataKey="date" stroke="#6b7280" fontSize={11} />
+                <YAxis stroke="#6b7280" fontSize={11} />
                 <RechartsTooltip
                   contentStyle={{
                     borderRadius: 8,
@@ -435,7 +435,7 @@ export default function SalesDashboard() {
                 <Area
                   type="monotone"
                   dataKey="leads"
-                  stroke="#1890ff"
+                  stroke="#4f46e5"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorLeads)"
@@ -478,7 +478,7 @@ export default function SalesDashboard() {
                   paddingAngle={2}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={{ stroke: "#d9d9d9", strokeWidth: 1 }}
+                  labelLine={{ stroke: "#d1d5db", strokeWidth: 1 }}
                 >
                   {leadSourceDataLive.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -505,7 +505,7 @@ export default function SalesDashboard() {
                 <Text strong style={{ fontSize: 16 }}>My Tasks</Text>
                 <Badge
                   count={tasksDataLive.filter((t) => !t.completed).length}
-                  style={{ backgroundColor: "#1890ff" }}
+                  style={{ backgroundColor: "#4f46e5" }}
                 />
               </div>
             }
@@ -538,7 +538,7 @@ export default function SalesDashboard() {
                       style={{
                         fontSize: 14,
                         fontWeight: 500,
-                        color: task.completed ? "#8c8c8c" : "#1f1f1f",
+                        color: task.completed ? "#6b7280" : "#1f1f1f",
                         textDecoration: task.completed ? "line-through" : "none",
                       }}
                     >
@@ -584,7 +584,7 @@ export default function SalesDashboard() {
                   <Avatar
                     size={36}
                     style={{
-                      backgroundColor: activity.type === "success" ? "#52c41a" : "#1890ff",
+                      backgroundColor: activity.type === "success" ? "#52c41a" : "#4f46e5",
                       flexShrink: 0,
                     }}
                   >

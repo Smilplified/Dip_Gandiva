@@ -16,7 +16,7 @@ function renderTextWithLinks(text: string): React.ReactNode[] {
           href={part}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: "#1677ff", textDecoration: "underline", wordBreak: "break-all" }}
+          style={{ color: "#4f46e5", textDecoration: "underline", wordBreak: "break-all" }}
         >
           {part}
         </a>
@@ -66,7 +66,7 @@ export function ExpandableText({
               border: "none",
               padding: 0,
               cursor: "pointer",
-              color: "#1677ff",
+              color: "#4f46e5",
               fontSize: "inherit",
               fontWeight: 500,
             }}

@@ -49,7 +49,7 @@ const statusColors: Record<string, string> = {
   draft: "default",
   active: "green",
   paused: "orange",
-  completed: "blue",
+  completed: "success",
 };
 
 export default function DCCampaignsPage() {
@@ -101,10 +101,10 @@ export default function DCCampaignsPage() {
   );
 
   const statCards = [
-    { title: "Total Campaigns", value: stats.total, icon: <FundProjectionScreenOutlined />, color: "#1890ff", bg: "#e6f4ff" },
+    { title: "Total Campaigns", value: stats.total, icon: <FundProjectionScreenOutlined />, color: "#4f46e5", bg: "#eef2ff" },
     { title: "Active", value: stats.active, icon: <CheckCircleOutlined />, color: "#52c41a", bg: "#f6ffed" },
     { title: "Completed", value: stats.completed, icon: <CheckCircleOutlined />, color: "#722ed1", bg: "#f9f0ff" },
-    { title: "Paused", value: stats.paused, icon: <ClockCircleOutlined />, color: "#faad14", bg: "#fffbe6" },
+    { title: "Paused", value: stats.paused, icon: <ClockCircleOutlined />, color: "#f59e0b", bg: "#fffbe6" },
   ];
 
   const columns: ColumnsType<Campaign> = [
@@ -157,7 +157,7 @@ export default function DCCampaignsPage() {
       title: "Delivered",
       dataIndex: "delivered_leads",
       width: 100,
-      render: (v: number) => <Text style={{ color: "#1677ff", fontWeight: 600 }}>{v}</Text>,
+      render: (v: number) => <Text style={{ color: "#4f46e5", fontWeight: 600 }}>{v}</Text>,
     },
     {
       title: "Start Date",
@@ -200,7 +200,7 @@ export default function DCCampaignsPage() {
       >
         <div>
           <Title level={3} style={{ margin: 0 }}>
-            <FundProjectionScreenOutlined style={{ color: "#1890ff", marginRight: 10 }} />
+            <FundProjectionScreenOutlined style={{ color: "#4f46e5", marginRight: 10 }} />
             Campaigns
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
@@ -271,7 +271,7 @@ export default function DCCampaignsPage() {
         }}
       >
         <Input
-          prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+          prefix={<SearchOutlined style={{ color: "#6b7280" }} />}
           placeholder="Search by name or campaign ID…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}

@@ -13,6 +13,7 @@ import {
   SettingOutlined,
   CustomerServiceOutlined,
   SendOutlined,
+  DatabaseOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 
@@ -55,6 +56,7 @@ export default function Sidebar() {
         { key: "/dashboard/overview", icon: <DashboardOutlined />, label: "Overview", href: "/dashboard/overview" },
         { key: "/dashboard/campaigns", icon: <SendOutlined />, label: "Campaigns", href: "/dashboard/campaigns" },
         { key: "/dashboard/leads", icon: <TeamOutlined />, label: "Leads", href: "/dashboard/leads" },
+        // { key: "/dashboard/check-data", icon: <DatabaseOutlined />, label: "Check Data", href: "/dashboard/check-data" },
       ]
     : menuItems;
 
@@ -111,12 +113,12 @@ export default function Sidebar() {
           const active = selectedKey === item.key;
           const emerald = "accent" in item && item.accent === "emerald";
           const linkBg = active ? (emerald ? "#ecfdf5" : "#eff6ff") : "transparent";
-          const circleBg = active ? (emerald ? "#1d9e75" : "#1677ff") : "#f3f4f6";
+          const circleBg = active ? (emerald ? "#16a34a" : "#4f46e5") : "#f3f4f6";
           const circleColor = active ? "#ffffff" : "#4b5563";
           const shadow = active
             ? emerald
               ? "0 6px 14px rgba(29,158,117,0.28)"
-              : "0 6px 14px rgba(22,119,255,0.28)"
+              : "0 6px 14px rgba(79,70,229,0.28)"
             : "none";
           const labelColor = active ? (emerald ? "#065f46" : "#0f172a") : "#6b7280";
           return (

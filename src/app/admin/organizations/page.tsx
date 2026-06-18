@@ -19,7 +19,7 @@ export default function AdminOrganizationsPage() {
           textAlign: "center",
           background: "#fff",
           borderRadius: 12,
-          border: "1px dashed #d9d9d9",
+          border: "1px dashed #d1d5db",
         }}
       >
         <Typography.Text type="secondary">

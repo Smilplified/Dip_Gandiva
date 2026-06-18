@@ -77,7 +77,7 @@ export default function AdminUserStats({ users }: { users: UserWithRoles[] }) {
           <Statistic
             title={<Text type="secondary">All Users</Text>}
             value={stats.total}
-            prefix={<TeamOutlined style={{ color: "#1677ff", marginRight: 8 }} />}
+            prefix={<TeamOutlined style={{ color: "#4f46e5", marginRight: 8 }} />}
             valueStyle={{ fontWeight: 600 }}
           />
           <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: "block" }}>

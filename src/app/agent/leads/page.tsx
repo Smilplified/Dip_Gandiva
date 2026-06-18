@@ -156,7 +156,7 @@ export default function AgentMyLeadsPage() {
         <div style={{ marginBottom: 24 }}>
           <Link
             href="/agent/dashboard"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#1677ff", textDecoration: "none", marginBottom: 16 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, color: "#4f46e5", textDecoration: "none", marginBottom: 16 }}
           >
             <ArrowLeftOutlined /> Back to Dashboard
           </Link>

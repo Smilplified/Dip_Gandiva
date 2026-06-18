@@ -45,7 +45,7 @@ type Category =
   | "leads";
 
 const ALL_CATEGORIES: { key: Category; label: string; icon: React.ReactNode; color: string; dot: string }[] = [
-  { key: "all",       label: "All",       icon: <SearchOutlined />,     color: "#1677ff", dot: "#1677ff" },
+  { key: "all",       label: "All",       icon: <SearchOutlined />,     color: "#4f46e5", dot: "#4f46e5" },
   { key: "clients",   label: "Clients",   icon: <TeamOutlined />,     color: "#be185d", dot: "#be185d" },
   { key: "campaigns", label: "Campaigns", icon: <RocketOutlined />,   color: "#7c3aed", dot: "#7c3aed" },
   { key: "companies", label: "Companies", icon: <BankOutlined />,       color: "#722ed1", dot: "#722ed1" },
@@ -59,7 +59,7 @@ const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; ic
   campaign: { label: "Campaign", color: "#6d28d9", bg: "#ede9fe", icon: <RocketOutlined /> },
   company:  { label: "Company",  color: "#6d28d9", bg: "#ede9fe", icon: <BankOutlined /> },
   contact:  { label: "Contact",  color: "#0369a1", bg: "#e0f2fe", icon: <UserOutlined /> },
-  deal:     { label: "Deal",     color: "#15803d", bg: "#dcfce7", icon: <RiseOutlined /> },
+  deal:     { label: "Deal",     color: "#16a34a", bg: "#dcfce7", icon: <RiseOutlined /> },
   lead:     { label: "Lead",     color: "#c2410c", bg: "#ffedd5", icon: <FunnelPlotOutlined /> },
 };
 
@@ -348,12 +348,12 @@ export default function GlobalSearch() {
           height: 38,
           padding: "0 12px",
           background: open ? "#fff" : "#f4f6f8",
-          border: `1.5px solid ${open ? "#1677ff" : "#e5e7eb"}`,
+          border: `1.5px solid ${open ? "#4f46e5" : "#e5e7eb"}`,
           borderRadius: 10,
-          boxShadow: open ? "0 0 0 3px rgba(22,119,255,0.08)" : "none",
+          boxShadow: open ? "0 0 0 3px rgba(79,70,229,0.08)" : "none",
           transition: "all 0.18s ease",
         }}>
-          <SearchOutlined style={{ fontSize: 14, color: open ? "#1677ff" : "#9ca3af", flexShrink: 0 }} />
+          <SearchOutlined style={{ fontSize: 14, color: open ? "#4f46e5" : "#9ca3af", flexShrink: 0 }} />
           <input
             ref={inputRef}
             className="gs-input"

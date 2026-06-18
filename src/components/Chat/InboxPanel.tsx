@@ -40,7 +40,7 @@ export default function InboxPanel({
         <h2 className="m-0 mb-2 text-[15px] font-semibold text-[#101828]">Inbox</h2>
 
         {clientsError ? (
-          <p className="mb-2 rounded-lg bg-[#fef3f2] px-2 py-1.5 text-[11px] text-[#b42318]">{clientsError}</p>
+          <p className="mb-2 rounded-lg bg-[#fef3f2] px-2 py-1.5 text-[11px] text-[#b91c1c]">{clientsError}</p>
         ) : null}
 
         <label className="mb-2 block">
@@ -55,7 +55,7 @@ export default function InboxPanel({
             <select
               value={selectedClientId ?? ""}
               onChange={(e) => onSelectClient(e.target.value)}
-              className="w-full cursor-pointer appearance-none rounded-lg border border-[#e4e7ec] bg-[#f7f8fa] py-2 pl-2.5 pr-7 text-[12px] font-medium text-[#101828] outline-none focus:border-[#1d9e75] focus:ring-1 focus:ring-[#1d9e75]"
+              className="w-full cursor-pointer appearance-none rounded-lg border border-[#e4e7ec] bg-[#f7f8fa] py-2 pl-2.5 pr-7 text-[12px] font-medium text-[#101828] outline-none focus:border-[#16a34a] focus:ring-1 focus:ring-[#16a34a]"
               aria-label="Select client"
             >
               {clients.map((cl) => (
@@ -84,7 +84,7 @@ export default function InboxPanel({
                     className={[
                       "w-full truncate rounded-md border px-2 py-1.5 text-left text-[11px] transition-colors",
                       on
-                        ? "border-[#1d9e75] bg-[#ecfdf5] font-semibold text-[#065f46]"
+                        ? "border-[#16a34a] bg-[#ecfdf5] font-semibold text-[#065f46]"
                         : "border-transparent bg-white font-medium text-[#344054] hover:bg-[#f7f8fa]",
                     ].join(" ")}
                     title={camp.name}
@@ -104,7 +104,7 @@ export default function InboxPanel({
             Select a client and campaign to open WhatsApp chat.
           </p>
         ) : threadError ? (
-          <p className="text-center text-[12px] text-[#b42318]">{threadError}</p>
+          <p className="text-center text-[12px] text-[#b91c1c]">{threadError}</p>
         ) : threadLoading ? (
           <div className="space-y-2">
             <div className="h-12 animate-pulse rounded-lg bg-[#f2f4f7]" />
@@ -112,7 +112,7 @@ export default function InboxPanel({
           </div>
         ) : hasActiveThread && selectedClient ? (
           <div className="rounded-lg border border-[#e4e7ec] bg-[#f7f8fa] p-3">
-            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[#1d9e75]">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[#16a34a]">
               <IconBrandWhatsapp size={14} stroke={1.5} aria-hidden />
               Client chat open
             </div>

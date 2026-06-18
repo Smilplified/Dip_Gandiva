@@ -50,6 +50,7 @@ import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
 import { tableSerialNumber } from "@/lib/table-pagination";
+import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
 import { CampaignQuestionsEditor } from "@/components/Campaigns/CampaignQuestionsEditor";
 import {
   campaignQuestionsPayloadFromFormValues,
@@ -349,8 +350,6 @@ export default function SalesCampaignDetailPage() {
           booked: values.booked,
           total_allocation: values.total_allocation,
           post_qa: values.post_qa,
-          achieved: values.achieved,
-          pending_allocation: values.pending_allocation,
           weekly_call: values.weekly_call || null,
           weekly_report: values.weekly_report || null,
           additional_comments: values.additional_comments || null,
@@ -462,7 +461,7 @@ export default function SalesCampaignDetailPage() {
     draft: "default",
     active: "green",
     paused: "orange",
-    completed: "blue",
+    completed: "success",
   };
 
   const leadColumns = [
@@ -576,7 +575,7 @@ export default function SalesCampaignDetailPage() {
     borderBottom: "1px solid #f0f0f0",
     alignItems: "start",
   } as const;
-  const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+  const overviewLabelStyle = { fontSize: 13, color: "#6b7280", fontWeight: 500 } as const;
   const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
 
   const OverviewRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
@@ -610,7 +609,7 @@ export default function SalesCampaignDetailPage() {
             alignItems: "center",
             gap: 6,
             fontSize: 14,
-            color: "#1677ff",
+            color: "#4f46e5",
             textDecoration: "none",
             marginBottom: 16,
           }}
@@ -711,7 +710,7 @@ export default function SalesCampaignDetailPage() {
             )}
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>Targeting</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
                   <div>
                     <OverviewRowOrEmpty label="Employee Size" value={campaign.employee_size?.length ? campaign.employee_size.join(", ") : null} />
@@ -739,7 +738,7 @@ export default function SalesCampaignDetailPage() {
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
-                                color: "#1677ff",
+                                color: "#4f46e5",
                               }}
                             >
                               {url}
@@ -796,7 +795,7 @@ export default function SalesCampaignDetailPage() {
               },
               {
                 label: "Revenue",
-                value: campaign.revenue != null ? `$${Number(campaign.revenue).toLocaleString()}` : null,
+                value: formatEarnedRevenue(campaign.cpl, campaign.achieved),
               },
               {
                 label: "Booked",
@@ -830,11 +829,11 @@ export default function SalesCampaignDetailPage() {
                 style={{
                   textAlign: "center",
                   padding: "32px 16px",
-                  color: "#8c8c8c",
+                  color: "#6b7280",
                   fontSize: 14,
                 }}
               >
-                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d1d5db" }} />
                 No files uploaded for this campaign.
               </div>
             ) : (
@@ -860,7 +859,7 @@ export default function SalesCampaignDetailPage() {
                         flex: 1,
                       }}
                     >
-                      <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                      <FileOutlined style={{ color: "#6b7280", flexShrink: 0 }} />
                       <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {f.file_name}
                       </span>
@@ -999,11 +998,11 @@ export default function SalesCampaignDetailPage() {
             <Form.Item name="post_qa" label="Post QA">
               <InputNumber style={{ width: "100%" }} min={0} precision={0} />
             </Form.Item>
-            <Form.Item name="achieved" label="Achieved">
-              <InputNumber style={{ width: "100%" }} min={0} precision={0} />
+            <Form.Item name="achieved" label="Achieved (MIS delivered)">
+              <InputNumber style={{ width: "100%" }} min={0} precision={0} disabled />
             </Form.Item>
             <Form.Item name="pending_allocation" label="Pending Allocation">
-              <InputNumber style={{ width: "100%" }} min={0} precision={0} />
+              <InputNumber style={{ width: "100%" }} min={0} precision={0} disabled />
             </Form.Item>
             <Form.Item name="weekly_call" label="Weekly Call">
               <Input placeholder="e.g. Monday 10:00 AM" />
@@ -1130,7 +1129,7 @@ export default function SalesCampaignDetailPage() {
                   maxCount={20}
                 >
                   <p className="ant-upload-drag-icon">
-                    <InboxOutlined style={{ fontSize: 32, color: "#1677ff" }} />
+                    <InboxOutlined style={{ fontSize: 32, color: "#4f46e5" }} />
                   </p>
                   <p className="ant-upload-text">Click or drag files to add</p>
                   <p className="ant-upload-hint">

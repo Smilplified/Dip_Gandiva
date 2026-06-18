@@ -40,7 +40,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 const tlHeaderStyle: React.CSSProperties = {
-  background: "linear-gradient(135deg, #1677ff 0%, #4096ff 100%)",
+  background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
   borderRadius: "12px 12px 0 0",
   margin: -24,
   marginBottom: 20,
@@ -51,7 +51,7 @@ const tlHeaderStyle: React.CSSProperties = {
 const connectorStyle: React.CSSProperties = {
   width: 2,
   height: 20,
-  background: "#d9d9d9",
+  background: "#d1d5db",
   margin: "0 auto 12px",
   borderRadius: 1,
 };
@@ -250,7 +250,7 @@ export default function TeamHierarchyView() {
             <Statistic
               title="Team Leaders"
               value={stats?.team_leader_count ?? 0}
-              prefix={<CrownOutlined style={{ color: "#1677ff" }} />}
+              prefix={<CrownOutlined style={{ color: "#4f46e5" }} />}
             />
           </Card>
         </Col>
@@ -277,8 +277,8 @@ export default function TeamHierarchyView() {
             <Statistic
               title="Unassigned"
               value={stats?.unassigned_agents ?? 0}
-              prefix={<WarningOutlined style={{ color: stats?.unassigned_agents ? "#fa8c16" : "#bfbfbf" }} />}
-              valueStyle={{ color: stats?.unassigned_agents ? "#fa8c16" : undefined }}
+              prefix={<WarningOutlined style={{ color: stats?.unassigned_agents ? "#f59e0b" : "#9ca3af" }} />}
+              valueStyle={{ color: stats?.unassigned_agents ? "#f59e0b" : undefined }}
             />
           </Card>
         </Col>
@@ -292,7 +292,7 @@ export default function TeamHierarchyView() {
                 key={tl.id}
                 count={tl.agent_count}
                 overflowCount={99}
-                style={{ backgroundColor: "#1677ff" }}
+                style={{ backgroundColor: "#4f46e5" }}
               >
                 <Tag style={{ padding: "6px 14px", fontSize: 13, borderRadius: 20 }}>
                   {getTeamLeaderLabel(tl)}
@@ -322,7 +322,7 @@ export default function TeamHierarchyView() {
           style={{ ...cardStyle, borderColor: "#ffe7ba" }}
           title={
             <Space>
-              <WarningOutlined style={{ color: "#fa8c16" }} />
+              <WarningOutlined style={{ color: "#f59e0b" }} />
               <span>Unassigned agents</span>
               <Tag color="orange">{unassigned.length}</Tag>
             </Space>

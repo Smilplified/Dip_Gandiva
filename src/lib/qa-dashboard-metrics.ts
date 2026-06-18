@@ -58,9 +58,9 @@ export type QaDashboardMetrics = {
 
 const CAMPAIGN_STATUS_META: Record<string, { label: string; color: string }> = {
   active: { label: "Active", color: "#52c41a" },
-  paused: { label: "Paused", color: "#fa8c16" },
-  draft: { label: "Draft", color: "#8c8c8c" },
-  completed: { label: "Completed", color: "#1677ff" },
+  paused: { label: "Paused", color: "#f59e0b" },
+  draft: { label: "Draft", color: "#6b7280" },
+  completed: { label: "Completed", color: "#16a34a" },
 };
 
 function auditDayKey(lead: QaDashboardLead): string | null {
@@ -95,9 +95,9 @@ export function computeQaDashboardMetrics(
   const totalDisqualified = summary?.total_disqualified ?? countDisqualifiedLeads(allLeads);
 
   const pipelineSlices: QaPipelineSlice[] = [
-    { name: "Pending", value: pendingAudit, color: "#faad14" },
+    { name: "Pending", value: pendingAudit, color: "#f59e0b" },
     { name: "Qualified", value: totalQualified, color: "#52c41a" },
-    { name: "Disqualified", value: totalDisqualified, color: "#ff4d4f" },
+    { name: "Disqualified", value: totalDisqualified, color: "#ef4444" },
   ].filter((s) => s.value > 0);
 
   const statusCounts = new Map<string, number>();
@@ -111,7 +111,7 @@ export function computeQaDashboardMetrics(
       status,
       label: CAMPAIGN_STATUS_META[status]?.label ?? status,
       count: statusCounts.get(status) ?? 0,
-      color: CAMPAIGN_STATUS_META[status]?.color ?? "#d9d9d9",
+      color: CAMPAIGN_STATUS_META[status]?.color ?? "#d1d5db",
     }))
     .filter((row) => row.count > 0);
 

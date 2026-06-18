@@ -63,7 +63,7 @@ const TYPE_CONFIG: Record<
   string,
   { label: string; color: string; bg: string; border: string; icon: React.ReactNode; dot: string }
 > = {
-  call:    { label: "Call",    color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: <PhoneOutlined />,       dot: "#3b82f6" },
+  call:    { label: "Call",    color: "#4338ca", bg: "#eff6ff", border: "#bfdbfe", icon: <PhoneOutlined />,       dot: "#6366f1" },
   meeting: { label: "Meeting", color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe", icon: <TeamOutlined />,        dot: "#8b5cf6" },
   email:   { label: "Email",   color: "#0e7490", bg: "#ecfeff", border: "#a5f3fc", icon: <MailOutlined />,        dot: "#06b6d4" },
   demo:    { label: "Demo",    color: "#b45309", bg: "#fffbeb", border: "#fde68a", icon: <PlayCircleOutlined />,  dot: "#f59e0b" },
@@ -667,7 +667,7 @@ export default function SalesActivitiesPage() {
       <Drawer
         title={
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#1d4ed8", fontSize: 15 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#4338ca", fontSize: 15 }}>
               {editingId ? <EditOutlined /> : <PlusOutlined />}
             </div>
             <span>{editingId ? "Edit Activity" : "Log New Activity"}</span>

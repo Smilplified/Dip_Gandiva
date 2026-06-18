@@ -16,6 +16,7 @@ import {
 import { downloadExcel } from "@/lib/leadsExport";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
+import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import type { Lead } from "@/types/lead.types";
 import dayjs from "dayjs";
@@ -67,7 +68,7 @@ type CampaignFile = {
 };
 
 const campaignStatusColors: Record<string, string> = {
-  draft: "default", active: "green", paused: "orange", completed: "blue",
+  draft: "default", active: "green", paused: "orange", completed: "success",
 };
 
 const overviewRowStyle = {
@@ -78,7 +79,7 @@ const overviewRowStyle = {
   borderBottom: "1px solid #f0f0f0",
   alignItems: "start",
 } as const;
-const overviewLabelStyle = { fontSize: 13, color: "#8c8c8c", fontWeight: 500 } as const;
+const overviewLabelStyle = { fontSize: 13, color: "#6b7280", fontWeight: 500 } as const;
 const overviewValueStyle = { fontSize: 14, whiteSpace: "pre-wrap" as const, wordBreak: "break-word" as const };
 
 function OverviewRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -271,7 +272,8 @@ export default function DCCampaignDetailPage() {
                 <OverviewRowOrEmpty label="Geography" value={campaign.geography} />
                 <OverviewRowOrEmpty label="Total Allocation" value={campaign.total_allocation} />
                 <OverviewRowOrEmpty label="CPL" value={campaign.cpl != null ? `$${campaign.cpl}` : null} />
-                <OverviewRowOrEmpty label="Revenue / Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
+                <OverviewRowOrEmpty label="Revenue" value={formatEarnedRevenue(campaign.cpl, campaign.achieved)} />
+                <OverviewRowOrEmpty label="Booked" value={campaign.booked != null ? `$${Number(campaign.booked).toLocaleString()}` : null} />
               </div>
               <div>
                 <OverviewRowOrEmpty label="Post QA" value={campaign.post_qa} />
@@ -281,7 +283,7 @@ export default function DCCampaignDetailPage() {
             </div>
             {(campaign.employee_size?.length || campaign.industry || campaign.abm != null || campaign.seniority || campaign.job_function || campaign.creatives_url?.length) ? (
               <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f0f0f0" }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#595959", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#4b5563", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   Targeting
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0 32px" }}>
@@ -299,7 +301,7 @@ export default function DCCampaignDetailPage() {
                         <span style={{ ...overviewValueStyle, minWidth: 0, overflow: "hidden" }}>
                           {campaign.creatives_url.map((url, i) => (
                             <a key={i} href={url} target="_blank" rel="noopener noreferrer" title={url}
-                              style={{ display: "block", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#1677ff" }}
+                              style={{ display: "block", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#4f46e5" }}
                             >
                               {url}
                             </a>
@@ -327,8 +329,8 @@ export default function DCCampaignDetailPage() {
             styles={{ body: { padding: "24px 28px" } }}
           >
             {files.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 16px", color: "#8c8c8c", fontSize: 14 }}>
-                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#6b7280", fontSize: 14 }}>
+                <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d1d5db" }} />
                 No files uploaded for this campaign.
               </div>
             ) : (
@@ -342,7 +344,7 @@ export default function DCCampaignDetailPage() {
                     }}
                   >
                     <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
-                      <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                      <FileOutlined style={{ color: "#6b7280", flexShrink: 0 }} />
                       <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</span>
                       {f.file_size != null && (
                         <Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
@@ -371,7 +373,7 @@ export default function DCCampaignDetailPage() {
         extra={
           <Space size="middle" wrap>
             <Input
-              prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+              prefix={<SearchOutlined style={{ color: "#6b7280" }} />}
               placeholder="Search leads…"
               value={leadSearch}
               onChange={(e) => setLeadSearch(e.target.value)}

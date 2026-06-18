@@ -22,6 +22,7 @@ import {
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
   enrichCampaignAllocationFields,
+  MIS_DELIVERED_ACHIEVED_OPTIONS,
 } from "@/lib/campaign-allocation";
 import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 import {
@@ -206,9 +207,11 @@ export async function GET(
 
     const leadCounts = await aggregateTlLeadCountsByCampaign(supabase, orgId, [campaignId]);
     const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
-    const campaignWithAllocation = enrichCampaignAllocationFields(campaignWithTlName, metrics, {
-      achievedFallback: "qualified",
-    });
+    const campaignWithAllocation = enrichCampaignAllocationFields(
+      campaignWithTlName,
+      metrics,
+      MIS_DELIVERED_ACHIEVED_OPTIONS
+    );
 
     return NextResponse.json({
       campaign: campaignWithAllocation,
@@ -299,8 +302,6 @@ export async function PATCH(
       booked,
       total_allocation,
       post_qa,
-      achieved,
-      pending_allocation,
       weekly_call,
       weekly_report,
       additional_comments,
@@ -342,8 +343,7 @@ export async function PATCH(
     if (booked !== undefined) updates.booked = booked != null ? Number(booked) : null;
     if (total_allocation !== undefined) updates.total_allocation = total_allocation != null ? Number(total_allocation) : null;
     if (post_qa !== undefined) updates.post_qa = post_qa != null ? Number(post_qa) : null;
-    if (achieved !== undefined) updates.achieved = achieved != null ? Number(achieved) : null;
-    if (pending_allocation !== undefined) updates.pending_allocation = pending_allocation != null ? Number(pending_allocation) : null;
+    // achieved / pending_allocation are derived from MIS-delivered leads (DB trigger + API enrichment).
     if (weekly_call !== undefined) updates.weekly_call = weekly_call?.trim() || null;
     if (weekly_report !== undefined) updates.weekly_report = weekly_report?.trim() || null;
     if (additional_comments !== undefined) updates.additional_comments = additional_comments?.trim() || null;

@@ -166,14 +166,14 @@ export default function SalesSidebar() {
                     justifyContent: "center",
                     background: active
                       ? item.accent === "emerald"
-                        ? "#1d9e75"
-                        : "#1677ff"
+                        ? "#16a34a"
+                        : "#4f46e5"
                       : "#f3f4f6",
                     color: active ? "#ffffff" : "#4b5563",
                     boxShadow: active
                       ? item.accent === "emerald"
                         ? "0 6px 14px rgba(29,158,117,0.28)"
-                        : "0 6px 14px rgba(22,119,255,0.28)"
+                        : "0 6px 14px rgba(79,70,229,0.28)"
                       : "none",
                     fontSize: 20,
                   }}

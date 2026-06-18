@@ -4,6 +4,7 @@ import { hasCommandRole } from "@/lib/command/rules-engine";
 import {
   countCampaignLeads,
   enrichCampaignAllocationFields,
+  MIS_DELIVERED_ACHIEVED_OPTIONS,
 } from "@/lib/campaign-allocation";
 import {
   getRoleNames,
@@ -106,10 +107,7 @@ export async function GET(
   const enrichedCampaign = enrichCampaignAllocationFields(
     campaignObj,
     { total: totalLeads, delivered: deliveredLeads },
-    {
-      achievedFallback: isClientViewer ? "delivered" : "total",
-      capToAllocation: false,
-    }
+    { ...MIS_DELIVERED_ACHIEVED_OPTIONS, capToAllocation: false }
   );
 
   return NextResponse.json({ campaign: enrichedCampaign });

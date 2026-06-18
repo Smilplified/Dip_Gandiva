@@ -76,7 +76,7 @@ const PRIORITY_CONFIG: Record<
   string,
   { label: string; color: string; bg: string; border: string; dot: string; antColor: string }
 > = {
-  low:    { label: "Low",    color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", dot: "#22c55e", antColor: "green"  },
+  low:    { label: "Low",    color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", dot: "#16a34a", antColor: "green"  },
   medium: { label: "Medium", color: "#b45309", bg: "#fffbeb", border: "#fde68a", dot: "#f59e0b", antColor: "gold"   },
   high:   { label: "High",   color: "#b91c1c", bg: "#fef2f2", border: "#fecaca", dot: "#ef4444", antColor: "red"    },
 };
@@ -86,8 +86,8 @@ const STATUS_CONFIG: Record<
   { label: string; color: string; bg: string; border: string; icon: React.ReactNode }
 > = {
   pending:     { label: "Pending",     color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb", icon: <ClockCircleOutlined /> },
-  in_progress: { label: "In Progress", color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe", icon: <AppstoreOutlined />    },
-  completed:   { label: "Completed",   color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", icon: <CheckCircleOutlined /> },
+  in_progress: { label: "In Progress", color: "#4338ca", bg: "#eff6ff", border: "#bfdbfe", icon: <AppstoreOutlined />    },
+  completed:   { label: "Completed",   color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", icon: <CheckCircleOutlined /> },
   overdue:     { label: "Overdue",     color: "#b91c1c", bg: "#fef2f2", border: "#fecaca", icon: <AlertOutlined />       },
 };
 
@@ -460,7 +460,7 @@ export default function SalesTasksPage() {
         v ? (
           <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#eff6ff", border: "1px solid #bfdbfe", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <UserOutlined style={{ fontSize: 10, color: "#1d4ed8" }} />
+              <UserOutlined style={{ fontSize: 10, color: "#4338ca" }} />
             </span>
             <span style={{ color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v}</span>
           </span>
@@ -541,7 +541,7 @@ export default function SalesTasksPage() {
         .task-row-overdue:hover td { background: #fff1f1 !important; }
         .task-row-high td:first-child { border-left: 3px solid #ef4444; }
         .task-row-medium td:first-child { border-left: 3px solid #f59e0b; }
-        .task-row-low td:first-child { border-left: 3px solid #22c55e; }
+        .task-row-low td:first-child { border-left: 3px solid #16a34a; }
       `}</style>
 
       <div style={{ padding: "0 4px" }}>
@@ -567,7 +567,7 @@ export default function SalesTasksPage() {
         <Row gutter={[14, 14]} style={{ marginBottom: 20 }}>
           <Col xs={12} sm={8} lg={24 / 5}>
             <StatCard label="Total" count={stats.total} icon={<AppstoreOutlined />}
-              color="#1677ff" bg="#eff6ff" active={!statusFilter}
+              color="#4f46e5" bg="#eff6ff" active={!statusFilter}
               onClick={clearFilters} />
           </Col>
           <Col xs={12} sm={8} lg={24 / 5}>
@@ -577,7 +577,7 @@ export default function SalesTasksPage() {
           </Col>
           <Col xs={12} sm={8} lg={24 / 5}>
             <StatCard label="In Progress" count={stats.in_progress} icon={<AppstoreOutlined />}
-              color="#1d4ed8" bg="#eff6ff" active={statusFilter === "in_progress"}
+              color="#4338ca" bg="#eff6ff" active={statusFilter === "in_progress"}
               onClick={() => setStatusFilter(statusFilter === "in_progress" ? undefined : "in_progress")} />
           </Col>
           <Col xs={12} sm={8} lg={24 / 5}>
@@ -587,7 +587,7 @@ export default function SalesTasksPage() {
           </Col>
           <Col xs={12} sm={8} lg={24 / 5}>
             <StatCard label="Completed" count={stats.completed} icon={<CheckCircleOutlined />}
-              color="#15803d" bg="#f0fdf4" active={statusFilter === "completed"}
+              color="#16a34a" bg="#f0fdf4" active={statusFilter === "completed"}
               onClick={() => setStatusFilter(statusFilter === "completed" ? undefined : "completed")} />
           </Col>
         </Row>
@@ -734,7 +734,7 @@ export default function SalesTasksPage() {
               <div style={{
                 width: 32, height: 32, borderRadius: 8, background: "#eff6ff",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                color: "#1d4ed8", fontSize: 15,
+                color: "#4338ca", fontSize: 15,
               }}>
                 {editingId ? <EditOutlined /> : <PlusOutlined />}
               </div>

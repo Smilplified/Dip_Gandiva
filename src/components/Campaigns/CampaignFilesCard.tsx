@@ -32,8 +32,8 @@ export function CampaignFilesCard({ files }: { files: CampaignFileItem[] }) {
       styles={{ body: { padding: "24px 28px" } }}
     >
       {files.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "32px 16px", color: "#8c8c8c", fontSize: 14 }}>
-          <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d9d9d9" }} />
+        <div style={{ textAlign: "center", padding: "32px 16px", color: "#6b7280", fontSize: 14 }}>
+          <FileOutlined style={{ fontSize: 40, marginBottom: 12, display: "block", color: "#d1d5db" }} />
           No files uploaded for this campaign.
         </div>
       ) : (
@@ -51,7 +51,7 @@ export function CampaignFilesCard({ files }: { files: CampaignFileItem[] }) {
               }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
-                <FileOutlined style={{ color: "#8c8c8c", flexShrink: 0 }} />
+                <FileOutlined style={{ color: "#6b7280", flexShrink: 0 }} />
                 <span style={{ fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {f.file_name}
                 </span>

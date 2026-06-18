@@ -68,7 +68,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 const tlHeaderStyle: React.CSSProperties = {
-  background: "linear-gradient(135deg, #1677ff 0%, #4096ff 100%)",
+  background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
   borderRadius: "12px 12px 0 0",
   margin: -24,
   marginBottom: 20,
@@ -120,9 +120,9 @@ function AgentChipBody({
         alignItems: "center",
         gap: 10,
         padding: compact ? "6px 10px" : "8px 12px",
-        background: dragging ? "#e6f4ff" : "#fafafa",
+        background: dragging ? "#eef2ff" : "#fafafa",
         borderRadius: 10,
-        border: dragging ? "1px dashed #1677ff" : "1px solid #f0f0f0",
+        border: dragging ? "1px dashed #4f46e5" : "1px solid #f0f0f0",
         userSelect: "none",
         transition: "background 0.15s, border-color 0.15s",
       }}
@@ -140,7 +140,7 @@ function AgentChipBody({
           </Text>
         )}
       </div>
-      <DragOutlined style={{ color: "#bfbfbf", fontSize: 14, flexShrink: 0 }} />
+      <DragOutlined style={{ color: "#9ca3af", fontSize: 14, flexShrink: 0 }} />
     </div>
   );
 }
@@ -217,9 +217,9 @@ function DroppableTeamLeaderCard({
       ref={setNodeRef as unknown as React.RefObject<HTMLDivElement> | undefined}
       style={{
         ...cardStyle,
-        borderColor: isOver ? "#1677ff" : "#f0f0f0",
+        borderColor: isOver ? "#4f46e5" : "#f0f0f0",
         boxShadow: isOver
-          ? "0 0 0 3px rgba(22,119,255,0.12), 0 2px 8px rgba(0,0,0,0.06)"
+          ? "0 0 0 3px rgba(79,70,229,0.12), 0 2px 8px rgba(0,0,0,0.06)"
           : cardStyle.boxShadow,
         transition: "border-color 0.15s, box-shadow 0.15s",
       }}
@@ -277,8 +277,8 @@ function DroppableTeamLeaderCard({
           minHeight: 110,
           padding: 12,
           borderRadius: 10,
-          background: isOver ? "#e6f4ff" : "#fafafa",
-          border: `1px dashed ${isOver ? "#1677ff" : "#e5e7eb"}`,
+          background: isOver ? "#eef2ff" : "#fafafa",
+          border: `1px dashed ${isOver ? "#4f46e5" : "#e5e7eb"}`,
           transition: "background 0.15s, border-color 0.15s",
         }}
       >
@@ -289,7 +289,7 @@ function DroppableTeamLeaderCard({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: isOver ? "#1677ff" : "#bfbfbf",
+              color: isOver ? "#4f46e5" : "#9ca3af",
               fontSize: 13,
               textAlign: "center",
               padding: "8px 4px",
@@ -354,7 +354,7 @@ function DroppableUnassignedPanel({
       ref={setNodeRef as unknown as React.RefObject<HTMLDivElement> | undefined}
       style={{
         ...cardStyle,
-        borderColor: isOver ? "#fa8c16" : "#ffe7ba",
+        borderColor: isOver ? "#f59e0b" : "#ffe7ba",
         background: isOver ? "#fff7e6" : "#fffbf0",
         boxShadow: isOver
           ? "0 0 0 3px rgba(250,140,22,0.12), 0 2px 8px rgba(0,0,0,0.06)"
@@ -363,7 +363,7 @@ function DroppableUnassignedPanel({
       }}
       title={
         <Space>
-          <WarningOutlined style={{ color: "#fa8c16" }} />
+          <WarningOutlined style={{ color: "#f59e0b" }} />
           <span>Unassigned agents</span>
           <Tag color="orange" style={{ margin: 0 }}>
             {unassigned.length}
@@ -386,9 +386,9 @@ function DroppableUnassignedPanel({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: isOver ? "#fa8c16" : "#bfbfbf",
+            color: isOver ? "#f59e0b" : "#9ca3af",
             fontSize: 13,
-            border: `1px dashed ${isOver ? "#fa8c16" : "#e5e7eb"}`,
+            border: `1px dashed ${isOver ? "#f59e0b" : "#e5e7eb"}`,
             borderRadius: 10,
             background: isOver ? "#fff2e0" : "transparent",
           }}
@@ -698,7 +698,7 @@ export default function TeamBuilderDnDView() {
           <Space wrap>
             <Input
               allowClear
-              prefix={<SearchOutlined style={{ color: "#bfbfbf" }} />}
+              prefix={<SearchOutlined style={{ color: "#9ca3af" }} />}
               placeholder="Search agents by name or email"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -729,7 +729,7 @@ export default function TeamBuilderDnDView() {
           styles={{ body: { padding: "14px 18px" } }}
         >
           <Space size={10}>
-            <DragOutlined style={{ color: "#1677ff", fontSize: 18 }} />
+            <DragOutlined style={{ color: "#4f46e5", fontSize: 18 }} />
             <Text style={{ fontSize: 13 }}>
               <strong>Drag</strong> an agent from one card to another to reassign their
               Team Leader. Drop an agent on the orange <strong>Unassigned</strong> panel
@@ -745,7 +745,7 @@ export default function TeamBuilderDnDView() {
               <Statistic
                 title="Team Leaders"
                 value={stats.team_leader_count}
-                prefix={<CrownOutlined style={{ color: "#1677ff" }} />}
+                prefix={<CrownOutlined style={{ color: "#4f46e5" }} />}
               />
             </Card>
           </Col>
@@ -774,11 +774,11 @@ export default function TeamBuilderDnDView() {
                 value={stats.unassigned_agents}
                 prefix={
                   <WarningOutlined
-                    style={{ color: stats.unassigned_agents ? "#fa8c16" : "#bfbfbf" }}
+                    style={{ color: stats.unassigned_agents ? "#f59e0b" : "#9ca3af" }}
                   />
                 }
                 valueStyle={{
-                  color: stats.unassigned_agents ? "#fa8c16" : undefined,
+                  color: stats.unassigned_agents ? "#f59e0b" : undefined,
                 }}
               />
             </Card>
@@ -797,7 +797,7 @@ export default function TeamBuilderDnDView() {
                   key={tl.id}
                   count={tl.agents.length}
                   overflowCount={99}
-                  style={{ backgroundColor: "#1677ff" }}
+                  style={{ backgroundColor: "#4f46e5" }}
                   showZero
                 >
                   <Tag style={{ padding: "6px 14px", fontSize: 13, borderRadius: 20 }}>

@@ -89,7 +89,7 @@ export default function AgentHeader() {
                 : undefined
             }
             icon={<UserOutlined />}
-            style={{ backgroundColor: profile?.avatar_url ? "transparent" : "#1677ff", flexShrink: 0 }}
+            style={{ backgroundColor: profile?.avatar_url ? "transparent" : "#4f46e5", flexShrink: 0 }}
           />
           <div style={{ textAlign: "left", lineHeight: 1.3 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>
@@ -97,7 +97,7 @@ export default function AgentHeader() {
                 ? "Signing out..."
                 : profile?.full_name || user?.email || "Agent"}
             </div>
-            <div style={{ fontSize: 12, color: "#8c8c8c" }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
               {signingOut ? "Signing out..." : "Agent"}
             </div>
           </div>

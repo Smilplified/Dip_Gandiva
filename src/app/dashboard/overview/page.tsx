@@ -204,9 +204,9 @@ export default function OverviewPage() {
 
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         {[
-          { title: "Campaigns", value: data?.kpis.totalCampaigns ?? data?.campaigns.length ?? 0, color: "#1677ff" },
+          { title: "Campaigns", value: data?.kpis.totalCampaigns ?? data?.campaigns.length ?? 0, color: "#4f46e5" },
           { title: "Total Qualified Leads", value: data?.kpis.qualified ?? 0, color: "#52c41a" },
-          { title: "Registrations on client in LP", value: data?.kpis.registrations ?? 0, color: "#faad14" },
+          { title: "Registrations on client in LP", value: data?.kpis.registrations ?? 0, color: "#f59e0b" },
           { title: "Attendees", value: data?.kpis.attendees ?? 0, color: "#722ed1" },
         ].map((k) => (
           <Col xs={12} md={6} key={k.title}>
@@ -261,7 +261,7 @@ export default function OverviewPage() {
                     type="monotone"
                     dataKey="deficit"
                     name="Deficit"
-                    stroke="#ff4d4f"
+                    stroke="#ef4444"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                     activeDot={{ r: 5 }}
@@ -306,7 +306,7 @@ export default function OverviewPage() {
                       return `${label} · ${row.campaignName ?? ""}`;
                     }}
                   />
-                  <Bar dataKey="email" stackId="channels" fill="#1677ff" name="Email" />
+                  <Bar dataKey="email" stackId="channels" fill="#4f46e5" name="Email" />
                   <Bar dataKey="telemarketing" stackId="channels" fill="#52c41a" name="Telemarketing" />
                 </BarChart>
               </ResponsiveContainer>
@@ -331,8 +331,8 @@ export default function OverviewPage() {
                       ? Math.round((stage.value / prevValue) * 100)
                       : null;
 
-                  const COLORS = ["#1677ff", "#4096ff", "#36cfc9", "#52c41a", "#95de64"];
-                  const color = COLORS[i] ?? "#1677ff";
+                  const COLORS = ["#4f46e5", "#6366f1", "#36cfc9", "#52c41a", "#95de64"];
+                  const color = COLORS[i] ?? "#4f46e5";
 
                   return (
                     <div key={stage.name} style={{ marginBottom: i < funnelData.length - 1 ? 2 : 0 }}>
@@ -409,7 +409,7 @@ export default function OverviewPage() {
                   }}
                 >
                   {[
-                    { label: "Delivery Rate", value: perf?.performance.deliveryRate ?? 0, color: "#1677ff" },
+                    { label: "Delivery Rate", value: perf?.performance.deliveryRate ?? 0, color: "#4f46e5" },
                     { label: "Registration Rate (client LP)", value: perf?.performance.registrationRate ?? 0, color: "#52c41a" },
                     { label: "Attendance Rate", value: perf?.performance.attendanceRate ?? 0, color: "#722ed1" },
                   ].map((p) => (
@@ -443,7 +443,7 @@ export default function OverviewPage() {
                 <XAxis dataKey="name" />
                 <YAxis />
                 <RTooltip />
-                <Bar dataKey="registrations" fill="#1677ff" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="registrations" fill="#4f46e5" radius={[6, 6, 0, 0]} />
                 <Bar dataKey="attendees" fill="#52c41a" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

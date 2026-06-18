@@ -267,9 +267,7 @@ export async function GET(request: NextRequest) {
     if (ids.length > 0) {
       try {
         [leadAgg, alertAgg, dqOverrideAgg] = await Promise.all([
-          aggregateCommandLeadStatsByCampaign(supabase, orgId, ids, {
-            deliveredOnly: userRoles.includes("client_viewer"),
-          }),
+          aggregateCommandLeadStatsByCampaign(supabase, orgId, ids),
           aggregateUnresolvedAlertsByCampaign(supabase, orgId, ids),
           aggregateDqOverrideAlertCountsByCampaign(supabase, orgId, ids),
         ]);
@@ -284,6 +282,7 @@ export async function GET(request: NextRequest) {
     const emptyLead = (): CommandListLeadAgg => ({
       total: 0,
       qualified: 0,
+      delivered: 0,
       qa_verified: 0,
       dq: 0,
       missingConsent: 0,
@@ -306,7 +305,7 @@ export async function GET(request: NextRequest) {
       const consentIssues = L.missingConsent + L.disputedConsent;
       const overrideCount = dqOverrideAgg[id] ?? 0;
       const totalAllocation = Number(c.total_allocation ?? 0) || 0;
-      const achievedCount = L.total;
+      const achievedCount = L.delivered;
       const remainingAllocation = Math.max(0, totalAllocation - achievedCount);
       return {
         ...c,
@@ -317,6 +316,7 @@ export async function GET(request: NextRequest) {
         pending_allocation: remainingAllocation,
         list_stats: {
           total_leads: L.total,
+          delivered_count: L.delivered,
           qualified_count: L.qualified,
           qualified_pct: qualifiedPct,
           qa_verified_pct: qaVerifiedPct,

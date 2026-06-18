@@ -41,13 +41,13 @@ export default function SalesChart() {
         <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#1677ff" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#1677ff" stopOpacity={0} />
+              <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="month" stroke="#8c8c8c" fontSize={12} />
-          <YAxis stroke="#8c8c8c" fontSize={12} tickFormatter={(v) => `$${v}`} />
+          <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
+          <YAxis stroke="#6b7280" fontSize={12} tickFormatter={(v) => `$${v}`} />
           <Tooltip
             formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]}
             contentStyle={{ borderRadius: 8 }}
@@ -55,7 +55,7 @@ export default function SalesChart() {
           <Area
             type="monotone"
             dataKey="revenue"
-            stroke="#1677ff"
+            stroke="#4f46e5"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorRevenue)"

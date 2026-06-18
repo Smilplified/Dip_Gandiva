@@ -41,11 +41,11 @@ const userGrowthData = [
 ];
 
 const roleDistributionData = [
-  { name: "Agent", value: 142, color: "#1890ff" },
+  { name: "Agent", value: 142, color: "#4f46e5" },
   { name: "Team Leader", value: 28, color: "#52c41a" },
   { name: "QA", value: 24, color: "#722ed1" },
-  { name: "Sales", value: 32, color: "#faad14" },
-  { name: "Admin", value: 22, color: "#8c8c8c" },
+  { name: "Sales", value: 32, color: "#f59e0b" },
+  { name: "Admin", value: 22, color: "#6b7280" },
 ];
 
 const pipelineData = [
@@ -102,8 +102,8 @@ export default function AdminDashboardPage() {
       change: "+18 this month",
       trend: "up",
       icon: <UserOutlined />,
-      color: "#1890ff",
-      bgColor: "#e6f4ff",
+      color: "#4f46e5",
+      bgColor: "#eef2ff",
     },
     {
       title: "Active Roles",
@@ -129,7 +129,7 @@ export default function AdminDashboardPage() {
       change: "+2.1%",
       trend: "up",
       icon: <RiseOutlined />,
-      color: "#faad14",
+      color: "#f59e0b",
       bgColor: "#fffbe6",
     },
   ];
@@ -140,7 +140,7 @@ export default function AdminDashboardPage() {
       key: "user",
       render: (record: (typeof recentUsersData)[0]) => (
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar style={{ backgroundColor: "#1890ff" }}>{record.name[0]}</Avatar>
+          <Avatar style={{ backgroundColor: "#4f46e5" }}>{record.name[0]}</Avatar>
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{record.name}</div>
             <Text type="secondary" style={{ fontSize: 12 }}>{record.email}</Text>
@@ -194,8 +194,8 @@ export default function AdminDashboardPage() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     {stat.trend === "up" && <ArrowUpOutlined style={{ color: "#52c41a", fontSize: 12 }} />}
-                    {stat.trend === "down" && <ArrowDownOutlined style={{ color: "#ff4d4f", fontSize: 12 }} />}
-                    <Text style={{ fontSize: 12, color: "#8c8c8c", fontWeight: 500 }}>{stat.change}</Text>
+                    {stat.trend === "down" && <ArrowDownOutlined style={{ color: "#ef4444", fontSize: 12 }} />}
+                    <Text style={{ fontSize: 12, color: "#6b7280", fontWeight: 500 }}>{stat.change}</Text>
                   </div>
                 </div>
                 <div
@@ -231,8 +231,8 @@ export default function AdminDashboardPage() {
               <AreaChart data={userGrowthData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <defs>
                   <linearGradient id="colorAdminUsers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1890ff" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#1890ff" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorAdminLogins" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#52c41a" stopOpacity={0.3} />
@@ -240,11 +240,11 @@ export default function AdminDashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" stroke="#8c8c8c" fontSize={11} />
-                <YAxis stroke="#8c8c8c" fontSize={11} />
+                <XAxis dataKey="month" stroke="#6b7280" fontSize={11} />
+                <YAxis stroke="#6b7280" fontSize={11} />
                 <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Area type="monotone" dataKey="users" stroke="#1890ff" strokeWidth={2} fillOpacity={1} fill="url(#colorAdminUsers)" name="Users" />
+                <Area type="monotone" dataKey="users" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorAdminUsers)" name="Users" />
                 <Area type="monotone" dataKey="logins" stroke="#52c41a" strokeWidth={2} fillOpacity={1} fill="url(#colorAdminLogins)" name="Logins" />
               </AreaChart>
             </ResponsiveContainer>
@@ -268,7 +268,7 @@ export default function AdminDashboardPage() {
                   paddingAngle={2}
                   dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  labelLine={{ stroke: "#d9d9d9", strokeWidth: 1 }}
+                  labelLine={{ stroke: "#d1d5db", strokeWidth: 1 }}
                 >
                   {roleDistributionData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -289,10 +289,10 @@ export default function AdminDashboardPage() {
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={pipelineData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis dataKey="stage" stroke="#8c8c8c" fontSize={11} />
-                <YAxis stroke="#8c8c8c" fontSize={11} />
+                <XAxis dataKey="stage" stroke="#6b7280" fontSize={11} />
+                <YAxis stroke="#6b7280" fontSize={11} />
                 <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }} />
-                <Bar dataKey="count" fill="#1890ff" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="count" fill="#4f46e5" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -305,7 +305,7 @@ export default function AdminDashboardPage() {
             title={
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Text strong style={{ fontSize: 16 }}>My Tasks</Text>
-                <Badge count={tasksData.filter((t) => !t.completed).length} style={{ backgroundColor: "#1890ff" }} />
+                <Badge count={tasksData.filter((t) => !t.completed).length} style={{ backgroundColor: "#4f46e5" }} />
               </div>
             }
             bordered={false}
@@ -328,7 +328,7 @@ export default function AdminDashboardPage() {
                 >
                   <Checkbox checked={task.completed} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: task.completed ? "#8c8c8c" : "#1f1f1f", textDecoration: task.completed ? "line-through" : "none" }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: task.completed ? "#6b7280" : "#1f1f1f", textDecoration: task.completed ? "line-through" : "none" }}>
                       {task.task}
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
@@ -354,7 +354,7 @@ export default function AdminDashboardPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {activityFeedData.map((activity) => (
                 <div key={activity.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <Avatar size={36} style={{ backgroundColor: activity.type === "success" ? "#52c41a" : "#1890ff", flexShrink: 0 }}>
+                  <Avatar size={36} style={{ backgroundColor: activity.type === "success" ? "#52c41a" : "#4f46e5", flexShrink: 0 }}>
                     {activity.user[0]}
                   </Avatar>
                   <div style={{ flex: 1, minWidth: 0 }}>

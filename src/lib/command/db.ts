@@ -566,6 +566,8 @@ export async function getCampaignAnalytics(supabase: Client, campaignId: string)
 export interface CommandListLeadAgg {
   total: number;
   qualified: number;
+  /** MIS-delivered leads (`delivery_status = 'delivered'`). */
+  delivered: number;
   /** Leads that cleared QA (qualified → funnel): qualified, registered, attended, no_show */
   qa_verified: number;
   dq: number;
@@ -578,14 +580,14 @@ export interface CommandListLeadAgg {
 export async function aggregateCommandLeadStatsByCampaign(
   supabase: Client,
   organizationId: string,
-  campaignIds: string[],
-  options?: { deliveredOnly?: boolean }
+  campaignIds: string[]
 ): Promise<Record<string, CommandListLeadAgg>> {
   const postQaVerified = new Set(["qualified", "registered", "attended", "no_show"]);
 
   const empty = (): CommandListLeadAgg => ({
     total: 0,
     qualified: 0,
+    delivered: 0,
     qa_verified: 0,
     dq: 0,
     missingConsent: 0,
@@ -594,14 +596,11 @@ export async function aggregateCommandLeadStatsByCampaign(
     verified: 0,
   });
   if (campaignIds.length === 0) return {};
-  let leadsQuery = supabase
+  const leadsQuery = supabase
     .from("leads")
-    .select("campaign_id, status, qa_status, consent_status")
+    .select("campaign_id, status, qa_status, consent_status, delivery_status")
     .eq("organization_id", organizationId)
     .in("campaign_id", campaignIds);
-  if (options?.deliveredOnly) {
-    leadsQuery = leadsQuery.in("delivery_status", ["delivered", "Delivered"]);
-  }
   const { data, error } = await leadsQuery;
   if (error) throw new Error(error.message);
   const out: Record<string, CommandListLeadAgg> = {};
@@ -611,6 +610,7 @@ export async function aggregateCommandLeadStatsByCampaign(
     status: string;
     qa_status: string | null;
     consent_status: string | null;
+    delivery_status: string | null;
   }[]) {
     const b = out[row.campaign_id];
     if (!b) continue;
@@ -618,6 +618,9 @@ export async function aggregateCommandLeadStatsByCampaign(
     const st = String(row.status ?? "").toLowerCase().trim();
     const qa = String(row.qa_status ?? "").toLowerCase().trim();
     const qaOrStatus = qa || st;
+    if (String(row.delivery_status ?? "").trim().toLowerCase() === "delivered") {
+      b.delivered += 1;
+    }
     // Keep campaign list qualified% consistent with dashboard analytics:
     // treat post-QA leads (qualified/registered/attended/no_show) as qualified-like.
     if (postQaVerified.has(qaOrStatus) || postQaVerified.has(st)) b.qualified += 1;

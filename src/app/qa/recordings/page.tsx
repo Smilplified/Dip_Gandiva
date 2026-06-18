@@ -81,7 +81,7 @@ function formatDate(iso: string | null): string {
 
 const statusColor: Record<string, string> = {
   active: "green",
-  completed: "blue",
+  completed: "success",
   paused: "orange",
   draft: "default",
 };
@@ -416,7 +416,7 @@ function CampaignPanel({
           {loaded && (
             <Badge
               count={totalRecs}
-              style={{ backgroundColor: totalRecs > 0 ? "#722ed1" : "#d9d9d9" }}
+              style={{ backgroundColor: totalRecs > 0 ? "#722ed1" : "#d1d5db" }}
               showZero
               overflowCount={999}
             />
@@ -446,7 +446,7 @@ function CampaignPanel({
                 value={leadSearch}
                 onChange={(e) => setLeadSearch(e.target.value)}
                 style={{
-                  border: "1px solid #d9d9d9",
+                  border: "1px solid #d1d5db",
                   borderRadius: 6,
                   padding: "4px 10px",
                   fontSize: 13,
@@ -685,7 +685,7 @@ export default function QARecordingsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
-            border: "1px solid #d9d9d9",
+            border: "1px solid #d1d5db",
             borderRadius: 7,
             padding: "5px 11px",
             fontSize: 14,

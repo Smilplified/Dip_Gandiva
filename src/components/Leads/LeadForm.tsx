@@ -785,7 +785,7 @@ export function LeadForm({
                                   minWidth: 0,
                                 }}
                               >
-                                <PlayCircleOutlined style={{ color: "#1677ff" }} />
+                                <PlayCircleOutlined style={{ color: "#4f46e5" }} />
                                 <Typography.Text
                                   style={{
                                     fontSize: 13,
@@ -1302,7 +1302,7 @@ export function LeadForm({
                                   maxWidth: "100%",
                                 }}
                               >
-                                <FileOutlined style={{ color: "#8c8c8c" }} />
+                                <FileOutlined style={{ color: "#6b7280" }} />
                                 {f.url ? (
                                   <a
                                     href={f.url}

@@ -340,7 +340,7 @@ export default function QAPanel({ campaignId, onOpenLeadAudit }: QAPanelProps) {
                 />
                 <RTooltip />
                 <Legend />
-                <Bar yAxisId="left" dataKey="volume" name="Volume (completions)" fill="#1890ff" opacity={0.85} />
+                <Bar yAxisId="left" dataKey="volume" name="Volume (completions)" fill="#4f46e5" opacity={0.85} />
                 <Line
                   yAxisId="right"
                   type="monotone"
@@ -356,7 +356,7 @@ export default function QAPanel({ campaignId, onOpenLeadAudit }: QAPanelProps) {
                   type="monotone"
                   dataKey="failRatePct"
                   name="Fail rate %"
-                  stroke="#ff4d4f"
+                  stroke="#ef4444"
                   dot={false}
                   strokeWidth={2}
                   connectNulls
@@ -387,7 +387,7 @@ export default function QAPanel({ campaignId, onOpenLeadAudit }: QAPanelProps) {
                       formatter={(value: number) => [value, "Leads"]}
                       labelFormatter={(_, p) => (p?.[0]?.payload as { full?: string })?.full ?? ""}
                     />
-                    <Bar dataKey="count" name="Leads" fill="#fa541c" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="count" name="Leads" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>

@@ -1,5 +1,7 @@
 import {
   enrichCampaignAllocationFields,
+  MIS_DELIVERED_ACHIEVED_OPTIONS,
+  resolveCampaignAchieved,
   type CampaignLeadMetrics,
   type EnrichCampaignAllocationOptions,
 } from "@/lib/campaign-allocation";
@@ -27,22 +29,22 @@ export type CampaignRevenueSnapshot = {
   cpc: number | null;
 };
 
-const REVENUE_ALLOCATION_OPTIONS: EnrichCampaignAllocationOptions = {
-  achievedFallback: "qualified",
-  capToAllocation: true,
-};
+const REVENUE_ALLOCATION_OPTIONS: EnrichCampaignAllocationOptions = MIS_DELIVERED_ACHIEVED_OPTIONS;
 
 function toNumber(value: number | null | undefined): number | null {
   if (value == null || Number.isNaN(Number(value))) return null;
   return Number(value);
 }
 
-/** Stored revenue, or CPL × total allocation (matches campaign create forms). */
-export function resolveCampaignRevenue(
+/** Contract / booked value stored on campaign, or CPL × total allocation. */
+export function resolveContractRevenue(
   campaign: CampaignRevenueFields
 ): number | null {
-  const stored = toNumber(campaign.revenue);
-  if (stored != null) return stored;
+  const storedBooked = toNumber(campaign.booked);
+  if (storedBooked != null) return storedBooked;
+
+  const storedRevenue = toNumber(campaign.revenue);
+  if (storedRevenue != null) return storedRevenue;
 
   const cpl = toNumber(campaign.cpl);
   const allocation = toNumber(campaign.total_allocation);
@@ -50,70 +52,82 @@ export function resolveCampaignRevenue(
   return cpl * allocation;
 }
 
-/** Stored booked contract value; does not default to revenue (use resolveCampaignRevenue for total). */
+/** @deprecated Use resolveContractRevenue or resolveAchievedRevenue explicitly. */
+export function resolveCampaignRevenue(
+  campaign: CampaignRevenueFields
+): number | null {
+  return resolveContractRevenue(campaign);
+}
+
+/** Stored booked contract value; does not default to earned revenue. */
 export function resolveCampaignBooked(
   campaign: CampaignRevenueFields,
-  resolvedRevenue?: number | null
+  contractRevenue?: number | null
 ): number | null {
   const stored = toNumber(campaign.booked);
   if (stored != null) return stored;
-  return resolvedRevenue ?? resolveCampaignRevenue(campaign);
+  return contractRevenue ?? resolveContractRevenue(campaign);
 }
 
-/** Revenue earned from achieved/qualified leads: CPL × achieved. */
+/** Earned revenue: CPL × achieved (0 when CPL missing or achieved ≤ 0). */
 export function resolveAchievedRevenue(
   cpl: number | null,
   achieved: number | null
 ): number {
-  if (cpl == null || achieved == null || achieved <= 0) return 0;
-  return cpl * achieved;
+  const unitCpl = toNumber(cpl);
+  if (unitCpl == null) return 0;
+
+  const count =
+    achieved != null && !Number.isNaN(Number(achieved)) ? Number(achieved) : 0;
+  if (count <= 0) return 0;
+
+  return unitCpl * count;
 }
 
-/** CPL per lead from stored cpl or revenue ÷ total allocation. */
-export function resolveUnitCpl(
+/** Earned revenue for a campaign row using the same achieved resolution as reports. */
+export function computeCampaignEarnedRevenue(
   campaign: CampaignRevenueFields,
-  revenue: number | null
-): number | null {
-  const stored = toNumber(campaign.cpl);
-  if (stored != null) return stored;
-  const allocation = Number(campaign.total_allocation ?? 0) || 0;
-  if (revenue != null && allocation > 0) return revenue / allocation;
-  return null;
+  metrics?: CampaignLeadMetrics | null,
+  options?: EnrichCampaignAllocationOptions
+): number {
+  const achieved = resolveCampaignAchieved(campaign, metrics, {
+    ...REVENUE_ALLOCATION_OPTIONS,
+    ...options,
+  });
+  return resolveAchievedRevenue(toNumber(campaign.cpl), achieved);
+}
+
+/** CPL per lead from stored campaign CPL only. */
+export function resolveUnitCpl(campaign: CampaignRevenueFields): number | null {
+  return toNumber(campaign.cpl);
 }
 
 /**
- * Pending revenue = contract revenue not yet earned via achieved leads.
- * Mirrors pending_allocation: CPL × pending_allocation, or revenue − achieved revenue.
+ * Pending revenue = contract value not yet earned (CPL × pending allocation).
  */
 export function resolvePendingRevenue(
-  revenue: number | null,
+  contractRevenue: number | null,
   cpl: number | null,
   achieved: number | null,
   pendingAllocation: number | null
 ): number | null {
-  if (revenue == null) return null;
+  const unitCpl = toNumber(cpl);
 
-  const achievedRevenue = resolveAchievedRevenue(cpl, achieved);
-
-  if (cpl != null && pendingAllocation != null && pendingAllocation >= 0) {
-    return Math.max(0, cpl * pendingAllocation);
+  if (unitCpl != null && pendingAllocation != null && pendingAllocation >= 0) {
+    return Math.max(0, unitCpl * pendingAllocation);
   }
 
-  return Math.max(0, revenue - achievedRevenue);
+  if (contractRevenue == null) return null;
+
+  const earned = resolveAchievedRevenue(unitCpl, achieved);
+  return Math.max(0, contractRevenue - earned);
 }
 
-/** Stored CPL, or revenue ÷ achieved when achieved > 0. */
+/** Stored CPL (same as resolveUnitCpl). */
 export function resolveEffectiveCpl(
-  campaign: CampaignRevenueFields,
-  achieved: number | null,
-  resolvedRevenue?: number | null
+  campaign: CampaignRevenueFields
 ): number | null {
-  const stored = toNumber(campaign.cpl);
-  if (stored != null) return stored;
-
-  const revenue = resolvedRevenue ?? resolveCampaignRevenue(campaign);
-  if (revenue == null || achieved == null || achieved <= 0) return null;
-  return revenue / achieved;
+  return resolveUnitCpl(campaign);
 }
 
 export function resolveCpc(
@@ -172,19 +186,19 @@ export function buildCampaignRevenueSnapshot(
     REVENUE_ALLOCATION_OPTIONS
   );
 
-  const revenue = resolveCampaignRevenue(campaign);
-  const booked = resolveCampaignBooked(campaign, revenue);
   const achieved = enriched.achieved;
-  const unitCpl = resolveUnitCpl(campaign, revenue);
-  const cpl = resolveEffectiveCpl(campaign, achieved, revenue);
+  const cpl = resolveUnitCpl(campaign);
+  const contractRevenue = resolveContractRevenue(campaign);
+  const revenue = resolveAchievedRevenue(cpl, achieved);
+  const booked = resolveCampaignBooked(campaign, contractRevenue);
 
   return {
     cpl,
     revenue,
     booked,
     pending_revenue: resolvePendingRevenue(
-      revenue,
-      unitCpl,
+      contractRevenue,
+      cpl,
       achieved,
       enriched.pending_allocation
     ),
@@ -326,4 +340,12 @@ export function formatCurrency(value: number | null | undefined): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+/** Display earned revenue: CPL × achieved. */
+export function formatEarnedRevenue(
+  cpl: number | null | undefined,
+  achieved: number | null | undefined
+): string {
+  return formatCurrency(resolveAchievedRevenue(toNumber(cpl), achieved ?? null));
 }

@@ -17,7 +17,7 @@ const stats = [
     change: "+12.5%",
     trend: "up",
     icon: <DollarOutlined />,
-    color: "#1677ff",
+    color: "#4f46e5",
   },
   {
     title: "Active Deals",
@@ -41,7 +41,7 @@ const stats = [
     change: "+2.1%",
     trend: "up",
     icon: <CheckCircleOutlined />,
-    color: "#fa8c16",
+    color: "#f59e0b",
   },
 ];
 

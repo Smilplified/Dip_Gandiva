@@ -91,7 +91,7 @@ export default function QAHeader() {
             <div style={{ fontWeight: 600, fontSize: 14 }}>
               {signingOut ? "Signing out..." : (profile?.full_name || user?.email || "QA")}
             </div>
-            <div style={{ fontSize: 12, color: "#8c8c8c" }}>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
               {signingOut ? "..." : "QA"}
             </div>
           </div>

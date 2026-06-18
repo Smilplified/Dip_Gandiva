@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
-import { enrichCampaignAllocationFields } from "@/lib/campaign-allocation";
+import { enrichCampaignAllocationFields, MIS_DELIVERED_ACHIEVED_OPTIONS } from "@/lib/campaign-allocation";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import {
   fetchBulkCampaignTeamLeaderAssignments,
@@ -9,6 +9,7 @@ import {
   formatTeamLeaderAssignmentLabel,
 } from "@/lib/campaign/team-leader-assignments";
 import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
+import { postgrestOrIlikeFilters } from "@/lib/postgrest-filter";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 
 export const dynamic = "force-dynamic";
@@ -70,12 +71,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (searchRaw.length > 0) {
-      const safe = searchRaw.replace(/%/g, "").replace(/_/g, "");
-      if (safe.length > 0) {
-        campaignsQuery = campaignsQuery.or(
-          `name.ilike.%${safe}%,campaign_code.ilike.%${safe}%,industry.ilike.%${safe}%,geography.ilike.%${safe}%`
-        );
-      }
+      const orFilter = postgrestOrIlikeFilters(
+        ["name", "campaign_code", "industry", "geography", "client_name"],
+        searchRaw
+      );
+      if (orFilter) campaignsQuery = campaignsQuery.or(orFilter);
     }
 
     const { data: campaigns, error: campaignsError, count } = await campaignsQuery
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
           qualified: leadCounts?.qualified ?? 0,
           delivered: leadCounts?.delivered ?? 0,
         },
-        { achievedFallback: "qualified" }
+        MIS_DELIVERED_ACHIEVED_OPTIONS
       );
     });
 

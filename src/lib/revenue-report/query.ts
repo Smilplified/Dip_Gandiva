@@ -14,6 +14,7 @@ import {
   aggregateRevenueReportSummary,
   type CampaignRevenueSnapshot,
 } from "@/lib/campaign-revenue-metrics";
+import { postgrestIlikePattern, postgrestOrIlikeFilters } from "@/lib/postgrest-filter";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
 export type RevenueReportFilters = {
@@ -136,10 +137,6 @@ function firstMetric(metrics: CampaignDbRow["campaign_metrics"]) {
   return Array.isArray(metrics) ? metrics[0] : metrics;
 }
 
-function safeIlike(value: string): string {
-  return value.replace(/%/g, "").replace(/_/g, "");
-}
-
 const SORTABLE_COLUMNS: Record<string, string> = {
   name: "name",
   client_name: "client_name",
@@ -245,25 +242,29 @@ export async function resolveRevenueReportCampaignIds(
   }
 
   if (filters.status) query = query.eq("status", filters.status);
-  if (filters.lead_type) query = query.ilike("lead_type", `%${safeIlike(filters.lead_type)}%`);
+  if (filters.lead_type) {
+    const pattern = postgrestIlikePattern(filters.lead_type);
+    if (pattern) query = query.ilike("lead_type", pattern);
+  }
   if (filters.campaign_type) query = query.eq("campaign_type", filters.campaign_type);
   if (filters.campaign_name) {
-    query = query.ilike("name", `%${safeIlike(filters.campaign_name)}%`);
+    const pattern = postgrestIlikePattern(filters.campaign_name);
+    if (pattern) query = query.ilike("name", pattern);
   }
   if (filters.client_name) {
-    query = query.ilike("client_name", `%${safeIlike(filters.client_name)}%`);
+    const pattern = postgrestIlikePattern(filters.client_name);
+    if (pattern) query = query.ilike("client_name", pattern);
   }
   if (filters.date_from) query = query.gte("start_date", filters.date_from);
   if (filters.date_to) query = query.lte("start_date", filters.date_to);
 
   const search = filters.q ?? "";
   if (search.length > 0) {
-    const safe = safeIlike(search);
-    if (safe.length > 0) {
-      query = query.or(
-        `name.ilike.%${safe}%,campaign_code.ilike.%${safe}%,client_name.ilike.%${safe}%,lead_type.ilike.%${safe}%`
-      );
-    }
+    const orFilter = postgrestOrIlikeFilters(
+      ["name", "campaign_code", "client_name", "lead_type", "industry", "geography"],
+      search
+    );
+    if (orFilter) query = query.or(orFilter);
   }
 
   const { data, error } = await query;

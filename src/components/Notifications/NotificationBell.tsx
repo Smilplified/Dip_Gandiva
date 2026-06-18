@@ -85,11 +85,11 @@ function groupByDate(notifications: AppNotification[]): Record<string, AppNotifi
 function notifIcon(type: NotificationType) {
   const style = { fontSize: 16 };
   switch (type) {
-    case "campaign":  return <RocketOutlined   style={{ ...style, color: "#1677ff" }} />;
-    case "task":      return <FileTextOutlined  style={{ ...style, color: "#fa8c16" }} />;
+    case "campaign":  return <RocketOutlined   style={{ ...style, color: "#4f46e5" }} />;
+    case "task":      return <FileTextOutlined  style={{ ...style, color: "#f59e0b" }} />;
     case "lead":      return <UserAddOutlined   style={{ ...style, color: "#52c41a" }} />;
     case "followup":  return <TeamOutlined      style={{ ...style, color: "#722ed1" }} />;
-    default:          return <BulbOutlined      style={{ ...style, color: "#8c8c8c" }} />;
+    default:          return <BulbOutlined      style={{ ...style, color: "#6b7280" }} />;
   }
 }
 
@@ -205,7 +205,7 @@ export default function NotificationBell() {
             icon: notifIcon(newNotif.type),
             placement: "topRight",
             duration: 5,
-            style: { borderLeft: "4px solid #1677ff", cursor: "pointer" },
+            style: { borderLeft: "4px solid #4f46e5", cursor: "pointer" },
             onClick: () => {
               setOpen(true);
             },
@@ -342,7 +342,7 @@ export default function NotificationBell() {
               width: 32,
             }}
           >
-            <BellOutlined style={{ fontSize: 18, color: "#595959" }} />
+            <BellOutlined style={{ fontSize: 18, color: "#4b5563" }} />
           </span>
         </Badge>
       </button>
@@ -363,7 +363,7 @@ export default function NotificationBell() {
               {unreadCount > 0 && (
                 <Badge
                   count={unreadCount}
-                  style={{ backgroundColor: "#1677ff" }}
+                  style={{ backgroundColor: "#4f46e5" }}
                 />
               )}
             </Space>
@@ -418,7 +418,7 @@ export default function NotificationBell() {
                         padding: "10px 20px 4px",
                         fontSize: 11,
                         fontWeight: 700,
-                        color: "#8c8c8c",
+                        color: "#6b7280",
                         letterSpacing: "0.06em",
                         textTransform: "uppercase",
                         background: "#fafafa",
@@ -436,7 +436,7 @@ export default function NotificationBell() {
                           style={{
                             padding: "14px 20px",
                             cursor: "pointer",
-                            background: notif.is_read ? "#fff" : "#e6f4ff",
+                            background: notif.is_read ? "#fff" : "#eef2ff",
                             borderBottom: "1px solid #f0f0f0",
                             transition: "background 0.15s",
                             alignItems: "flex-start",
@@ -448,7 +448,7 @@ export default function NotificationBell() {
                           }}
                           onMouseLeave={(e) => {
                             (e.currentTarget as HTMLElement).style.background =
-                              notif.is_read ? "#fff" : "#e6f4ff";
+                              notif.is_read ? "#fff" : "#eef2ff";
                           }}
                         >
                           {/* Icon */}
@@ -495,7 +495,7 @@ export default function NotificationBell() {
                                     width: 8,
                                     height: 8,
                                     borderRadius: "50%",
-                                    background: "#1677ff",
+                                    background: "#4f46e5",
                                     flexShrink: 0,
                                     marginTop: 4,
                                   }}
@@ -505,7 +505,7 @@ export default function NotificationBell() {
                             <Text
                               style={{
                                 fontSize: 12,
-                                color: "#595959",
+                                color: "#4b5563",
                                 display: "block",
                                 marginTop: 3,
                                 lineHeight: 1.5,
@@ -516,7 +516,7 @@ export default function NotificationBell() {
                             <Text
                               style={{
                                 fontSize: 11,
-                                color: "#bfbfbf",
+                                color: "#9ca3af",
                                 display: "block",
                                 marginTop: 5,
                               }}
@@ -545,7 +545,7 @@ export default function NotificationBell() {
             )}
 
             {!hasMore && notifications.length > 0 && (
-              <Divider style={{ margin: "12px 0", fontSize: 11, color: "#bfbfbf" }}>
+              <Divider style={{ margin: "12px 0", fontSize: 11, color: "#9ca3af" }}>
                 All caught up
               </Divider>
             )}

@@ -197,7 +197,7 @@ export default function DCCampaignCreatePage() {
                 <div
                   style={{
                     padding: "4px 11px", minHeight: 32, lineHeight: "22px",
-                    background: "#fafafa", borderRadius: 6, border: "1px solid #d9d9d9",
+                    background: "#fafafa", borderRadius: 6, border: "1px solid #d1d5db",
                     color: calculatedRevenue != null ? "inherit" : "#999",
                   }}
                 >
@@ -310,7 +310,7 @@ export default function DCCampaignCreatePage() {
                   maxCount={20}
                 >
                   <p className="ant-upload-drag-icon">
-                    <InboxOutlined style={{ fontSize: 48, color: "#1677ff" }} />
+                    <InboxOutlined style={{ fontSize: 48, color: "#4f46e5" }} />
                   </p>
                   <p className="ant-upload-text">Click or drag files to upload</p>
                   <p className="ant-upload-hint">

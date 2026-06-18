@@ -15,10 +15,16 @@ export type CampaignLeadMetrics = {
 export type CampaignAchievedFallback = "none" | "total" | "qualified" | "delivered";
 
 export type EnrichCampaignAllocationOptions = {
-  /** When DB `achieved` is null, derive from lead metrics (default: qualified). */
+  /** When live delivered metrics are unavailable, derive from lead metrics (default: delivered). */
   achievedFallback?: CampaignAchievedFallback;
   /** Cap computed achieved to `total_allocation` when allocation is set (default: true). */
   capToAllocation?: boolean;
+};
+
+/** Achieved = MIS-delivered leads (`leads.delivery_status = 'delivered'`). */
+export const MIS_DELIVERED_ACHIEVED_OPTIONS: EnrichCampaignAllocationOptions = {
+  achievedFallback: "delivered",
+  capToAllocation: true,
 };
 
 function hasNumericValue(value: number | null | undefined): value is number {
@@ -46,14 +52,21 @@ function fallbackAchievedFromMetrics(
   return Math.max(0, metrics?.delivered ?? 0);
 }
 
-/** Prefer stored achieved; otherwise optional lead-metric fallback. */
+/**
+ * Achieved = count of MIS-delivered leads (`delivery_status = 'delivered'`).
+ * Prefers live `metrics.delivered` when aggregators provide it; otherwise stored DB value or fallback.
+ */
 export function resolveCampaignAchieved(
   campaign: CampaignAllocationFields,
   metrics?: CampaignLeadMetrics | null,
   options?: EnrichCampaignAllocationOptions
 ): number | null {
   const cap = options?.capToAllocation !== false;
-  const fallback = options?.achievedFallback ?? "qualified";
+  const fallback = options?.achievedFallback ?? "delivered";
+
+  if (metrics != null && metrics.delivered != null && !Number.isNaN(Number(metrics.delivered))) {
+    return capAchievedToAllocation(Math.max(0, Number(metrics.delivered)), campaign.total_allocation, cap);
+  }
 
   if (hasNumericValue(campaign.achieved)) {
     return capAchievedToAllocation(Number(campaign.achieved), campaign.total_allocation, cap);
@@ -70,13 +83,10 @@ export function resolveCampaignPendingAllocation(
   metrics?: CampaignLeadMetrics | null,
   options?: EnrichCampaignAllocationOptions
 ): number | null {
-  if (hasNumericValue(campaign.pending_allocation)) {
-    return Number(campaign.pending_allocation);
-  }
-
   const totalAllocation = Number(campaign.total_allocation ?? 0) || 0;
   const achieved = resolveCampaignAchieved(campaign, metrics, options);
-  if (achieved == null || totalAllocation <= 0) return null;
+  if (achieved == null) return null;
+  if (totalAllocation <= 0) return null;
 
   return Math.max(0, totalAllocation - achieved);
 }

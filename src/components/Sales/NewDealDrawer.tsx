@@ -33,17 +33,17 @@ const STAGES = [
   { value: "strategy_proposal", label: "Strategy proposal", color: "#7c3aed", probability: 50 },
   { value: "strategy_presentation", label: "Strategy presentation", color: "#db2777", probability: 65 },
   { value: "objection_handling", label: "Objection handling", color: "#ea580c", probability: 75 },
-  { value: "finalizing_terms", label: "Finalizing terms", color: "#ca8a04", probability: 90 },
+  { value: "finalizing_terms", label: "Finalizing terms", color: "#f59e0b", probability: 90 },
   { value: "closed_won", label: "Closed won", color: "#16a34a", probability: 100 },
-  { value: "closed_lost", label: "Closed lost", color: "#dc2626", probability: 0 },
+  { value: "closed_lost", label: "Closed lost", color: "#ef4444", probability: 0 },
 ] as const;
 
 const PIPELINES = ["Client Acquisition pipeline", "Renewal pipeline", "Upsell pipeline"];
 const DEAL_TYPES = ["New business", "Existing business", "Partner deal", "Renewal"];
 const PRIORITIES = [
   { value: "low", label: "Low", color: "#6b7280" },
-  { value: "medium", label: "Medium", color: "#ca8a04" },
-  { value: "high", label: "High", color: "#dc2626" },
+  { value: "medium", label: "Medium", color: "#f59e0b" },
+  { value: "high", label: "High", color: "#ef4444" },
 ];
 const TIMELINE_RANGES = [
   { value: "last_30", label: "Last 30 days" },
@@ -515,7 +515,7 @@ export function NewDealDrawer({
           {companyTimeline.enabled && (
             <div style={{ marginTop: 10, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 12, color: "#374151", marginBottom: 8, lineHeight: 1.6 }}>
-                Add timeline activity from <strong style={{ color: "#2563eb" }}>{selectedCompanyName ?? "the selected company"}</strong> to this Deal starting from
+                Add timeline activity from <strong style={{ color: "#4f46e5" }}>{selectedCompanyName ?? "the selected company"}</strong> to this Deal starting from
               </div>
               <Select
                 size="small"
