@@ -4,12 +4,13 @@ import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
   aggregateRevenueReportSummary,
-  buildMonthlyRevenueTrend,
   buildRevenueByCampaignChart,
   buildRevenueByTeamLeaderChart,
   buildRevenueByLeadTypeChart,
 } from "@/lib/campaign-revenue-metrics";
 import {
+  applyRevenueReportChannelFilter,
+  buildMonthlyRevenueTrendFromPeriod,
   canAccessRevenueReport,
   fetchRevenueReportFilterOptions,
   fetchRevenueReportRows,
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
     const filters = parseRevenueReportFilters(request.nextUrl.searchParams);
     const { page, limit, offset } = parseListPagination(request.nextUrl.searchParams);
 
-    const campaignIds = await resolveRevenueReportCampaignIds(
+    const filterOptionCampaignIds = await resolveRevenueReportCampaignIds(
       supabase,
       orgId,
       user.id,
@@ -64,10 +65,24 @@ export async function GET(request: NextRequest) {
       filters
     );
 
-    const allRows = sortRevenueReportRows(
-      await fetchRevenueReportRows(supabase, orgId, campaignIds),
-      filters.sort_by,
-      filters.sort_dir ?? "desc"
+    const campaignIds = filterOptionCampaignIds;
+
+    const periodOptions = {
+      date_from: filters.date_from!,
+      date_to: filters.date_to!,
+      activityOnly: true,
+    };
+
+    const { rows: fetchedRows, monthlyRevenue } = await fetchRevenueReportRows(
+      supabase,
+      orgId,
+      campaignIds,
+      periodOptions
+    );
+
+    const allRows = applyRevenueReportChannelFilter(
+      sortRevenueReportRows(fetchedRows, filters.sort_by, filters.sort_dir ?? "desc"),
+      filters.channel
     );
 
     const clientGroups = groupRevenueReportByClient(allRows);
@@ -90,15 +105,14 @@ export async function GET(request: NextRequest) {
       revenueByLeadType: buildRevenueByLeadTypeChart(
         allRows.map((r) => ({ lead_type: r.lead_type, revenue: r.metrics.revenue }))
       ),
-      monthlyRevenueTrend: buildMonthlyRevenueTrend(
-        allRows.map((r) => ({ start_date: r.start_date, revenue: r.metrics.revenue }))
-      ),
+      monthlyRevenueTrend: buildMonthlyRevenueTrendFromPeriod(monthlyRevenue),
     };
 
-    const includeFilters = request.nextUrl.searchParams.get("include_filters") === "1";
-    const filterOptions = includeFilters
-      ? await fetchRevenueReportFilterOptions(supabase, orgId, campaignIds)
-      : undefined;
+    const filterOptions = await fetchRevenueReportFilterOptions(
+      supabase,
+      orgId,
+      filterOptionCampaignIds
+    );
 
     return NextResponse.json({
       clients: pageClients,
@@ -106,6 +120,12 @@ export async function GET(request: NextRequest) {
       summary,
       charts,
       filterOptions,
+      period: {
+        period: filters.period,
+        date_from: filters.date_from,
+        date_to: filters.date_to,
+        label: filters.label,
+      },
       pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (err) {

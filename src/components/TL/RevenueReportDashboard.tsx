@@ -54,6 +54,12 @@ import { buildListApiUrl } from "@/lib/build-list-api-url";
 import { buildPaginationMeta } from "@/lib/api-pagination";
 import { formatCurrency } from "@/lib/campaign-revenue-metrics";
 import type { RevenueReportCampaignRow, RevenueReportClientGroup } from "@/lib/revenue-report/query";
+import {
+  REVENUE_PERIOD_OPTIONS,
+  type RevenueReportPeriod,
+  periodToDayjsRange,
+  resolveRevenueReportPeriod,
+} from "@/lib/revenue-report/period";
 import { tableSerialNumber } from "@/lib/table-pagination";
 
 const { RangePicker } = DatePicker;
@@ -94,6 +100,12 @@ type RevenueReportResponse = {
     monthlyRevenueTrend: MonthlyPoint[];
   };
   filterOptions?: FilterOptions;
+  period?: {
+    period: RevenueReportPeriod;
+    date_from: string;
+    date_to: string;
+    label: string;
+  };
   pagination?: { page: number; limit: number; total: number; totalPages: number };
 };
 
@@ -176,7 +188,7 @@ function CampaignRevenueTooltip({
 }
 
 function currentMonthRange(): [Dayjs, Dayjs] {
-  return [dayjs().startOf("month"), dayjs().endOf("month")];
+  return periodToDayjsRange(resolveRevenueReportPeriod("monthly"));
 }
 
 export default function RevenueReportDashboard() {
@@ -189,12 +201,12 @@ export default function RevenueReportDashboard() {
   const [clientNameFilter, setClientNameFilter] = useState<string | null>(null);
   const [teamLeaderFilter, setTeamLeaderFilter] = useState<string | null>(null);
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(
+  const [periodFilter, setPeriodFilter] = useState<RevenueReportPeriod>("monthly");
+  const [customDateRange, setCustomDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(
     currentMonthRange()
   );
   const [sortBy, setSortBy] = useState<string>("start_date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
 
   const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination(25);
@@ -215,7 +227,8 @@ export default function RevenueReportDashboard() {
     clientNameFilter,
     teamLeaderFilter,
     agentFilter,
-    dateRange,
+    periodFilter,
+    customDateRange,
     resetPage,
   ]);
 
@@ -231,11 +244,13 @@ export default function RevenueReportDashboard() {
       client_name: clientNameFilter || undefined,
       team_leader_id: teamLeaderFilter || undefined,
       agent_id: agentFilter || undefined,
-      date_from: dateRange?.[0]?.format("YYYY-MM-DD"),
-      date_to: dateRange?.[1]?.format("YYYY-MM-DD"),
+      period: periodFilter,
+      period_from:
+        periodFilter === "custom" ? customDateRange?.[0]?.format("YYYY-MM-DD") : undefined,
+      period_to:
+        periodFilter === "custom" ? customDateRange?.[1]?.format("YYYY-MM-DD") : undefined,
       sort_by: sortBy,
       sort_dir: sortDir,
-      include_filters: filterOptions ? undefined : "1",
     }),
     [
       page,
@@ -248,10 +263,10 @@ export default function RevenueReportDashboard() {
       clientNameFilter,
       teamLeaderFilter,
       agentFilter,
-      dateRange,
+      periodFilter,
+      customDateRange,
       sortBy,
       sortDir,
-      filterOptions,
     ]
   );
 
@@ -264,14 +279,9 @@ export default function RevenueReportDashboard() {
     });
 
   const report = response as RevenueReportResponse | undefined;
+  const filterOptions = report?.filterOptions;
 
   useSyncListPaginationTotal(pagination, applyPaginationMeta);
-
-  useEffect(() => {
-    if (report?.filterOptions && !filterOptions) {
-      setFilterOptions(report.filterOptions);
-    }
-  }, [report?.filterOptions, filterOptions]);
 
   useEffect(() => {
     if (error) message.error(error.message || "Failed to load revenue report");
@@ -282,7 +292,6 @@ export default function RevenueReportDashboard() {
       ...listParams,
       page: undefined,
       limit: undefined,
-      include_filters: undefined,
       format,
     });
 
@@ -435,13 +444,15 @@ export default function RevenueReportDashboard() {
       title: "Client Name",
       dataIndex: "client_name",
       key: "client_name",
-      width: 200,
+      width: 220,
       fixed: "left",
       ellipsis: true,
       render: (name: string | null, record) => (
         <Space size={6}>
           <Text strong>{name?.trim() || "—"}</Text>
-          <Tag color="blue">{record.campaign_count} campaign{record.campaign_count === 1 ? "" : "s"}</Tag>
+          <Tag color="blue">
+            {record.campaign_count} campaign{record.campaign_count === 1 ? "" : "s"}
+          </Tag>
         </Space>
       ),
     },
@@ -503,6 +514,19 @@ export default function RevenueReportDashboard() {
   return (
     <Spin spinning={loading}>
       <Card style={{ ...cardStyle, marginBottom: 16 }} styles={{ body: { padding: 20 } }}>
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Period: <Text strong>{report?.period?.label ?? "This month"}</Text>
+            {report?.period?.date_from && report?.period?.date_to && (
+              <span>
+                {" "}
+                ({report.period.date_from} – {report.period.date_to})
+              </span>
+            )}
+            {" · "}
+            Metrics reflect lead activity (delivery, QA, updates) within this period.
+          </Text>
+        </div>
         <Row gutter={[12, 12]}>
           <Col xs={24} sm={12} md={8} lg={6}>
             <Input
@@ -593,18 +617,24 @@ export default function RevenueReportDashboard() {
               optionFilterProp="label"
             />
           </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <RangePicker
-              allowClear
+          <Col xs={24} sm={12} md={8} lg={4}>
+            <Select
               style={{ width: "100%" }}
-              value={dateRange}
-              onChange={(vals) => setDateRange(vals)}
-              presets={[
-                { label: "This Month", value: currentMonthRange() },
-                { label: "Last 3 Months", value: [dayjs().subtract(3, "month"), dayjs()] },
-              ]}
+              value={periodFilter}
+              onChange={(value: RevenueReportPeriod) => setPeriodFilter(value)}
+              options={REVENUE_PERIOD_OPTIONS}
             />
           </Col>
+          {periodFilter === "custom" && (
+            <Col xs={24} sm={12} md={8} lg={6}>
+              <RangePicker
+                allowClear={false}
+                style={{ width: "100%" }}
+                value={customDateRange}
+                onChange={(vals) => setCustomDateRange(vals)}
+              />
+            </Col>
+          )}
         </Row>
       </Card>
 

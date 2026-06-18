@@ -10,6 +10,7 @@ import {
   DollarOutlined,
   FileSearchOutlined,
   FundProjectionScreenOutlined,
+  HistoryOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
@@ -22,6 +23,7 @@ const tlMenuItems = [
   { key: "/tl/leads", icon: <FileSearchOutlined />, label: "Leads", href: "/tl/leads" },
   { key: "/tl/team", icon: <TeamOutlined />, label: "Team", href: "/tl/team" },
   { key: "/tl/team-performance", icon: <BarChartOutlined />, label: "Performance", href: "/tl/team-performance" },
+  { key: "/tl/lead-transfer-history", icon: <HistoryOutlined />, label: "Transfers", href: "/tl/lead-transfer-history" },
 ];
 
 const omMenuItems = [
@@ -37,11 +39,19 @@ export default function TLSidebar() {
   const pathname = usePathname();
   const { hasRole } = useAuth();
   const isOm = hasRole("operations_manager");
-  const menuItems = isOm ? [...tlMenuItems, ...omMenuItems] : tlMenuItems;
+  const isCampaignTl = hasRole("team_leader") || hasRole("tl");
+  const baseTlItems = isCampaignTl
+    ? tlMenuItems
+    : tlMenuItems.filter((i) => i.key !== "/tl/lead-transfer-history");
+  const menuItems = isOm
+    ? [...baseTlItems, ...omMenuItems]
+    : baseTlItems;
 
   const selectedKey =
     pathname?.startsWith("/tl/revenue-report")
       ? "/tl/revenue-report"
+      : pathname?.startsWith("/tl/lead-transfer-history")
+      ? "/tl/lead-transfer-history"
       : pathname?.startsWith("/tl/team-performance")
       ? "/tl/team-performance"
       : pathname?.startsWith("/tl/campaigns")

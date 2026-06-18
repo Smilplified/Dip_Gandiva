@@ -22,7 +22,9 @@ import {
   UserAddOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
+import LeadTransferModal from "@/components/TL/LeadTransferModal";
 import { useAuth } from "@/context/AuthContext";
 import type { Tables } from "@/types/database.types";
 
@@ -32,7 +34,8 @@ type UserRow = Tables<"users"> & {
 
 export default function TLUsersPage() {
   const router = useRouter();
-  const { hasTLAccess, profile, isInitialized } = useAuth();
+  const { hasTLAccess, hasRole, profile, isInitialized } = useAuth();
+  const isCampaignTl = hasRole("team_leader") || hasRole("tl");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<Tables<"roles">[]>([]);
   const [agentOnly, setAgentOnly] = useState(false);
@@ -48,28 +51,46 @@ export default function TLUsersPage() {
   const currentPage = pagination.current;
   const pageSize = pagination.pageSize;
   const [searchQuery, setSearchQuery] = useState("");
+  const [transferAgentId, setTransferAgentId] = useState<string | null>(null);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [eligibleTransferAgentIds, setEligibleTransferAgentIds] = useState<Set<string>>(new Set());
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/tl/users", { credentials: "include" });
-      const data = await res.json();
+      const [usersRes, eligibleRes] = await Promise.all([
+        fetch("/api/tl/users", { credentials: "include" }),
+        isCampaignTl
+          ? fetch("/api/tl/leads/transfer/eligible-agents", { credentials: "include" })
+          : Promise.resolve(null),
+      ]);
+      const data = await usersRes.json();
 
-      if (!res.ok) {
+      if (!usersRes.ok) {
         throw new Error(data.error || "Failed to load users");
       }
 
       setUsers(data.users ?? []);
       setRoles(data.roles ?? []);
       setAgentOnly(data.agentOnly ?? false);
+
+      if (eligibleRes) {
+        const eligibleData = await eligibleRes.json();
+        if (eligibleRes.ok) {
+          const ids = new Set<string>(
+            ((eligibleData.agents ?? []) as { id: string }[]).map((a) => a.id)
+          );
+          setEligibleTransferAgentIds(ids);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load users");
       message.error("Failed to load users");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isCampaignTl]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -324,7 +345,7 @@ export default function TLUsersPage() {
     {
       title: "Actions",
       key: "actions",
-      width: 140,
+      width: 180,
       render: (_: unknown, record: UserRow) => (
         <Space size="middle" style={{ transition: "opacity 0.2s ease" }}>
           <Tooltip title="Edit" placement="top" mouseEnterDelay={0.3}>
@@ -336,6 +357,20 @@ export default function TLUsersPage() {
               style={{ transition: "color 0.2s ease, opacity 0.2s ease" }}
             />
           </Tooltip>
+          {record.status === "inactive" && eligibleTransferAgentIds.has(record.id) && (
+            <Tooltip title="Transfer Leads" placement="top" mouseEnterDelay={0.3}>
+              <Button
+                type="text"
+                size="small"
+                icon={<SwapOutlined />}
+                onClick={() => {
+                  setTransferAgentId(record.id);
+                  setTransferModalOpen(true);
+                }}
+                style={{ color: "#4f46e5" }}
+              />
+            </Tooltip>
+          )}
           {record.status === "active" ? (
             <Tooltip title="Deactivate" placement="top" mouseEnterDelay={0.3}>
               <Button
@@ -534,6 +569,18 @@ export default function TLUsersPage() {
           </Form>
         )}
       </Modal>
+
+      <LeadTransferModal
+        open={transferModalOpen}
+        fromAgentId={transferAgentId}
+        onClose={() => {
+          setTransferModalOpen(false);
+          setTransferAgentId(null);
+        }}
+        onSuccess={() => {
+          void fetchUsers();
+        }}
+      />
     </>
   );
 }

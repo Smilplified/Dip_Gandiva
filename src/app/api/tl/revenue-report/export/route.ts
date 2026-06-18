@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import {
+  applyRevenueReportChannelFilter,
   canAccessRevenueReport,
   fetchRevenueReportRows,
   parseRevenueReportFilters,
@@ -77,12 +78,16 @@ export async function GET(request: NextRequest) {
     );
 
     const limitedIds = campaignIds.slice(0, EXPORT_MAX_ROWS);
-    const rows = sortRevenueReportRows(
-      await fetchRevenueReportRows(supabase, orgId, limitedIds),
+    const { rows } = await fetchRevenueReportRows(supabase, orgId, limitedIds, {
+      date_from: filters.date_from!,
+      date_to: filters.date_to!,
+      activityOnly: true,
+    });
+    const exportRows = sortRevenueReportRows(
+      applyRevenueReportChannelFilter(rows, filters.channel),
       filters.sort_by,
       filters.sort_dir ?? "desc"
-    );
-    const exportRows = rows.map(revenueRowToExportRecord);
+    ).map(revenueRowToExportRecord);
     const stamp = new Date().toISOString().slice(0, 10);
 
     if (format === "excel") {

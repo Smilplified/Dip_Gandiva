@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import dayjs from "dayjs";
 import { normalizeRoleName } from "@/lib/auth/config";
 import {
   hasOrgWideCampaignAccess,
@@ -6,8 +7,6 @@ import {
   isOperationsManagerRole,
 } from "@/lib/auth/tl-access";
 import { fetchCampaignIdsForTeamLeader } from "@/lib/campaign/team-leader-assignments";
-import { aggregateCommandLeadStatsByCampaign } from "@/lib/command/db";
-import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 import {
   buildCampaignRevenueSnapshot,
   resolveCampaignChannel,
@@ -16,6 +15,10 @@ import {
 } from "@/lib/campaign-revenue-metrics";
 import { postgrestIlikePattern, postgrestOrIlikeFilters } from "@/lib/postgrest-filter";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
+import {
+  type RevenueReportPeriod,
+  resolveRevenueReportPeriod,
+} from "@/lib/revenue-report/period";
 
 export type RevenueReportFilters = {
   q?: string;
@@ -27,10 +30,19 @@ export type RevenueReportFilters = {
   client_name?: string;
   team_leader_id?: string;
   agent_id?: string;
+  period?: RevenueReportPeriod;
+  period_from?: string;
+  period_to?: string;
   date_from?: string;
   date_to?: string;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
+};
+
+export type RevenueReportPeriodContext = {
+  date_from: string;
+  date_to: string;
+  label: string;
 };
 
 export type RevenueReportCampaignRow = {
@@ -113,8 +125,21 @@ export function canAccessRevenueReport(roleNames: string[]): boolean {
 
 export function parseRevenueReportFilters(
   searchParams: URLSearchParams
-): RevenueReportFilters {
+): RevenueReportFilters & RevenueReportPeriodContext {
   const sortDir = searchParams.get("sort_dir")?.toLowerCase();
+  const rawPeriod = searchParams.get("period")?.trim() as RevenueReportPeriod | undefined;
+  const period: RevenueReportPeriod =
+    rawPeriod === "3months" ||
+    rawPeriod === "quarterly" ||
+    rawPeriod === "yearly" ||
+    rawPeriod === "custom"
+      ? rawPeriod
+      : "monthly";
+
+  const periodFrom = searchParams.get("period_from")?.trim() || undefined;
+  const periodTo = searchParams.get("period_to")?.trim() || undefined;
+  const resolved = resolveRevenueReportPeriod(period, periodFrom, periodTo);
+
   return {
     q: searchParams.get("q")?.trim() || undefined,
     status: searchParams.get("status")?.trim() || undefined,
@@ -125,8 +150,12 @@ export function parseRevenueReportFilters(
     client_name: searchParams.get("client_name")?.trim() || undefined,
     team_leader_id: searchParams.get("team_leader_id")?.trim() || undefined,
     agent_id: searchParams.get("agent_id")?.trim() || undefined,
-    date_from: searchParams.get("date_from")?.trim() || undefined,
-    date_to: searchParams.get("date_to")?.trim() || undefined,
+    period,
+    period_from: periodFrom,
+    period_to: periodTo,
+    date_from: resolved.date_from,
+    date_to: resolved.date_to,
+    label: resolved.label,
     sort_by: searchParams.get("sort_by")?.trim() || undefined,
     sort_dir: sortDir === "asc" || sortDir === "desc" ? sortDir : "desc",
   };
@@ -255,8 +284,6 @@ export async function resolveRevenueReportCampaignIds(
     const pattern = postgrestIlikePattern(filters.client_name);
     if (pattern) query = query.ilike("client_name", pattern);
   }
-  if (filters.date_from) query = query.gte("start_date", filters.date_from);
-  if (filters.date_to) query = query.lte("start_date", filters.date_to);
 
   const search = filters.q ?? "";
   if (search.length > 0) {
@@ -270,25 +297,148 @@ export async function resolveRevenueReportCampaignIds(
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  let ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+  return ((data ?? []) as { id: string }[]).map((r) => r.id);
+}
 
-  if (filters.channel) {
-    const channelNeedle = filters.channel.toLowerCase();
-    const fullRows = await fetchRevenueReportRows(supabase, orgId, ids);
-    ids = fullRows
-      .filter((r) => (r.channel ?? "").toLowerCase().includes(channelNeedle))
-      .map((r) => r.id);
+const POST_QA_STATUSES = new Set(["qualified", "registered", "attended", "no_show", "approved", "pass"]);
+const LEADS_PAGE_SIZE = 1000;
+
+type PeriodLeadRow = {
+  campaign_id: string;
+  status: string | null;
+  qa_status: string | null;
+  delivery_status: string | null;
+  delivered_at: string | null;
+  qa_audited_at: string | null;
+  updated_at: string | null;
+  created_at: string;
+};
+
+export type PeriodLeadMetrics = {
+  total: number;
+  qualified: number;
+  delivered: number;
+  post_qa: number;
+  dq: number;
+};
+
+export type PeriodLeadAggregation = {
+  byCampaign: Record<string, PeriodLeadMetrics>;
+  monthlyRevenue: Record<string, number>;
+};
+
+function emptyPeriodMetrics(): PeriodLeadMetrics {
+  return { total: 0, qualified: 0, delivered: 0, post_qa: 0, dq: 0 };
+}
+
+function leadActivityTimestamp(lead: PeriodLeadRow): string {
+  const isDelivered =
+    String(lead.delivery_status ?? "").trim().toLowerCase() === "delivered";
+  if (isDelivered && lead.delivered_at) return lead.delivered_at;
+  if (lead.qa_audited_at) return lead.qa_audited_at;
+  if (lead.updated_at) return lead.updated_at;
+  return lead.created_at;
+}
+
+function isTimestampInPeriod(ts: string, dateFrom: string, dateTo: string): boolean {
+  const at = dayjs(ts);
+  if (!at.isValid()) return false;
+  const start = dayjs(dateFrom).startOf("day");
+  const end = dayjs(dateTo).endOf("day");
+  return (
+    (at.isAfter(start) || at.isSame(start)) && (at.isBefore(end) || at.isSame(end))
+  );
+}
+
+export async function aggregateLeadMetricsByCampaignInPeriod(
+  supabase: SupabaseClient,
+  orgId: string,
+  campaignIds: string[],
+  dateFrom: string,
+  dateTo: string,
+  cplByCampaign: Record<string, number | null>
+): Promise<PeriodLeadAggregation> {
+  const byCampaign: Record<string, PeriodLeadMetrics> = {};
+  const monthlyRevenue: Record<string, number> = {};
+  for (const id of campaignIds) byCampaign[id] = emptyPeriodMetrics();
+  if (campaignIds.length === 0) return { byCampaign, monthlyRevenue };
+
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select(
+        "campaign_id, status, qa_status, delivery_status, delivered_at, qa_audited_at, updated_at, created_at"
+      )
+      .eq("organization_id", orgId)
+      .in("campaign_id", campaignIds)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+    if (error) throw new Error(error.message);
+
+    const chunk = (data ?? []) as PeriodLeadRow[];
+    for (const lead of chunk) {
+      const activityAt = leadActivityTimestamp(lead);
+      if (!isTimestampInPeriod(activityAt, dateFrom, dateTo)) continue;
+
+      const bucket = byCampaign[lead.campaign_id];
+      if (!bucket) continue;
+
+      bucket.total += 1;
+
+      const st = String(lead.status ?? "").toLowerCase().trim();
+      const qa = String(lead.qa_status ?? "").toLowerCase().trim();
+      const qaOrStatus = qa || st;
+      const isDelivered =
+        String(lead.delivery_status ?? "").trim().toLowerCase() === "delivered";
+
+      if (isDelivered) {
+        bucket.delivered += 1;
+        const cpl = cplByCampaign[lead.campaign_id];
+        if (cpl != null && cpl > 0) {
+          const month = activityAt.slice(0, 7);
+          monthlyRevenue[month] = (monthlyRevenue[month] ?? 0) + cpl;
+        }
+      }
+
+      if (POST_QA_STATUSES.has(qaOrStatus) || POST_QA_STATUSES.has(st)) {
+        bucket.qualified += 1;
+        bucket.post_qa += 1;
+      }
+
+      if (qaOrStatus === "disqualified" || st === "disqualified") {
+        bucket.dq += 1;
+      }
+    }
+
+    if (chunk.length < LEADS_PAGE_SIZE) break;
+    offset += LEADS_PAGE_SIZE;
   }
 
-  return ids;
+  return { byCampaign, monthlyRevenue };
 }
+
+export type FetchRevenueReportRowsOptions = {
+  date_from: string;
+  date_to: string;
+  activityOnly?: boolean;
+};
+
+export type FetchRevenueReportResult = {
+  rows: RevenueReportCampaignRow[];
+  monthlyRevenue: Record<string, number>;
+};
 
 export async function fetchRevenueReportRows(
   supabase: SupabaseClient,
   orgId: string,
-  campaignIds: string[]
-): Promise<RevenueReportCampaignRow[]> {
-  if (campaignIds.length === 0) return [];
+  campaignIds: string[],
+  options?: FetchRevenueReportRowsOptions
+): Promise<FetchRevenueReportResult> {
+  if (campaignIds.length === 0) {
+    return { rows: [], monthlyRevenue: {} };
+  }
 
   const { data, error } = await supabase
     .from("campaigns")
@@ -311,6 +461,23 @@ export async function fetchRevenueReportRows(
   const campaigns = (data ?? []) as CampaignDbRow[];
   const ids = campaigns.map((c) => c.id);
 
+  const cplByCampaign: Record<string, number | null> = {};
+  for (const c of campaigns) {
+    cplByCampaign[c.id] = c.cpl;
+  }
+
+  const periodAggregation =
+    options?.date_from && options?.date_to
+      ? await aggregateLeadMetricsByCampaignInPeriod(
+          supabase,
+          orgId,
+          ids,
+          options.date_from,
+          options.date_to,
+          cplByCampaign
+        )
+      : null;
+
   const clientIds = [
     ...new Set(campaigns.map((c) => c.client_id).filter(Boolean) as string[]),
   ];
@@ -322,25 +489,22 @@ export async function fetchRevenueReportRows(
     ),
   ];
 
-  const [leadCounts, leadStats, clientsRes, userNames, assignmentsRes, tlJunctionRes] =
-    await Promise.all([
-      aggregateTlLeadCountsByCampaign(supabase, orgId, ids),
-      aggregateCommandLeadStatsByCampaign(supabase, orgId, ids),
-      clientIds.length > 0
-        ? supabase.from("clients").select("id, client_code").in("id", clientIds)
-        : Promise.resolve({ data: [] as { id: string; client_code: string | null }[] }),
-      resolveUserDisplayNames(supabase, userIds),
-      supabase
-        .from("campaign_assignments")
-        .select("campaign_id, agent_id")
-        .in("campaign_id", ids)
-        .eq("is_active", true),
-      supabase
-        .from("campaign_team_leader_assignments")
-        .select("campaign_id, team_leader_id")
-        .in("campaign_id", ids)
-        .eq("is_active", true),
-    ]);
+  const [clientsRes, userNames, assignmentsRes, tlJunctionRes] = await Promise.all([
+    clientIds.length > 0
+      ? supabase.from("clients").select("id, client_code").in("id", clientIds)
+      : Promise.resolve({ data: [] as { id: string; client_code: string | null }[] }),
+    resolveUserDisplayNames(supabase, userIds),
+    supabase
+      .from("campaign_assignments")
+      .select("campaign_id, agent_id")
+      .in("campaign_id", ids)
+      .eq("is_active", true),
+    supabase
+      .from("campaign_team_leader_assignments")
+      .select("campaign_id, team_leader_id")
+      .in("campaign_id", ids)
+      .eq("is_active", true),
+  ]);
 
   const clientCodeById: Record<string, string | null> = {};
   for (const c of (clientsRes.data ?? []) as { id: string; client_code: string | null }[]) {
@@ -383,15 +547,38 @@ export async function fetchRevenueReportRows(
     }
   }
 
-  const rows: RevenueReportCampaignRow[] = campaigns.map((c) => {
+  const rows: RevenueReportCampaignRow[] = [];
+
+  for (const c of campaigns) {
+    const periodMetrics = periodAggregation?.byCampaign[c.id];
+    if (options?.activityOnly && (!periodMetrics || periodMetrics.total === 0)) {
+      continue;
+    }
+
     const metric = firstMetric(c.campaign_metrics);
-    const counts = leadCounts[c.id] ?? { total: 0, qualified: 0, delivered: 0 };
-    const dq = leadStats[c.id]?.dq ?? 0;
+    const counts = periodMetrics
+      ? {
+          total: periodMetrics.total,
+          qualified: periodMetrics.qualified,
+          delivered: periodMetrics.delivered,
+        }
+      : { total: 0, qualified: 0, delivered: 0 };
+
+    const campaignForSnapshot =
+      periodMetrics != null
+        ? {
+            ...c,
+            achieved: periodMetrics.delivered,
+            post_qa: periodMetrics.post_qa,
+          }
+        : c;
+
+    const dq = periodMetrics?.dq ?? 0;
     const channel = resolveCampaignChannel(metric?.channel_split ?? null, c.campaign_type);
-    const snapshot = buildCampaignRevenueSnapshot(c, counts, {
+    const snapshot = buildCampaignRevenueSnapshot(campaignForSnapshot, counts, {
       leadsRejected: dq,
       totalCampaignSpend: metric?.total_campaign_spend,
-      deliveredLeads: metric?.total_leads_delivered,
+      deliveredLeads: periodMetrics?.delivered ?? metric?.total_leads_delivered,
     });
 
     const tlNames = tlByCampaign[c.id] ?? [];
@@ -404,7 +591,7 @@ export async function fetchRevenueReportRows(
       metric?.sponsor_name?.trim() ||
       (c.created_by ? userNames[c.created_by] ?? null : null);
 
-    return {
+    rows.push({
       id: c.id,
       campaign_id: c.campaign_id,
       campaign_code: c.campaign_code,
@@ -427,10 +614,10 @@ export async function fetchRevenueReportRows(
       assigned_team_leader_name: tlNames.length > 0 ? tlNames.join(", ") : null,
       agent_names: agentsByCampaign[c.id] ?? [],
       metrics: snapshot,
-    };
-  });
+    });
+  }
 
-  return rows;
+  return { rows, monthlyRevenue: periodAggregation?.monthlyRevenue ?? {} };
 }
 
 export function sortRevenueReportRows(
@@ -478,7 +665,13 @@ export async function fetchRevenueReportFilterOptions(
     };
   }
 
-  const rows = await fetchRevenueReportRows(supabase, orgId, campaignIds);
+  const { data: campaigns, error } = await supabase
+    .from("campaigns")
+    .select("id, status, lead_type, campaign_type, client_name, campaign_metrics(channel_split)")
+    .eq("organization_id", orgId)
+    .in("id", campaignIds);
+
+  if (error) throw new Error(error.message);
 
   const statuses = new Set<string>();
   const leadTypes = new Set<string>();
@@ -486,12 +679,23 @@ export async function fetchRevenueReportFilterOptions(
   const campaignTypes = new Set<string>();
   const clients = new Set<string>();
 
-  for (const row of rows) {
+  for (const row of (campaigns ?? []) as {
+    status: string | null;
+    lead_type: string | null;
+    campaign_type: string | null;
+    client_name: string | null;
+    campaign_metrics:
+      | { channel_split: Record<string, unknown> | null }
+      | { channel_split: Record<string, unknown> | null }[]
+      | null;
+  }[]) {
     if (row.status) statuses.add(row.status);
     if (row.lead_type) leadTypes.add(row.lead_type);
-    if (row.channel) channels.add(row.channel);
     if (row.campaign_type) campaignTypes.add(row.campaign_type);
     if (row.client_name) clients.add(row.client_name);
+    const metric = firstMetric(row.campaign_metrics as CampaignDbRow["campaign_metrics"]);
+    const channel = resolveCampaignChannel(metric?.channel_split ?? null, row.campaign_type);
+    if (channel) channels.add(channel);
   }
 
   const { data: assignments } = await supabase
@@ -582,6 +786,23 @@ export function groupRevenueReportByClient(
       };
     })
     .sort((a, b) => (a.client_name ?? "").localeCompare(b.client_name ?? ""));
+}
+
+export function applyRevenueReportChannelFilter(
+  rows: RevenueReportCampaignRow[],
+  channel?: string
+): RevenueReportCampaignRow[] {
+  if (!channel) return rows;
+  const needle = channel.toLowerCase();
+  return rows.filter((r) => (r.channel ?? "").toLowerCase().includes(needle));
+}
+
+export function buildMonthlyRevenueTrendFromPeriod(
+  monthlyRevenue: Record<string, number>
+): Array<{ month: string; revenue: number }> {
+  return Object.entries(monthlyRevenue)
+    .map(([month, revenue]) => ({ month, revenue }))
+    .sort((a, b) => a.month.localeCompare(b.month));
 }
 
 export function revenueRowToExportRecord(row: RevenueReportCampaignRow): Record<string, unknown> {

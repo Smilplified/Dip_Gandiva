@@ -676,6 +676,50 @@ export type Database = {
           metadata?: Json;
         };
       };
+      lead_transfer_history: {
+        Row: {
+          id: string;
+          organization_id: string;
+          lead_id: string | null;
+          lead_count: number;
+          lead_ids: string[] | null;
+          campaign_id: string | null;
+          from_agent_id: string;
+          to_agent_id: string;
+          transferred_by_tl_id: string;
+          transfer_mode: "all" | "campaign" | "selected";
+          transferred_at: string;
+          notes: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          lead_id?: string | null;
+          lead_count?: number;
+          lead_ids?: string[] | null;
+          campaign_id?: string | null;
+          from_agent_id: string;
+          to_agent_id: string;
+          transferred_by_tl_id: string;
+          transfer_mode: "all" | "campaign" | "selected";
+          transferred_at?: string;
+          notes?: string | null;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          lead_id?: string | null;
+          lead_count?: number;
+          lead_ids?: string[] | null;
+          campaign_id?: string | null;
+          from_agent_id?: string;
+          to_agent_id?: string;
+          transferred_by_tl_id?: string;
+          transfer_mode?: "all" | "campaign" | "selected";
+          transferred_at?: string;
+          notes?: string | null;
+        };
+      };
       consent_records: {
         Row: {
           id: string;

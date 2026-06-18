@@ -4,12 +4,17 @@ import { Typography } from "antd";
 import { useAuth } from "@/context/AuthContext";
 import TeamHierarchyView from "@/components/TL/TeamHierarchyView";
 import TeamBuilderDnDView from "@/components/TL/TeamBuilderDnDView";
+import InactiveAgentsTransferSection from "@/components/TL/InactiveAgentsTransferSection";
+import { isCampaignTeamLeaderRole } from "@/lib/auth/tl-access";
 
 const { Text } = Typography;
 
 export default function TLTeamPage() {
-  const { hasRole } = useAuth();
+  const { hasRole, roles } = useAuth();
   const canBuildTeams = hasRole("operations_manager") || hasRole("admin");
+  const isCampaignTl = roles.some((r) =>
+    isCampaignTeamLeaderRole(r.role_name ?? r.name)
+  );
 
   return (
     <>
@@ -21,6 +26,7 @@ export default function TLTeamPage() {
             : "Your team — agents assigned to you via campaigns or reporting line."}
         </Text>
       </div>
+      {isCampaignTl && <InactiveAgentsTransferSection />}
       {canBuildTeams ? <TeamBuilderDnDView /> : <TeamHierarchyView />}
     </>
   );
