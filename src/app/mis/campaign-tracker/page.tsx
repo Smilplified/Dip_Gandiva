@@ -1,14 +1,14 @@
 "use client";
 
 import { useRoleGuard } from "@/hooks/useRoleGuard";
-import OpsPerformanceReportDashboard from "@/components/MIS/OpsPerformanceReportDashboard";
+import CampaignTrackerDashboard from "@/components/MIS/CampaignTrackerDashboard";
 
-export default function MISReportsPage() {
+export default function MisCampaignTrackerPage() {
   const { status } = useRoleGuard(["mis", "admin"]);
 
   if (status !== "authorized") {
     return null;
   }
 
-  return <OpsPerformanceReportDashboard />;
+  return <CampaignTrackerDashboard />;
 }

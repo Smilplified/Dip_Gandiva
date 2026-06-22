@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import {
   DashboardOutlined,
-  TeamOutlined,
   AppstoreOutlined,
   CloudUploadOutlined,
   DatabaseOutlined,
   BarChartOutlined,
+  AimOutlined,
 } from "@ant-design/icons";
 
 const { Sider } = Layout;
@@ -22,6 +22,12 @@ const misMenuItems = [
     icon: <AppstoreOutlined />,
     label: "Campaigns",
     href: "/mis/campaigns",
+  },
+  {
+    key: "/mis/campaign-tracker",
+    icon: <AimOutlined />,
+    label: "Camp Tracker",
+    href: "/mis/campaign-tracker",
   },
   {
     key: "/mis/lead-upload",
@@ -49,6 +55,8 @@ export default function MISSidebar() {
   const selectedKey =
     pathname?.startsWith("/mis/campaigns")
       ? "/mis/campaigns"
+      : pathname?.startsWith("/mis/campaign-tracker")
+      ? "/mis/campaign-tracker"
       : pathname?.startsWith("/mis/lead-upload")
       ? "/mis/lead-upload"
       : pathname?.startsWith("/mis/leads")
