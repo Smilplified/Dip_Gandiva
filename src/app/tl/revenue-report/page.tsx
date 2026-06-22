@@ -12,12 +12,14 @@ export default function RevenueReportPage() {
   const router = useRouter();
   const { hasRole, isInitialized } = useAuth();
   const isOm = hasRole("operations_manager");
+  const isAdmin = hasRole("admin");
+  const canViewRevenue = isOm || isAdmin;
 
   useEffect(() => {
-    if (isInitialized && !isOm) {
+    if (isInitialized && !canViewRevenue) {
       router.replace("/tl/dashboard");
     }
-  }, [isInitialized, isOm, router]);
+  }, [isInitialized, canViewRevenue, router]);
 
   if (!isInitialized) {
     return (
@@ -27,7 +29,7 @@ export default function RevenueReportPage() {
     );
   }
 
-  if (!isOm) {
+  if (!canViewRevenue) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <Spin size="large" tip="Redirecting..." />

@@ -8,7 +8,7 @@ export const PUBLIC_PATHS = ["/login"] as const;
 export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
   "/admin": ["admin"],
   "/agent": ["agent"],
-  "/tl": ["team_leader", "tl", "operations_manager"],
+  "/tl": ["team_leader", "tl", "operations_manager", "admin"],
   "/sales": ["sales", "sales_manager", "admin"],
   "/qa": ["qa", "admin"],
   "/mis": ["mis", "admin"],

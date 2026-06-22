@@ -64,7 +64,7 @@ export function isCampaignTeamLeaderRole(roleName: string | null | undefined): b
 
 /** Role slugs for useRoleGuard on /tl routes. */
 export function getTLGuardRoles(): string[] {
-  return [...TL_ACCESS_ROLES];
+  return [...TL_ACCESS_ROLES, "admin"];
 }
 
 /** Human-readable label for the TL-area header (prefers Operations Manager when assigned). */
