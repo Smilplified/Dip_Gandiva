@@ -5,9 +5,9 @@ import timezone from "dayjs/plugin/timezone";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import {
-  hasOperationsManagerAccess,
   hasTLAccess,
   isCampaignTeamLeaderRole,
+  hasOrgWideInsightsAccess,
 } from "@/lib/auth/tl-access";
 import {
   buildTeamHierarchy,
@@ -278,11 +278,11 @@ export async function GET(request: Request) {
     }
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
-    if (!hasTLAccess(roleNames) && !roleNames.includes("admin")) {
+    if (!hasTLAccess(roleNames) && !hasOrgWideInsightsAccess(roleNames)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const isOM = hasOperationsManagerAccess(roleNames) || roleNames.includes("admin");
+    const isOM = hasOrgWideInsightsAccess(roleNames);
     const isTL = !isOM && roleNames.some((n) => isCampaignTeamLeaderRole(n));
 
     const { data: profile } = await supabase

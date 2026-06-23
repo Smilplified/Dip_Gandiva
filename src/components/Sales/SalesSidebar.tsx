@@ -42,6 +42,11 @@ const commonMenuItems: MenuItem[] = [
   { key: "/sales/settings", icon: <SettingOutlined />, label: "Settings", href: "/sales/settings" },
 ];
 
+const managerInsightItems: MenuItem[] = [
+  { key: "/sales/team-performance", icon: <BarChartOutlined />, label: "Performance", href: "/sales/team-performance" },
+  { key: "/sales/revenue-report", icon: <DollarOutlined />, label: "Revenue", href: "/sales/revenue-report" },
+];
+
 export default function SalesSidebar() {
   const pathname = usePathname();
   const { hasRole } = useAuth();
@@ -63,6 +68,7 @@ export default function SalesSidebar() {
   const menuItems: MenuItem[] = [
     dashboardItem,
     chatItem,
+    ...(isSalesManager ? managerInsightItems : []),
     ...commonMenuItems.filter((item) => {
       if (!isSalesOnly) return true;
       return item.key !== "/sales/clients" && item.key !== "/sales/campaigns";

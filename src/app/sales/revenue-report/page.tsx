@@ -8,32 +8,22 @@ import RevenueReportDashboard from "@/components/TL/RevenueReportDashboard";
 
 const { Text } = Typography;
 
-export default function RevenueReportPage() {
+export default function SalesRevenueReportPage() {
   const router = useRouter();
   const { hasRole, isInitialized } = useAuth();
-  const isOm = hasRole("operations_manager");
-  const isAdmin = hasRole("admin");
-  const isSalesManager = hasRole("sales_manager");
-  const canViewRevenue = isOm || isAdmin || isSalesManager;
+  const canView =
+    hasRole("sales_manager") || hasRole("admin") || hasRole("operations_manager");
 
   useEffect(() => {
-    if (isInitialized && !canViewRevenue) {
-      router.replace("/tl/dashboard");
+    if (isInitialized && !canView) {
+      router.replace("/sales/dashboard");
     }
-  }, [isInitialized, canViewRevenue, router]);
+  }, [isInitialized, canView, router]);
 
-  if (!isInitialized) {
+  if (!isInitialized || !canView) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!canViewRevenue) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Spin size="large" tip="Redirecting..." />
       </div>
     );
   }

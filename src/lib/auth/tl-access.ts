@@ -42,6 +42,23 @@ export function hasOrgWideCampaignAccess(
   });
 }
 
+export function hasSalesManagerAccess(
+  roleNames: Array<string | null | undefined>
+): boolean {
+  return roleNames.some((name) => normalizeRoleName(name) === "sales_manager");
+}
+
+/** Org-wide Performance / Revenue views (OM, Sales Manager, Admin). */
+export function hasOrgWideInsightsAccess(
+  roleNames: Array<string | null | undefined>
+): boolean {
+  return (
+    hasOperationsManagerAccess(roleNames) ||
+    hasSalesManagerAccess(roleNames) ||
+    roleNames.some((name) => normalizeRoleName(name) === "admin")
+  );
+}
+
 /** Assign or reassign team leaders on campaigns (Sales, Sales Manager, Admin, Operations Manager). */
 export function canAssignCampaignTeamLeader(
   roleNames: Array<string | null | undefined>
