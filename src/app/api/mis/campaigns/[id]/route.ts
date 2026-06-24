@@ -93,6 +93,42 @@ export async function GET(
     }
     const campaignWithTlName = { ...(campaign as Record<string, unknown>), assigned_team_leader_name };
 
+    type FileRow = {
+      id: string;
+      file_name: string;
+      file_path: string;
+      file_size: number | null;
+      mime_type: string | null;
+      created_at: string;
+    };
+
+    const { data: fileRows, error: filesError } = await admin
+      .from("campaign_files")
+      .select("id, file_name, file_path, file_size, mime_type, created_at")
+      .eq("campaign_id", campaignId)
+      .order("created_at", { ascending: false });
+
+    if (filesError) {
+      console.error("MIS campaign files fetch error:", filesError.message);
+    }
+
+    const filesWithUrls = await Promise.all(
+      ((fileRows ?? []) as FileRow[]).map(async (f) => {
+        const { data: signed } = await admin.storage
+          .from("campaign-files")
+          .createSignedUrl(f.file_path, 3600);
+        return {
+          id: f.id,
+          file_name: f.file_name,
+          file_path: f.file_path,
+          file_size: f.file_size,
+          mime_type: f.mime_type,
+          created_at: f.created_at,
+          download_url: signed?.signedUrl ?? null,
+        };
+      })
+    );
+
     const exportAll = new URL(request.url).searchParams.get("export") === "all";
     let leadsList: MisCampaignLeadRow[] = [];
     let leadsTotal = 0;
@@ -133,6 +169,7 @@ export async function GET(
       campaign: campaignWithAllocation,
       leads: leadsWithRecordings,
       leads_pagination: buildPaginationMeta(leadsPage, leadsLimit, leadsTotal),
+      files: filesWithUrls,
     });
   } catch (err) {
     console.error("MIS campaign detail error:", err);

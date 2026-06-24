@@ -22,6 +22,8 @@ const theme = {
   components: {
     Layout: {
       headerBg: "#ffffff",
+      headerHeight: 64,
+      headerPadding: "0 24px",
       siderBg: "#001529",
       bodyBg: "#f5f5f5",
     },

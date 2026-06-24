@@ -123,12 +123,83 @@ export const text = {
 
 export type TextTokenKey = keyof typeof text;
 
+/**
+ * Spacing scale (px) — use instead of ad-hoc inline numbers so vertical rhythm
+ * stays consistent. Keys are step multiples of the 4px base grid.
+ */
+export const spacing = {
+  0: 0,
+  1: 4,
+  2: 8,
+  3: 12,
+  4: 16,
+  5: 24,
+  6: 32,
+  8: 48,
+  10: 64,
+} as const;
+
+/** Corner radius scale (px). */
+export const radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  pill: 999,
+} as const;
+
+/** Layered elevation shadows — soft, neutral-tinted (calm SaaS feel). */
+export const shadow = {
+  sm: "0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06)",
+  md: "0 2px 6px rgba(16,24,40,0.05), 0 6px 16px rgba(16,24,40,0.08)",
+  lg: "0 10px 28px rgba(16,24,40,0.10), 0 2px 8px rgba(16,24,40,0.06)",
+  brand: "0 10px 28px rgba(79,70,229,0.20)",
+} as const;
+
+/** Typography size scale (px) — display for hero metrics, down to caption. */
+export const fontSize = {
+  display: 30,
+  h1: 24,
+  h2: 18,
+  body: 14,
+  sm: 13,
+  caption: 12,
+} as const;
+
+/** Cohesive indigo-led palette for charts (calm, monochromatic-with-accent). */
+export const chartPalette = [
+  brand[600],
+  brand[400],
+  brand[300],
+  semantic.info.DEFAULT,
+  neutral[400],
+] as const;
+
+/** App shell — top bar (Step 1 design system) */
+export const header = {
+  height: 64,
+  paddingX: spacing[5],
+  bg: text.inverse,
+  borderColor: neutral[200],
+  zIndex: 99,
+  searchMaxWidth: 480,
+  actionsGap: spacing[4],
+  userGap: spacing[3],
+  userHoverBg: neutral[50],
+  userRadius: radius.md,
+} as const;
+
 /** Aggregate export for theme providers and runtime lookups */
 export const tokens = {
   brand,
   semantic,
   neutral,
   text,
+  spacing,
+  radius,
+  shadow,
+  fontSize,
+  header,
 } as const;
 
 export type DesignTokens = typeof tokens;

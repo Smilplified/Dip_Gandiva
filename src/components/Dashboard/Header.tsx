@@ -1,28 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Layout, Avatar, Dropdown } from "antd";
-import {
-  UserOutlined,
-  LogoutOutlined,
-  SettingOutlined,
-} from "@ant-design/icons";
-import { useAuth } from "@/context/AuthContext";
-import NotificationBell from "@/components/Notifications/NotificationBell";
+import CrmHeader from "@/components/shared/CrmHeader";
 import GlobalSearch from "@/components/Dashboard/GlobalSearch";
-
-const { Header } = Layout;
+import { useAuth } from "@/context/AuthContext";
+import { COMMAND_CENTER_ROLES } from "@/lib/auth/config";
 
 export default function DashboardHeader() {
-  const router = useRouter();
-  const { user, profile, roles, signOut } = useAuth();
-  const [signingOut, setSigningOut] = useState(false);
+  const { roles, profile, hasRole } = useAuth();
 
   const roleNames = roles.map((r) => r.role_name?.toLowerCase() ?? "");
-  const isClientViewer = roleNames.includes("client_viewer");
+  const isClientViewer = hasRole("client_viewer");
+  const isCommandCenterUser = COMMAND_CENTER_ROLES.some((role) => hasRole(role));
   const clientLogoUrl =
     (profile as { client_logo_url?: string | null } | null)?.client_logo_url ?? null;
+
   const roleLabel = roleNames.includes("internal_admin")
     ? "Internal Admin"
     : roleNames.includes("internal_operator")
@@ -35,91 +26,30 @@ export default function DashboardHeader() {
             ? roles[0]?.role_name ?? "User"
             : "User";
 
-  const handleMenuClick = ({ key }: { key: string }) => {
-    if (key === "logout") {
-      setSigningOut(true);
-      void signOut().catch(() => {
-        setSigningOut(false);
-      });
-    }
-  };
-
-  const userMenuItems = [
-    { key: "profile", icon: <UserOutlined />, label: "Profile" },
-    { key: "settings", icon: <SettingOutlined />, label: "Settings" },
-    { type: "divider" as const },
-    { key: "logout", icon: <LogoutOutlined />, label: "Sign out", danger: true },
-  ];
-
-  return (
-    <Header
-      style={{
-        height: 70,
-        minHeight: 70,
-        padding: "0 24px",
-        background: "#fff",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-        flexShrink: 0,
-        zIndex: 99,
-        overflow: "visible",
-      }}
-    >
-      <GlobalSearch />
-      <div
+  const trailingSlot =
+    isClientViewer && clientLogoUrl ? (
+      <img
+        src={clientLogoUrl}
+        alt="Client logo"
+        className="crm-header__client-logo"
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 24,
+          height: 36,
+          maxWidth: 160,
+          width: "auto",
+          objectFit: "contain",
           flexShrink: 0,
         }}
-      >
-        {isClientViewer && clientLogoUrl ? (
-          <img
-            src={clientLogoUrl}
-            alt="Client logo"
-            style={{
-              height: 40,
-              maxWidth: 180,
-              width: "auto",
-              objectFit: "contain",
-              flexShrink: 0,
-            }}
-          />
-        ) : null}
-        <NotificationBell />
-        <Dropdown
-          menu={{ items: userMenuItems, onClick: handleMenuClick }}
-          placement="bottomRight"
-          disabled={signingOut}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              cursor: signingOut ? "wait" : "pointer",
-              opacity: signingOut ? 0.7 : 1,
-            }}
-          >
-            <Avatar
-              size={36}
-              icon={<UserOutlined />}
-              style={{ backgroundColor: "#4f46e5", flexShrink: 0 }}
-            />
-            <div style={{ textAlign: "left", lineHeight: 1.3 }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>
-                {signingOut ? "Signing out..." : (profile?.full_name || user?.email || "User")}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>
-                {signingOut ? "Signing out..." : roleLabel}
-              </div>
-            </div>
-          </div>
-        </Dropdown>
-      </div>
-    </Header>
+      />
+    ) : null;
+
+  return (
+    <CrmHeader
+      roleLabel={roleLabel}
+      fallbackName="User"
+      profilePath={isCommandCenterUser ? "/dashboard/profile" : undefined}
+      showSettings={!isClientViewer}
+      search={<GlobalSearch />}
+      trailingSlot={trailingSlot}
+    />
   );
 }

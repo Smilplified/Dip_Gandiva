@@ -48,6 +48,7 @@ import type { Lead } from "@/types/lead.types";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
+import { CampaignFilesCard, type CampaignFileItem } from "@/components/Campaigns/CampaignFilesCard";
 import { normalizeCampaignQuestions } from "@/lib/campaign-questions";
 
 type Campaign = {
@@ -130,6 +131,7 @@ export default function MISCampaignDetailPage() {
   routerRef.current = router;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [files, setFiles] = useState<CampaignFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [leadDrawerOpen, setLeadDrawerOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -195,6 +197,7 @@ export default function MISCampaignDetailPage() {
         if (!res.ok) throw new Error(data.error || "Failed to load");
         setCampaign(data.campaign);
         setLeads(data.leads ?? []);
+        setFiles(data.files ?? []);
         applyPaginationMeta(
           data.leads_pagination,
           syncPageFromResponse ? undefined : PAGINATION_SYNC_TOTAL_ONLY
@@ -735,6 +738,7 @@ export default function MISCampaignDetailPage() {
               { label: "Industry", value: campaign.industry },
             ]}
           />
+          <CampaignFilesCard files={files} />
         </Col>
       </Row>
 

@@ -1,14 +1,12 @@
 "use client";
 
-import { Layout, Tooltip } from "antd";
-import Link from "next/link";
+import { useMemo } from "react";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
 import {
   DollarOutlined,
   FundProjectionScreenOutlined,
   TeamOutlined,
-  UserOutlined,
+  SolutionOutlined,
   ApartmentOutlined,
   ProjectOutlined,
   ScheduleOutlined,
@@ -18,21 +16,13 @@ import {
 } from "@ant-design/icons";
 import { IconMessage2 } from "@tabler/icons-react";
 import { useAuth } from "@/context/AuthContext";
+import CrmSidebar, { type CrmSidebarItem } from "@/components/shared/CrmSidebar";
+import { resolveSidebarSelectedKey } from "@/lib/sidebar-utils";
 
-const { Sider } = Layout;
-
-type MenuItem = {
-  key: string;
-  icon: React.ReactNode;
-  label: string;
-  href: string;
-  accent?: "emerald";
-};
-
-const commonMenuItems: MenuItem[] = [
+const commonMenuItems: CrmSidebarItem[] = [
   { key: "/sales/clients", icon: <TeamOutlined />, label: "Clients", href: "/sales/clients" },
   { key: "/sales/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/sales/campaigns" },
-  { key: "/sales/leads", icon: <UserOutlined />, label: "Leads", href: "/sales/leads" },
+  { key: "/sales/leads", icon: <SolutionOutlined />, label: "Leads", href: "/sales/leads" },
   { key: "/sales/contacts", icon: <TeamOutlined />, label: "Contacts", href: "/sales/contacts" },
   { key: "/sales/accounts", icon: <ApartmentOutlined />, label: "Accounts", href: "/sales/accounts" },
   { key: "/sales/deals", icon: <ProjectOutlined />, label: "Deals", href: "/sales/deals" },
@@ -42,7 +32,7 @@ const commonMenuItems: MenuItem[] = [
   { key: "/sales/settings", icon: <SettingOutlined />, label: "Settings", href: "/sales/settings" },
 ];
 
-const managerInsightItems: MenuItem[] = [
+const managerInsightItems: CrmSidebarItem[] = [
   { key: "/sales/team-performance", icon: <BarChartOutlined />, label: "Performance", href: "/sales/team-performance" },
   { key: "/sales/revenue-report", icon: <DollarOutlined />, label: "Revenue", href: "/sales/revenue-report" },
 ];
@@ -53,161 +43,42 @@ export default function SalesSidebar() {
 
   const isSalesManager = hasRole("sales_manager") || hasRole("admin");
   const isSalesOnly = hasRole("sales") && !isSalesManager;
-  const dashboardItem: MenuItem = isSalesManager
-    ? { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales/dashboard" }
-    : { key: "/sales", icon: <DollarOutlined />, label: "Dashboard", href: "/sales" };
 
-  const chatItem: MenuItem = {
-    key: "/sales/chat",
-    icon: <IconMessage2 size={20} stroke={1.75} />,
-    label: "Chat",
-    href: "/sales/chat",
-    accent: "emerald",
-  };
-
-  const menuItems: MenuItem[] = [
-    dashboardItem,
-    chatItem,
-    ...(isSalesManager ? managerInsightItems : []),
-    ...commonMenuItems.filter((item) => {
-      if (!isSalesOnly) return true;
-      return item.key !== "/sales/clients" && item.key !== "/sales/campaigns";
-    }),
-  ];
-
-  const selectedKey = (() => {
-    if (!pathname) return dashboardItem.key;
-    const match = menuItems
-      .filter((item) => pathname === item.key || pathname.startsWith(item.key + "/"))
-      .sort((a, b) => b.key.length - a.key.length)[0];
-    return match?.key ?? dashboardItem.key;
-  })();
-
-  return (
-    <Sider
-      width={92}
-      theme="light"
-      style={{
-        position: "fixed",
-        insetInlineStart: 0,
-        top: 0,
-        bottom: 0,
-        zIndex: 100,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "16px 0",
-        background: "#ffffff",
-        borderRight: "1px solid rgba(0,0,0,0.06)",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          height: 52,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: 8,
-        }}
-      >
-        <Image
-          src="/projects/sidebar_logo.png"
-          alt="Gandiv"
-          width={50}
-          height={50}
-          style={{ objectFit: "contain" }}
-          priority
-        />
-      </div>
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          paddingTop: 16,
-          gap: 20,
-          paddingBottom: 16,
-          overflowY: "auto",
-          overflowX: "hidden",
-          maxHeight: "calc(100vh - 52px - 32px)",
-          scrollbarWidth: "thin",
-        }}
-      >
-        {menuItems.map((item) => {
-          const active = selectedKey === item.key;
-          return (
-            <Tooltip key={item.key} title={item.label} placement="right">
-              <Link
-                href={item.href}
-                prefetch={false}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  width: 64,
-                  padding: "6px 4px",
-                  borderRadius: 14,
-                  textDecoration: "none",
-                  background: active
-                    ? item.accent === "emerald"
-                      ? "#ecfdf5"
-                      : "#eff6ff"
-                    : "transparent",
-                  transition: "all 0.18s ease",
-                  cursor: "pointer",
-                }}
-              >
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: "999px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: active
-                      ? item.accent === "emerald"
-                        ? "#16a34a"
-                        : "#4f46e5"
-                      : "#f3f4f6",
-                    color: active ? "#ffffff" : "#4b5563",
-                    boxShadow: active
-                      ? item.accent === "emerald"
-                        ? "0 6px 14px rgba(29,158,117,0.28)"
-                        : "0 6px 14px rgba(79,70,229,0.28)"
-                      : "none",
-                    fontSize: 20,
-                  }}
-                >
-                  {item.icon}
-                </div>
-                <span
-                  style={{
-                    fontSize: 11,
-                    lineHeight: 1.1,
-                    color: active
-                      ? item.accent === "emerald"
-                        ? "#065f46"
-                        : "#0f172a"
-                      : "#6b7280",
-                    fontWeight: active ? 600 : 500,
-                    textAlign: "center",
-                    maxWidth: "100%",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item.label}
-                </span>
-              </Link>
-            </Tooltip>
-          );
-        })}
-      </div>
-    </Sider>
+  const filteredCommon = useMemo(
+    () =>
+      commonMenuItems.filter((item) => {
+        if (!isSalesOnly) return true;
+        return item.key !== "/sales/clients" && item.key !== "/sales/campaigns";
+      }),
+    [isSalesOnly]
   );
+
+  const sections = useMemo(() => {
+    const dashboardItem: CrmSidebarItem = isSalesManager
+      ? { key: "/sales/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/sales/dashboard" }
+      : { key: "/sales", icon: <DollarOutlined />, label: "Dashboard", href: "/sales" };
+
+    const chatItem: CrmSidebarItem = {
+      key: "/sales/chat",
+      icon: <IconMessage2 size={18} stroke={1.75} />,
+      label: "Chat",
+      href: "/sales/chat",
+      accent: "emerald",
+      prefetch: false,
+    };
+
+    const primary: CrmSidebarItem[] = [dashboardItem, chatItem];
+    if (isSalesManager) primary.push(...managerInsightItems);
+    return [primary, filteredCommon];
+  }, [filteredCommon, isSalesManager]);
+
+  const allItems = useMemo(() => sections.flat(), [sections]);
+
+  const selectedKey = resolveSidebarSelectedKey(
+    pathname,
+    allItems,
+    isSalesManager ? "/sales/dashboard" : "/sales"
+  );
+
+  return <CrmSidebar sections={sections} selectedKey={selectedKey} />;
 }
