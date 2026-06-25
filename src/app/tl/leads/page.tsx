@@ -17,7 +17,7 @@ import {
   Select,
 } from "antd";
 import type { Dayjs } from "dayjs";
-import { ArrowLeftOutlined, DownloadOutlined } from "@ant-design/icons";
+import { DownloadOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
 import {
@@ -257,7 +257,7 @@ export default function TeamLeaderLeadsPage() {
 
   if (!isInitialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="flex items-center justify-center" style={{ minHeight: 320 }}>
         <Spin size="large" />
       </div>
     );
@@ -267,33 +267,24 @@ export default function TeamLeaderLeadsPage() {
     return null;
   }
 
-  const dashboardHref = pathname.startsWith("/admin") ? "/admin/dashboard" : "/tl/dashboard";
-
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-[1800px] mx-auto">
-        <div style={{ marginBottom: 24 }}>
-          <Link
-            href={dashboardHref}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 14,
-              color: "#4f46e5",
-              textDecoration: "none",
-              marginBottom: 16,
-            }}
-          >
-            <ArrowLeftOutlined /> Back to Dashboard
-          </Link>
-          <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
-            Leads
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            All leads from your campaigns, including assigned agents and campaign context.
-          </Typography.Text>
-        </div>
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        padding: "0 clamp(12px, 2vw, 24px) 32px",
+        overflowX: "hidden",
+      }}
+    >
+      <div style={{ marginBottom: 24 }}>
+        <Typography.Title level={4} style={{ margin: 0 }}>
+          Leads
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          All leads from your campaigns, including assigned agents and campaign context.
+        </Typography.Text>
+      </div>
 
         {isOffline && (
           <div style={{ marginBottom: 16 }}>
@@ -319,7 +310,6 @@ export default function TeamLeaderLeadsPage() {
               Export
             </Button>
           }
-          style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
           bodyStyle={{ padding: "24px 28px" }}
         >
           <Row
@@ -419,7 +409,6 @@ export default function TeamLeaderLeadsPage() {
             size="middle"
           />
         </Card>
-      </div>
     </div>
   );
 }
