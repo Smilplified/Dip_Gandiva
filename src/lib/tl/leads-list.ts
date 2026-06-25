@@ -20,6 +20,19 @@ function isMissingColumnError(message: string | undefined): boolean {
   );
 }
 
+/** Server-side QA filter for TL leads list (`pending` = empty/null qa_status). */
+export function applyTlLeadsQaStatusFilter<TQuery extends { or: (filter: string) => TQuery; eq: (column: string, value: string) => TQuery }>(
+  query: TQuery,
+  qaStatus?: string
+): TQuery {
+  if (!qaStatus?.trim()) return query;
+  const normalized = qaStatus.trim().toLowerCase();
+  if (normalized === "pending" || normalized === "pending_audit") {
+    return query.or("qa_status.is.null,qa_status.eq.");
+  }
+  return query.eq("qa_status", normalized);
+}
+
 /** Paginated fetch — Supabase returns at most 1000 rows per request. */
 export async function fetchTlLeadsForCampaigns(
   supabase: SupabaseClient,
@@ -72,9 +85,10 @@ export async function fetchTlLeadsPageForCampaigns(
     includeUnassigned?: boolean;
     dateFrom?: string;
     dateTo?: string;
+    qaStatus?: string;
   }
 ): Promise<{ rows: Record<string, unknown>[]; total: number }> {
-  const { campaignIds, offset, limit, search, agentIds, includeUnassigned, dateFrom, dateTo } =
+  const { campaignIds, offset, limit, search, agentIds, includeUnassigned, dateFrom, dateTo, qaStatus } =
     opts;
   if (campaignIds.length === 0) return { rows: [], total: 0 };
 
@@ -113,6 +127,8 @@ export async function fetchTlLeadsPageForCampaigns(
     if (dateTo) {
       query = query.lte("created_at", `${dateTo}T23:59:59.999Z`);
     }
+
+    query = applyTlLeadsQaStatusFilter(query, qaStatus);
 
     const { data, error, count } = await query.range(offset, offset + limit - 1);
 

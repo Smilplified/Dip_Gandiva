@@ -53,6 +53,8 @@ export async function GET(request: NextRequest) {
     const wantsUnassigned =
       includeUnassigned || agentIds.includes("__unassigned__");
 
+    const qaStatus = sp.get("qa_status")?.trim() || undefined;
+
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const seeAllOrgCampaigns = hasOrgWideCampaignAccess(roleNames);
 
@@ -108,6 +110,7 @@ export async function GET(request: NextRequest) {
         : {}),
       dateFrom,
       dateTo,
+      qaStatus,
     };
 
     const [{ rows: rawLeads, total }, assignmentsRes] = await Promise.all([

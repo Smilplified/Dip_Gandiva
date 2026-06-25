@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   Table,
@@ -37,18 +38,35 @@ type TLLeadRow = Lead & {
 
 const UNASSIGNED_AGENT_ID = "__unassigned__";
 
+const QA_STATUS_FILTER_OPTIONS = [
+  { value: "pending", label: "Pending audit" },
+  { value: "qualified", label: "Qualified" },
+  { value: "disqualified", label: "Disqualified" },
+  { value: "rectified", label: "Rectified" },
+] as const;
+
 type AgentOption = { id: string; name: string };
 
 export default function TeamLeaderLeadsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { hasTLAccess, isInitialized } = useAuth();
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [leadSearch, setLeadSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [qaStatusFilter, setQaStatusFilter] = useState<string | undefined>(
+    () => searchParams.get("qa_status") ?? undefined
+  );
   const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination();
   const [isOffline, setIsOffline] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    setQaStatusFilter(searchParams.get("qa_status") ?? undefined);
+  }, [searchParams]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(leadSearch.trim()), 400);
@@ -57,7 +75,7 @@ export default function TeamLeaderLeadsPage() {
 
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, dateRange, selectedAgentIds, resetPage]);
+  }, [debouncedSearch, dateRange, selectedAgentIds, qaStatusFilter, resetPage]);
 
   const listEnabled =
     isInitialized && hasTLAccess() && !isOffline && typeof navigator !== "undefined" && navigator.onLine;
@@ -79,6 +97,7 @@ export default function TeamLeaderLeadsPage() {
       agent_ids: selectedAgentIds.length > 0 ? selectedAgentIds.join(",") : undefined,
       date_from: dateRange?.[0]?.format("YYYY-MM-DD"),
       date_to: dateRange?.[1]?.format("YYYY-MM-DD"),
+      qa_status: qaStatusFilter || undefined,
     },
     listField: "leads",
     enabled: listEnabled,
@@ -125,13 +144,27 @@ export default function TeamLeaderLeadsPage() {
   const hasActiveFilters = Boolean(
     debouncedSearch ||
       selectedAgentIds.length > 0 ||
+      qaStatusFilter ||
       (dateRange?.[0] && dateRange?.[1])
   );
+
+  const updateQaStatusFilter = (value: string | undefined) => {
+    setQaStatusFilter(value);
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) {
+      params.set("qa_status", value);
+    } else {
+      params.delete("qa_status");
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   const clearFilters = () => {
     setLeadSearch("");
     setDateRange(null);
     setSelectedAgentIds([]);
+    updateQaStatusFilter(undefined);
   };
 
   const handleExport = async () => {
@@ -149,6 +182,7 @@ export default function TeamLeaderLeadsPage() {
         agent_ids: selectedAgentIds.length > 0 ? selectedAgentIds.join(",") : undefined,
         date_from: dateRange?.[0]?.format("YYYY-MM-DD"),
         date_to: dateRange?.[1]?.format("YYYY-MM-DD"),
+        qa_status: qaStatusFilter || undefined,
       });
       const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
@@ -183,6 +217,7 @@ export default function TeamLeaderLeadsPage() {
     showActions: false,
     pagination: { current: page, pageSize },
     showDeliveryStatus: true,
+    showQaStatus: true,
   });
   const campaignColumn = {
     title: "Campaign",
@@ -232,12 +267,14 @@ export default function TeamLeaderLeadsPage() {
     return null;
   }
 
+  const dashboardHref = pathname.startsWith("/admin") ? "/admin/dashboard" : "/tl/dashboard";
+
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-[1800px] mx-auto">
         <div style={{ marginBottom: 24 }}>
           <Link
-            href="/tl/dashboard"
+            href={dashboardHref}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -309,7 +346,20 @@ export default function TeamLeaderLeadsPage() {
                 disabled={agentOptions.length === 0}
               />
             </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
+            <Col xs={24} sm={12} md={8} lg={5}>
+              <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
+                QA status
+              </Typography.Text>
+              <Select
+                placeholder="All QA statuses"
+                allowClear
+                options={[...QA_STATUS_FILTER_OPTIONS]}
+                value={qaStatusFilter}
+                onChange={(value) => updateQaStatusFilter(value ?? undefined)}
+                style={{ width: "100%" }}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={8} lg={5}>
               <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
                 Date range (created)
               </Typography.Text>
@@ -320,7 +370,7 @@ export default function TeamLeaderLeadsPage() {
                 style={{ width: "100%" }}
               />
             </Col>
-            <Col xs={24} sm={24} md={8} lg={8}>
+            <Col xs={24} sm={24} md={8} lg={6}>
               <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
                 Search
               </Typography.Text>
@@ -332,7 +382,7 @@ export default function TeamLeaderLeadsPage() {
                 style={{ width: "100%" }}
               />
             </Col>
-            <Col xs={24} sm={24} md={24} lg={4}>
+            <Col xs={24} sm={24} md={24} lg={3}>
               <Typography.Text type="secondary" style={{ display: "block", marginBottom: 6 }}>
                 &nbsp;
               </Typography.Text>

@@ -300,6 +300,7 @@ export default function AdminDashboard() {
       icon: <FundProjectionScreenOutlined />,
       color: "#722ed1",
       bgColor: "#f9f0ff",
+      href: "/admin/campaigns",
     },
     {
       title: "Clients",
@@ -325,6 +326,7 @@ export default function AdminDashboard() {
       icon: <DatabaseOutlined />,
       color: "#4f46e5",
       bgColor: "#eef2ff",
+      href: "/admin/leads",
     },
     {
       title: "Roles",
@@ -347,6 +349,7 @@ export default function AdminDashboard() {
       icon: <AuditOutlined />,
       color: "#eb2f96",
       bgColor: "#fff0f6",
+      href: "/admin/leads?qa_status=pending",
     },
   ];
 

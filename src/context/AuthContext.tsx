@@ -11,7 +11,7 @@ import {
   normalizeRoleName,
   resolvePostLoginRedirect,
 } from "@/lib/auth/config";
-import { TL_ACCESS_ROLES } from "@/lib/auth/tl-access";
+import { getTLGuardRoles } from "@/lib/auth/tl-access";
 import { authDebug } from "@/lib/auth/debug";
 
 /** Cross-tab: any tab that signs out tells others to drop stale JS + cookies. */
@@ -996,8 +996,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.roles]);
 
   const hasTLAccess = useCallback(() => {
+    const guardRoles = getTLGuardRoles();
     return state.roles.some((r) =>
-      (TL_ACCESS_ROLES as readonly string[]).includes(normalizeRoleName(r.role_name))
+      guardRoles.includes(normalizeRoleName(r.role_name))
     );
   }, [state.roles]);
 
