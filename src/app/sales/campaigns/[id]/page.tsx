@@ -7,7 +7,7 @@ import {
   useServerTablePagination,
 } from "@/hooks/useServerTablePagination";
 import { buildListApiUrl } from "@/lib/build-list-api-url";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Card,
@@ -42,8 +42,13 @@ import {
   DownloadOutlined,
   InboxOutlined,
   PlusOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { hasCampaignFeedRole } from "@/lib/command/campaign-feed-access";
+import { FeedLaunchButton } from "@/components/command/FeedLaunchButton";
+import { useCampaignFeedUnread } from "@/hooks/useCampaignFeedUnread";
+import CampaignFeedTab from "@/components/command/CampaignFeedTab";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
@@ -143,8 +148,23 @@ type CampaignFile = {
 export default function SalesCampaignDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params?.id as string | undefined;
-  const { hasRole, isInitialized } = useAuth();
+  const { hasRole, isInitialized, roles } = useAuth();
+  const showFeedTab = hasCampaignFeedRole(
+    roles.map((r) => (typeof r === "string" ? r : (r.role_name ?? r.name ?? "")))
+  );
+  const [viewTab, setViewTab] = useState("details");
+  const isFeedView = showFeedTab && viewTab === "feed";
+  const { unreadCount, markRead } = useCampaignFeedUnread({
+    campaignId: id ?? "",
+    enabled: showFeedTab && Boolean(id),
+    paused: isFeedView,
+  });
+
+  useEffect(() => {
+    if (isFeedView) void markRead();
+  }, [isFeedView, markRead]);
   const hasSalesAccess =
     hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -234,6 +254,11 @@ export default function SalesCampaignDetailPage() {
       window.history.replaceState(null, "", `${url.pathname}${qs ? `?${qs}` : ""}`);
     }
   }, [id]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab")?.toLowerCase();
+    if (tab === "feed" && showFeedTab) setViewTab("feed");
+  }, [searchParams, showFeedTab]);
 
   // Open edit modal once when navigating from the list "Edit" action (not on refresh or after save).
   useEffect(() => {
@@ -600,6 +625,37 @@ export default function SalesCampaignDetailPage() {
 
   return (
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
+      {showFeedTab && viewTab === "feed" ? (
+        <>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 16,
+              paddingBottom: 12,
+              borderBottom: "1px solid #f0f0f0",
+            }}
+          >
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => setViewTab("details")}
+              style={{ paddingLeft: 0 }}
+            >
+              Back
+            </Button>
+            <Typography.Title level={4} style={{ margin: 0, fontWeight: 600 }}>
+              {campaign.name}
+            </Typography.Title>
+            <Tag color="blue" icon={<MessageOutlined />}>
+              Campaign Workspace
+            </Tag>
+          </div>
+          {id && <CampaignFeedTab campaignId={id} fullPage />}
+        </>
+      ) : (
+        <>
       {/* Breadcrumb & back */}
       <div style={{ marginBottom: 20 }}>
         <Link
@@ -630,9 +686,25 @@ export default function SalesCampaignDetailPage() {
       >
         <Row gutter={24} align="middle" justify="space-between" wrap>
           <Col flex="1" style={{ minWidth: 0 }}>
-            <Typography.Title level={3} style={{ margin: 0, marginBottom: 6, fontWeight: 600 }}>
-              {campaign.name}
-            </Typography.Title>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                marginBottom: 6,
+              }}
+            >
+              <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
+                {campaign.name}
+              </Typography.Title>
+              {showFeedTab && (
+                <FeedLaunchButton
+                  unreadCount={unreadCount}
+                  onClick={() => setViewTab("feed")}
+                />
+              )}
+            </div>
             {campaign.client_name && (
               <Typography.Text type="secondary" style={{ fontSize: 15, display: "block", marginBottom: 8 }}>
                 {campaign.client_name}
@@ -914,6 +986,8 @@ export default function SalesCampaignDetailPage() {
           size="middle"
         />
       </Card>
+        </>
+      )}
 
       <Modal
         title="Edit Campaign"

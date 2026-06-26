@@ -93,17 +93,42 @@ function notifIcon(type: NotificationType) {
   }
 }
 
+/** Returns true if the notification originated from the campaign feed. */
+function isFeedNotification(notif: AppNotification): boolean {
+  const haystack = `${notif.title} ${notif.message}`.toLowerCase();
+  return /feed|repl(y|ied)|mention|reacted/.test(haystack);
+}
+
+function resolveCampaignPath(
+  campaignId: string,
+  isFeed: boolean,
+  hasRoleFn: (role: string) => boolean
+): string {
+  const suffix = isFeed ? "?tab=feed" : "";
+  if (
+    hasRoleFn("client_viewer") ||
+    hasRoleFn("internal_operator") ||
+    hasRoleFn("internal_admin")
+  ) {
+    return `/dashboard/campaigns/${campaignId}${suffix}`;
+  }
+  if (hasRoleFn("sales_manager") || hasRoleFn("sales")) {
+    return `/sales/campaigns/${campaignId}${suffix}`;
+  }
+  // operations_manager, team_leader, tl, admin
+  return `/tl/campaigns/${campaignId}${suffix}`;
+}
+
 function resolveNavPath(
   referenceType: NotificationReferenceType | null,
   referenceId: string | null
 ): string | null {
   if (!referenceType || !referenceId) return null;
   switch (referenceType) {
-    case "campaign": return `/tl/campaigns`;
-    case "lead":     return `/sales/leads`;
-    case "task":     return `/sales/tasks`;
-    case "deal":     return `/sales/deals`;
-    default:         return null;
+    case "lead":  return `/sales/leads`;
+    case "task":  return `/sales/tasks`;
+    case "deal":  return `/sales/deals`;
+    default:      return null;
   }
 }
 
@@ -257,16 +282,21 @@ export default function NotificationBell() {
   const handleNotifClick = useCallback(
     async (notif: AppNotification) => {
       await markAsRead(notif);
-      let path = resolveNavPath(notif.reference_type, notif.reference_id);
-      if (notif.reference_type === "campaign") {
-        if (hasRole("internal_operator")) {
-          path = "/dashboard/campaigns";
-        } else if (hasRole("sales_manager") || hasRole("sales")) {
-          path = "/sales/campaigns";
-        } else {
-          path = "/tl/campaigns";
-        }
+
+      let path: string | null = null;
+
+      if (notif.reference_type === "campaign" && notif.reference_id) {
+        // Navigate directly to the specific campaign detail page.
+        // If feed-related, append ?tab=feed so the feed view opens immediately.
+        path = resolveCampaignPath(
+          notif.reference_id,
+          isFeedNotification(notif),
+          hasRole
+        );
+      } else {
+        path = resolveNavPath(notif.reference_type, notif.reference_id);
       }
+
       if (path) {
         setOpen(false);
         router.push(path);

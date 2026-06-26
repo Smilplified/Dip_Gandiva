@@ -43,8 +43,13 @@ import {
   DownloadOutlined,
   UploadOutlined,
   InboxOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import CampaignFeedTab from "@/components/command/CampaignFeedTab";
+import { hasCampaignFeedRole } from "@/lib/command/campaign-feed-access";
+import { FeedLaunchButton } from "@/components/command/FeedLaunchButton";
+import { useCampaignFeedUnread } from "@/hooks/useCampaignFeedUnread";
 import { downloadExcel } from "@/lib/leadsExport";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
 import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
@@ -118,8 +123,22 @@ export default function CampaignDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const id = params?.id as string | undefined;
-  const { hasRole, hasTLAccess, isInitialized } = useAuth();
+  const { hasRole, hasTLAccess, isInitialized, roles } = useAuth();
   const isOperationsManager = hasRole("operations_manager");
+  const showFeedTab = hasCampaignFeedRole(
+    roles.map((r) => (typeof r === "string" ? r : (r.role_name ?? r.name ?? "")))
+  );
+  const [viewTab, setViewTab] = useState("details");
+  const isFeedView = showFeedTab && viewTab === "feed";
+  const { unreadCount, markRead } = useCampaignFeedUnread({
+    campaignId: id ?? "",
+    enabled: showFeedTab && Boolean(id),
+    paused: isFeedView,
+  });
+
+  useEffect(() => {
+    if (isFeedView) void markRead();
+  }, [isFeedView, markRead]);
   const canEditQaAudit = hasRole("qa") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -558,6 +577,11 @@ export default function CampaignDetailPage() {
     resetPage();
   }, [leadSearch, dateRange, resetPage]);
 
+  useEffect(() => {
+    const tab = searchParams.get("tab")?.toLowerCase();
+    if (tab === "feed" && showFeedTab) setViewTab("feed");
+  }, [searchParams, showFeedTab]);
+
   if (!isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -625,6 +649,37 @@ export default function CampaignDetailPage() {
 
   return (
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
+      {showFeedTab && viewTab === "feed" ? (
+        <>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 16,
+              paddingBottom: 12,
+              borderBottom: "1px solid #f0f0f0",
+            }}
+          >
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => setViewTab("details")}
+              style={{ paddingLeft: 0 }}
+            >
+              Back
+            </Button>
+            <Typography.Title level={4} style={{ margin: 0, fontWeight: 600 }}>
+              {campaign.name}
+            </Typography.Title>
+            <Tag color="blue" icon={<MessageOutlined />}>
+              Campaign Workspace
+            </Tag>
+          </div>
+          {id && <CampaignFeedTab campaignId={id} fullPage />}
+        </>
+      ) : (
+        <>
       <div style={{ marginBottom: 20 }}>
         <Link
           href="/tl/campaigns"
@@ -640,9 +695,25 @@ export default function CampaignDetailPage() {
       >
         <Row gutter={24} align="middle" justify="space-between" wrap>
           <Col flex="1" style={{ minWidth: 0 }}>
-            <Typography.Title level={3} style={{ margin: 0, marginBottom: 6, fontWeight: 600 }}>
-              {campaign.name}
-            </Typography.Title>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                marginBottom: 6,
+              }}
+            >
+              <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
+                {campaign.name}
+              </Typography.Title>
+              {showFeedTab && (
+                <FeedLaunchButton
+                  unreadCount={unreadCount}
+                  onClick={() => setViewTab("feed")}
+                />
+              )}
+            </div>
             <Space size="small" wrap>
               {headerCode && (
                 <Tag
@@ -1036,6 +1107,8 @@ export default function CampaignDetailPage() {
           })}
         />
       </Card>
+        </>
+      )}
 
       <Modal
         title="Upload Leads (CSV or Excel)"

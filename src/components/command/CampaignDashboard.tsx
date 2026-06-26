@@ -37,12 +37,15 @@ import {
   MinusOutlined,
   CaretUpOutlined,
   CaretDownOutlined,
+  MessageOutlined,
+  ArrowLeftOutlined,
 } from "@ant-design/icons";
 import AlertsPanel from "./AlertsPanel";
 import QAPanel from "./QAPanel";
 import LeadAuditPanel from "./LeadAuditPanel";
 import CampaignLeadMetricsTab from "./CampaignLeadMetricsTab";
 import CampaignAverageAnalysisTab from "./CampaignAverageAnalysisTab";
+import CampaignFeedTab from "./CampaignFeedTab";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
@@ -57,6 +60,9 @@ import {
   isAgCampaignType,
 } from "@/lib/command/client-viewer-lead-columns";
 import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
+import { hasCampaignFeedRole } from "@/lib/command/campaign-feed-access";
+import { FeedLaunchButton } from "@/components/command/FeedLaunchButton";
+import { useCampaignFeedUnread } from "@/hooks/useCampaignFeedUnread";
 
 const { Text, Title, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -221,6 +227,8 @@ interface CampaignDashboardProps {
   /** Opens this tab on load (e.g. `alerts` from `?tab=alerts`). */
   initialTab?: string | null;
   initialDeliveryStatus?: string | null;
+  /** Notifies parent when full-page feed mode toggles. */
+  onFeedModeChange?: (isFeedView: boolean) => void;
 }
 
 interface CampaignMetricsHistoryRow {
@@ -356,8 +364,9 @@ export default function CampaignDashboard({
   campaignId,
   initialTab,
   initialDeliveryStatus,
+  onFeedModeChange,
 }: CampaignDashboardProps) {
-  const { hasRole, authVersion } = useAuth();
+  const { hasRole, roles, authVersion } = useAuth();
   const authReady = useAuthReady();
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
@@ -387,6 +396,9 @@ export default function CampaignDashboard({
   const [allocationBaseline, setAllocationBaseline] = useState<number | null>(null);
 
   const isClientViewer = hasRole("client_viewer");
+  const showFeedTab = hasCampaignFeedRole(
+    roles.map((r) => (typeof r === "string" ? r : (r.role_name ?? r.name ?? "")))
+  );
   const canBulkSelect =
     hasRole("internal_operator") || hasRole("internal_admin") || hasRole("admin");
   const canAdjustAllocation =
@@ -403,11 +415,12 @@ export default function CampaignDashboard({
       "description",
       "leads",
       "files",
+      ...(showFeedTab ? (["feed"] as const) : []),
       ...(isClientViewer ? [] : (["alerts", "qa"] as const)),
       "history",
     ]);
     if (allowed.has(t)) setActiveTab(t);
-  }, [initialTab, isClientViewer]);
+  }, [initialTab, isClientViewer, showFeedTab]);
 
   useEffect(() => {
     setAllocationBaseline(null);
@@ -418,6 +431,21 @@ export default function CampaignDashboard({
   useEffect(() => {
     setDescriptionExpanded(false);
   }, [campaignId]);
+
+  useEffect(() => {
+    onFeedModeChange?.(activeTab === "feed");
+  }, [activeTab, onFeedModeChange]);
+
+  const isFeedView = showFeedTab && activeTab === "feed";
+  const { unreadCount, markRead } = useCampaignFeedUnread({
+    campaignId,
+    enabled: showFeedTab && Boolean(campaign),
+    paused: isFeedView,
+  });
+
+  useEffect(() => {
+    if (isFeedView) void markRead();
+  }, [isFeedView, markRead]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1137,6 +1165,48 @@ export default function CampaignDashboard({
     textAlign: "center",
   };
 
+  if (isFeedView && campaign) {
+    return (
+      <div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "12px 24px",
+            borderBottom: "1px solid #f0f0f0",
+          }}
+        >
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => setActiveTab("leads")}
+            style={{ paddingLeft: 0 }}
+          >
+            Back
+          </Button>
+          <Title level={4} style={{ margin: 0 }}>
+            {campaign.name}
+          </Title>
+          <Tag color="blue" icon={<MessageOutlined />}>
+            Campaign Workspace
+          </Tag>
+        </div>
+        <div style={{ padding: "16px 24px 24px" }}>
+          <CampaignFeedTab campaignId={campaignId} fullPage />
+        </div>
+        <LeadAuditPanel
+          leadId={auditLeadId}
+          open={Boolean(auditLeadId)}
+          onClose={() => setAuditLeadId(null)}
+          onLeadUpdated={() => {
+            void fetchData();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div
@@ -1185,6 +1255,12 @@ export default function CampaignDashboard({
               >
                 {campaign.status.toUpperCase()}
               </Tag>
+              {showFeedTab && (
+                <FeedLaunchButton
+                  unreadCount={unreadCount}
+                  onClick={() => setActiveTab("feed")}
+                />
+              )}
             </div>
             <div style={{ marginTop: 10 }}>
               <Space

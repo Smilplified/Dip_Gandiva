@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { Button, Card, Typography, Drawer, message } from "antd";
+import { Button, Card, Drawer, message } from "antd";
 import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -9,8 +9,6 @@ import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import CampaignDashboard from "@/components/command/CampaignDashboard";
 import CampaignForm from "@/components/command/CampaignForm";
-
-const { Text } = Typography;
 
 interface CampaignBasic {
   id: string;
@@ -65,6 +63,7 @@ export default function CampaignDetailPage() {
   const [editDrawer, setEditDrawer] = useState(false);
   const [campaignBasic, setCampaignBasic] = useState<CampaignBasic | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [feedMode, setFeedMode] = useState(() => searchParams.get("tab") === "feed");
   const metrics = campaignBasic
     ? (Array.isArray(campaignBasic.campaign_metrics)
       ? campaignBasic.campaign_metrics[0]
@@ -115,14 +114,15 @@ export default function CampaignDetailPage() {
   const contentPad = 24;
 
   return (
-    <div
-      style={{
-        marginLeft: -contentPad,
-        marginRight: -contentPad,
-        paddingLeft: contentPad,
-        paddingRight: contentPad,
-      }}
-    >
+      <div
+        style={{
+          marginLeft: -contentPad,
+          marginRight: -contentPad,
+          paddingLeft: contentPad,
+          paddingRight: contentPad,
+        }}
+      >
+      {!feedMode && (
       <div
         style={{
           display: "flex",
@@ -138,13 +138,10 @@ export default function CampaignDetailPage() {
             icon={<ArrowLeftOutlined />}
             type="text"
             onClick={() => router.push("/dashboard/campaigns")}
-            style={{ paddingLeft: 0, marginBottom: 4 }}
+            style={{ paddingLeft: 0 }}
           >
             Campaign Command Center
           </Button>
-          <Text type="secondary" style={{ display: "block", fontSize: 12 }}>
-            Campaign ID: {campaignId}
-          </Text>
         </div>
 
         {canEdit && (
@@ -156,14 +153,19 @@ export default function CampaignDetailPage() {
           </Button>
         )}
       </div>
+      )}
 
       <Card
         bordered={false}
-        style={{
-          borderRadius: 12,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-          border: "1px solid #f0f0f0",
-        }}
+        style={
+          feedMode
+            ? { border: "none", boxShadow: "none", background: "transparent" }
+            : {
+                borderRadius: 12,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                border: "1px solid #f0f0f0",
+              }
+        }
         styles={{ body: { padding: 0 } }}
       >
         <CampaignDashboard
@@ -171,6 +173,7 @@ export default function CampaignDetailPage() {
           campaignId={campaignId}
           initialTab={searchParams.get("tab")}
           initialDeliveryStatus={searchParams.get("delivery_status")}
+          onFeedModeChange={setFeedMode}
         />
       </Card>
 
