@@ -7,6 +7,11 @@ import {
   parseMentionsFromContent,
 } from "@/lib/command/campaign-feed";
 import { authorizeCampaignFeed } from "@/lib/command/campaign-feed-auth";
+import {
+  buildFeedPostPreview,
+  formatCampaignAlertTimestamp,
+  sendClientViewerFeedPostAlertEmail,
+} from "@/lib/email/client-viewer-campaign-alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -122,28 +127,65 @@ export async function POST(
 
     const { data: campaign } = (await db(auth.supabase)
       .from("campaigns")
-      .select("name")
+      .select("name, campaign_id, client_name")
       .eq("id", campaignId)
-      .single()) as { data: { name: string } | null };
+      .single()) as {
+      data: { name: string; campaign_id: string; client_name: string | null } | null;
+    };
+
+    const campaignName = campaign?.name ?? "Campaign";
 
     void notifyFeedMembers(auth.supabase, {
       orgId: auth.orgId,
       campaignId,
-      campaignName: campaign?.name ?? "Campaign",
+      campaignName,
       senderId: auth.userId,
-        title: campaign?.name ?? "Campaign",
-        message: "New feed post",
+      title: campaignName,
+      message: "New feed post",
     });
 
     if (mentions.length) {
       void notifyFeedMembers(auth.supabase, {
         orgId: auth.orgId,
         campaignId,
-        campaignName: campaign?.name ?? "Campaign",
+        campaignName,
         senderId: auth.userId,
-        title: campaign?.name ?? "Campaign",
+        title: campaignName,
         message: "You were mentioned in this feed",
         mentionUserIds: mentions,
+      });
+    }
+
+    if (auth.roleNames.includes("client_viewer")) {
+      const [{ data: poster }, { data: authUser }] = await Promise.all([
+        db(auth.supabase)
+          .from("users")
+          .select("full_name, email")
+          .eq("id", auth.userId)
+          .single(),
+        auth.supabase.auth.getUser(),
+      ]);
+
+      const user = authUser?.user;
+      const posterName =
+        (poster as { full_name?: string | null } | null)?.full_name?.trim() ||
+        user?.user_metadata?.full_name?.toString()?.trim() ||
+        user?.email ||
+        "Unknown User";
+      const posterEmail =
+        (poster as { email?: string | null } | null)?.email?.trim() ||
+        user?.email ||
+        "unknown-email";
+
+      void sendClientViewerFeedPostAlertEmail({
+        campaignUuid: campaignId,
+        campaignName,
+        campaignCode: (campaign?.campaign_id ?? "").trim() || "N/A",
+        clientName: (campaign?.client_name ?? "N/A").trim() || "N/A",
+        postedAt: formatCampaignAlertTimestamp(post.created_at),
+        posterName,
+        posterEmail,
+        postPreview: buildFeedPostPreview(content),
       });
     }
 
