@@ -10,6 +10,7 @@ import {
   FundProjectionScreenOutlined,
   HistoryOutlined,
   TeamOutlined,
+  DatabaseOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import CrmSidebar, { type CrmSidebarItem } from "@/components/shared/CrmSidebar";
@@ -45,6 +46,13 @@ const omInsightMenuItems: CrmSidebarItem[] = [
   },
   { key: "/tl/leads", icon: <SolutionOutlined />, label: "Leads", href: "/tl/leads" },
 ];
+
+const checkDataMenuItem: CrmSidebarItem = {
+  key: "/tl/check-data",
+  icon: <DatabaseOutlined />,
+  label: "Check Data",
+  href: "/tl/check-data",
+};
 
 const tlCampaignLeaderItems: CrmSidebarItem[] = [
   tlDashboardItem,
@@ -86,11 +94,14 @@ export default function TLSidebar() {
   const isCampaignTl = hasRole("team_leader") || hasRole("tl");
 
   const sections = useMemo(() => {
+    const withCheckData = (items: CrmSidebarItem[]) =>
+      isOm ? [...items, checkDataMenuItem] : items;
+
     if (isOm && !isCampaignTl) {
-      return [[tlDashboardItem], omInsightMenuItems];
+      return [[tlDashboardItem], withCheckData(omInsightMenuItems)];
     }
     if (isOm && isCampaignTl) {
-      return [tlCampaignLeaderItems, omRevenueOnly];
+      return [withCheckData(tlCampaignLeaderItems), omRevenueOnly];
     }
     if (isCampaignTl) {
       return [tlCampaignLeaderItems];

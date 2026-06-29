@@ -13,6 +13,7 @@ import {
   BarChartOutlined,
   SettingOutlined,
   DashboardOutlined,
+  DatabaseOutlined,
 } from "@ant-design/icons";
 import { IconMessage2 } from "@tabler/icons-react";
 import { useAuth } from "@/context/AuthContext";
@@ -37,12 +38,20 @@ const managerInsightItems: CrmSidebarItem[] = [
   { key: "/sales/revenue-report", icon: <DollarOutlined />, label: "Revenue", href: "/sales/revenue-report" },
 ];
 
+const checkDataMenuItem: CrmSidebarItem = {
+  key: "/sales/check-data",
+  icon: <DatabaseOutlined />,
+  label: "Check Data",
+  href: "/sales/check-data",
+};
+
 export default function SalesSidebar() {
   const pathname = usePathname();
   const { hasRole } = useAuth();
 
   const isSalesManager = hasRole("sales_manager") || hasRole("admin");
   const isSalesOnly = hasRole("sales") && !isSalesManager;
+  const canAccessCheckData = hasRole("sales_manager");
 
   const filteredCommon = useMemo(
     () =>
@@ -69,8 +78,9 @@ export default function SalesSidebar() {
 
     const primary: CrmSidebarItem[] = [dashboardItem, chatItem];
     if (isSalesManager) primary.push(...managerInsightItems);
+    if (canAccessCheckData) primary.push(checkDataMenuItem);
     return [primary, filteredCommon];
-  }, [filteredCommon, isSalesManager]);
+  }, [filteredCommon, isSalesManager, canAccessCheckData]);
 
   const allItems = useMemo(() => sections.flat(), [sections]);
 

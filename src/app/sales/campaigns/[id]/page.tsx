@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import dayjs from "dayjs";
 import {
   PAGINATION_SYNC_TOTAL_ONLY,
   useServerTablePagination,
@@ -14,23 +13,14 @@ import {
   Button,
   Table,
   Tag,
-  Modal,
-  Form,
-  Input,
-  DatePicker,
-  Select,
-  InputNumber,
   message,
   Spin,
   Typography,
   Popconfirm,
   Row,
   Col,
-  Divider,
   Space,
-  Upload,
 } from "antd";
-import type { UploadFile } from "antd";
 import {
   ArrowLeftOutlined,
   CopyOutlined,
@@ -40,8 +30,6 @@ import {
   PauseCircleOutlined,
   FileOutlined,
   DownloadOutlined,
-  InboxOutlined,
-  PlusOutlined,
   MessageOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
@@ -50,39 +38,10 @@ import { CampaignFeedChatWidget } from "@/components/command/CampaignFeedChatWid
 import { useCampaignFeedUnread } from "@/hooks/useCampaignFeedUnread";
 import CampaignFeedTab from "@/components/command/CampaignFeedTab";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
-import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
-import { uploadCampaignFilesDirect } from "@/lib/campaign-file-direct-upload";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { CampaignDetailsCard } from "@/components/Campaigns/CampaignDetailsCard";
 import { tableSerialNumber } from "@/lib/table-pagination";
 import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
-import { CampaignQuestionsEditor } from "@/components/Campaigns/CampaignQuestionsEditor";
-import {
-  campaignQuestionsPayloadFromFormValues,
-  campaignQuestionsToFormRows,
-  normalizeCampaignQuestions,
-} from "@/lib/campaign-questions";
-
-const { TextArea } = Input;
-const { Dragger } = Upload;
-
-const EMPLOYEE_SIZE_OPTIONS = [
-  { value: "2-11", label: "2-11" },
-  { value: "11-50", label: "11-50" },
-  { value: "51-200", label: "51-200" },
-  { value: "200-500", label: "200-500" },
-  { value: "500-1000", label: "500-1000" },
-  { value: "1000-5000", label: "1000-5000" },
-  { value: "5000-10000", label: "5000-10000" },
-  { value: "10000+", label: "10000+" },
-  { value: "All Emp", label: "All Emp" },
-];
-
-const ACCEPT_FILE_TYPES =
-  ".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/zip,image/*";
-
-const salesCampaignOpenEditKey = (campaignId: string) =>
-  `gandiv:sales-campaign-open-edit:${campaignId}`;
 
 type Campaign = {
   id: string;
@@ -172,27 +131,12 @@ export default function SalesCampaignDetailPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [files, setFiles] = useState<CampaignFile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [uploadFileList, setUploadFileList] = useState<UploadFile[]>([]);
-  const [removingFileId, setRemovingFileId] = useState<string | null>(null);
-  const [leadTypeOptions, setLeadTypeOptions] = useState([
-    { value: "AG", label: "AG" },
-    { value: "CD", label: "CD" },
-    { value: "CDQA", label: "CDQA" },
-    { value: "Double Touch - Whitepaper", label: "Double Touch - Whitepaper" },
-    { value: "HQL / BANT", label: "HQL / BANT" },
-    { value: "Tele", label: "Tele" },
-    { value: "Webinar", label: "Webinar" },
-    { value: "Whitepaper", label: "Whitepaper" },
-  ]);
   const [teamLeaders, setTeamLeaders] = useState<{ id: string; full_name: string | null; email: string | null }[]>([]);
   const { page, pageSize, total, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination();
   const initialLeadsLoadDoneRef = useRef(false);
   const routerRef = useRef(router);
   routerRef.current = router;
-  const [form] = Form.useForm();
 
   useEffect(() => {
     initialLeadsLoadDoneRef.current = false;
@@ -245,17 +189,6 @@ export default function SalesCampaignDetailPage() {
     fetchCampaign(id);
   }, [id, isInitialized, hasSalesAccess, router, fetchCampaign]);
 
-  // Strip legacy ?edit=1 from URL (no longer used to open the modal).
-  useEffect(() => {
-    if (!id || typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("edit") === "1") {
-      url.searchParams.delete("edit");
-      const qs = url.searchParams.toString();
-      window.history.replaceState(null, "", `${url.pathname}${qs ? `?${qs}` : ""}`);
-    }
-  }, [id]);
-
   useEffect(() => {
     const tab = searchParams.get("tab")?.toLowerCase();
     if (tab === "feed" && showFeedTab) {
@@ -263,74 +196,6 @@ export default function SalesCampaignDetailPage() {
       setFeedChatOpen(false);
     }
   }, [searchParams, showFeedTab]);
-
-  // Open edit modal once when navigating from the list "Edit" action (not on refresh or after save).
-  useEffect(() => {
-    if (!campaign || !id) return;
-    try {
-      const key = salesCampaignOpenEditKey(id);
-      if (sessionStorage.getItem(key) === "1") {
-        sessionStorage.removeItem(key);
-        setEditModalOpen(true);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [campaign, id]);
-
-  useEffect(() => {
-    if (campaign && editModalOpen) {
-      const leadTypesArray =
-        typeof campaign.lead_type === "string"
-          ? campaign.lead_type
-              .split(",")
-              .map((v) => v.trim())
-              .filter(Boolean)
-          : [];
-
-      if (leadTypesArray.length) {
-        setLeadTypeOptions((prev) => {
-          const existing = new Set(prev.map((o) => o.value));
-          const extras = leadTypesArray
-            .filter((v) => v && !existing.has(v))
-            .map((v) => ({ value: v, label: v }));
-          return extras.length ? [...prev, ...extras] : prev;
-        });
-      }
-
-      form.setFieldsValue({
-        client_name: campaign.client_name ?? "",
-        name: campaign.name,
-        lead_type: leadTypesArray.length ? leadTypesArray : undefined,
-        description: campaign.description ?? "",
-        industry: campaign.industry ?? "",
-        geography: campaign.geography ?? "",
-        target_designation: campaign.target_designation ?? "",
-        start_date: campaign.start_date ? dayjs(campaign.start_date) : null,
-        end_date: campaign.end_date ? dayjs(campaign.end_date) : null,
-        status: campaign.status,
-        cpl: campaign.cpl,
-        revenue: campaign.revenue,
-        booked: campaign.booked,
-        total_allocation: campaign.total_allocation,
-        post_qa: campaign.post_qa,
-        achieved: campaign.achieved,
-        pending_allocation: campaign.pending_allocation,
-        weekly_call: campaign.weekly_call ?? "",
-        weekly_report: campaign.weekly_report ?? "",
-        additional_comments: campaign.additional_comments ?? "",
-        assigned_team_leader_id: campaign.assigned_team_leader_id ?? undefined,
-        employee_size: campaign.employee_size ?? undefined,
-        abm: campaign.abm,
-        seniority: campaign.seniority ?? "",
-        job_function: campaign.job_function ?? "",
-        creatives_url: campaign.creatives_url?.length ? campaign.creatives_url : undefined,
-        campaign_question_rows: campaignQuestionsToFormRows(
-          normalizeCampaignQuestions(campaign.campaign_questions)
-        ),
-      });
-    }
-  }, [campaign, editModalOpen, form, id]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (!id) return;
@@ -346,80 +211,6 @@ export default function SalesCampaignDetailPage() {
       fetchCampaign(id);
     } catch {
       message.error("Failed to update campaign");
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!id) return;
-    try {
-      const values = await form.validateFields();
-      setSaving(true);
-
-      const leadTypeValue = Array.isArray(values.lead_type)
-        ? values.lead_type.join(", ")
-        : values.lead_type;
-
-      const res = await fetch(`/api/tl/campaigns/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          client_name: values.client_name || null,
-          name: values.name,
-          lead_type: leadTypeValue || null,
-          description: values.description || null,
-          industry: values.industry || null,
-          geography: values.geography || null,
-          target_designation: values.target_designation || null,
-          start_date: values.start_date?.format?.("YYYY-MM-DD") ?? null,
-          end_date: values.end_date?.format?.("YYYY-MM-DD") ?? null,
-          status: values.status,
-          cpl: values.cpl,
-          revenue: values.revenue,
-          booked: values.booked,
-          total_allocation: values.total_allocation,
-          post_qa: values.post_qa,
-          weekly_call: values.weekly_call || null,
-          weekly_report: values.weekly_report || null,
-          additional_comments: values.additional_comments || null,
-          assigned_team_leader_id: values.assigned_team_leader_id || null,
-          employee_size: values.employee_size,
-          abm: values.abm,
-          seniority: values.seniority?.trim() || null,
-          job_function: values.job_function?.trim() || null,
-          creatives_url: values.creatives_url?.filter((u: string) => u?.trim()) || null,
-          campaign_questions: campaignQuestionsPayloadFromFormValues(
-            values as Record<string, unknown>
-          ),
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update");
-      }
-
-      const filesToUpload = uploadFileList
-        .filter((f) => f.originFileObj)
-        .map((f) => f.originFileObj as File);
-      if (filesToUpload.length > 0) {
-        const { errors: uploadErrors } = await uploadCampaignFilesDirect(
-          `/api/tl/campaigns/${id}/files`,
-          filesToUpload
-        );
-        if (uploadErrors.length) {
-          message.warning(`Campaign saved. Some files failed: ${uploadErrors.slice(0, 2).join("; ")}`);
-        }
-      }
-
-      message.success("Campaign updated");
-      setUploadFileList([]);
-      form.resetFields();
-      setEditModalOpen(false);
-      fetchCampaign(id);
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to update campaign");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -439,33 +230,6 @@ export default function SalesCampaignDetailPage() {
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Failed to delete campaign");
     }
-  };
-
-  const handleRemoveFile = async (fileId: string) => {
-    if (!id) return;
-    setRemovingFileId(fileId);
-    try {
-      const res = await fetch(`/api/tl/campaigns/${id}/files/${fileId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to remove file");
-      }
-      setFiles((prev) => prev.filter((f) => f.id !== fileId));
-      message.success("File removed");
-    } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to remove file");
-    } finally {
-      setRemovingFileId(null);
-    }
-  };
-
-  const handleCloseEditModal = () => {
-    form.resetFields();
-    setUploadFileList([]);
-    setEditModalOpen(false);
   };
 
   if (!isInitialized) {
@@ -730,7 +494,7 @@ export default function SalesCampaignDetailPage() {
           </Col>
           <Col>
             <Space size="small" wrap>
-              <Button icon={<EditOutlined />} onClick={() => setEditModalOpen(true)}>
+              <Button icon={<EditOutlined />} onClick={() => router.push(`/sales/campaigns/create?id=${id}`)}>
                 Edit
               </Button>
               {(campaign.status === "draft" || campaign.status === "paused") && (
@@ -986,233 +750,6 @@ export default function SalesCampaignDetailPage() {
       </Card>
         </>
       )}
-
-      <Modal
-        title="Edit Campaign"
-        open={editModalOpen}
-        onCancel={handleCloseEditModal}
-        onOk={handleSaveEdit}
-        confirmLoading={saving}
-        okText="Save"
-        width={640}
-        style={{ top: 24 }}
-      >
-        <div style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: 8 }}>
-          <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-            <Form.Item name="client_name" label="Client Name">
-              <Input placeholder="Client name" />
-            </Form.Item>
-            <Form.Item name="name" label="Campaign Name" rules={[{ required: true }]}>
-              <Input placeholder="Campaign name" />
-            </Form.Item>
-            <Form.Item name="lead_type" label="Lead Type">
-              <Select
-                mode="tags"
-                maxTagCount="responsive"
-                placeholder="Select or type lead types and press Enter"
-                allowClear
-                options={leadTypeOptions}
-                tokenSeparators={[","]}
-                onChange={(vals) => {
-                  const arr = Array.isArray(vals) ? vals : [];
-                  setLeadTypeOptions((prev) => {
-                    const existing = new Set(prev.map((o) => o.value));
-                    const extras = arr
-                      .map((v) => String(v).trim())
-                      .filter((v) => v && !existing.has(v))
-                      .map((v) => ({ value: v, label: v }));
-                    return extras.length ? [...prev, ...extras] : prev;
-                  });
-                }}
-              />
-            </Form.Item>
-            <Form.Item name="start_date" label="Start Date">
-              <DatePicker style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item name="end_date" label="End Date">
-              <DatePicker style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-              <Select
-                options={[
-                  { value: "draft", label: "Draft" },
-                  { value: "active", label: "Active" },
-                  { value: "paused", label: "Paused" },
-                  { value: "completed", label: "Completed" },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="assigned_team_leader_id" label="Assign Team Leader">
-              <Select
-                placeholder="Select Team Leader"
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                options={teamLeaders.map((tl) => ({
-                  value: tl.id,
-                  label: tl.full_name || tl.email || tl.id,
-                }))}
-                notFoundContent={teamLeaders.length === 0 ? "No Team Leaders found" : undefined}
-              />
-            </Form.Item>
-            <Form.Item name="cpl" label="CPL">
-              <InputNumber style={{ width: "100%" }} min={0} step={0.01} />
-            </Form.Item>
-            <Form.Item name="revenue" label="Revenue">
-              <InputNumber style={{ width: "100%" }} min={0} step={0.01} />
-            </Form.Item>
-            <Form.Item name="booked" label="Booked">
-              <InputNumber style={{ width: "100%" }} min={0} step={0.01} />
-            </Form.Item>
-            <Form.Item name="total_allocation" label="Total Allocation">
-              <InputNumber style={{ width: "100%" }} min={0} precision={0} />
-            </Form.Item>
-            <Form.Item name="post_qa" label="Post QA">
-              <InputNumber style={{ width: "100%" }} min={0} precision={0} />
-            </Form.Item>
-            <Form.Item name="achieved" label="Achieved (MIS delivered)">
-              <InputNumber style={{ width: "100%" }} min={0} precision={0} disabled />
-            </Form.Item>
-            <Form.Item name="pending_allocation" label="Pending Allocation">
-              <InputNumber style={{ width: "100%" }} min={0} precision={0} disabled />
-            </Form.Item>
-            <Form.Item name="weekly_call" label="Weekly Call">
-              <Input placeholder="e.g. Monday 10:00 AM" />
-            </Form.Item>
-            <Form.Item name="weekly_report" label="Weekly Report">
-              <Input placeholder="e.g. Friday EOD" />
-            </Form.Item>
-            <Form.Item name="description" label="Description">
-              <TextArea rows={2} placeholder="Campaign description" />
-            </Form.Item>
-            <Form.Item name="target_designation" label="Target Designation">
-              <Input placeholder="e.g. CTO, Sales Manager" />
-            </Form.Item>
-            <Form.Item name="industry" label="Industry">
-              <Input placeholder="e.g. Technology, Healthcare" />
-            </Form.Item>
-            <Form.Item name="geography" label="Geography">
-              <Input placeholder="e.g. North America, APAC" />
-            </Form.Item>
-            <Form.Item name="employee_size" label="Employee Size">
-              <Select mode="multiple" placeholder="Select ranges" allowClear options={EMPLOYEE_SIZE_OPTIONS} style={{ width: "100%" }} maxTagCount="responsive" />
-            </Form.Item>
-            <Form.Item name="abm" label="ABM">
-              <Select placeholder="Yes / No" allowClear options={[{ value: true, label: "Yes" }, { value: false, label: "No" }]} />
-            </Form.Item>
-            <Form.Item name="seniority" label="Seniority">
-              <Input placeholder="e.g. C-Level, VP, Director" />
-            </Form.Item>
-            <Form.Item name="job_function" label="Job Function">
-              <Input placeholder="e.g. Sales, Marketing, Engineering" />
-            </Form.Item>
-            <Form.Item label="Creatives URL">
-              <Form.List name="creatives_url">
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map(({ key, name, ...restField }) => (
-                      <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
-                        <Form.Item {...restField} name={[name]} rules={[{ type: "url", message: "Valid URL" }]} style={{ flex: 1, marginBottom: 0, minWidth: 180 }}>
-                          <Input placeholder="https://..." />
-                        </Form.Item>
-                        <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(name)} />
-                      </Space>
-                    ))}
-                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />} size="small">
-                      Add URL
-                    </Button>
-                  </>
-                )}
-              </Form.List>
-            </Form.Item>
-            <Form.Item name="additional_comments" label="Additional Comments">
-              <TextArea rows={3} placeholder="Additional notes" />
-            </Form.Item>
-
-            <CampaignQuestionsEditor />
-
-            <Divider style={{ margin: "20px 0 12px" }} />
-
-            <Form.Item label="Campaign Files">
-              <div style={{ marginBottom: 12 }}>
-                {files.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
-                      Existing files (click Remove to delete)
-                    </Typography.Text>
-                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                      {files.map((f) => (
-                        <li
-                          key={f.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "6px 0",
-                            borderBottom: "1px solid #f0f0f0",
-                          }}
-                        >
-                          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                            <FileOutlined />
-                            {f.file_name}
-                            {f.file_size != null && (
-                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                ({(f.file_size / 1024).toFixed(1)} KB)
-                              </Typography.Text>
-                            )}
-                          </span>
-                          <Popconfirm
-                            title="Remove this file?"
-                            onConfirm={() => handleRemoveFile(f.id)}
-                            okText="Remove"
-                            okType="danger"
-                          >
-                            <Button
-                              type="link"
-                              size="small"
-                              danger
-                              loading={removingFileId === f.id}
-                              disabled={!!removingFileId}
-                            >
-                              Remove
-                            </Button>
-                          </Popconfirm>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
-                  Add new files (saved when you click Save)
-                </Typography.Text>
-                <Dragger
-                  multiple
-                  fileList={uploadFileList}
-                  accept={ACCEPT_FILE_TYPES}
-                  beforeUpload={(file) => {
-                    if (file.size > MAX_CAMPAIGN_FILE_BYTES) {
-                      message.error(`Each file must be ${MAX_CAMPAIGN_FILE_SIZE_MB}MB or smaller.`);
-                      return Upload.LIST_IGNORE;
-                    }
-                    return false;
-                  }}
-                  onRemove={(file) => setUploadFileList((prev) => prev.filter((f) => f.uid !== file.uid))}
-                  onChange={({ fileList: next }) => setUploadFileList(next)}
-                  maxCount={20}
-                >
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined style={{ fontSize: 32, color: "#4f46e5" }} />
-                  </p>
-                  <p className="ant-upload-text">Click or drag files to add</p>
-                  <p className="ant-upload-hint">
-                    PDF, Word, Excel, images, etc. Max {MAX_CAMPAIGN_FILE_SIZE_MB}MB per file.
-                  </p>
-                </Dragger>
-              </div>
-            </Form.Item>
-          </Form>
-        </div>
-      </Modal>
 
       {showFeedTab && campaign && viewTab !== "feed" && (
         <CampaignFeedChatWidget

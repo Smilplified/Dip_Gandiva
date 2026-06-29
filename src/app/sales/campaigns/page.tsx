@@ -353,14 +353,7 @@ export default function SalesCampaignsPage() {
               type="text"
               size="small"
               icon={<EditOutlined />}
-              onClick={() => {
-                try {
-                  sessionStorage.setItem(`gandiv:sales-campaign-open-edit:${r.id}`, "1");
-                } catch {
-                  /* ignore */
-                }
-                router.push(`/sales/campaigns/${r.id}`);
-              }}
+              onClick={() => router.push(`/sales/campaigns/create?id=${r.id}`)}
             />
           </Tooltip>
           {r.status === "draft" || r.status === "paused" ? (
