@@ -105,6 +105,9 @@ function resolveCampaignPath(
   hasRoleFn: (role: string) => boolean
 ): string {
   const suffix = isFeed ? "?tab=feed" : "";
+  if (hasRoleFn("admin")) {
+    return `/admin/campaigns/${campaignId}${suffix}`;
+  }
   if (
     hasRoleFn("client_viewer") ||
     hasRoleFn("internal_operator") ||

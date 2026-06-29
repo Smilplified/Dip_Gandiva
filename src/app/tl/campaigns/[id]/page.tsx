@@ -48,7 +48,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import CampaignFeedTab from "@/components/command/CampaignFeedTab";
 import { hasCampaignFeedRole } from "@/lib/command/campaign-feed-access";
-import { FeedLaunchButton } from "@/components/command/FeedLaunchButton";
+import { CampaignFeedChatWidget } from "@/components/command/CampaignFeedChatWidget";
 import { useCampaignFeedUnread } from "@/hooks/useCampaignFeedUnread";
 import { downloadExcel } from "@/lib/leadsExport";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
@@ -129,16 +129,17 @@ export default function CampaignDetailPage() {
     roles.map((r) => (typeof r === "string" ? r : (r.role_name ?? r.name ?? "")))
   );
   const [viewTab, setViewTab] = useState("details");
+  const [feedChatOpen, setFeedChatOpen] = useState(true);
   const isFeedView = showFeedTab && viewTab === "feed";
   const { unreadCount, markRead } = useCampaignFeedUnread({
     campaignId: id ?? "",
     enabled: showFeedTab && Boolean(id),
-    paused: isFeedView,
+    paused: isFeedView || feedChatOpen,
   });
 
   useEffect(() => {
-    if (isFeedView) void markRead();
-  }, [isFeedView, markRead]);
+    if (isFeedView || feedChatOpen) void markRead();
+  }, [isFeedView, feedChatOpen, markRead]);
   const canEditQaAudit = hasRole("qa") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -579,7 +580,10 @@ export default function CampaignDetailPage() {
 
   useEffect(() => {
     const tab = searchParams.get("tab")?.toLowerCase();
-    if (tab === "feed" && showFeedTab) setViewTab("feed");
+    if (tab === "feed" && showFeedTab) {
+      setViewTab("feed");
+      setFeedChatOpen(false);
+    }
   }, [searchParams, showFeedTab]);
 
   if (!isInitialized) {
@@ -676,7 +680,7 @@ export default function CampaignDetailPage() {
               Campaign Workspace
             </Tag>
           </div>
-          {id && <CampaignFeedTab campaignId={id} fullPage />}
+          {id && <CampaignFeedTab campaignId={id} fullPage variant="full" />}
         </>
       ) : (
         <>
@@ -707,12 +711,6 @@ export default function CampaignDetailPage() {
               <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
                 {campaign.name}
               </Typography.Title>
-              {showFeedTab && (
-                <FeedLaunchButton
-                  unreadCount={unreadCount}
-                  onClick={() => setViewTab("feed")}
-                />
-              )}
             </div>
             <Space size="small" wrap>
               {headerCode && (
@@ -1283,6 +1281,17 @@ export default function CampaignDetailPage() {
           campaignQuestions={campaignQuestions}
         />
       </Drawer>
+
+      {showFeedTab && campaign && viewTab !== "feed" && (
+        <CampaignFeedChatWidget
+          campaignId={id!}
+          campaignName={campaign.name}
+          unreadCount={unreadCount}
+          open={feedChatOpen}
+          onOpenChange={setFeedChatOpen}
+          onExpand={() => setViewTab("feed")}
+        />
+      )}
     </div>
   );
 }

@@ -37,9 +37,16 @@ const { RangePicker } = DatePicker;
 type CampaignFeedTabProps = {
   campaignId: string;
   fullPage?: boolean;
+  /** `chat` = compact Instagram-style panel (no filters). `full` = default with filters. */
+  variant?: "full" | "chat";
 };
 
-export default function CampaignFeedTab({ campaignId, fullPage = false }: CampaignFeedTabProps) {
+export default function CampaignFeedTab({
+  campaignId,
+  fullPage = false,
+  variant = "full",
+}: CampaignFeedTabProps) {
+  const isChat = variant === "chat";
   const { user, roles } = useAuth();
   const authReady = useAuthReady();
   const [posts, setPosts] = useState<CampaignFeedPost[]>([]);
@@ -55,6 +62,7 @@ export default function CampaignFeedTab({ campaignId, fullPage = false }: Campai
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [activity, setActivity] = useState<CampaignFeedActivityEntry[]>([]);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const refreshGenRef = useRef(0);
 
   const roleNames = roles.map((r) =>
@@ -217,21 +225,25 @@ export default function CampaignFeedTab({ campaignId, fullPage = false }: Campai
           void fetchPosts({ append: true, cursor: nextCursor });
         }
       },
-      { rootMargin: "200px" }
+      {
+        root: isChat ? scrollRootRef.current : null,
+        rootMargin: "200px",
+      }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasMore, nextCursor, loadingMore, fetchPosts]);
+  }, [hasMore, nextCursor, loadingMore, fetchPosts, isChat]);
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        height: fullPage ? "calc(100vh - 200px)" : 520,
+        height: isChat ? "100%" : fullPage ? "calc(100vh - 200px)" : 520,
         minHeight: 0,
       }}
     >
+      {!isChat && (
       <Card
         size="small"
         style={{ marginBottom: 12, borderRadius: 10 }}
@@ -286,8 +298,9 @@ export default function CampaignFeedTab({ campaignId, fullPage = false }: Campai
           </button>
         </Space>
       </Card>
+      )}
 
-      {activity.length > 0 && (
+      {!isChat && activity.length > 0 && (
         <Collapse
           size="small"
           style={{ marginBottom: 12 }}
@@ -335,7 +348,17 @@ export default function CampaignFeedTab({ campaignId, fullPage = false }: Campai
         />
       )}
 
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 12, minHeight: 0 }}>
+      <div
+        ref={scrollRootRef}
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          paddingBottom: isChat ? 0 : 12,
+          minHeight: 0,
+          background: isChat ? "#fff" : undefined,
+        }}
+        className={isChat ? "feed-chat-widget__scroll" : undefined}
+      >
         {loading && posts.length === 0 ? (
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : posts.length === 0 ? (
@@ -368,11 +391,17 @@ export default function CampaignFeedTab({ campaignId, fullPage = false }: Campai
         </div>
       </div>
 
-      <FeedComposer
-        campaignId={campaignId}
-        members={members}
-        onPosted={refresh}
-      />
+      <div
+        className={isChat ? "feed-chat-widget__composer" : undefined}
+        style={isChat ? { flexShrink: 0, borderTop: "1px solid #f0f0f0" } : undefined}
+      >
+        <FeedComposer
+          campaignId={campaignId}
+          members={members}
+          onPosted={refresh}
+          compact={isChat}
+        />
+      </div>
     </div>
   );
 }

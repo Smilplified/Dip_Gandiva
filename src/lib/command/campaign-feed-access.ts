@@ -1,4 +1,4 @@
-import { normalizeRoleName } from "@/lib/auth/config";
+import { normalizeRoleName, normalizeRoleNames } from "@/lib/auth/config";
 import {
   hasOperationsManagerAccess,
   hasSalesManagerAccess,
@@ -7,16 +7,20 @@ import { hasCommandRole, hasAdminOverrideRole } from "@/lib/command/rules-engine
 
 /** Roles that can view and participate in the campaign feed tab. */
 export const CAMPAIGN_FEED_ROLES = [
+  "admin",
+  "internal_admin",
+  "internal_operator",
   "operations_manager",
   "sales_manager",
   "client_viewer",
 ] as const;
 
 export function hasCampaignFeedRole(roleNames: string[]): boolean {
-  const normalized = roleNames.map((r) => normalizeRoleName(r));
-  if (hasAdminOverrideRole(roleNames) || hasCommandRole(roleNames)) return true;
-  if (hasOperationsManagerAccess(roleNames)) return true;
-  if (hasSalesManagerAccess(roleNames)) return true;
+  const normalized = normalizeRoleNames(roleNames);
+  if (normalized.includes("admin")) return true;
+  if (hasAdminOverrideRole(normalized) || hasCommandRole(normalized)) return true;
+  if (hasOperationsManagerAccess(normalized)) return true;
+  if (hasSalesManagerAccess(normalized)) return true;
   return normalized.includes("client_viewer");
 }
 

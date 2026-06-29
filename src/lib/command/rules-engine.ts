@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import { normalizeRoleNames } from "@/lib/auth/config";
 import { validateTransition } from "./state-machine";
 
 export type RulesEngineClient = SupabaseClient<Database>;
@@ -77,20 +78,24 @@ export interface ConsentValidationResult {
   resolvedStatus: "pending" | "verified" | "missing" | "disputed";
 }
 
+import { normalizeRoleName } from "@/lib/auth/config";
+
 // ─── Role Helpers ─────────────────────────────────────────────────────────────
 
 const COMMAND_ROLES = ["internal_operator", "internal_admin", "admin"] as const;
 const ADMIN_OVERRIDE_ROLES = ["internal_admin", "admin"] as const;
 
 export function hasCommandRole(roles: string[]): boolean {
-  return roles.some((r) =>
-    (COMMAND_ROLES as readonly string[]).includes(r.toLowerCase())
+  const normalized = normalizeRoleNames(roles);
+  return normalized.some((r) =>
+    (COMMAND_ROLES as readonly string[]).includes(r)
   );
 }
 
 export function hasAdminOverrideRole(roles: string[]): boolean {
-  return roles.some((r) =>
-    (ADMIN_OVERRIDE_ROLES as readonly string[]).includes(r.toLowerCase())
+  const normalized = normalizeRoleNames(roles);
+  return normalized.some((r) =>
+    (ADMIN_OVERRIDE_ROLES as readonly string[]).includes(r)
   );
 }
 

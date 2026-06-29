@@ -48,14 +48,15 @@ export default function Sidebar() {
   const { hasRole } = useAuth();
 
   const isClientViewer = hasRole("client_viewer");
+  const isAdminUser = hasRole("admin");
   const isCommandCenterUser = COMMAND_CENTER_ROLES.some((role) => hasRole(role));
   const onDashboardSection = Boolean(pathname?.startsWith("/dashboard"));
 
   const visibleMenuItems = useMemo(() => {
-    if (isClientViewer) return clientViewerMenuItems;
+    if (isClientViewer && !isAdminUser) return clientViewerMenuItems;
     if (isCommandCenterUser || onDashboardSection) return commandMenuItems;
     return salesMenuItems;
-  }, [isClientViewer, isCommandCenterUser, onDashboardSection]);
+  }, [isClientViewer, isAdminUser, isCommandCenterUser, onDashboardSection]);
 
   const selectedKey = useMemo(
     () => resolveSidebarSelectedKey(pathname, visibleMenuItems, visibleMenuItems[0]?.key ?? "/"),

@@ -46,7 +46,7 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { hasCampaignFeedRole } from "@/lib/command/campaign-feed-access";
-import { FeedLaunchButton } from "@/components/command/FeedLaunchButton";
+import { CampaignFeedChatWidget } from "@/components/command/CampaignFeedChatWidget";
 import { useCampaignFeedUnread } from "@/hooks/useCampaignFeedUnread";
 import CampaignFeedTab from "@/components/command/CampaignFeedTab";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
@@ -155,16 +155,17 @@ export default function SalesCampaignDetailPage() {
     roles.map((r) => (typeof r === "string" ? r : (r.role_name ?? r.name ?? "")))
   );
   const [viewTab, setViewTab] = useState("details");
+  const [feedChatOpen, setFeedChatOpen] = useState(true);
   const isFeedView = showFeedTab && viewTab === "feed";
   const { unreadCount, markRead } = useCampaignFeedUnread({
     campaignId: id ?? "",
     enabled: showFeedTab && Boolean(id),
-    paused: isFeedView,
+    paused: isFeedView || feedChatOpen,
   });
 
   useEffect(() => {
-    if (isFeedView) void markRead();
-  }, [isFeedView, markRead]);
+    if (isFeedView || feedChatOpen) void markRead();
+  }, [isFeedView, feedChatOpen, markRead]);
   const hasSalesAccess =
     hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -257,7 +258,10 @@ export default function SalesCampaignDetailPage() {
 
   useEffect(() => {
     const tab = searchParams.get("tab")?.toLowerCase();
-    if (tab === "feed" && showFeedTab) setViewTab("feed");
+    if (tab === "feed" && showFeedTab) {
+      setViewTab("feed");
+      setFeedChatOpen(false);
+    }
   }, [searchParams, showFeedTab]);
 
   // Open edit modal once when navigating from the list "Edit" action (not on refresh or after save).
@@ -652,7 +656,7 @@ export default function SalesCampaignDetailPage() {
               Campaign Workspace
             </Tag>
           </div>
-          {id && <CampaignFeedTab campaignId={id} fullPage />}
+          {id && <CampaignFeedTab campaignId={id} fullPage variant="full" />}
         </>
       ) : (
         <>
@@ -698,12 +702,6 @@ export default function SalesCampaignDetailPage() {
               <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
                 {campaign.name}
               </Typography.Title>
-              {showFeedTab && (
-                <FeedLaunchButton
-                  unreadCount={unreadCount}
-                  onClick={() => setViewTab("feed")}
-                />
-              )}
             </div>
             {campaign.client_name && (
               <Typography.Text type="secondary" style={{ fontSize: 15, display: "block", marginBottom: 8 }}>
@@ -1215,6 +1213,17 @@ export default function SalesCampaignDetailPage() {
           </Form>
         </div>
       </Modal>
+
+      {showFeedTab && campaign && viewTab !== "feed" && (
+        <CampaignFeedChatWidget
+          campaignId={id!}
+          campaignName={campaign.name}
+          unreadCount={unreadCount}
+          open={feedChatOpen}
+          onOpenChange={setFeedChatOpen}
+          onExpand={() => setViewTab("feed")}
+        />
+      )}
     </div>
   );
 }

@@ -61,7 +61,7 @@ import {
 } from "@/lib/command/client-viewer-lead-columns";
 import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
 import { hasCampaignFeedRole } from "@/lib/command/campaign-feed-access";
-import { FeedLaunchButton } from "@/components/command/FeedLaunchButton";
+import { CampaignFeedChatWidget } from "@/components/command/CampaignFeedChatWidget";
 import { useCampaignFeedUnread } from "@/hooks/useCampaignFeedUnread";
 
 const { Text, Title, Paragraph } = Typography;
@@ -379,6 +379,9 @@ export default function CampaignDashboard({
   const [metricsHistory, setMetricsHistory] = useState<CampaignMetricsHistoryRow[]>([]);
   const [auditLeadId, setAuditLeadId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("leads");
+  const [feedChatOpen, setFeedChatOpen] = useState(
+    () => initialTab?.toLowerCase() !== "feed"
+  );
   const [trendRangeOverride, setTrendRangeOverride] = useState<{ from: string; to: string } | null>(
     null
   );
@@ -419,7 +422,10 @@ export default function CampaignDashboard({
       ...(isClientViewer ? [] : (["alerts", "qa"] as const)),
       "history",
     ]);
-    if (allowed.has(t)) setActiveTab(t);
+    if (allowed.has(t)) {
+      setActiveTab(t);
+      if (t === "feed") setFeedChatOpen(false);
+    }
   }, [initialTab, isClientViewer, showFeedTab]);
 
   useEffect(() => {
@@ -440,12 +446,12 @@ export default function CampaignDashboard({
   const { unreadCount, markRead } = useCampaignFeedUnread({
     campaignId,
     enabled: showFeedTab && Boolean(campaign),
-    paused: isFeedView,
+    paused: isFeedView || feedChatOpen,
   });
 
   useEffect(() => {
-    if (isFeedView) void markRead();
-  }, [isFeedView, markRead]);
+    if (isFeedView || feedChatOpen) void markRead();
+  }, [isFeedView, feedChatOpen, markRead]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1193,7 +1199,7 @@ export default function CampaignDashboard({
           </Tag>
         </div>
         <div style={{ padding: "16px 24px 24px" }}>
-          <CampaignFeedTab campaignId={campaignId} fullPage />
+          <CampaignFeedTab campaignId={campaignId} fullPage variant="full" />
         </div>
         <LeadAuditPanel
           leadId={auditLeadId}
@@ -1255,12 +1261,6 @@ export default function CampaignDashboard({
               >
                 {campaign.status.toUpperCase()}
               </Tag>
-              {showFeedTab && (
-                <FeedLaunchButton
-                  unreadCount={unreadCount}
-                  onClick={() => setActiveTab("feed")}
-                />
-              )}
             </div>
             <div style={{ marginTop: 10 }}>
               <Space
@@ -1672,6 +1672,17 @@ export default function CampaignDashboard({
           if (activeTab === "leads") void fetchLeads();
         }}
       />
+
+      {showFeedTab && campaign && !isFeedView && (
+        <CampaignFeedChatWidget
+          campaignId={campaignId}
+          campaignName={campaign.name}
+          unreadCount={unreadCount}
+          open={feedChatOpen}
+          onOpenChange={setFeedChatOpen}
+          onExpand={() => setActiveTab("feed")}
+        />
+      )}
     </div>
   );
 }

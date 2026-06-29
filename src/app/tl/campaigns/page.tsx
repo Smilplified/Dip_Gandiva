@@ -78,6 +78,9 @@ export default function TLCampaignsPage() {
   const queryClient = useQueryClient();
   const { hasTLAccess, hasRole, isInitialized } = useAuth();
   const isOperationsManager = hasRole("operations_manager");
+  const isAdmin = hasRole("admin");
+  const campaignDetailHref = (campaignId: string) =>
+    isAdmin ? `/admin/campaigns/${campaignId}` : `/tl/campaigns/${campaignId}`;
   const [isOffline, setIsOffline] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -290,7 +293,7 @@ export default function TLCampaignsPage() {
         className: "table-col-campaign-name",
         render: (val: string, r: CampaignRow) => (
           <Tooltip title={val}>
-            <Link href={`/tl/campaigns/${r.id}`} style={{ fontWeight: 600 }} className="table-text-ellipsis">
+            <Link href={campaignDetailHref(r.id)} style={{ fontWeight: 600 }} className="table-text-ellipsis">
               {val}
             </Link>
           </Tooltip>
@@ -412,7 +415,7 @@ export default function TLCampaignsPage() {
                 type="text"
                 size="small"
                 icon={<EyeOutlined />}
-                onClick={() => router.push(`/tl/campaigns/${r.id}`)}
+                onClick={() => router.push(campaignDetailHref(r.id))}
               />
             </Tooltip>
             {isOperationsManager ? (
@@ -421,7 +424,7 @@ export default function TLCampaignsPage() {
                   type="text"
                   size="small"
                   icon={<UserAddOutlined />}
-                  onClick={() => router.push(`/tl/campaigns/${r.id}?assignTl=1`)}
+                  onClick={() => router.push(`${campaignDetailHref(r.id)}?assignTl=1`)}
                 />
               </Tooltip>
             ) : (
@@ -430,7 +433,7 @@ export default function TLCampaignsPage() {
                   type="text"
                   size="small"
                   icon={<UserAddOutlined />}
-                  onClick={() => router.push(`/tl/campaigns/${r.id}?assign=1`)}
+                  onClick={() => router.push(`${campaignDetailHref(r.id)}?assign=1`)}
                 />
               </Tooltip>
             )}
@@ -457,7 +460,7 @@ export default function TLCampaignsPage() {
         ),
       },
     ],
-    [page, pageSize, handleStatusChange, isOperationsManager, leadMetricColumns, router]
+    [page, pageSize, handleStatusChange, isOperationsManager, isAdmin, leadMetricColumns, router]
   );
 
   const campaignSummary = summaryStats;
