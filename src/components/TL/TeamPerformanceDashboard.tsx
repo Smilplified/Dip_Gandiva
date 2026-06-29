@@ -9,6 +9,7 @@ import {
   Col,
   DatePicker,
   Empty,
+  message,
   Progress,
   Row,
   Select,
@@ -27,6 +28,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   CrownOutlined,
+  DownloadOutlined,
   FireOutlined,
   FundProjectionScreenOutlined,
   ReloadOutlined,
@@ -387,6 +389,7 @@ export default function TeamPerformanceDashboard() {
   ]);
   const [campaignFilter, setCampaignFilter] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const clientTimeZone = useMemo(() => {
     if (typeof Intl === "undefined") return "UTC";
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -453,6 +456,33 @@ export default function TeamPerformanceDashboard() {
     () => (data?.agents ?? []).map((a) => ({ value: a.agent_id, label: a.agent_name })),
     [data]
   );
+
+  const handleExport = async () => {
+    if (!data) {
+      message.warning("No data to export yet. Wait for the report to load.");
+      return;
+    }
+    setExporting(true);
+    try {
+      const { downloadTeamPerformanceReport } = await import("@/lib/tl/team-performance-export");
+      const campaignLabel = campaignFilter
+        ? campaignOptions.find((o) => o.value === campaignFilter)?.label ?? campaignFilter
+        : "All Campaigns";
+      const agentLabel = userFilter
+        ? userOptions.find((o) => o.value === userFilter)?.label ?? userFilter
+        : "All Agents";
+      downloadTeamPerformanceReport(data, {
+        campaignLabel,
+        agentLabel,
+        exportedAt: dayjs().format("DD MMM YYYY HH:mm"),
+      });
+      message.success("Report downloaded");
+    } catch {
+      message.error("Failed to export report");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // ── Derived data ─────────────────────────────────────────────────────────────
   const top5Agents = useMemo(() => (data?.agents ?? []).slice(0, 5), [data]);
@@ -1020,9 +1050,9 @@ export default function TeamPerformanceDashboard() {
 
   return (
     <div style={{ padding: "0 4px" }}>
-      {/* ── Filters ── */}
+      {/* ── Filters + Export ── */}
       <Row gutter={[12, 12]} style={{ marginBottom: 20 }} align="middle">
-        <Col xs={24} sm={12} md={8} lg={6}>
+        <Col xs={24} sm={12} md={8} lg={5}>
           <RangePicker
             value={dateRange}
             onChange={(v) => { if (v?.[0] && v?.[1]) setDateRange([v[0], v[1]]); }}
@@ -1030,7 +1060,7 @@ export default function TeamPerformanceDashboard() {
             allowClear={false}
           />
         </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
+        <Col xs={24} sm={12} md={8} lg={5}>
           <Select
             placeholder="All Campaigns"
             allowClear
@@ -1040,7 +1070,7 @@ export default function TeamPerformanceDashboard() {
             onChange={setCampaignFilter}
           />
         </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
+        <Col xs={24} sm={12} md={8} lg={5}>
           <Select
             placeholder="All Agents"
             allowClear
@@ -1050,14 +1080,26 @@ export default function TeamPerformanceDashboard() {
             onChange={setUserFilter}
           />
         </Col>
-        <Col xs={24} sm={12} md={24} lg={6}>
-          <Button
-            icon={<ReloadOutlined spin={refreshing} />}
-            onClick={() => void refetch()}
-            style={{ borderRadius: 10, width: "100%" }}
-          >
-            Refresh
-          </Button>
+        <Col xs={24} sm={12} md={12} lg={9}>
+          <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              loading={exporting}
+              disabled={loading || !data}
+              onClick={() => void handleExport()}
+              style={{ borderRadius: 10 }}
+            >
+              Export Report
+            </Button>
+            <Button
+              icon={<ReloadOutlined spin={refreshing} />}
+              onClick={() => void refetch()}
+              style={{ borderRadius: 10 }}
+            >
+              Refresh
+            </Button>
+          </Space>
         </Col>
       </Row>
 
