@@ -35,6 +35,7 @@ import {
   AgentCampaignLeadsChart,
   AgentCompletionPredictions,
 } from "@/components/Dashboard/AgentDashboardCharts";
+import { tableEllipsisCell } from "@/lib/table-ellipsis-cell";
 
 const { Text } = Typography;
 
@@ -161,7 +162,8 @@ export default function AgentDashboardPage() {
           (c.name ?? "").toLowerCase().includes(q) ||
           (c.campaign_code ?? "").toLowerCase().includes(q) ||
           (c.industry ?? "").toLowerCase().includes(q) ||
-          (c.geography ?? "").toLowerCase().includes(q)
+          (c.geography ?? "").toLowerCase().includes(q) ||
+          (c.lead_type ?? "").toLowerCase().includes(q)
       );
     }
     if (statusFilter) result = result.filter((c) => c.status === statusFilter);
@@ -330,7 +332,7 @@ export default function AgentDashboardPage() {
                   showTotal: (t) => `Total ${t} campaigns`,
                 }}
                 size="middle"
-                scroll={{ x: 1030 }}
+                scroll={{ x: 1150 }}
                 locale={{
                   emptyText:
                     "No campaigns assigned yet. Your Team Leader can assign you to campaigns.",
@@ -366,6 +368,14 @@ export default function AgentDashboardPage() {
                     ),
                   },
                   {
+                    title: "Lead Type",
+                    dataIndex: "lead_type",
+                    key: "lead_type",
+                    width: 120,
+                    ellipsis: true,
+                    render: (v: string | null) => tableEllipsisCell(v),
+                  },
+                  {
                     title: "Status",
                     dataIndex: "status",
                     key: "status",
@@ -396,6 +406,12 @@ export default function AgentDashboardPage() {
                     dataIndex: "qualified_leads",
                     key: "qualified_leads",
                     width: 96,
+                    align: "center" as const,
+                    render: (v: number) => (
+                      <Text style={{ fontSize: 13, fontWeight: 600, color: "#52c41a" }}>
+                        {v ?? 0}
+                      </Text>
+                    ),
                   },
                   {
                     title: "",

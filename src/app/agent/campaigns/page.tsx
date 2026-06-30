@@ -24,8 +24,7 @@ type AgentCampaignRow = {
   campaign_code: string | null;
   name: string;
   client_name: string | null;
-  industry: string | null;
-  geography: string | null;
+  lead_type: string | null;
   status: string;
   start_date: string | null;
   end_date: string | null;
@@ -162,17 +161,9 @@ export default function AgentCampaignsPage() {
         ),
       },
       {
-        title: "Industry",
-        dataIndex: "industry",
-        key: "industry",
-        width: 200,
-        ellipsis: true,
-        render: (v: string | null) => tableEllipsisCell(v),
-      },
-      {
-        title: "Geography",
-        dataIndex: "geography",
-        key: "geography",
+        title: "Lead Type",
+        dataIndex: "lead_type",
+        key: "lead_type",
         width: 120,
         ellipsis: true,
         render: (v: string | null) => tableEllipsisCell(v),
@@ -219,7 +210,7 @@ export default function AgentCampaignsPage() {
         sorter: (a: AgentCampaignRow, b: AgentCampaignRow) =>
           (a.qualified_leads ?? 0) - (b.qualified_leads ?? 0),
         render: (v: number) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+          <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#52c41a" }}>
             {v ?? 0}
           </Typography.Text>
         ),
@@ -325,7 +316,7 @@ export default function AgentCampaignsPage() {
         dataSource={campaigns}
         rowKey="id"
         loading={loading}
-        scroll={{ x: 1230 }}
+        scroll={{ x: 1030 }}
         tableLayout="fixed"
         pagination={tablePagination}
         locale={{

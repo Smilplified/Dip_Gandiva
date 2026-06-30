@@ -4,8 +4,8 @@
 
 import dayjs from "dayjs";
 import { extraCqToFormValues, normalizeExtraCq } from "@/lib/extra-cq";
+import { getDefaultLeadTimezone } from "@/lib/lead-timezone-catalog";
 import {
-  DEFAULT_TIMEZONE,
   utcIsoToWallClockDayjs,
   wallClockDayjsToUtcIso,
 } from "@/lib/timezones";
@@ -13,10 +13,10 @@ import {
 export function leadToFormValues(lead: Record<string, unknown>): Record<string, unknown> {
   const appointmentTz =
     (typeof lead.appointment_timezone === "string" && lead.appointment_timezone) ||
-    DEFAULT_TIMEZONE;
+    getDefaultLeadTimezone();
   const scoredTz =
     (typeof lead.scored_timezone === "string" && lead.scored_timezone) ||
-    DEFAULT_TIMEZONE;
+    getDefaultLeadTimezone();
 
   return {
     name: lead.name ?? undefined,
@@ -149,22 +149,22 @@ export function buildLeadPayload(values: Record<string, unknown>) {
     scored: wallClockDayjsToUtcIso(
       values.scored as dayjs.Dayjs | null | undefined,
       (typeof values.scored_timezone === "string" && values.scored_timezone) ||
-        DEFAULT_TIMEZONE,
+        getDefaultLeadTimezone(),
     ),
     scored_timezone:
       values.scored != null && dayjs.isDayjs(values.scored)
         ? (typeof values.scored_timezone === "string" && values.scored_timezone) ||
-          DEFAULT_TIMEZONE
+          getDefaultLeadTimezone()
         : null,
     appointment: wallClockDayjsToUtcIso(
       values.appointment as dayjs.Dayjs | null | undefined,
       (typeof values.appointment_timezone === "string" && values.appointment_timezone) ||
-        DEFAULT_TIMEZONE,
+        getDefaultLeadTimezone(),
     ),
     appointment_timezone:
       values.appointment != null && dayjs.isDayjs(values.appointment)
         ? (typeof values.appointment_timezone === "string" && values.appointment_timezone) ||
-          DEFAULT_TIMEZONE
+          getDefaultLeadTimezone()
         : null,
     lead_type:
       typeof values.lead_type === "string" ? values.lead_type.trim() || null : null,

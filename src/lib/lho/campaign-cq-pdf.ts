@@ -26,6 +26,10 @@ function answerForKey(
   return data.extraCq[k] ?? "";
 }
 
+function hasCqAnswer(value: string): boolean {
+  return value.trim().length > 0;
+}
+
 /** Demand & Qualification Insights (campaign questions) + answers for LHO PDF. */
 export function buildLhoCampaignQuestionRows(
   data: Pick<LhoData, "cq1" | "cq2" | "cq3" | "cq4" | "cq5" | "extraCq">,
@@ -34,16 +38,18 @@ export function buildLhoCampaignQuestionRows(
   const configured = normalizeCampaignQuestions(campaignQuestions ?? []);
 
   if (configured.length > 0) {
-    return configured.map((q) => ({
-      label: q.label,
-      answer: answerForKey(data, q.key) || "—",
-    }));
+    return configured
+      .map((q) => ({
+        label: q.label,
+        answer: answerForKey(data, q.key),
+      }))
+      .filter((row) => hasCqAnswer(row.answer));
   }
 
   const legacy: LhoCampaignQuestionRow[] = [];
   for (let i = 1; i <= 5; i++) {
     const answer = answerForKey(data, `cq${i}`);
-    if (answer) legacy.push({ label: `CQ${i}`, answer });
+    if (hasCqAnswer(answer)) legacy.push({ label: `CQ${i}`, answer });
   }
 
   const extraKeys = Object.keys(data.extraCq).sort((a, b) => {
@@ -52,7 +58,8 @@ export function buildLhoCampaignQuestionRows(
     return na - nb;
   });
   for (const key of extraKeys) {
-    legacy.push({ label: key.toUpperCase(), answer: data.extraCq[key] });
+    const answer = data.extraCq[key];
+    if (hasCqAnswer(answer)) legacy.push({ label: key.toUpperCase(), answer });
   }
 
   return legacy;

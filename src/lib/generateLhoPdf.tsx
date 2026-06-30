@@ -351,8 +351,6 @@ function LhoDocument({
                 { label: "Meeting Time", value: data.meetingTime },
                 { label: "Agent Name", value: data.agentName },
                 { label: "Asset Title", value: data.assetTitle },
-                { label: "Lead Tagging", value: data.leadTagging },
-                { label: "Lead Status", value: data.status || data.leadStatus },
                 { label: "Lead Disposition", value: data.leadDisposition },
                 { label: "Channel", value: data.channel },
               ]}
@@ -380,18 +378,11 @@ function LhoDocument({
                 { label: "Industry", value: data.industry },
                 { label: "Employee Size", value: data.employeeSize },
                 { label: "Employee Size Link", value: data.employeeSizeLink },
-                { label: "See All Employees", value: data.seeAllEmployees },
                 { label: "Address", value: fullAddress },
                 { label: "Website", value: website },
                 { label: "Company LinkedIn", value: data.companyLinkedIn },
                 { label: "Revenue Range", value: data.revenueRange },
                 { label: "Revenue Link", value: data.revenueLink },
-                { label: "SIC Code", value: data.sicCode },
-                { label: "SIC Code Link", value: data.sicCodeLink },
-                { label: "NAICS Code", value: data.naicsCode },
-                { label: "NAICS Code Link", value: data.naicsCodeLink },
-                { label: "Founded Years", value: data.foundedYears },
-                { label: "Founded Years Link", value: data.foundedYearsLink },
               ]}
             />
 

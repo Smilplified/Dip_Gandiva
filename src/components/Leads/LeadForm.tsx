@@ -17,12 +17,9 @@ import type { Dayjs } from "dayjs";
 import { generateLhoPdf } from "@/lib/generateLhoPdf";
 import { buildLhoDataFromLead } from "@/lib/lho/build-lho-data";
 import { shouldGenerateLhoPdfWithLogo } from "@/lib/lho/logo-pdf";
-import { wallClockDayjsToUtcIso } from "@/lib/timezones";
-import {
-  DEFAULT_TIMEZONE,
-  TIMEZONE_OPTIONS,
-  translateWallClockDayjs,
-} from "@/lib/timezones";
+import { wallClockDayjsToUtcIso, translateWallClockDayjs } from "@/lib/timezones";
+import { getDefaultLeadTimezone } from "@/lib/lead-timezone-catalog";
+import { LeadTimezoneSelect } from "@/components/Leads/LeadTimezoneSelect";
 import {
   STATUS_OPTIONS,
   QA_STATUS_OPTIONS,
@@ -195,8 +192,8 @@ export function LeadForm({
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceUploading, setVoiceUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const previousAppointmentTzRef = useRef<string>(DEFAULT_TIMEZONE);
-  const previousScoredTzRef = useRef<string>(DEFAULT_TIMEZONE);
+  const previousAppointmentTzRef = useRef<string>(getDefaultLeadTimezone());
+  const previousScoredTzRef = useRef<string>(getDefaultLeadTimezone());
   const [lhoFiles, setLhoFiles] = useState<
     { id: string; name: string; path: string; url: string | null; size: number | null }[]
   >([]);
@@ -208,8 +205,8 @@ export function LeadForm({
     if (!lead) {
       setShowMoreCq(false);
       setDynamicCqIndexes([]);
-      previousAppointmentTzRef.current = DEFAULT_TIMEZONE;
-      previousScoredTzRef.current = DEFAULT_TIMEZONE;
+      previousAppointmentTzRef.current = getDefaultLeadTimezone();
+      previousScoredTzRef.current = getDefaultLeadTimezone();
       return;
     }
     const extraIndexes = parseExtraCqIndexes(lead.extra_cq);
@@ -219,9 +216,9 @@ export function LeadForm({
     setDynamicCqIndexes(extraIndexes);
     const leadRecord = lead as unknown as Record<string, unknown>;
     previousAppointmentTzRef.current =
-      (leadRecord.appointment_timezone as string) || DEFAULT_TIMEZONE;
+      (leadRecord.appointment_timezone as string) || getDefaultLeadTimezone();
     previousScoredTzRef.current =
-      (leadRecord.scored_timezone as string) || DEFAULT_TIMEZONE;
+      (leadRecord.scored_timezone as string) || getDefaultLeadTimezone();
   }, [lead]);
 
   const addDynamicCqField = () => {
@@ -1132,8 +1129,8 @@ export function LeadForm({
                     tooltip="The time you enter is interpreted in the selected time zone and stored in UTC."
                     style={{ marginBottom: 16 }}
                   >
-                    <Row gutter={8} wrap={false}>
-                      <Col flex="auto">
+                    <Row gutter={[8, 8]}>
+                      <Col xs={24} lg={14}>
                         <Form.Item name="scored" noStyle>
                           <DatePicker
                             showTime
@@ -1142,20 +1139,17 @@ export function LeadForm({
                           />
                         </Form.Item>
                       </Col>
-                      <Col flex="220px">
+                      <Col xs={24} lg={10}>
                         <Form.Item
                           name="scored_timezone"
                           noStyle
-                          initialValue={DEFAULT_TIMEZONE}
+                          initialValue={getDefaultLeadTimezone()}
                         >
-                          <Select
-                            showSearch
-                            placeholder="Time zone"
-                            optionFilterProp="label"
-                            options={TIMEZONE_OPTIONS}
+                          <LeadTimezoneSelect
+                            knownValue={lead?.scored_timezone}
                             onChange={(newTz: string) => {
                               const oldTz =
-                                previousScoredTzRef.current || DEFAULT_TIMEZONE;
+                                previousScoredTzRef.current || getDefaultLeadTimezone();
                               const current = form.getFieldValue("scored") as
                                 | Dayjs
                                 | undefined;
@@ -1177,8 +1171,8 @@ export function LeadForm({
                     tooltip="The time you enter is interpreted in the selected time zone and stored in UTC."
                     style={{ marginBottom: 16 }}
                   >
-                    <Row gutter={8} wrap={false}>
-                      <Col flex="auto">
+                    <Row gutter={[8, 8]}>
+                      <Col xs={24} lg={14}>
                         <Form.Item name="appointment" noStyle>
                           <DatePicker
                             showTime
@@ -1187,20 +1181,17 @@ export function LeadForm({
                           />
                         </Form.Item>
                       </Col>
-                      <Col flex="220px">
+                      <Col xs={24} lg={10}>
                         <Form.Item
                           name="appointment_timezone"
                           noStyle
-                          initialValue={DEFAULT_TIMEZONE}
+                          initialValue={getDefaultLeadTimezone()}
                         >
-                          <Select
-                            showSearch
-                            placeholder="Time zone"
-                            optionFilterProp="label"
-                            options={TIMEZONE_OPTIONS}
+                          <LeadTimezoneSelect
+                            knownValue={lead?.appointment_timezone}
                             onChange={(newTz: string) => {
                               const oldTz =
-                                previousAppointmentTzRef.current || DEFAULT_TIMEZONE;
+                                previousAppointmentTzRef.current || getDefaultLeadTimezone();
                               const current = form.getFieldValue("appointment") as
                                 | Dayjs
                                 | undefined;
@@ -1427,10 +1418,10 @@ function GenerateLhoButton({
     const v = form.getFieldsValue() as Record<string, unknown>;
     const scoredTz =
       (typeof v.scored_timezone === "string" && v.scored_timezone.trim()) ||
-      DEFAULT_TIMEZONE;
+      getDefaultLeadTimezone();
     const appointmentTz =
       (typeof v.appointment_timezone === "string" && v.appointment_timezone.trim()) ||
-      DEFAULT_TIMEZONE;
+      getDefaultLeadTimezone();
 
     const raw: Record<string, unknown> = {
       ...(lead as Record<string, unknown> | undefined),

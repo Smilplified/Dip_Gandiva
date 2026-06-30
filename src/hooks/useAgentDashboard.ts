@@ -26,6 +26,7 @@ export type AgentDashboardCampaignRow = {
   client_name: string | null;
   industry: string | null;
   geography: string | null;
+  lead_type: string | null;
   status: string;
   start_date: string | null;
   end_date: string | null;
