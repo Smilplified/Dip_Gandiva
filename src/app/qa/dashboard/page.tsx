@@ -35,6 +35,7 @@ import {
 } from "@/components/Dashboard/QADashboardCharts";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
 import { computeQaDashboardMetrics } from "@/lib/qa-dashboard-metrics";
+import { tableSerialNumber } from "@/lib/table-pagination";
 import dayjs from "dayjs";
 
 const { Text } = Typography;
@@ -86,6 +87,8 @@ export default function QADashboardPage() {
 
   const enabled = status === "authorized";
   const { dashboard, refetch } = useQADashboard(enabled);
+  const [pendingTablePage, setPendingTablePage] = useState(1);
+  const [pendingTablePageSize, setPendingTablePageSize] = useState(10);
 
   useEffect(() => {
     if (dashboard.error) {
@@ -289,10 +292,27 @@ export default function QADashboardPage() {
                   className="table-single-line"
                   dataSource={campaignsWithPending}
                   rowKey="id"
-                  pagination={false}
+                  pagination={{
+                    current: pendingTablePage,
+                    pageSize: pendingTablePageSize,
+                    showSizeChanger: true,
+                    showTotal: (total) => `Total ${total} campaigns`,
+                    onChange: (page, pageSize) => {
+                      setPendingTablePage(page);
+                      setPendingTablePageSize(pageSize);
+                    },
+                  }}
                   size="middle"
                   scroll={{ x: "max-content" }}
                   columns={[
+                    {
+                      title: "Sr. No",
+                      key: "index",
+                      width: 72,
+                      align: "center" as const,
+                      render: (_: unknown, __: CampaignPendingRow, index: number) =>
+                        tableSerialNumber(pendingTablePage, pendingTablePageSize, index),
+                    },
                     {
                       title: "Campaign Code",
                       dataIndex: "campaign_code",

@@ -56,7 +56,7 @@ export async function GET(
         id, campaign_id, campaign_code, name, client_name, description, industry, geography, target_designation, lead_type, status,
         start_date, end_date, created_at, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation,
         weekly_call, weekly_report, additional_comments, assigned_team_leader_id,
-        employee_size, abm, seniority, job_function, creatives_url
+        employee_size, abm, seniority, job_function, creatives_url, campaign_questions
       `)
       .eq("id", campaignId)
       .eq("organization_id", orgId)

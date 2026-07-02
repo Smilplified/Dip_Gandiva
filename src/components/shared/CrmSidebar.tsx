@@ -16,6 +16,7 @@ export type CrmSidebarItem = {
   href: string;
   accent?: CrmSidebarAccent;
   prefetch?: boolean;
+  dataTourId?: string;
 };
 
 type CrmSidebarProps = {
@@ -118,6 +119,7 @@ export default function CrmSidebar({
                       href={item.href}
                       prefetch={item.prefetch ?? true}
                       className="rail-item"
+                      data-tour={item.dataTourId}
                       style={{
                         display: "flex",
                         flexDirection: "column",

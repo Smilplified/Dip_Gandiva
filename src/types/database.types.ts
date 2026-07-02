@@ -100,6 +100,26 @@ export type Database = {
           user_id?: string;
         };
       };
+      user_settings: {
+        Row: {
+          user_id: string;
+          product_tour_completed: boolean;
+          product_tour_dismissed: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          product_tour_completed?: boolean;
+          product_tour_dismissed?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          product_tour_completed?: boolean;
+          product_tour_dismissed?: boolean;
+          updated_at?: string;
+        };
+      };
       users: {
         Row: {
           created_at: string;

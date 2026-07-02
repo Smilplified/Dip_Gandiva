@@ -527,6 +527,16 @@ export function LeadForm({
 
   return (
     <Form form={form} layout="vertical" className="lead-form">
+      {isAgentEntry && mode === "create" ? (
+        <div className="agent-lead-tour-required-hint" data-tour="agent-lead-required-fields">
+          <span className="agent-lead-tour-required-hint__badge" aria-hidden>
+            *
+          </span>
+          <span>
+            Required fields are marked with a red asterisk. Fill them before saving the lead.
+          </span>
+        </div>
+      ) : null}
       {/* Contact Person Details | Company Information — side by side */}
       <Row gutter={24} style={{ marginBottom: 16 }}>
         <Col xs={24} md={12}>
@@ -1465,6 +1475,7 @@ function GenerateLhoButton({
 
   return (
     <div
+      data-tour="agent-lho-pdf"
       style={{
         marginTop: 24,
         paddingTop: 20,

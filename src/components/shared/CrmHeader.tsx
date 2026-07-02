@@ -26,6 +26,10 @@ export type CrmHeaderProps = {
   showSettings?: boolean;
   /** Rendered before the notification bell (e.g. client logo). */
   trailingSlot?: React.ReactNode;
+  /** Extra items inserted before the sign-out divider (e.g. Help → Product Tour). */
+  additionalMenuItems?: MenuProps["items"];
+  /** Called when Help → Product Tour is chosen. */
+  onProductTourClick?: () => void;
   /** Avatar fallback when no profile image. Defaults to brand indigo. */
   avatarFallbackColor?: string;
 };
@@ -38,6 +42,8 @@ export default function CrmHeader({
   settingsPath,
   showSettings = true,
   trailingSlot,
+  additionalMenuItems,
+  onProductTourClick,
   avatarFallbackColor = brand[600],
 }: CrmHeaderProps) {
   const router = useRouter();
@@ -66,12 +72,19 @@ export default function CrmHeader({
     if (showSettings) {
       items.push({ key: "settings", icon: <SettingOutlined />, label: "Settings" });
     }
+    if (additionalMenuItems?.length) {
+      items.push(...additionalMenuItems);
+    }
     items.push({ type: "divider" });
     items.push({ key: "logout", icon: <LogoutOutlined />, label: "Sign out", danger: true });
     return items;
-  }, [showSettings]);
+  }, [showSettings, additionalMenuItems]);
 
   const handleMenuClick: MenuProps["onClick"] = ({ key }) => {
+    if (key === "product-tour") {
+      onProductTourClick?.();
+      return;
+    }
     if (key === "profile" && profilePath) {
       router.push(profilePath);
       return;

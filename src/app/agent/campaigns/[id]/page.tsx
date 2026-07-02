@@ -52,6 +52,12 @@ import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
 import { parseCampaignLeadTypeOptions } from "@/lib/campaign-lead-type";
 import { normalizeCampaignQuestions } from "@/lib/campaign-questions";
 import type { CampaignQuestion } from "@/lib/campaign-questions";
+import {
+  AGENT_TOUR_CLOSE_LEAD_DRAWER_EVENT,
+  AGENT_TOUR_LEAD_DRAWER_CLOSED_EVENT,
+  AGENT_TOUR_OPEN_LEAD_DRAWER_EVENT,
+} from "@/lib/agent-tour/constants";
+import { cleanupAntDrawerBodyLock } from "@/lib/agent-tour/cleanup-drawer-layout";
 
 type Campaign = {
   id: string;
@@ -304,11 +310,34 @@ export default function AgentCampaignDetailPage() {
     [page, pageSize, fetchLeads, openEditLeadDrawer]
   );
 
-  const closeLeadDrawer = () => {
+  const closeLeadDrawer = useCallback(() => {
     setLeadDrawerOpen(false);
     setEditingLead(null);
     form.resetFields();
-  };
+    cleanupAntDrawerBodyLock();
+    window.dispatchEvent(new CustomEvent(AGENT_TOUR_LEAD_DRAWER_CLOSED_EVENT));
+  }, [form]);
+
+  useEffect(() => {
+    const onOpen = () => {
+      setDrawerMode("create");
+      setEditingLead(null);
+      form.resetFields();
+      if (leadTypeOptions.length === 1) {
+        form.setFieldsValue({ lead_type: leadTypeOptions[0].value });
+      }
+      setLeadDrawerOpen(true);
+    };
+    const onClose = () => {
+      closeLeadDrawer();
+    };
+    window.addEventListener(AGENT_TOUR_OPEN_LEAD_DRAWER_EVENT, onOpen);
+    window.addEventListener(AGENT_TOUR_CLOSE_LEAD_DRAWER_EVENT, onClose);
+    return () => {
+      window.removeEventListener(AGENT_TOUR_OPEN_LEAD_DRAWER_EVENT, onOpen);
+      window.removeEventListener(AGENT_TOUR_CLOSE_LEAD_DRAWER_EVENT, onClose);
+    };
+  }, [closeLeadDrawer, form, leadTypeOptions]);
 
   const handleCreateLead = async () => {
     if (!id) return;
@@ -573,7 +602,12 @@ export default function AgentCampaignDetailPage() {
             </Space>
           </Col>
           <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openLeadDrawer}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openLeadDrawer}
+              data-tour="agent-add-lead"
+            >
               Add Lead
             </Button>
           </Col>
@@ -729,12 +763,13 @@ export default function AgentCampaignDetailPage() {
           filteredLeads.length !== leads.length ? ` — ${filteredLeads.length} on page` : ""
         })`}
         extra={
-          <Space>
+          <Space wrap>
             <Button type="primary" icon={<PlusOutlined />} onClick={openLeadDrawer}>
               Add Lead
             </Button>
-            <Button
-              icon={<DownloadOutlined />}
+            <Space size={8} data-tour="agent-bulk-upload">
+              <Button
+                icon={<DownloadOutlined />}
               onClick={() => {
                 const toExport = filteredLeads.length > 0 ? filteredLeads : leads;
                 if (toExport.length === 0) message.warning("No leads to export");
@@ -780,6 +815,7 @@ export default function AgentCampaignDetailPage() {
                 Upload
               </Button>
             </Dropdown>
+            </Space>
           </Space>
         }
         style={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 1px 2px rgba(0,0,0,0.03)" }}
@@ -946,6 +982,7 @@ export default function AgentCampaignDetailPage() {
         open={leadDrawerOpen}
         onClose={closeLeadDrawer}
         destroyOnClose
+        maskClosable
         styles={{ body: LEAD_DRAWER_BODY_STYLE }}
         footer={
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -966,6 +1003,7 @@ export default function AgentCampaignDetailPage() {
                 loading={creatingLead}
                 onClick={handleCreateLead}
                 icon={<PlusOutlined />}
+                data-tour="agent-save-lead"
               >
                 Create Lead
               </Button>

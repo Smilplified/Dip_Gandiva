@@ -152,9 +152,14 @@ export default function AgentCampaignsPage() {
         key: "name",
         width: 160,
         ellipsis: true,
-        render: (val: string, r: AgentCampaignRow) => (
+        render: (val: string, r: AgentCampaignRow, index: number) => (
           <Tooltip title={val}>
-            <Link href={`/agent/campaigns/${r.id}`} style={{ fontWeight: 600 }} className="table-text-ellipsis">
+            <Link
+              href={`/agent/campaigns/${r.id}`}
+              data-tour={index === 0 ? "agent-campaign-name" : undefined}
+              style={{ fontWeight: 600 }}
+              className="table-text-ellipsis"
+            >
               {val}
             </Link>
           </Tooltip>

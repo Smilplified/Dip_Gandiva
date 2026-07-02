@@ -7,7 +7,7 @@ import { resolveSidebarSelectedKey } from "@/lib/sidebar-utils";
 
 const agentMenuItems: CrmSidebarItem[] = [
   { key: "/agent/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/agent/dashboard" },
-  { key: "/agent/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/agent/campaigns" },
+  { key: "/agent/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/agent/campaigns", dataTourId: "agent-sidebar-campaigns" },
   { key: "/agent/leads", icon: <SolutionOutlined />, label: "Leads", href: "/agent/leads" },
 ];
 
