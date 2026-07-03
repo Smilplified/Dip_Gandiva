@@ -34,7 +34,7 @@ function getAppBaseUrl(): string {
   if (explicit) return explicit;
   const vercel = process.env.VERCEL_URL?.trim();
   if (vercel) return `https://${vercel}`;
-  return "https://gaandiva.com";
+  return "https://app.gaandiva.com";
 }
 
 function plainTextPreview(content: string, maxLen = 240): string {

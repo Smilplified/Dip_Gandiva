@@ -25,6 +25,7 @@ import {
 } from "@ant-design/icons";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
+import { resolveAnnouncementsPath } from "@/lib/announcements/nav";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const { Text } = Typography;
@@ -32,7 +33,7 @@ const { Text } = Typography;
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type NotificationType = "campaign" | "task" | "lead" | "followup" | "system";
-export type NotificationReferenceType = "campaign" | "lead" | "task" | "deal";
+export type NotificationReferenceType = "campaign" | "lead" | "task" | "deal" | "announcement";
 
 export interface AppNotification {
   id: string;
@@ -135,6 +136,7 @@ function resolveNavPath(
   }
 }
 
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function NotificationBell() {
@@ -222,6 +224,11 @@ export default function NotificationBell() {
         (payload) => {
           const newNotif = payload.new as AppNotification;
 
+          // Nudge announcement widgets (alert banner) without a second channel.
+          if (newNotif.reference_type === "announcement") {
+            window.dispatchEvent(new CustomEvent("gandiv:announcement"));
+          }
+
           // Prepend to list
           setNotifications((prev) => [newNotif, ...prev]);
           setUnreadCount((c) => c + 1);
@@ -296,6 +303,8 @@ export default function NotificationBell() {
           isFeedNotification(notif),
           hasRole
         );
+      } else if (notif.reference_type === "announcement") {
+        path = resolveAnnouncementsPath(hasRole);
       } else {
         path = resolveNavPath(notif.reference_type, notif.reference_id);
       }

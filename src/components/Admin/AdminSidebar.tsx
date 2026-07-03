@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChartOutlined,
+  BellOutlined,
   DashboardOutlined,
   DollarOutlined,
   SolutionOutlined,
@@ -19,6 +20,7 @@ import { resolveSidebarSelectedKey } from "@/lib/sidebar-utils";
 
 const adminMenuItems: CrmSidebarItem[] = [
   { key: "/admin/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/admin/dashboard" },
+  { key: "/admin/announcements", icon: <BellOutlined />, label: "Announcements", href: "/admin/announcements" },
   { key: "/admin/sales", icon: <DollarOutlined />, label: "Sales", href: "/admin/sales" },
   { key: "/admin/users", icon: <UserOutlined />, label: "Users", href: "/admin/users" },
   { key: "/admin/roles", icon: <SafetyCertificateOutlined />, label: "Roles", href: "/admin/roles" },

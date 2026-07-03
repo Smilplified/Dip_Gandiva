@@ -14,6 +14,7 @@ import {
   SettingOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  BellOutlined,
 } from "@ant-design/icons";
 import { IconMessage2 } from "@tabler/icons-react";
 import { useAuth } from "@/context/AuthContext";
@@ -23,6 +24,7 @@ import { resolveSidebarSelectedKey } from "@/lib/sidebar-utils";
 const commonMenuItems: CrmSidebarItem[] = [
   { key: "/sales/clients", icon: <TeamOutlined />, label: "Clients", href: "/sales/clients" },
   { key: "/sales/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/sales/campaigns" },
+  { key: "/sales/announcements", icon: <BellOutlined />, label: "Announcements", href: "/sales/announcements" },
   { key: "/sales/leads", icon: <SolutionOutlined />, label: "Leads", href: "/sales/leads" },
   { key: "/sales/contacts", icon: <TeamOutlined />, label: "Contacts", href: "/sales/contacts" },
   { key: "/sales/accounts", icon: <ApartmentOutlined />, label: "Accounts", href: "/sales/accounts" },

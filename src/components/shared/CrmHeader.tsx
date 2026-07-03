@@ -7,6 +7,9 @@ import type { MenuProps } from "antd";
 import { UserOutlined, LogoutOutlined, SettingOutlined } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import NotificationBell from "@/components/Notifications/NotificationBell";
+import AlertAnnouncementBanner from "@/components/Announcements/AlertAnnouncementBanner";
+import AnnouncementHeaderBell from "@/components/Announcements/AnnouncementHeaderBell";
+import HeaderAnnouncementTicker from "@/components/Announcements/HeaderAnnouncementTicker";
 import { brand, header as headerTokens, text } from "@/design-tokens";
 
 const { Header } = Layout;
@@ -109,8 +112,14 @@ export default function CrmHeader({
     <Header className="crm-header" style={{ height: headerTokens.height, lineHeight: `${headerTokens.height}px` }}>
       <div className="crm-header__search">{search}</div>
 
+      <div className="crm-header__center">
+        <HeaderAnnouncementTicker />
+      </div>
+
       <div className="crm-header__actions">
         {trailingSlot}
+        <AlertAnnouncementBanner />
+        <AnnouncementHeaderBell />
         <NotificationBell />
         <Dropdown
           menu={{ items: userMenuItems, onClick: handleMenuClick }}

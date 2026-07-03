@@ -566,6 +566,7 @@ button.crm-conversation-item:focus-visible {
   box-shadow: none;
   display: flex;
   align-items: center;
+  position: relative; /* anchor for the absolutely-centered announcement pill */
   justify-content: space-between;
   gap: 16px;
   flex-shrink: 0;
@@ -579,6 +580,28 @@ button.crm-conversation-item:focus-visible {
   max-width: 480px;
   display: flex;
   align-items: center;
+}
+
+/* True horizontal center of the header, independent of the (unequal)
+   search / actions widths on either side. */
+.crm-header__center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(36vw, 520px);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* Small screens: not enough room between search and action icons. */
+@media (max-width: 991px) {
+  .crm-header__center {
+    display: none;
+  }
 }
 
 .crm-header__actions {

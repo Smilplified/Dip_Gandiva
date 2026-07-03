@@ -81,6 +81,7 @@ export async function fetchTlLeadsPageForCampaigns(
     limit: number;
     search?: string;
     select?: string;
+    organizationId?: string;
     agentIds?: string[];
     includeUnassigned?: boolean;
     dateFrom?: string;
@@ -88,7 +89,7 @@ export async function fetchTlLeadsPageForCampaigns(
     qaStatus?: string;
   }
 ): Promise<{ rows: Record<string, unknown>[]; total: number }> {
-  const { campaignIds, offset, limit, search, agentIds, includeUnassigned, dateFrom, dateTo, qaStatus } =
+  const { campaignIds, offset, limit, search, agentIds, includeUnassigned, dateFrom, dateTo, qaStatus, organizationId } =
     opts;
   if (campaignIds.length === 0) return { rows: [], total: 0 };
 
@@ -101,6 +102,10 @@ export async function fetchTlLeadsPageForCampaigns(
       .select(select, { count: "exact" })
       .in("campaign_id", campaignIds)
       .order("created_at", { ascending: false });
+
+    if (organizationId) {
+      query = query.eq("organization_id", organizationId);
+    }
 
     if (search) {
       const safe = search.replace(/%/g, "").replace(/_/g, "");

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChartOutlined,
+  BellOutlined,
   DashboardOutlined,
   DollarOutlined,
   SolutionOutlined,
@@ -44,6 +45,12 @@ const omInsightMenuItems: CrmSidebarItem[] = [
     label: "Campaigns",
     href: "/tl/campaigns",
   },
+  {
+    key: "/tl/announcements",
+    icon: <BellOutlined />,
+    label: "Announcements",
+    href: "/tl/announcements",
+  },
   { key: "/tl/leads", icon: <SolutionOutlined />, label: "Leads", href: "/tl/leads" },
 ];
 
@@ -61,6 +68,12 @@ const tlCampaignLeaderItems: CrmSidebarItem[] = [
     icon: <FundProjectionScreenOutlined />,
     label: "Campaigns",
     href: "/tl/campaigns",
+  },
+  {
+    key: "/tl/announcements",
+    icon: <BellOutlined />,
+    label: "Announcements",
+    href: "/tl/announcements",
   },
   { key: "/tl/leads", icon: <SolutionOutlined />, label: "Leads", href: "/tl/leads" },
   { key: "/tl/team", icon: <TeamOutlined />, label: "Team", href: "/tl/team" },
