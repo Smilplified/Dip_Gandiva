@@ -50,6 +50,7 @@ type Campaign = {
   end_date: string | null;
   created_at?: string;
   scored_leads_count?: number;
+  qa_pending_leads_count?: number;
   delivered_leads_count?: number;
   leads?: Lead[];
 };
@@ -57,6 +58,7 @@ type Campaign = {
 type Summary = {
   campaign_count: number;
   total_scored_leads: number;
+  total_qa_pending_leads: number;
   total_delivered_leads: number;
 };
 
@@ -400,6 +402,30 @@ export default function MISCampaignsPage() {
         ),
       },
       {
+        title: "QA Pending",
+        dataIndex: "qa_pending_leads_count",
+        key: "qa_pending_leads_count",
+        width: 104,
+        align: "center",
+        fixed: "right",
+        sorter: (a, b) => (a.qa_pending_leads_count ?? 0) - (b.qa_pending_leads_count ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: count > 0 ? "#d97706" : undefined,
+              }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
         title: "Delivered",
         dataIndex: "delivered_leads_count",
         key: "delivered_leads_count",
@@ -408,11 +434,20 @@ export default function MISCampaignsPage() {
         fixed: "right",
         sorter: (a, b) => (a.delivered_leads_count ?? 0) - (b.delivered_leads_count ?? 0),
         sortDirections: ["descend", "ascend"] as const,
-        render: (v: number | undefined) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
-            {v ?? 0}
-          </Typography.Text>
-        ),
+        render: (v: number | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: count > 0 ? "#16a34a" : undefined,
+              }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
       },
     ],
     [page, pageSize]
@@ -549,8 +584,8 @@ export default function MISCampaignsPage() {
           </Col>
         </Row>
         <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 10 }}>
-          Leads &amp; Delivered columns count scored leads uploaded between {rangeLabel} (your local
-          timezone).
+          Leads, QA Pending &amp; Delivered columns count scored leads uploaded between {rangeLabel} (your local
+          timezone). QA Pending = leads not yet QA-reviewed.
           {selectedRowKeys.length > 0
             ? ` · ${selectedRowKeys.length} campaign${selectedRowKeys.length !== 1 ? "s" : ""} selected for export.`
             : " · Select campaigns using the checkboxes, then export with leads."}
@@ -558,7 +593,7 @@ export default function MISCampaignsPage() {
       </Card>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={12} lg={6}>
           <KpiCard
             title="Active Campaigns"
             value={(summary?.campaign_count ?? 0).toLocaleString()}
@@ -566,7 +601,7 @@ export default function MISCampaignsPage() {
             color="#4f46e5"
           />
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={12} lg={6}>
           <KpiCard
             title="Scored Leads"
             value={(summary?.total_scored_leads ?? 0).toLocaleString()}
@@ -574,7 +609,15 @@ export default function MISCampaignsPage() {
             color="#16a34a"
           />
         </Col>
-        <Col xs={24} sm={8}>
+        <Col xs={24} sm={12} lg={6}>
+          <KpiCard
+            title="QA Pending"
+            value={(summary?.total_qa_pending_leads ?? 0).toLocaleString()}
+            sub="Awaiting QA review"
+            color="#d97706"
+          />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
           <KpiCard
             title="Delivered Leads"
             value={(summary?.total_delivered_leads ?? 0).toLocaleString()}
@@ -607,7 +650,7 @@ export default function MISCampaignsPage() {
             rowSelection={rowSelection}
             dataSource={campaigns}
             columns={columns}
-            scroll={{ x: 1320 }}
+            scroll={{ x: 1424 }}
             tableLayout="fixed"
             sticky
             pagination={tablePagination}

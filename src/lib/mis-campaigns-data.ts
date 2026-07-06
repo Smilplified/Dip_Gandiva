@@ -3,6 +3,7 @@ import { buildPaginationMeta } from "@/lib/api-pagination";
 import { enrichCampaignAllocationFields, MIS_DELIVERED_ACHIEVED_OPTIONS } from "@/lib/campaign-allocation";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
+import { countPendingAuditLeads } from "@/lib/qa-lead-audit";
 
 const LEADS_PAGE_SIZE = 1000;
 
@@ -42,6 +43,7 @@ export type MisCampaignRow = {
   job_function?: string | null;
   creatives_url?: string[] | null;
   scored_leads_count: number;
+  qa_pending_leads_count: number;
   delivered_leads_count: number;
   last_lead_activity_at: string | null;
   leads?: Record<string, unknown>[];
@@ -50,6 +52,7 @@ export type MisCampaignRow = {
 export type MisCampaignsSummary = {
   campaign_count: number;
   total_scored_leads: number;
+  total_qa_pending_leads: number;
   total_delivered_leads: number;
 };
 
@@ -100,7 +103,7 @@ async function fetchMisLeadsForCounts(
     const { data, error } = await applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
-        .select("campaign_id, created_at, delivery_status")
+        .select("campaign_id, created_at, delivery_status, qa_status")
         .eq("organization_id", orgId)
         .in("campaign_id", campaignIds)
         .gte("created_at", uploadRange.startUtc)
@@ -227,9 +230,14 @@ export async function loadMisCampaignsForDateRange(
   const { data: campaigns, error: campaignsError } = await campaignsResult;
   if (campaignsError) throw new Error(campaignsError.message);
 
-  type CampaignBase = Omit<
+  type CampaignBase =     Omit<
     MisCampaignRow,
-    "scored_leads_count" | "delivered_leads_count" | "last_lead_activity_at" | "leads" | "assigned_team_leader_name"
+    | "scored_leads_count"
+    | "qa_pending_leads_count"
+    | "delivered_leads_count"
+    | "last_lead_activity_at"
+    | "leads"
+    | "assigned_team_leader_name"
   >;
 
   const campaignsList = (campaigns ?? []) as CampaignBase[];
@@ -237,7 +245,7 @@ export async function loadMisCampaignsForDateRange(
   if (campaignsList.length === 0) {
     return {
       campaigns: [],
-      summary: { campaign_count: 0, total_scored_leads: 0, total_delivered_leads: 0 },
+      summary: { campaign_count: 0, total_scored_leads: 0, total_qa_pending_leads: 0, total_delivered_leads: 0 },
       lead_types: leadTypes,
       pagination: buildPaginationMeta(page, limit, 0),
     };
@@ -275,6 +283,7 @@ export async function loadMisCampaignsForDateRange(
 
   for (const c of campaignsList) {
     const leads = leadsByCampaign[c.id] ?? [];
+    const qaPending = countPendingAuditLeads(leads as { qa_status?: string | null }[]);
     let activityMs = 0;
     let delivered = 0;
     for (const l of leads) {
@@ -292,6 +301,7 @@ export async function loadMisCampaignsForDateRange(
         ? tlNames[c.assigned_team_leader_id] ?? null
         : null,
       scored_leads_count: leads.length,
+      qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,
       last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,
       leads: includeLeads ? leads : undefined,
@@ -315,6 +325,7 @@ export async function loadMisCampaignsForDateRange(
   const summary: MisCampaignsSummary = {
     campaign_count: visible.filter((c) => (c.scored_leads_count ?? 0) > 0).length,
     total_scored_leads: visible.reduce((sum, c) => sum + (c.scored_leads_count ?? 0), 0),
+    total_qa_pending_leads: visible.reduce((sum, c) => sum + (c.qa_pending_leads_count ?? 0), 0),
     total_delivered_leads: visible.reduce((sum, c) => sum + (c.delivered_leads_count ?? 0), 0),
   };
 
