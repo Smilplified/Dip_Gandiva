@@ -1,10 +1,43 @@
+import dayjs from "dayjs";
 import * as XLSX from "xlsx";
 import type { Lead } from "@/types/lead.types";
 import { isHiddenFromAgentExport } from "@/lib/agent-lead-fields";
 import {
+  LEAD_IMPORT_DATE_FIELDS,
+  LEAD_IMPORT_TIMESTAMP_FIELDS,
+} from "@/lib/lead-import-sanitize";
+import {
   LEAD_DATETIME_EXPORT_HEADERS,
   LEAD_FIELD_EXPORT_HEADERS,
 } from "@/lib/lead-field-labels";
+
+/** System timestamps included in export but not re-imported. */
+const EXPORT_READONLY_TIMESTAMP_FIELDS = new Set([
+  "created_at",
+  "updated_at",
+  "qa_audited_at",
+]);
+
+const EXPORT_TIMESTAMP_FIELDS = new Set([
+  ...LEAD_IMPORT_TIMESTAMP_FIELDS,
+  ...EXPORT_READONLY_TIMESTAMP_FIELDS,
+]);
+
+function formatExportTimestamp(value: unknown): string | null {
+  const s = value == null ? "" : String(value).trim();
+  if (!s) return null;
+  const d = dayjs(s);
+  if (!d.isValid()) return s;
+  return d.format("MMM D, YYYY, h:mm A");
+}
+
+function formatExportDate(value: unknown): string | null {
+  const s = value == null ? "" : String(value).trim();
+  if (!s) return null;
+  const d = dayjs(s);
+  if (!d.isValid()) return s;
+  return d.format("DD/MM/YYYY");
+}
 
 /**
  * All lead fields in export order (matches database / Lead type).
@@ -106,6 +139,12 @@ function serializeExportCell(
   if (v == null) {
     if (key === "delivery_status") return "not_delivered";
     return "";
+  }
+  if (EXPORT_TIMESTAMP_FIELDS.has(key)) {
+    return formatExportTimestamp(v) ?? "";
+  }
+  if (LEAD_IMPORT_DATE_FIELDS.has(key)) {
+    return formatExportDate(v) ?? "";
   }
   if (typeof v === "object") return JSON.stringify(v);
   return v as string | number;
@@ -247,12 +286,8 @@ function leadsToAgentExportRows(
   return prepared.map((lead) => {
     const record = lead as Record<string, unknown>;
     return AGENT_EXPORT_COLUMNS.map((c) => {
-      const v =
-        c.key === "channel"
-          ? ((record[c.key] as string | null | undefined) ?? null)
-          : record[c.key];
-      if (v == null) return "";
-      return typeof v === "object" ? JSON.stringify(v) : String(v);
+      const cell = serializeExportCell(String(c.key), record);
+      return cell === "" ? "" : String(cell);
     });
   });
 }
