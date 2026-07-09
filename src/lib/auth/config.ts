@@ -3,7 +3,7 @@ export const AUTH_STORAGE_KEYS = {
   debug: "gandiv:auth-debug",
 } as const;
 
-export const PUBLIC_PATHS = ["/login"] as const;
+export const PUBLIC_PATHS = ["/login", "/mobile-not-supported"] as const;
 
 export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
   "/admin": ["admin"],

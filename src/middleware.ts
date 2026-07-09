@@ -8,6 +8,7 @@ import {
   normalizeRoleNames,
 } from "@/lib/auth/config";
 import { authDebug } from "@/lib/auth/debug";
+import { maybeBlockMobileAccess } from "@/lib/device/mobile-access-guard";
 import { createMiddlewareSupabaseClient } from "@/lib/supabase/middleware";
 
 const CANONICAL_PRODUCTION_HOST = "www.simplifiedmarketplace.com";
@@ -65,6 +66,9 @@ async function getUserRoleNames(
 export async function middleware(request: NextRequest) {
   const canonicalRedirect = maybeRedirectToCanonicalHost(request);
   if (canonicalRedirect) return canonicalRedirect;
+
+  const mobileBlockRedirect = maybeBlockMobileAccess(request);
+  if (mobileBlockRedirect) return mobileBlockRedirect;
 
   const pathname = request.nextUrl.pathname;
   const currentSearch = request.nextUrl.search;
