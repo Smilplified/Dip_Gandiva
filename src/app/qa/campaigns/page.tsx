@@ -70,6 +70,8 @@ type Campaign = {
   leads_uploaded?: number;
   leads_audited?: number;
   leads_pending_audit?: number;
+  leads_qualified?: number;
+  leads_disqualified?: number;
 };
 
 type Summary = {
@@ -481,7 +483,7 @@ export default function QACampaignsPage() {
             size="middle"
             rowKey="id"
             dataSource={list}
-            scroll={{ x: 1528 }}
+            scroll={{ x: 1384 }}
             tableLayout="fixed"
             pagination={tablePagination}
             rowSelection={rowSelection}
@@ -541,22 +543,6 @@ export default function QACampaignsPage() {
                 title: "Lead Type",
                 dataIndex: "lead_type",
                 key: "lead_type",
-                width: 120,
-                ellipsis: true,
-                render: (v: string | null) => tableEllipsisCell(v),
-              },
-              {
-                title: "Industry",
-                dataIndex: "industry",
-                key: "industry",
-                width: 200,
-                ellipsis: true,
-                render: (v: string | null) => tableEllipsisCell(v),
-              },
-              {
-                title: "Geography",
-                dataIndex: "geography",
-                key: "geography",
                 width: 120,
                 ellipsis: true,
                 render: (v: string | null) => tableEllipsisCell(v),
@@ -624,6 +610,34 @@ export default function QACampaignsPage() {
                 render: (_: unknown, rec: Campaign) => (
                   <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#722ed1" }}>
                     {(rec.leads_audited ?? 0).toLocaleString()}
+                  </Typography.Text>
+                ),
+              },
+              {
+                title: "Qualified",
+                key: "leads_qualified",
+                width: 96,
+                align: "center" as const,
+                fixed: "right" as const,
+                sorter: (a: Campaign, b: Campaign) =>
+                  (a.leads_qualified ?? 0) - (b.leads_qualified ?? 0),
+                render: (_: unknown, rec: Campaign) => (
+                  <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#52c41a" }}>
+                    {(rec.leads_qualified ?? 0).toLocaleString()}
+                  </Typography.Text>
+                ),
+              },
+              {
+                title: "Disqualified",
+                key: "leads_disqualified",
+                width: 108,
+                align: "center" as const,
+                fixed: "right" as const,
+                sorter: (a: Campaign, b: Campaign) =>
+                  (a.leads_disqualified ?? 0) - (b.leads_disqualified ?? 0),
+                render: (_: unknown, rec: Campaign) => (
+                  <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#ef4444" }}>
+                    {(rec.leads_disqualified ?? 0).toLocaleString()}
                   </Typography.Text>
                 ),
               },

@@ -11,6 +11,18 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { data: statusRow } = await supabase
+    .from("users")
+    .select("status")
+    .eq("id", user.id)
+    .single();
+  if ((statusRow as { status: string } | null)?.status === "inactive") {
+    return NextResponse.json(
+      { error: "Your account has been deactivated. Contact your Team Leader." },
+      { status: 403 }
+    );
+  }
+
   // Fast path: one RPC round-trip instead of ~8 sequential queries. The SQL
   // function replicates the legacy logic below 1:1 (roles, manager name,
   // assigned campaigns incl. the OM/TL/agent branching, client logo + DC

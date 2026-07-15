@@ -37,6 +37,241 @@ export type Database = {
           user_id?: string;
         };
       };
+      org_mfa_settings: {
+        Row: {
+          organization_id: string;
+          enforced: boolean;
+          grace_ends_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          enforced?: boolean;
+          grace_ends_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          organization_id?: string;
+          enforced?: boolean;
+          grace_ends_at?: string | null;
+          updated_at?: string;
+        };
+      };
+      org_device_settings: {
+        Row: {
+          organization_id: string;
+          enabled: boolean;
+          grace_ends_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          enabled?: boolean;
+          grace_ends_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          organization_id?: string;
+          enabled?: boolean;
+          grace_ends_at?: string | null;
+          updated_at?: string;
+        };
+      };
+      trusted_devices: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          token_hash: string;
+          device_name: string;
+          browser: string | null;
+          os: string | null;
+          ip_at_registration: string | null;
+          location_approx: string | null;
+          status: string;
+          approved_by: string | null;
+          approved_at: string | null;
+          rejected_at: string | null;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          last_seen_at: string | null;
+          last_notified_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          token_hash: string;
+          device_name?: string;
+          browser?: string | null;
+          os?: string | null;
+          ip_at_registration?: string | null;
+          location_approx?: string | null;
+          status?: string;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          rejected_at?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          last_seen_at?: string | null;
+          last_notified_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          user_id?: string;
+          token_hash?: string;
+          device_name?: string;
+          browser?: string | null;
+          os?: string | null;
+          ip_at_registration?: string | null;
+          location_approx?: string | null;
+          status?: string;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          rejected_at?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          last_seen_at?: string | null;
+          last_notified_at?: string | null;
+          created_at?: string;
+        };
+      };
+      user_mfa_enrollment: {
+        Row: {
+          user_id: string;
+          organization_id: string;
+          email_enrolled_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          organization_id: string;
+          email_enrolled_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          organization_id?: string;
+          email_enrolled_at?: string | null;
+          updated_at?: string;
+        };
+      };
+      auth_events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string | null;
+          event_type: string;
+          channel: string | null;
+          ip: string | null;
+          user_agent: string | null;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id?: string | null;
+          event_type: string;
+          channel?: string | null;
+          ip?: string | null;
+          user_agent?: string | null;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          user_id?: string | null;
+          event_type?: string;
+          channel?: string | null;
+          ip?: string | null;
+          user_agent?: string | null;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+      };
+      mfa_backup_codes: {
+        Row: {
+          id: string;
+          user_id: string;
+          code_hash: string;
+          used_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          code_hash: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          code_hash?: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+      };
+      mfa_email_otps: {
+        Row: {
+          id: string;
+          user_id: string;
+          code_hash: string;
+          expires_at: string;
+          attempts: number;
+          consumed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          code_hash: string;
+          expires_at: string;
+          attempts?: number;
+          consumed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          code_hash?: string;
+          expires_at?: string;
+          attempts?: number;
+          consumed_at?: string | null;
+          created_at?: string;
+        };
+      };
+      password_reset_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          token_hash: string;
+          expires_at: string;
+          used_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          token_hash: string;
+          expires_at: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          token_hash?: string;
+          expires_at?: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+      };
       organizations: {
         Row: {
           created_at: string;

@@ -3,6 +3,7 @@
 import { Layout } from "antd";
 import QASidebar from "./QASidebar";
 import QAHeader from "./QAHeader";
+import { MfaGraceBannerGate } from "@/components/auth/MfaGraceBanner";
 
 const { Content } = Layout;
 
@@ -26,6 +27,7 @@ export default function QALayout({ children }: QALayoutProps) {
         }}
       >
         <QAHeader />
+        <MfaGraceBannerGate />
         <Content
           style={{
             flex: 1,

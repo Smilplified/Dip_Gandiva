@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
-import { countAuditedLeads, countPendingAuditLeads } from "@/lib/qa-lead-audit";
+import {
+  countAuditedLeads,
+  countDisqualifiedLeads,
+  countPendingAuditLeads,
+  countQualifiedLeads,
+} from "@/lib/qa-lead-audit";
 import { buildPaginationMeta } from "@/lib/api-pagination";
 
 const LEADS_PAGE_SIZE = 1000;
@@ -49,6 +54,8 @@ export type QaCampaignRow = {
   leads_uploaded: number;
   leads_audited: number;
   leads_pending_audit: number;
+  leads_qualified: number;
+  leads_disqualified: number;
 };
 
 export type QaCampaignsSummary = {
@@ -191,7 +198,14 @@ export async function loadQaCampaignsForDateRange(
 
   const campaignsList = (campaigns ?? []) as Omit<
     QaCampaignRow,
-    "leads" | "last_lead_activity_at" | "leads_uploaded" | "leads_audited" | "leads_pending_audit" | "assigned_team_leader_name"
+    | "leads"
+    | "last_lead_activity_at"
+    | "leads_uploaded"
+    | "leads_audited"
+    | "leads_pending_audit"
+    | "leads_qualified"
+    | "leads_disqualified"
+    | "assigned_team_leader_name"
   >[];
 
   if (campaignsList.length === 0) {
@@ -256,6 +270,8 @@ export async function loadQaCampaignsForDateRange(
       leads_uploaded: leads.length,
       leads_audited: countAuditedLeads(leads as { qa_status?: string | null }[]),
       leads_pending_audit: countPendingAuditLeads(leads as { qa_status?: string | null }[]),
+      leads_qualified: countQualifiedLeads(leads as { qa_status?: string | null }[]),
+      leads_disqualified: countDisqualifiedLeads(leads as { qa_status?: string | null }[]),
     });
   }
 

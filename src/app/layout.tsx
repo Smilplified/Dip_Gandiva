@@ -51,8 +51,8 @@ export default function RootLayout({
         <AntdRegistry>
           <ConfigProvider theme={theme}>
             <Providers>
-            <AuthProvider>{children}</AuthProvider>
-          </Providers>
+              <AuthProvider>{children}</AuthProvider>
+            </Providers>
           </ConfigProvider>
         </AntdRegistry>
       </body>

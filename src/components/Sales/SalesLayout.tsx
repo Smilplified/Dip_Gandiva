@@ -3,6 +3,7 @@
 import { Layout } from "antd";
 import SalesSidebar from "./SalesSidebar";
 import SalesHeader from "./SalesHeader";
+import { MfaGraceBannerGate } from "@/components/auth/MfaGraceBanner";
 
 const { Content } = Layout;
 
@@ -26,6 +27,7 @@ export default function SalesLayout({ children }: SalesLayoutProps) {
         }}
       >
         <SalesHeader />
+        <MfaGraceBannerGate />
         <Content
           style={{
             flex: 1,

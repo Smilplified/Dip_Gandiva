@@ -1,7 +1,13 @@
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 
 export type NotificationType = "campaign" | "task" | "lead" | "followup" | "system";
-export type NotificationReferenceType = "campaign" | "lead" | "task" | "deal" | "announcement";
+export type NotificationReferenceType =
+  | "campaign"
+  | "lead"
+  | "task"
+  | "deal"
+  | "announcement"
+  | "device_request";
 
 export interface CreateNotificationInput {
   title: string;

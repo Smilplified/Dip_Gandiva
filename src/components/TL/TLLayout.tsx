@@ -3,6 +3,7 @@
 import { Layout } from "antd";
 import TLSidebar from "./TLSidebar";
 import TLHeader from "./TLHeader";
+import { MfaGraceBannerGate } from "@/components/auth/MfaGraceBanner";
 
 const { Content } = Layout;
 
@@ -26,6 +27,7 @@ export default function TLLayout({ children }: TLLayoutProps) {
         }}
       >
         <TLHeader />
+        <MfaGraceBannerGate />
         <Content
           style={{
             flex: 1,

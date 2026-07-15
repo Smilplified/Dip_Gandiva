@@ -23,9 +23,11 @@ import {
   UserAddOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
+  SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import AdminUserStats from "@/components/Admin/AdminUserStats";
+import { AdminMfaRolloutCard } from "@/components/Admin/AdminMfaRolloutCard";
 import ClientLogoUpload from "@/components/Admin/ClientLogoUpload";
 import { roleRequiresClientBinding } from "@/lib/admin/client-binding-roles";
 import type { Tables } from "@/types/database.types";
@@ -284,6 +286,29 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleMfaReset = (record: UserRow) => {
+    Modal.confirm({
+      title: "Reset MFA for this user?",
+      content: `This removes ${record.full_name || record.email}'s MFA factors and backup codes. They must set up MFA again on next login.`,
+      okText: "Reset MFA",
+      okType: "danger",
+      cancelText: "Cancel",
+      onOk: async () => {
+        try {
+          const res = await fetch(`/api/admin/users/${record.id}/mfa-reset`, {
+            method: "POST",
+            credentials: "include",
+          });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error || "Failed to reset MFA");
+          message.success("MFA reset — user must enroll again");
+        } catch (err) {
+          message.error(err instanceof Error ? err.message : "Failed to reset MFA");
+        }
+      },
+    });
+  };
+
   const handleDelete = (record: UserRow) => {
     Modal.confirm({
       title: "Delete user permanently?",
@@ -371,7 +396,7 @@ export default function AdminUsersPage() {
     {
       title: "Actions",
       key: "actions",
-      width: 140,
+      width: 180,
       render: (_: unknown, record: UserRow) => (
         <Space size="middle" style={{ transition: "opacity 0.2s ease" }}>
           <Tooltip title="Edit" placement="top" mouseEnterDelay={0.3}>
@@ -380,6 +405,15 @@ export default function AdminUsersPage() {
               size="small"
               icon={<EditOutlined />}
               onClick={() => handleEditUser(record)}
+              style={{ transition: "color 0.2s ease, opacity 0.2s ease" }}
+            />
+          </Tooltip>
+          <Tooltip title="Reset MFA" placement="top" mouseEnterDelay={0.3}>
+            <Button
+              type="text"
+              size="small"
+              icon={<SafetyCertificateOutlined />}
+              onClick={() => handleMfaReset(record)}
               style={{ transition: "color 0.2s ease, opacity 0.2s ease" }}
             />
           </Tooltip>
@@ -463,6 +497,8 @@ export default function AdminUsersPage() {
       )}
 
       {!loading && <AdminUserStats users={users} />}
+
+      <AdminMfaRolloutCard />
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden" style={{ minHeight: 200 }}>
         {loading ? (

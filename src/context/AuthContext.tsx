@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/config";
 import { getTLGuardRoles } from "@/lib/auth/tl-access";
 import { authDebug } from "@/lib/auth/debug";
+import { fetchMfaStatus, ensureDeviceRegistered, resolvePostAuthPath } from "@/lib/mfa/resolve-post-auth";
 
 /** Cross-tab: any tab that signs out tells others to drop stale JS + cookies. */
 const AUTH_SIGNOUT_BROADCAST_CHANNEL = "gandiv:auth-signout";
@@ -910,14 +911,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             roleNames: getRoleNames(resolved.roles),
           });
 
-          persistRedirectPath(redirectPath);
+          const mfaStatus = await fetchMfaStatus();
+          let deviceStatus = null;
+          if (!mfaStatus?.needsSetup && !mfaStatus?.needsChallenge) {
+            deviceStatus = await ensureDeviceRegistered();
+          }
+          const finalPath = resolvePostAuthPath(redirectPath, mfaStatus, deviceStatus);
+
+          persistRedirectPath(finalPath);
           authDebug("provider", "signIn success", {
             userId: resolved.user.id,
-            redirectPath,
+            redirectPath: finalPath,
             roles: getRoleNames(resolved.roles),
           });
 
-          return { error: null, redirectPath };
+          return { error: null, redirectPath: finalPath };
         }
 
         // No error and no user (unexpected but handle gracefully)

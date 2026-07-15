@@ -3,7 +3,34 @@ export const AUTH_STORAGE_KEYS = {
   debug: "gandiv:auth-debug",
 } as const;
 
-export const PUBLIC_PATHS = ["/login", "/mobile-not-supported"] as const;
+export const PUBLIC_PATHS = [
+  "/login",
+  "/mobile-not-supported",
+  "/network-blocked",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+] as const;
+
+/** MFA setup/challenge — authenticated but exempt from MFA gate & role redirects. */
+export const MFA_AUTH_PATH_PREFIXES = ["/auth/mfa-setup", "/auth/mfa-challenge"] as const;
+
+/** Device pending/revoked — authenticated but exempt from device gate & role redirects. */
+export const DEVICE_AUTH_PATH_PREFIXES = [
+  "/auth/device-pending",
+  "/auth/device-revoked",
+] as const;
+
+export function isMfaAuthPath(pathname: string) {
+  return MFA_AUTH_PATH_PREFIXES.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+}
+
+export function isDeviceAuthPath(pathname: string) {
+  return DEVICE_AUTH_PATH_PREFIXES.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+}
 
 export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
   "/admin": ["admin"],
@@ -50,7 +77,11 @@ export function normalizeRoleNames(roleNames: Array<string | null | undefined>) 
 }
 
 export function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  return (
+    PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ||
+    isMfaAuthPath(pathname) ||
+    isDeviceAuthPath(pathname)
+  );
 }
 
 export function getRequiredRoles(pathname: string) {

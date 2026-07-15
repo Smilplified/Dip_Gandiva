@@ -3,6 +3,7 @@
 import { Layout } from "antd";
 import Sidebar from "./Sidebar";
 import DashboardHeader from "./Header";
+import { MfaGraceBannerGate } from "@/components/auth/MfaGraceBanner";
 
 const { Content } = Layout;
 
@@ -26,6 +27,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         }}
       >
         <DashboardHeader />
+        <MfaGraceBannerGate />
         <Content
           style={{
             flex: 1,

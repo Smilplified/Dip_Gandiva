@@ -3,6 +3,8 @@
 import { Layout } from "antd";
 import AdminSidebar from "./AdminSidebar";
 import AdminHeader from "./AdminHeader";
+import { MfaGraceBannerGate } from "@/components/auth/MfaGraceBanner";
+import NetworkOverrideBanner from "@/components/Admin/NetworkOverrideBanner";
 
 const { Content } = Layout;
 
@@ -26,6 +28,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         }}
       >
         <AdminHeader />
+        <MfaGraceBannerGate />
+        <NetworkOverrideBanner />
         <Content
           style={{
             flex: 1,

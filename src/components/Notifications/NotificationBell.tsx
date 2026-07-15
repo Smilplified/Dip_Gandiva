@@ -33,7 +33,13 @@ const { Text } = Typography;
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type NotificationType = "campaign" | "task" | "lead" | "followup" | "system";
-export type NotificationReferenceType = "campaign" | "lead" | "task" | "deal" | "announcement";
+export type NotificationReferenceType =
+  | "campaign"
+  | "lead"
+  | "task"
+  | "deal"
+  | "announcement"
+  | "device_request";
 
 export interface AppNotification {
   id: string;
@@ -228,6 +234,9 @@ export default function NotificationBell() {
           if (newNotif.reference_type === "announcement") {
             window.dispatchEvent(new CustomEvent("gandiv:announcement"));
           }
+          if (newNotif.reference_type === "device_request") {
+            window.dispatchEvent(new CustomEvent("gandiv:device-request"));
+          }
 
           // Prepend to list
           setNotifications((prev) => [newNotif, ...prev]);
@@ -305,6 +314,10 @@ export default function NotificationBell() {
         );
       } else if (notif.reference_type === "announcement") {
         path = resolveAnnouncementsPath(hasRole);
+      } else if (notif.reference_type === "device_request") {
+        path = notif.reference_id
+          ? `/admin/devices?id=${notif.reference_id}`
+          : "/admin/devices";
       } else {
         path = resolveNavPath(notif.reference_type, notif.reference_id);
       }

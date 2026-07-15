@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { Layout, Tooltip } from "antd";
+import { Badge, Layout, Tooltip } from "antd";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -17,6 +17,8 @@ export type CrmSidebarItem = {
   accent?: CrmSidebarAccent;
   prefetch?: boolean;
   dataTourId?: string;
+  /** Optional numeric badge (e.g. pending device requests). */
+  badge?: number;
 };
 
 type CrmSidebarProps = {
@@ -142,9 +144,16 @@ export default function CrmSidebar({
                           background: styles.circleBg,
                           color: styles.circleColor,
                           boxShadow: styles.shadow,
+                          position: "relative",
                         }}
                       >
-                        {item.icon}
+                        {typeof item.badge === "number" && item.badge > 0 ? (
+                          <Badge count={item.badge} size="small" offset={[4, -2]}>
+                            <span style={{ display: "inline-flex" }}>{item.icon}</span>
+                          </Badge>
+                        ) : (
+                          item.icon
+                        )}
                       </div>
                       <span
                         className="rail-label"

@@ -6,6 +6,8 @@ import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { AUTH_STORAGE_KEYS, resolvePostLoginRedirect } from "@/lib/auth/config";
 import { authDebug } from "@/lib/auth/debug";
+import { fetchMfaStatus, ensureDeviceRegistered, resolvePostAuthPath } from "@/lib/mfa/resolve-post-auth";
+import Link from "next/link";
 import { MailOutlined, LockOutlined, EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 import LoginWorkflowIllustration from "@/components/login/LoginWorkflowIllustration";
 
@@ -56,10 +58,23 @@ function LoginContent() {
     [router]
   );
 
+  const resolveAndNavigate = useCallback(
+    async (basePath: string) => {
+      const mfa = await fetchMfaStatus();
+      // Only register/check device after MFA is satisfied (or not required)
+      let device = null;
+      if (!mfa?.needsSetup && !mfa?.needsChallenge) {
+        device = await ensureDeviceRegistered();
+      }
+      doRedirect(resolvePostAuthPath(basePath, mfa, device));
+    },
+    [doRedirect]
+  );
+
   useEffect(() => {
     if (!isInitialized || !user || redirectDone.current) return;
-    doRedirect(getResolvedRedirectPath());
-  }, [doRedirect, getResolvedRedirectPath, isInitialized, user]);
+    void resolveAndNavigate(getResolvedRedirectPath());
+  }, [getResolvedRedirectPath, isInitialized, resolveAndNavigate, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,6 +212,15 @@ function LoginContent() {
               onSubmit={handleSubmit}
               className="relative z-10 flex flex-col gap-4 sm:gap-5 w-full min-w-0"
             >
+              {reason === "password_reset" && !error && (
+                <div
+                  role="status"
+                  className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                >
+                  <span className="shrink-0 mt-0.5">✓</span>
+                  <span>Password updated. Sign in with your new password.</span>
+                </div>
+              )}
               {reason === "session_expired" && !error && (
                 <div
                   role="status"
@@ -250,12 +274,20 @@ function LoginContent() {
               </div>
 
               <div className="w-full min-w-0">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-slate-700 mb-2"
-                >
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label
+                    htmlFor="password"
+                    className="block text-sm font-medium text-slate-700"
+                  >
+                    Password
+                  </label>
+                  <Link
+                    href="/auth/forgot-password"
+                    className="text-xs font-medium text-slate-600 hover:text-slate-900 underline-offset-2 hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <div className="relative w-full">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                     <LockOutlined className="text-base" />

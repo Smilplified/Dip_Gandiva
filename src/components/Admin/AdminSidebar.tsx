@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import {
   BarChartOutlined,
   BellOutlined,
+  SearchOutlined,
   DashboardOutlined,
+  DesktopOutlined,
   DollarOutlined,
   SolutionOutlined,
   FundProjectionScreenOutlined,
@@ -17,15 +19,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import CrmSidebar, { type CrmSidebarItem } from "@/components/shared/CrmSidebar";
 import { resolveSidebarSelectedKey } from "@/lib/sidebar-utils";
-
-const adminMenuItems: CrmSidebarItem[] = [
-  { key: "/admin/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/admin/dashboard" },
-  { key: "/admin/announcements", icon: <BellOutlined />, label: "Announcements", href: "/admin/announcements" },
-  { key: "/admin/sales", icon: <DollarOutlined />, label: "Sales", href: "/admin/sales" },
-  { key: "/admin/users", icon: <UserOutlined />, label: "Users", href: "/admin/users" },
-  { key: "/admin/roles", icon: <SafetyCertificateOutlined />, label: "Roles", href: "/admin/roles" },
-  { key: "/admin/settings", icon: <SettingOutlined />, label: "Settings", href: "/admin/settings" },
-];
+import { useDevicePendingCount } from "@/hooks/useDevicePendingCount";
 
 const omMenuItems: CrmSidebarItem[] = [
   { key: "/admin/team-performance", icon: <BarChartOutlined />, label: "Performance", href: "/admin/team-performance" },
@@ -39,15 +33,37 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const { hasRole } = useAuth();
   const showOmNav = hasRole("operations_manager") || hasRole("admin");
+  const isAdmin = hasRole("admin");
+  const { pendingCount } = useDevicePendingCount(isAdmin);
+
+  const adminMenuItems: CrmSidebarItem[] = useMemo(
+    () => [
+      { key: "/admin/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/admin/dashboard" },
+      { key: "/admin/announcements", icon: <BellOutlined />, label: "Announcements", href: "/admin/announcements" },
+      { key: "/admin/lead-finder", icon: <SearchOutlined />, label: "Lead Finder", href: "/admin/lead-finder" },
+      { key: "/admin/sales", icon: <DollarOutlined />, label: "Sales", href: "/admin/sales" },
+      { key: "/admin/users", icon: <UserOutlined />, label: "Users", href: "/admin/users" },
+      {
+        key: "/admin/devices",
+        icon: <DesktopOutlined />,
+        label: "Devices",
+        href: "/admin/devices",
+        badge: pendingCount,
+      },
+      { key: "/admin/roles", icon: <SafetyCertificateOutlined />, label: "Roles", href: "/admin/roles" },
+      { key: "/admin/settings", icon: <SettingOutlined />, label: "Settings", href: "/admin/settings" },
+    ],
+    [pendingCount]
+  );
 
   const sections = useMemo(
     () => (showOmNav ? [adminMenuItems, omMenuItems] : [adminMenuItems]),
-    [showOmNav]
+    [adminMenuItems, showOmNav]
   );
 
   const allItems = useMemo(
     () => (showOmNav ? [...adminMenuItems, ...omMenuItems] : adminMenuItems),
-    [showOmNav]
+    [adminMenuItems, showOmNav]
   );
 
   const selectedKey = resolveSidebarSelectedKey(pathname, allItems, "/admin/dashboard");

@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+import { clearMfaSessionCookie } from "@/lib/mfa/session-cookie";
+import { clearAllDeviceCookies } from "@/lib/devices/cookie";
 import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,9 @@ export async function POST() {
     { success: true },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
   );
+
+  clearMfaSessionCookie(response);
+  clearAllDeviceCookies(response);
 
   const clearOpts = clearedSupabaseCookieOptions();
 

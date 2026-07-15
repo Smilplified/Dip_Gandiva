@@ -3,6 +3,7 @@
 import { Layout } from "antd";
 import MISSidebar from "./MISSidebar";
 import MISHeader from "./MISHeader";
+import { MfaGraceBannerGate } from "@/components/auth/MfaGraceBanner";
 
 const { Content } = Layout;
 
@@ -26,6 +27,7 @@ export default function MISLayout({ children }: MISLayoutProps) {
         }}
       >
         <MISHeader />
+        <MfaGraceBannerGate />
         <Content
           style={{
             flex: 1,

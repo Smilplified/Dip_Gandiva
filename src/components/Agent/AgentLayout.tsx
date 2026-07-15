@@ -3,6 +3,7 @@
 import { Layout } from "antd";
 import AgentSidebar from "./AgentSidebar";
 import AgentHeader from "./AgentHeader";
+import { MfaGraceBannerGate } from "@/components/auth/MfaGraceBanner";
 
 const { Content } = Layout;
 
@@ -26,6 +27,7 @@ export default function AgentLayout({ children }: AgentLayoutProps) {
         }}
       >
         <AgentHeader />
+        <MfaGraceBannerGate />
         <Content
           style={{
             flex: 1,

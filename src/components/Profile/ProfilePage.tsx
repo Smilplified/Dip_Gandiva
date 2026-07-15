@@ -32,6 +32,7 @@ import { useAuth } from "@/context/AuthContext";
 import { normalizeRoleName } from "@/lib/auth/config";
 import dayjs from "dayjs";
 import AvatarCropModal from "./AvatarCropModal";
+import { ProfileDevicesCard } from "./ProfileDevicesCard";
 
 type ProfileData = {
   id: string;
@@ -491,6 +492,8 @@ export default function ProfilePage({ profilePath, roleLabel }: ProfilePageProps
           </Card>
         </Col>
       </Row>
+
+      <ProfileDevicesCard />
 
       {/* Edit modals */}
       <Modal
