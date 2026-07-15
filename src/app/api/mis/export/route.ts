@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -240,6 +241,18 @@ export async function GET(request: Request) {
         created_at: l.created_at,
       }));
     }
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      category: "exports",
+      eventType: "lead_export",
+      description: `Exported ${rows.length.toLocaleString()} rows (${type}, ${format})`,
+      targetType: "export",
+      targetLabel: type,
+      metadata: { type, format, row_count: rows.length, campaign_id: campaignId },
+      request,
+    });
 
     const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     const ext = format === "excel" ? "xlsx" : "csv";

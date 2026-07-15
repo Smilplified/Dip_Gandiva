@@ -3,6 +3,8 @@ import { verifyOrgAdmin } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { validateFilters } from "@/lib/lead-finder/types";
 import { ApifyError, startActorRun } from "@/lib/lead-finder/apify";
+import { estimateCostUsd } from "@/lib/lead-finder/types";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +63,19 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      category: "lead_finder",
+      eventType: "lead_finder_run_started",
+      description: `Started lead search "${filters.file_name}" (${filters.fetch_count.toLocaleString()} leads, ~$${estimateCostUsd(filters.fetch_count)})`,
+      targetType: "lead_finder_run",
+      targetId: (run as { id: string }).id,
+      targetLabel: filters.file_name,
+      metadata: { filters, estimated_cost_usd: estimateCostUsd(filters.fetch_count) },
+      request,
+    });
 
     return NextResponse.json(
       { run_id: (run as { id: string }).id, apify_run_id: apifyRun.id },

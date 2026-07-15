@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { error, orgId } = await verifyAdmin();
+  const { error, user, orgId } = await verifyAdmin();
   if (error) return error;
   if (!orgId) return NextResponse.json({ error: "No organization assigned" }, { status: 400 });
 
@@ -93,6 +94,19 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
+
+  void logAudit({
+    organizationId: orgId,
+    actorId: user?.id ?? null,
+    actorRole: "admin",
+    category: "permissions",
+    eventType: "role_created",
+    description: `Created role "${name.trim()}"`,
+    targetType: "role",
+    targetId: (data as { id?: string } | null)?.id ?? null,
+    targetLabel: name.trim(),
+    request,
+  });
 
   return NextResponse.json({ role: data });
 }

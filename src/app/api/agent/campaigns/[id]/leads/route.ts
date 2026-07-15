@@ -4,6 +4,7 @@ import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import { AGENT_READONLY_LEAD_FIELD_SET } from "@/lib/agent-lead-fields";
 import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
+import { logAudit } from "@/lib/audit/log";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
@@ -433,6 +434,21 @@ export async function POST(
     }
 
     const row = inserted as { id: string; lead_id: string | null } | null;
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: "agent",
+      category: "leads",
+      eventType: "lead_created",
+      description: `Created lead ${row?.lead_id ?? row?.id ?? ""} (${derivedName || normalizedCompanyName || normalizedEmail || "no name"})`,
+      targetType: "lead",
+      targetId: row?.id ?? null,
+      targetLabel: row?.lead_id ?? null,
+      metadata: { campaign_id: campaignId, lead_type: normalizedLeadType },
+      request,
+    });
+
     return NextResponse.json({ lead_id: row?.lead_id ?? row?.id, id: row?.id });
   } catch (err) {
     console.error("Agent leads create error:", err);
@@ -681,6 +697,21 @@ export async function PATCH(
     if (!updated) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
+
+    const updatedRow = updated as { id: string; lead_id: string | null };
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: "agent",
+      category: "leads",
+      eventType: "lead_updated",
+      description: `Updated lead ${updatedRow.lead_id ?? updatedRow.id} (${Object.keys(updates).length} fields)`,
+      targetType: "lead",
+      targetId: updatedRow.id,
+      targetLabel: updatedRow.lead_id,
+      metadata: { campaign_id: campaignId, changed_fields: Object.keys(updates) },
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

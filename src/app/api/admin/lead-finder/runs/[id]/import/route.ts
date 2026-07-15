@@ -4,6 +4,7 @@ import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase
 import type { AdminClient } from "@/lib/supabase/admin";
 import { fetchDatasetItems, getDatasetItemCount } from "@/lib/lead-finder/apify";
 import { extractActorError, mapApifyItem } from "@/lib/lead-finder/mapping";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 /** Vercel function time budget; the loop stops well before this. */
@@ -290,6 +291,23 @@ export async function POST(
     }
 
     if (done) {
+      void logAudit({
+        organizationId: orgId,
+        actorId: (ctx as { user: { id: string } }).user.id,
+        category: "lead_finder",
+        eventType: "lead_finder_imported",
+        description: `Imported "${run.batch_name}": ${run.inserted_count.toLocaleString()} new, ${run.updated_count.toLocaleString()} updated, ${run.skipped_count.toLocaleString()} skipped`,
+        targetType: "lead_finder_run",
+        targetId: run.id,
+        targetLabel: run.batch_name,
+        metadata: {
+          inserted: run.inserted_count,
+          updated: run.updated_count,
+          skipped: run.skipped_count,
+          total_found: run.total_found,
+        },
+      });
+
       const { error: finishError } = await admin
         .from("lead_finder_runs")
         .update({

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { roleRequiresClientBinding } from "@/lib/admin/client-binding-roles";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -183,6 +184,34 @@ export async function PATCH(
     const passwordUpdated =
       password !== undefined && password !== null && String(password).trim() !== "";
 
+    const changedFields = [
+      ...Object.keys(userUpdate),
+      ...(body.role_id ? ["role"] : []),
+      ...(passwordUpdated ? ["password"] : []),
+    ];
+    void logAudit({
+      organizationId: orgId!,
+      actorId: adminUser?.id ?? null,
+      actorRole: "admin",
+      category: body.role_id ? "permissions" : "users",
+      eventType:
+        status === "inactive"
+          ? "user_deactivated"
+          : body.role_id
+          ? "user_role_changed"
+          : "user_updated",
+      description:
+        status === "inactive"
+          ? "Deactivated user account"
+          : body.role_id
+          ? `Changed user role to ${roleNameNormalized || body.role_id}`
+          : `Updated user (${changedFields.join(", ") || "no changes"})`,
+      targetType: "user",
+      targetId: id,
+      metadata: { changed_fields: changedFields, new_status: status ?? null, new_role: roleNameNormalized || null },
+      request: _request,
+    });
+
     return NextResponse.json({
       success: true,
       status: status ?? null,
@@ -241,6 +270,18 @@ export async function DELETE(
         { status: 500 }
       );
     }
+
+    void logAudit({
+      organizationId: orgId!,
+      actorId: adminUser?.id ?? null,
+      actorRole: "admin",
+      category: "users",
+      eventType: "user_deleted",
+      description: "Permanently deleted user account",
+      targetType: "user",
+      targetId: id,
+      request: _request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -12,6 +12,7 @@ import {
 } from "@/lib/tl/leads-list";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -167,6 +168,26 @@ export async function GET(request: NextRequest) {
         rectified_reason: (row.rectified_reason as string | null) ?? null,
       };
     });
+
+    if (exportAll) {
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        category: "exports",
+        eventType: "lead_export",
+        description: `Exported ${leads.length.toLocaleString()} leads (TL leads list)`,
+        targetType: "export",
+        targetLabel: "tl_leads",
+        metadata: {
+          row_count: leads.length,
+          search: searchRaw || null,
+          agent_ids: agentIds,
+          date_from: dateFrom ?? null,
+          date_to: dateTo ?? null,
+        },
+        request,
+      });
+    }
 
     return NextResponse.json({
       leads,

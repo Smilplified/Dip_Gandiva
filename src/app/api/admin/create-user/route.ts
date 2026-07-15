@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { roleRequiresClientBinding } from "@/lib/admin/client-binding-roles";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -140,6 +141,25 @@ export async function POST(request: Request) {
         );
       }
     }
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: "admin",
+      category: "users",
+      eventType: "user_created",
+      description: `Created user ${full_name?.trim() || email.trim()}${roleNameNormalized ? ` (role: ${roleNameNormalized})` : ""}`,
+      targetType: "user",
+      targetId: createdUserId,
+      targetLabel: email.trim(),
+      metadata: {
+        email: email.trim(),
+        role: roleNameNormalized || null,
+        department: department?.trim() || null,
+        client_id: client_id ?? null,
+      },
+      request,
+    });
 
     return NextResponse.json({
       success: true,

@@ -14,6 +14,7 @@ import {
 import { fetchPermissionRulesForSender, findSendRule } from "@/lib/announcements/permissions";
 import { resolveAudience } from "@/lib/announcements/audience";
 import { fanOutAnnouncement } from "@/lib/announcements/fanout";
+import { logAudit } from "@/lib/audit/log";
 import { fetchPollBundle, isPollClosed } from "@/lib/announcements/queries";
 
 export const dynamic = "force-dynamic";
@@ -380,6 +381,25 @@ export async function POST(request: Request) {
     if (fanoutError) {
       return NextResponse.json({ error: fanoutError }, { status: 500 });
     }
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: rule.sender_role,
+      category: "announcements",
+      eventType: `announcement_${type}_sent`,
+      description: `Sent ${type} "${title}" to ${recipientIds.length} ${targeting.target_role}(s)`,
+      targetType: "announcement",
+      targetId: announcementId,
+      targetLabel: title,
+      metadata: {
+        type,
+        target_role: targeting.target_role,
+        mode: targeting.mode,
+        recipient_count: recipientIds.length,
+      },
+      request,
+    });
 
     return NextResponse.json(
       { id: announcementId, recipient_count: recipientIds.length },

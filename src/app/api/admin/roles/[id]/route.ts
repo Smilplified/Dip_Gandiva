@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ async function verifyAdmin() {
     .single();
 
   const orgId = (profile as { organization_id: string | null } | null)?.organization_id;
-  return { error: null, orgId };
+  return { error: null, orgId, userId: user.id };
 }
 
 export async function PATCH(
@@ -41,7 +42,7 @@ export async function PATCH(
 ) {
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Role ID required" }, { status: 400 });
-  const { error, orgId } = await verifyAdmin();
+  const { error, orgId, userId } = await verifyAdmin();
   if (error) return error;
   if (!orgId) return NextResponse.json({ error: "No organization assigned" }, { status: 400 });
 
@@ -80,6 +81,20 @@ export async function PATCH(
     return NextResponse.json({ error: "Role not found" }, { status: 404 });
   }
 
+  void logAudit({
+    organizationId: orgId,
+    actorId: userId ?? null,
+    actorRole: "admin",
+    category: "permissions",
+    eventType: "role_updated",
+    description: `Updated role "${(data as { name?: string }).name ?? id}"`,
+    targetType: "role",
+    targetId: id,
+    targetLabel: (data as { name?: string }).name ?? null,
+    metadata: { changes: updateData },
+    request: _request,
+  });
+
   return NextResponse.json({ role: data });
 }
 
@@ -89,7 +104,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Role ID required" }, { status: 400 });
-  const { error, orgId } = await verifyAdmin();
+  const { error, orgId, userId } = await verifyAdmin();
   if (error) return error;
   if (!orgId) return NextResponse.json({ error: "No organization assigned" }, { status: 400 });
 
@@ -97,6 +112,13 @@ export async function DELETE(
   if (!admin) {
     return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
+
+  const { data: roleRow } = await admin
+    .from("roles")
+    .select("name")
+    .eq("id", id)
+    .eq("organization_id", orgId)
+    .maybeSingle();
 
   const { error: deleteError } = await admin
     .from("roles")
@@ -107,6 +129,19 @@ export async function DELETE(
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
+
+  void logAudit({
+    organizationId: orgId,
+    actorId: userId ?? null,
+    actorRole: "admin",
+    category: "permissions",
+    eventType: "role_deleted",
+    description: `Deleted role "${(roleRow as { name?: string } | null)?.name ?? id}"`,
+    targetType: "role",
+    targetId: id,
+    targetLabel: (roleRow as { name?: string } | null)?.name ?? null,
+    request: _request,
+  });
 
   return NextResponse.json({ success: true });
 }

@@ -6,6 +6,7 @@ import {
   BarChartOutlined,
   BellOutlined,
   SearchOutlined,
+  SafetyCertificateFilled,
   DashboardOutlined,
   DesktopOutlined,
   DollarOutlined,
@@ -41,6 +42,7 @@ export default function AdminSidebar() {
       { key: "/admin/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/admin/dashboard" },
       { key: "/admin/announcements", icon: <BellOutlined />, label: "Announcements", href: "/admin/announcements" },
       { key: "/admin/lead-finder", icon: <SearchOutlined />, label: "Lead Finder", href: "/admin/lead-finder" },
+      { key: "/admin/audit-logs", icon: <SafetyCertificateFilled />, label: "Audit Logs", href: "/admin/audit-logs" },
       { key: "/admin/sales", icon: <DollarOutlined />, label: "Sales", href: "/admin/sales" },
       { key: "/admin/users", icon: <UserOutlined />, label: "Users", href: "/admin/users" },
       {

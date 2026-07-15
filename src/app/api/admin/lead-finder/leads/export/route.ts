@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyOrgAdmin } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { LEAD_LIST_COLUMNS, applyLeadFilters } from "@/lib/lead-finder/query";
+import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -44,7 +45,19 @@ export async function GET(request: NextRequest) {
   try {
     const ctx = await verifyOrgAdmin();
     if ("error" in ctx && ctx.error) return ctx.error;
-    const { orgId } = ctx as { orgId: string };
+    const { orgId, user } = ctx as { orgId: string; user: { id: string } };
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      category: "exports",
+      eventType: "lead_export",
+      description: "Exported Lead Finder prospects (CSV)",
+      targetType: "export",
+      targetLabel: "lead_finder",
+      metadata: Object.fromEntries(request.nextUrl.searchParams.entries()),
+      request,
+    });
 
     const admin = getAdminClientSafe();
     if (!admin) {
