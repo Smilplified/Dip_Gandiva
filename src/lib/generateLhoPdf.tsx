@@ -183,16 +183,10 @@ export type LhoData = {
   leadDisposition: string;
   assetTitle: string;
   status: string;
-  qaStatus: string;
-  auditDate: string;
-  qaName: string;
   tenurity: string;
   vvStatus: string;
   emailStatus: string;
   evTool: string;
-  primaryReason: string;
-  secondaryReason: string;
-  qaComments: string;
   scoredAt?: string | null;
   scoredTimezone?: string | null;
   appointmentAt?: string | null;
@@ -410,18 +404,6 @@ function LhoDocument({
                 { label: "RA Comment", value: data.raComment, multiline: true },
                 { label: LEAD_MEETING_NOTES_LABEL, value: data.specialComments, multiline: true },
                 { label: "Notes", value: data.notes, multiline: true },
-              ]}
-            />
-
-            <FieldsSection
-              title="QA INFORMATION"
-              fields={[
-                { label: "QA Status", value: data.qaStatus },
-                { label: "Audit Date", value: data.auditDate },
-                { label: "QA Auditor", value: data.qaName },
-                { label: "Primary Reason", value: data.primaryReason },
-                { label: "Secondary Reason", value: data.secondaryReason },
-                { label: "QA Comments", value: data.qaComments, multiline: true },
               ]}
             />
 
