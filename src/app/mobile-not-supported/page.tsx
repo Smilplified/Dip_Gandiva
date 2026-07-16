@@ -26,12 +26,12 @@ export default function MobileNotSupportedPage() {
         </h1>
 
         <p className="mt-4 text-center text-base leading-7 text-[#4b5563]">
-          Gaandiva CRM is currently accessible only from desktop or laptop devices.
-          Please use a Windows, Mac, or Linux computer to access the platform.
+          Gaandiva CRM is currently accessible only from desktop, laptop, or iPad devices.
+          Please use a Windows, Mac, Linux computer, or an iPad to access the platform.
         </p>
 
         <div className="mt-8 rounded-xl bg-[#f9fafb] px-4 py-3 text-center text-sm text-[#6b7280]">
-          Supported devices: Windows PC, Mac, or Linux desktop/laptop
+          Supported devices: Windows PC, Mac, Linux desktop/laptop, or iPad
         </div>
       </div>
     </main>
