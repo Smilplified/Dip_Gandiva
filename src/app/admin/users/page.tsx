@@ -16,6 +16,8 @@ import {
   Spin,
   Typography,
   Divider,
+  Row,
+  Col,
 } from "antd";
 import {
   EditOutlined,
@@ -153,6 +155,12 @@ export default function AdminUsersPage() {
             : null,
           department: values.department || null,
           designation: values.designation || null,
+          ...(createSelectedRoleName !== "client_viewer"
+            ? {
+                phone: values.phone || null,
+                employee_id: values.employee_id || null,
+              }
+            : {}),
         }),
       });
 
@@ -188,6 +196,8 @@ export default function AdminUsersPage() {
       full_name: record.full_name,
       department: record.department,
       designation: record.designation,
+      phone: record.phone,
+      employee_id: record.employee_id,
       role_id: currentRoleId,
       client_id: clientId,
       new_password: "",
@@ -214,6 +224,10 @@ export default function AdminUsersPage() {
           ? (values.client_id || null)
           : null,
       };
+      if (editSelectedRoleName !== "client_viewer") {
+        payload.phone = values.phone || null;
+        payload.employee_id = values.employee_id || null;
+      }
       if (newPassword) {
         payload.password = newPassword;
       }
@@ -536,77 +550,108 @@ export default function AdminUsersPage() {
         confirmLoading={submitting}
         okText="Create User"
         destroyOnClose
-        width={480}
+        width={720}
       >
         <Form form={createForm} layout="vertical" className="mt-4">
-          <Form.Item
-            name="email"
-            label="Email"
-            rules={[
-              { required: true, message: "Email is required" },
-              { type: "email", message: "Invalid email" },
-            ]}
-          >
-            <Input placeholder="user@company.com" />
-          </Form.Item>
-          <Form.Item
-            name="password"
-            label="Password"
-            rules={[
-              { required: true, message: "Password is required" },
-              { min: 6, message: "Password must be at least 6 characters" },
-            ]}
-          >
-            <Input.Password placeholder="••••••••" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item name="full_name" label="Full Name">
-            <Input placeholder="John Doe" />
-          </Form.Item>
-          <Form.Item name="role_id" label="Role">
-            <Select
-              placeholder="Select role"
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              onChange={(roleId) => {
-                const role = roles.find((r) => r.id === roleId);
-                const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
-                setCreateSelectedRoleName(normalized);
-                if (!roleRequiresClientBinding(normalized)) {
-                  createForm.setFieldValue("client_id", undefined);
-                }
-              }}
-              options={[...roles]
-                .sort((a, b) => {
-                  const order = ["admin", "Agent", "Team Leader", "HR"];
-                  return order.indexOf(a.name) - order.indexOf(b.name) || a.name.localeCompare(b.name);
-                })
-                .map((r) => ({ label: r.name, value: r.id }))}
-            />
-          </Form.Item>
-          {roleRequiresClientBinding(createSelectedRoleName) && (
-            <>
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
               <Form.Item
-                name="client_id"
-                label="Select Client"
-                rules={[{ required: true, message: "Client selection is required for this role" }]}
+                name="email"
+                label="Email"
+                rules={[
+                  { required: true, message: "Email is required" },
+                  { type: "email", message: "Invalid email" },
+                ]}
               >
+                <Input placeholder="user@company.com" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="password"
+                label="Password"
+                rules={[
+                  { required: true, message: "Password is required" },
+                  { min: 6, message: "Password must be at least 6 characters" },
+                ]}
+              >
+                <Input.Password placeholder="••••••••" autoComplete="new-password" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="full_name" label="Full Name">
+                <Input placeholder="John Doe" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="role_id" label="Role">
                 <Select
+                  placeholder="Select role"
+                  allowClear
                   showSearch
                   optionFilterProp="label"
-                  placeholder="Search and select client"
-                  options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                  onChange={(roleId) => {
+                    const role = roles.find((r) => r.id === roleId);
+                    const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
+                    setCreateSelectedRoleName(normalized);
+                    if (!roleRequiresClientBinding(normalized)) {
+                      createForm.setFieldValue("client_id", undefined);
+                    }
+                    if (normalized === "client_viewer") {
+                      createForm.setFieldsValue({ phone: undefined, employee_id: undefined });
+                    }
+                  }}
+                  options={[...roles]
+                    .sort((a, b) => {
+                      const order = ["admin", "Agent", "Team Leader", "HR"];
+                      return order.indexOf(a.name) - order.indexOf(b.name) || a.name.localeCompare(b.name);
+                    })
+                    .map((r) => ({ label: r.name, value: r.id }))}
                 />
               </Form.Item>
-              <ClientLogoUpload clientId={createClientId} />
-            </>
-          )}
-          <Form.Item name="department" label="Department">
-            <Input placeholder="Sales, Marketing, etc." />
-          </Form.Item>
-          <Form.Item name="designation" label="Designation">
-            <Input placeholder="e.g. Sales Representative" />
-          </Form.Item>
+            </Col>
+            {createSelectedRoleName !== "client_viewer" && (
+              <>
+                <Col xs={24} sm={12}>
+                  <Form.Item name="employee_id" label="Employee ID">
+                    <Input placeholder="e.g. EMP001" />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.Item name="phone" label="Mobile Number">
+                    <Input placeholder="e.g. 9876543210" />
+                  </Form.Item>
+                </Col>
+              </>
+            )}
+            {roleRequiresClientBinding(createSelectedRoleName) && (
+              <Col span={24}>
+                <Form.Item
+                  name="client_id"
+                  label="Select Client"
+                  rules={[{ required: true, message: "Client selection is required for this role" }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Search and select client"
+                    options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                  />
+                </Form.Item>
+                <ClientLogoUpload clientId={createClientId} />
+              </Col>
+            )}
+            <Col xs={24} sm={12}>
+              <Form.Item name="department" label="Department">
+                <Input placeholder="Sales, Marketing, etc." />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="designation" label="Designation">
+                <Input placeholder="e.g. Sales Representative" />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 
@@ -623,107 +668,142 @@ export default function AdminUsersPage() {
         confirmLoading={submitting}
         okText="Save"
         destroyOnClose
-        width={480}
+        width={720}
       >
         {selectedUser && (
           <Form form={editForm} layout="vertical" className="mt-4">
-            <Form.Item label="Email">
-              <Input value={selectedUser.email ?? ""} disabled />
-            </Form.Item>
-            <Form.Item name="full_name" label="Full Name">
-              <Input placeholder="John Doe" />
-            </Form.Item>
-            <Form.Item name="department" label="Department">
-              <Input placeholder="Sales, Marketing, etc." />
-            </Form.Item>
-            <Form.Item name="designation" label="Designation">
-              <Input placeholder="e.g. Sales Representative" />
-            </Form.Item>
-            <Form.Item name="role_id" label="Role">
-              <Select
-                placeholder="Select role"
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                onChange={(roleId) => {
-                  const role = roles.find((r) => r.id === roleId);
-                  const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
-                  setEditSelectedRoleName(normalized);
-                  if (!roleRequiresClientBinding(normalized)) {
-                    editForm.setFieldValue("client_id", undefined);
-                  } else if (normalized === "dc" && !editForm.getFieldValue("client_id")) {
-                    const dcClient = clients.find((c) => c.name.trim().toLowerCase() === "dc");
-                    if (dcClient) editForm.setFieldValue("client_id", dcClient.id);
-                  }
-                }}
-                options={roles.map((r) => ({ label: r.name, value: r.id }))}
-              />
-            </Form.Item>
-            {roleRequiresClientBinding(editSelectedRoleName) && (
-              <>
-                <Form.Item
-                  name="client_id"
-                  label="Select Client"
-                  rules={[{ required: true, message: "Client selection is required for this role" }]}
-                >
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Email">
+                  <Input value={selectedUser.email ?? ""} disabled />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="full_name" label="Full Name">
+                  <Input placeholder="John Doe" />
+                </Form.Item>
+              </Col>
+              {editSelectedRoleName !== "client_viewer" && (
+                <>
+                  <Col xs={24} sm={12}>
+                    <Form.Item name="employee_id" label="Employee ID">
+                      <Input placeholder="e.g. EMP001" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item name="phone" label="Mobile Number">
+                      <Input placeholder="e.g. 9876543210" />
+                    </Form.Item>
+                  </Col>
+                </>
+              )}
+              <Col xs={24} sm={12}>
+                <Form.Item name="department" label="Department">
+                  <Input placeholder="Sales, Marketing, etc." />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="designation" label="Designation">
+                  <Input placeholder="e.g. Sales Representative" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="role_id" label="Role">
                   <Select
+                    placeholder="Select role"
+                    allowClear
                     showSearch
                     optionFilterProp="label"
-                    placeholder="Search and select client"
-                    options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                    onChange={(roleId) => {
+                      const role = roles.find((r) => r.id === roleId);
+                      const normalized = (role?.name ?? "").toLowerCase().replace(/\s+/g, "_");
+                      setEditSelectedRoleName(normalized);
+                      if (!roleRequiresClientBinding(normalized)) {
+                        editForm.setFieldValue("client_id", undefined);
+                      } else if (normalized === "dc" && !editForm.getFieldValue("client_id")) {
+                        const dcClient = clients.find((c) => c.name.trim().toLowerCase() === "dc");
+                        if (dcClient) editForm.setFieldValue("client_id", dcClient.id);
+                      }
+                      if (normalized === "client_viewer") {
+                        editForm.setFieldsValue({ phone: undefined, employee_id: undefined });
+                      }
+                    }}
+                    options={roles.map((r) => ({ label: r.name, value: r.id }))}
                   />
                 </Form.Item>
-                <ClientLogoUpload clientId={editClientId} />
-              </>
-            )}
+              </Col>
+              {roleRequiresClientBinding(editSelectedRoleName) && (
+                <Col span={24}>
+                  <Form.Item
+                    name="client_id"
+                    label="Select Client"
+                    rules={[{ required: true, message: "Client selection is required for this role" }]}
+                  >
+                    <Select
+                      showSearch
+                      optionFilterProp="label"
+                      placeholder="Search and select client"
+                      options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                    />
+                  </Form.Item>
+                  <ClientLogoUpload clientId={editClientId} />
+                </Col>
+              )}
+            </Row>
 
             <Divider style={{ margin: "8px 0 16px" }}>Change password</Divider>
             <Typography.Text type="secondary" style={{ display: "block", marginBottom: 12, fontSize: 13 }}>
               Leave blank to keep the current password.
             </Typography.Text>
-            <Form.Item
-              name="new_password"
-              label="New password"
-              rules={[
-                {
-                  validator: async (_, value) => {
-                    const pwd = typeof value === "string" ? value : "";
-                    const confirm = editForm.getFieldValue("confirm_password") as string | undefined;
-                    if (!pwd && !confirm) return;
-                    if (pwd && pwd.length < 6) {
-                      throw new Error("Password must be at least 6 characters");
-                    }
-                    if (confirm && !pwd) {
-                      throw new Error("Enter a new password");
-                    }
-                  },
-                },
-              ]}
-            >
-              <Input.Password placeholder="New password" autoComplete="new-password" />
-            </Form.Item>
-            <Form.Item
-              name="confirm_password"
-              label="Confirm password"
-              dependencies={["new_password"]}
-              rules={[
-                {
-                  validator: async (_, value) => {
-                    const confirm = typeof value === "string" ? value : "";
-                    const pwd = (editForm.getFieldValue("new_password") as string | undefined)?.trim() ?? "";
-                    if (!pwd && !confirm) return;
-                    if (pwd && !confirm) {
-                      throw new Error("Please confirm the new password");
-                    }
-                    if (pwd && confirm !== pwd) {
-                      throw new Error("Passwords do not match");
-                    }
-                  },
-                },
-              ]}
-            >
-              <Input.Password placeholder="Confirm new password" autoComplete="new-password" />
-            </Form.Item>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="new_password"
+                  label="New password"
+                  rules={[
+                    {
+                      validator: async (_, value) => {
+                        const pwd = typeof value === "string" ? value : "";
+                        const confirm = editForm.getFieldValue("confirm_password") as string | undefined;
+                        if (!pwd && !confirm) return;
+                        if (pwd && pwd.length < 6) {
+                          throw new Error("Password must be at least 6 characters");
+                        }
+                        if (confirm && !pwd) {
+                          throw new Error("Enter a new password");
+                        }
+                      },
+                    },
+                  ]}
+                >
+                  <Input.Password placeholder="New password" autoComplete="new-password" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="confirm_password"
+                  label="Confirm password"
+                  dependencies={["new_password"]}
+                  rules={[
+                    {
+                      validator: async (_, value) => {
+                        const confirm = typeof value === "string" ? value : "";
+                        const pwd = (editForm.getFieldValue("new_password") as string | undefined)?.trim() ?? "";
+                        if (!pwd && !confirm) return;
+                        if (pwd && !confirm) {
+                          throw new Error("Please confirm the new password");
+                        }
+                        if (pwd && confirm !== pwd) {
+                          throw new Error("Passwords do not match");
+                        }
+                      },
+                    },
+                  ]}
+                >
+                  <Input.Password placeholder="Confirm new password" autoComplete="new-password" />
+                </Form.Item>
+              </Col>
+            </Row>
           </Form>
         )}
       </Modal>

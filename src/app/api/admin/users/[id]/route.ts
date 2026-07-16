@@ -66,6 +66,8 @@ export async function PATCH(
       designation?: string | null;
       role_id?: string | null;
       client_id?: string | null;
+      phone?: string | null;
+      employee_id?: string | null;
       password?: string;
     };
 
@@ -136,6 +138,16 @@ export async function PATCH(
       roleNameNormalized = ((roleRow as { name?: string } | null)?.name ?? "")
         .toLowerCase()
         .replace(/\s+/g, "_");
+    } else {
+      // Preserve existing role when role_id is not being changed
+      const { data: existingRoleRows } = await admin
+        .from("user_roles")
+        .select("roles(name)")
+        .eq("user_id", id);
+      const existingName = (
+        (existingRoleRows ?? [])[0] as { roles: { name: string } | null } | undefined
+      )?.roles?.name;
+      roleNameNormalized = (existingName ?? "").toLowerCase().replace(/\s+/g, "_");
     }
 
     if (body.role_id && roleRequiresClientBinding(roleNameNormalized) && !body.client_id) {
@@ -149,6 +161,18 @@ export async function PATCH(
       userUpdate.client_id = roleRequiresClientBinding(roleNameNormalized)
         ? (body.client_id ?? null)
         : null;
+    }
+
+    // Employee ID / mobile are not managed for client_viewer
+    if (roleNameNormalized !== "client_viewer") {
+      if ("phone" in body) {
+        userUpdate.phone =
+          typeof body.phone === "string" ? body.phone.trim() || null : null;
+      }
+      if ("employee_id" in body) {
+        userUpdate.employee_id =
+          typeof body.employee_id === "string" ? body.employee_id.trim() || null : null;
+      }
     }
 
     if (Object.keys(userUpdate).length > 0) {

@@ -47,7 +47,7 @@ export async function GET() {
     const [usersRes, rolesRes] = await Promise.all([
       admin
         .from("users")
-        .select("id, full_name, email, phone, department, designation, status, client_id, created_at")
+        .select("id, full_name, email, phone, employee_id, department, designation, status, client_id, created_at")
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false }),
       admin
@@ -61,7 +61,18 @@ export async function GET() {
       return NextResponse.json({ error: usersRes.error.message }, { status: 500 });
     }
 
-    type UserRow = { id: string; full_name: string | null; email: string | null; phone: string | null; department: string | null; designation: string | null; status: string; client_id: string | null; created_at: string };
+    type UserRow = {
+      id: string;
+      full_name: string | null;
+      email: string | null;
+      phone: string | null;
+      employee_id: string | null;
+      department: string | null;
+      designation: string | null;
+      status: string;
+      client_id: string | null;
+      created_at: string;
+    };
     const users = (usersRes.data ?? []) as UserRow[];
     const userIds = users.map((u) => u.id);
 

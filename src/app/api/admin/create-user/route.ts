@@ -30,7 +30,17 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, password, full_name, role_id, department, designation, client_id } = body;
+    const {
+      email,
+      password,
+      full_name,
+      role_id,
+      department,
+      designation,
+      client_id,
+      phone,
+      employee_id,
+    } = body;
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -107,6 +117,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const isClientViewer = roleNameNormalized === "client_viewer";
+
     // Update public.users with org and profile (trigger may have created minimal record)
     const { error: updateError } = await admin
       .from("users")
@@ -115,6 +127,12 @@ export async function POST(request: Request) {
         full_name: full_name?.trim() || null,
         department: department?.trim() || null,
         designation: designation?.trim() || null,
+        phone: isClientViewer
+          ? null
+          : (typeof phone === "string" ? phone.trim() || null : null),
+        employee_id: isClientViewer
+          ? null
+          : (typeof employee_id === "string" ? employee_id.trim() || null : null),
         client_id: roleRequiresClientBinding(roleNameNormalized)
           ? (typeof client_id === "string" ? client_id : null)
           : null,
