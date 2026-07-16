@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyOrgAdmin } from "@/lib/devices/api-auth";
+import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { validateFilters } from "@/lib/lead-finder/types";
 import { ApifyError, startActorRun } from "@/lib/lead-finder/apify";
@@ -8,10 +8,10 @@ import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
-/** Start an Apify lead-finder run and create the tracking row. Admin only. */
+/** Start an Apify lead-finder run and create the tracking row. Admin / OM only. */
 export async function POST(request: Request) {
   try {
-    const ctx = await verifyOrgAdmin();
+    const ctx = await verifyLeadFinderAccess();
     if ("error" in ctx && ctx.error) return ctx.error;
     const { orgId, user } = ctx as { orgId: string; user: { id: string } };
 

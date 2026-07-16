@@ -52,3 +52,14 @@ export async function verifyOrgAdmin() {
   }
   return c;
 }
+
+/** Lead Finder: Admin and Operations Manager only. */
+export async function verifyLeadFinderAccess() {
+  const ctx = await getDeviceApiUser();
+  if ("error" in ctx && ctx.error) return { error: ctx.error };
+  const c = ctx as Awaited<ReturnType<typeof getDeviceApiUser>> & { error?: undefined };
+  if (!("roles" in c) || (!c.isAdmin && !c.roles.includes("operations_manager"))) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return c;
+}

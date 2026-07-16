@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyOrgAdmin } from "@/lib/devices/api-auth";
+import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { LEAD_LIST_COLUMNS, applyLeadFilters } from "@/lib/lead-finder/query";
 import { logAudit } from "@/lib/audit/log";
@@ -43,7 +43,7 @@ function csvEscape(value: unknown): string {
 /** Streamed CSV export of the filtered set — never loads 100k rows at once. */
 export async function GET(request: NextRequest) {
   try {
-    const ctx = await verifyOrgAdmin();
+    const ctx = await verifyLeadFinderAccess();
     if ("error" in ctx && ctx.error) return ctx.error;
     const { orgId, user } = ctx as { orgId: string; user: { id: string } };
 

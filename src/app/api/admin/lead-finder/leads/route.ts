@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyOrgAdmin } from "@/lib/devices/api-auth";
+import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import {
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 /** Scraped-leads list: server-side search/filter/sort/pagination (100k+ safe). */
 export async function GET(request: NextRequest) {
   try {
-    const ctx = await verifyOrgAdmin();
+    const ctx = await verifyLeadFinderAccess();
     if ("error" in ctx && ctx.error) return ctx.error;
     const { orgId } = ctx as { orgId: string };
 

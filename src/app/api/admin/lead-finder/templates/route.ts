@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyOrgAdmin } from "@/lib/devices/api-auth";
+import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { validateFilters } from "@/lib/lead-finder/types";
 
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const ctx = await verifyOrgAdmin();
+    const ctx = await verifyLeadFinderAccess();
     if ("error" in ctx && ctx.error) return ctx.error;
     const { orgId } = ctx as { orgId: string };
 
@@ -35,7 +35,7 @@ export async function GET() {
 /** Save a filter set as a named template (upsert by name). */
 export async function POST(request: Request) {
   try {
-    const ctx = await verifyOrgAdmin();
+    const ctx = await verifyLeadFinderAccess();
     if ("error" in ctx && ctx.error) return ctx.error;
     const { orgId, user } = ctx as { orgId: string; user: { id: string } };
 

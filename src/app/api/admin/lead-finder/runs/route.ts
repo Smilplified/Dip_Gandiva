@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyOrgAdmin } from "@/lib/devices/api-auth";
+import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 /** Run history (paginated), newest first. Admin only. */
 export async function GET(request: NextRequest) {
   try {
-    const ctx = await verifyOrgAdmin();
+    const ctx = await verifyLeadFinderAccess();
     if ("error" in ctx && ctx.error) return ctx.error;
     const { orgId } = ctx as { orgId: string };
 

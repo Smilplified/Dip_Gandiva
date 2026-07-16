@@ -10,6 +10,7 @@ import {
   SolutionOutlined,
   FundProjectionScreenOutlined,
   HistoryOutlined,
+  SearchOutlined,
   TeamOutlined,
   DatabaseOutlined,
 } from "@ant-design/icons";
@@ -61,6 +62,14 @@ const checkDataMenuItem: CrmSidebarItem = {
   href: "/tl/check-data",
 };
 
+/** Admin + OM only — Lead Finder lives under /tl for OM (admin uses /admin/lead-finder). */
+const leadFinderMenuItem: CrmSidebarItem = {
+  key: "/tl/lead-finder",
+  icon: <SearchOutlined />,
+  label: "Lead Finder",
+  href: "/tl/lead-finder",
+};
+
 const tlCampaignLeaderItems: CrmSidebarItem[] = [
   tlDashboardItem,
   {
@@ -107,14 +116,14 @@ export default function TLSidebar() {
   const isCampaignTl = hasRole("team_leader") || hasRole("tl");
 
   const sections = useMemo(() => {
-    const withCheckData = (items: CrmSidebarItem[]) =>
-      isOm ? [...items, checkDataMenuItem] : items;
+    const withOmTools = (items: CrmSidebarItem[]) =>
+      isOm ? [...items, leadFinderMenuItem, checkDataMenuItem] : items;
 
     if (isOm && !isCampaignTl) {
-      return [[tlDashboardItem], withCheckData(omInsightMenuItems)];
+      return [[tlDashboardItem], withOmTools(omInsightMenuItems)];
     }
     if (isOm && isCampaignTl) {
-      return [withCheckData(tlCampaignLeaderItems), omRevenueOnly];
+      return [withOmTools(tlCampaignLeaderItems), omRevenueOnly];
     }
     if (isCampaignTl) {
       return [tlCampaignLeaderItems];

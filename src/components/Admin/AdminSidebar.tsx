@@ -41,7 +41,16 @@ export default function AdminSidebar() {
     () => [
       { key: "/admin/dashboard", icon: <DashboardOutlined />, label: "Dashboard", href: "/admin/dashboard" },
       { key: "/admin/announcements", icon: <BellOutlined />, label: "Announcements", href: "/admin/announcements" },
-      { key: "/admin/lead-finder", icon: <SearchOutlined />, label: "Lead Finder", href: "/admin/lead-finder" },
+      ...(isAdmin
+        ? [
+            {
+              key: "/admin/lead-finder",
+              icon: <SearchOutlined />,
+              label: "Lead Finder",
+              href: "/admin/lead-finder",
+            } satisfies CrmSidebarItem,
+          ]
+        : []),
       { key: "/admin/audit-logs", icon: <SafetyCertificateFilled />, label: "Audit Logs", href: "/admin/audit-logs" },
       { key: "/admin/sales", icon: <DollarOutlined />, label: "Sales", href: "/admin/sales" },
       { key: "/admin/users", icon: <UserOutlined />, label: "Users", href: "/admin/users" },
@@ -55,7 +64,7 @@ export default function AdminSidebar() {
       { key: "/admin/roles", icon: <SafetyCertificateOutlined />, label: "Roles", href: "/admin/roles" },
       { key: "/admin/settings", icon: <SettingOutlined />, label: "Settings", href: "/admin/settings" },
     ],
-    [pendingCount]
+    [pendingCount, isAdmin]
   );
 
   const sections = useMemo(
