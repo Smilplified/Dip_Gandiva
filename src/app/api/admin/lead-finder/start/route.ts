@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
-/** Start an Apify lead-finder run and create the tracking row. Admin / OM only. */
+/** Start an Apify lead-finder run and create the tracking row. Admin / OM / TL only. */
 export async function POST(request: Request) {
   try {
     const ctx = await verifyLeadFinderAccess();

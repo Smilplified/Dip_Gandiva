@@ -62,7 +62,7 @@ const checkDataMenuItem: CrmSidebarItem = {
   href: "/tl/check-data",
 };
 
-/** Admin + OM only — Lead Finder lives under /tl for OM (admin uses /admin/lead-finder). */
+/** Lead Finder — Admin (via /admin), OM, and TL (via /tl/lead-finder). */
 const leadFinderMenuItem: CrmSidebarItem = {
   key: "/tl/lead-finder",
   icon: <SearchOutlined />,
@@ -116,17 +116,18 @@ export default function TLSidebar() {
   const isCampaignTl = hasRole("team_leader") || hasRole("tl");
 
   const sections = useMemo(() => {
-    const withOmTools = (items: CrmSidebarItem[]) =>
-      isOm ? [...items, leadFinderMenuItem, checkDataMenuItem] : items;
+    const withLeadFinder = (items: CrmSidebarItem[]) => [...items, leadFinderMenuItem];
+    const withCheckData = (items: CrmSidebarItem[]) =>
+      isOm ? [...items, checkDataMenuItem] : items;
 
     if (isOm && !isCampaignTl) {
-      return [[tlDashboardItem], withOmTools(omInsightMenuItems)];
+      return [[tlDashboardItem], withCheckData(withLeadFinder(omInsightMenuItems))];
     }
     if (isOm && isCampaignTl) {
-      return [withOmTools(tlCampaignLeaderItems), omRevenueOnly];
+      return [withCheckData(withLeadFinder(tlCampaignLeaderItems)), omRevenueOnly];
     }
     if (isCampaignTl) {
-      return [tlCampaignLeaderItems];
+      return [withLeadFinder(tlCampaignLeaderItems)];
     }
     return [[tlDashboardItem], omInsightMenuItems];
   }, [isOm, isCampaignTl]);
