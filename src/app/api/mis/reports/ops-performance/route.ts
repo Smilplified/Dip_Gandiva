@@ -9,6 +9,11 @@ import {
   buildOpsPerformanceReport,
   buildQaUserMaps,
 } from "@/lib/mis/ops-performance-report";
+import {
+  parseOpsReportFilterParams,
+  resolveOpsReportAgentScope,
+  resolveOpsReportCampaigns,
+} from "@/lib/mis/ops-performance-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -31,14 +36,6 @@ function todayInTz(tz: string): string {
 
 function monthsAgoInTz(tz: string, n: number): string {
   return dayjs().tz(tz).subtract(n, "month").format("YYYY-MM-DD");
-}
-
-function utcStartOfDayInTz(dateStr: string, tz: string): string {
-  return dayjs.tz(`${dateStr} 00:00:00.000`, "YYYY-MM-DD HH:mm:ss.SSS", tz).utc().toISOString();
-}
-
-function utcEndOfDayInTz(dateStr: string, tz: string): string {
-  return dayjs.tz(`${dateStr} 23:59:59.999`, "YYYY-MM-DD HH:mm:ss.SSS", tz).utc().toISOString();
 }
 
 export async function GET(request: NextRequest) {
@@ -85,10 +82,10 @@ export async function GET(request: NextRequest) {
     const tzParam = sp.get("tz");
     const appTz = isValidTimeZone(tzParam) ? tzParam : "UTC";
     const today = todayInTz(appTz);
-    const startDate = sp.get("start_date") || monthsAgoInTz(appTz, 1);
-    const endDate = sp.get("end_date") || today;
-    const startUtc = utcStartOfDayInTz(startDate, appTz);
-    const endUtc = utcEndOfDayInTz(endDate, appTz);
+    const filters = parseOpsReportFilterParams(sp, appTz, {
+      startDate: monthsAgoInTz(appTz, 1),
+      endDate: today,
+    });
 
     const { data: allUsers, error: usersErr } = await admin
       .from("users")
@@ -115,10 +112,17 @@ export async function GET(request: NextRequest) {
       return fallback?.trim() || "Unknown";
     };
 
-    const agentIds = new Set(
+    const allAgentIds = new Set(
       orgUsers
         .filter((u) => (u.user_roles ?? []).some((r) => isAgentRole(r.roles?.name)))
         .map((u) => u.id)
+    );
+
+    const { agentIds, restrictLeadsToAgents } = await resolveOpsReportAgentScope(
+      admin,
+      orgId,
+      filters,
+      allAgentIds
     );
 
     const qaUsers = orgUsers.filter((u) =>
@@ -130,35 +134,38 @@ export async function GET(request: NextRequest) {
 
     const { qaIds, qaNameToId } = buildQaUserMaps(qaUsers, (u) => userLabel(u.id));
 
-    const { data: campaigns, error: campErr } = await admin
-      .from("campaigns")
-      .select("id, name")
-      .eq("organization_id", orgId);
-
-    if (campErr) {
-      return NextResponse.json({ error: campErr.message }, { status: 500 });
-    }
-
-    const campaignRows = (campaigns ?? []) as { id: string; name: string }[];
+    const campaignRows = await resolveOpsReportCampaigns(admin, orgId, filters);
     const campaignIds = campaignRows.map((c) => c.id);
     const campaignNameById = new Map(campaignRows.map((c) => [c.id, c.name]));
 
     const report = await buildOpsPerformanceReport(admin, orgId, {
-      startDate,
-      endDate,
-      startUtc,
-      endUtc,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      startUtc: filters.startUtc,
+      endUtc: filters.endUtc,
       appTz,
       userLabel,
       agentIds,
+      restrictLeadsToAgents,
       qaUsers,
       qaIds,
       qaNameToId,
       campaignIds,
       campaignNameById,
+      leadFilters: {
+        channels: filters.channels,
+        qaStatuses: filters.qaStatuses,
+      },
     });
 
-    return NextResponse.json(report);
+    return NextResponse.json({
+      ...report,
+      date_range: {
+        ...report.date_range,
+        start_time: filters.startTime,
+        end_time: filters.endTime,
+      },
+    });
   } catch (err) {
     console.error("MIS ops performance report error:", err);
     const message = err instanceof Error ? err.message : "Internal server error";

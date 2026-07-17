@@ -172,6 +172,31 @@ function AudioPlayer({ rec }: { rec: RecordingEntry }) {
 }
 
 function RecordingCard({ rec }: { rec: RecordingEntry }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!rec.url || downloading) return;
+    setDownloading(true);
+    try {
+      const resp = await fetch(rec.url);
+      if (!resp.ok) throw new Error("Download failed");
+      const blob = await resp.blob();
+      const filename = ensureRecordingDownloadFilename(rec.display_name, rec.original_name);
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      message.error("Could not download recording");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -230,11 +255,9 @@ function RecordingCard({ rec }: { rec: RecordingEntry }) {
             <Button
               type="text"
               size="small"
+              loading={downloading}
               icon={<DownloadOutlined style={{ color: "#722ed1" }} />}
-              href={rec.url}
-              download={ensureRecordingDownloadFilename(rec.display_name, rec.original_name)}
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={handleDownload}
               style={{ flexShrink: 0, marginTop: 2 }}
             />
           </Tooltip>

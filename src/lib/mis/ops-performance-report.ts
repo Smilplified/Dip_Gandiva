@@ -101,7 +101,12 @@ export type AgentProcessingChartPoint = {
 };
 
 export type OpsPerformanceReport = {
-  date_range: { start: string; end: string };
+  date_range: {
+    start: string;
+    end: string;
+    start_time?: string;
+    end_time?: string;
+  };
   summary: OpsPerformanceSummary;
   charts: {
     qa_auditor_performance: QaAuditorChartPoint[];
@@ -128,6 +133,12 @@ type LeadRow = {
   audit_date: string | null;
   updated_at: string;
   created_at: string;
+  channel?: string | null;
+};
+
+export type OpsLeadFetchFilters = {
+  channels?: string[] | null;
+  qaStatuses?: string[] | null;
 };
 
 type OutcomeCounts = {
@@ -162,6 +173,18 @@ function classifyLead(qaStatus: string | null | undefined): keyof OutcomeCounts 
   return "tbd";
 }
 
+function matchesQaStatusFilter(
+  qaStatus: string | null | undefined,
+  qaStatuses: string[] | null | undefined
+): boolean {
+  if (!qaStatuses?.length) return true;
+  const bucket = classifyLead(qaStatus);
+  const wanted = new Set(qaStatuses.map((s) => s.trim().toLowerCase()));
+  if (wanted.has(bucket)) return true;
+  const raw = normQa(qaStatus);
+  return Boolean(raw && wanted.has(raw));
+}
+
 function addOutcome(counts: OutcomeCounts, qaStatus: string | null | undefined) {
   counts[classifyLead(qaStatus)] += 1;
 }
@@ -184,24 +207,40 @@ function leadDayInTz(createdAt: string, tz: string): string {
   return dayjs(createdAt).tz(tz).format("YYYY-MM-DD");
 }
 
+/** Prefer stamped audit instant for exact datetime filtering. */
+function qaAuditActivityInstant(
+  lead: LeadRow,
+  isAppAudit: boolean
+): string | null {
+  if (isAppAudit) {
+    return lead.qa_audited_at || lead.updated_at || null;
+  }
+  if (lead.qa_audited_at) return lead.qa_audited_at;
+  // Date-only audit_date has no reliable time — caller falls back to day bounds.
+  if (lead.audit_date?.trim()) return null;
+  return lead.updated_at || null;
+}
+
+const LEAD_SELECT =
+  "id, campaign_id, assigned_agent_id, created_by, qa_status, qa_name, qa_audited_by_id, qa_audited_at, audit_date, updated_at, created_at, channel";
+
 async function fetchOrgLeadRows(
   supabase: SupabaseClient,
   orgId: string,
   campaignIds: string[],
   startUtc: string,
-  endUtc: string
+  endUtc: string,
+  leadFilters?: OpsLeadFetchFilters
 ): Promise<LeadRow[]> {
   if (campaignIds.length === 0) return [];
 
-  const select =
-    "id, campaign_id, assigned_agent_id, created_by, qa_status, qa_name, qa_audited_by_id, qa_audited_at, audit_date, updated_at, created_at";
   const all: LeadRow[] = [];
   let offset = 0;
 
   for (;;) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("leads")
-      .select(select)
+      .select(LEAD_SELECT)
       .eq("organization_id", orgId)
       .in("campaign_id", campaignIds)
       .gte("created_at", startUtc)
@@ -209,10 +248,18 @@ async function fetchOrgLeadRows(
       .order("created_at", { ascending: true })
       .range(offset, offset + LEADS_PAGE_SIZE - 1);
 
+    if (leadFilters?.channels?.length) {
+      query = query.in("channel", leadFilters.channels);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
-    const chunk = (data ?? []) as LeadRow[];
+
+    const chunk = ((data ?? []) as unknown as LeadRow[]).filter((l) =>
+      matchesQaStatusFilter(l.qa_status, leadFilters?.qaStatuses)
+    );
     all.push(...chunk);
-    if (chunk.length < LEADS_PAGE_SIZE) break;
+    if ((data ?? []).length < LEADS_PAGE_SIZE) break;
     offset += LEADS_PAGE_SIZE;
   }
 
@@ -222,29 +269,36 @@ async function fetchOrgLeadRows(
 async function fetchQaAuditLeadRows(
   supabase: SupabaseClient,
   orgId: string,
-  campaignIds: string[]
+  campaignIds: string[],
+  leadFilters?: OpsLeadFetchFilters
 ): Promise<LeadRow[]> {
   if (campaignIds.length === 0) return [];
 
-  const select =
-    "id, campaign_id, assigned_agent_id, created_by, qa_status, qa_name, qa_audited_by_id, qa_audited_at, audit_date, updated_at, created_at";
   const all: LeadRow[] = [];
   let offset = 0;
 
   for (;;) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("leads")
-      .select(select)
+      .select(LEAD_SELECT)
       .eq("organization_id", orgId)
       .in("campaign_id", campaignIds)
       .not("qa_status", "is", null)
       .order("updated_at", { ascending: true })
       .range(offset, offset + LEADS_PAGE_SIZE - 1);
 
+    if (leadFilters?.channels?.length) {
+      query = query.in("channel", leadFilters.channels);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
-    const chunk = (data ?? []) as LeadRow[];
-    all.push(...chunk.filter((l) => leadHasQaOutcome(l.qa_status)));
-    if (chunk.length < LEADS_PAGE_SIZE) break;
+
+    const chunk = ((data ?? []) as unknown as LeadRow[])
+      .filter((l) => leadHasQaOutcome(l.qa_status))
+      .filter((l) => matchesQaStatusFilter(l.qa_status, leadFilters?.qaStatuses));
+    all.push(...chunk);
+    if ((data ?? []).length < LEADS_PAGE_SIZE) break;
     offset += LEADS_PAGE_SIZE;
   }
 
@@ -262,11 +316,13 @@ export async function buildOpsPerformanceReport(
     appTz: string;
     userLabel: (id: string, fallback?: string | null) => string;
     agentIds: Set<string>;
+    restrictLeadsToAgents?: boolean;
     qaUsers: QaUserRef[];
     qaIds: Set<string>;
     qaNameToId: Map<string, string>;
     campaignIds: string[];
     campaignNameById: Map<string, string>;
+    leadFilters?: OpsLeadFetchFilters;
   }
 ): Promise<OpsPerformanceReport> {
   const {
@@ -277,15 +333,43 @@ export async function buildOpsPerformanceReport(
     appTz,
     userLabel,
     agentIds,
+    restrictLeadsToAgents = false,
     qaUsers,
     qaIds,
     qaNameToId,
     campaignIds,
     campaignNameById,
+    leadFilters,
   } = params;
 
-  const leads = await fetchOrgLeadRows(supabase, orgId, campaignIds, startUtc, endUtc);
-  const auditLeads = await fetchQaAuditLeadRows(supabase, orgId, campaignIds);
+  const leadsRaw = await fetchOrgLeadRows(
+    supabase,
+    orgId,
+    campaignIds,
+    startUtc,
+    endUtc,
+    leadFilters
+  );
+  const auditLeadsRaw = await fetchQaAuditLeadRows(
+    supabase,
+    orgId,
+    campaignIds,
+    leadFilters
+  );
+
+  const leads = restrictLeadsToAgents
+    ? leadsRaw.filter((l) => {
+        const id = resolveLeadAgentId(l);
+        return Boolean(id && agentIds.has(id));
+      })
+    : leadsRaw;
+
+  const auditLeads = restrictLeadsToAgents
+    ? auditLeadsRaw.filter((l) => {
+        const id = resolveLeadAgentId(l);
+        return Boolean(id && agentIds.has(id));
+      })
+    : auditLeadsRaw;
 
   const summaryCounts = emptyCounts();
   const dailyByAgent = new Map<string, OutcomeCounts>();
@@ -326,8 +410,13 @@ export async function buildOpsPerformanceReport(
     const qaId = resolveQaUserId(lead.qa_audited_by_id, lead.qa_name, qaIds, qaNameToId);
     if (!qaId) continue;
 
-    const activityDay = qaAuditActivityDay(lead, isApp, appTz, formatAuditDay);
-    if (activityDay < startDate || activityDay > endDate) continue;
+    const activityInstant = qaAuditActivityInstant(lead, isApp);
+    if (activityInstant) {
+      if (activityInstant < startUtc || activityInstant > endUtc) continue;
+    } else {
+      const activityDay = qaAuditActivityDay(lead, isApp, appTz, formatAuditDay);
+      if (activityDay < startDate || activityDay > endDate) continue;
+    }
 
     const dedupeKey = `${qaId}:${lead.id}`;
     if (countedAuditKeys.has(dedupeKey)) continue;

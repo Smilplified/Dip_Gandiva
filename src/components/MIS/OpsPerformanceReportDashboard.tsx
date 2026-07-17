@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import dayjs, { type Dayjs } from "dayjs";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import dayjs from "dayjs";
 import {
   Card,
   Row,
   Col,
   Table,
-  DatePicker,
   Button,
   Typography,
   message,
@@ -51,12 +50,15 @@ import type {
   QaAuditorConsolidatedRow,
   QaAuditorDetailRow,
 } from "@/lib/mis/ops-performance-report";
+import type { OpsReportFilterOptions } from "@/lib/mis/ops-performance-filters";
 import {
   downloadOpsReportTab,
   type OpsReportTabKey,
 } from "@/lib/mis/ops-performance-export";
+import OpsPerformanceFilterBar, {
+  type OpsReportUiFilters,
+} from "@/components/MIS/OpsPerformanceFilterBar";
 
-const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
 
 const cardStyle = {
@@ -215,10 +217,23 @@ function ReportTable<T extends object>({
 }
 
 export default function OpsPerformanceReportDashboard() {
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(1, "month"),
-    dayjs(),
-  ]);
+  const defaultFilters = useMemo<OpsReportUiFilters>(
+    () => ({
+      dateRange: [dayjs().subtract(1, "month"), dayjs()],
+      startTime: dayjs().hour(0).minute(0).second(0),
+      endTime: dayjs().hour(23).minute(59).second(0),
+      tlIds: [],
+      agentIds: [],
+      campaignIds: [],
+      leadTypes: [],
+      regions: [],
+      channels: [],
+      qaStatuses: [],
+    }),
+    []
+  );
+
+  const [filters, setFilters] = useState<OpsReportUiFilters>(defaultFilters);
   const [activeTab, setActiveTab] = useState<OpsReportTabKey>("agent-daily");
 
   const clientTimeZone = useMemo(() => {
@@ -226,14 +241,36 @@ export default function OpsPerformanceReportDashboard() {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   }, []);
 
+  const clearAllFilters = useCallback(() => {
+    setFilters(defaultFilters);
+  }, [defaultFilters]);
+
   const queryUrl = useMemo(() => {
     const params = new URLSearchParams({
-      start_date: dateRange[0].format("YYYY-MM-DD"),
-      end_date: dateRange[1].format("YYYY-MM-DD"),
+      start_date: filters.dateRange[0].format("YYYY-MM-DD"),
+      end_date: filters.dateRange[1].format("YYYY-MM-DD"),
+      start_time: filters.startTime.format("HH:mm"),
+      end_time: filters.endTime.format("HH:mm"),
       tz: clientTimeZone,
     });
+    const appendList = (key: string, values: string[]) => {
+      if (values.length) params.set(key, values.join(","));
+    };
+    appendList("tl_ids", filters.tlIds);
+    appendList("agent_ids", filters.agentIds);
+    appendList("campaign_ids", filters.campaignIds);
+    appendList("lead_types", filters.leadTypes);
+    appendList("regions", filters.regions);
+    appendList("channels", filters.channels);
+    appendList("qa_statuses", filters.qaStatuses);
     return `/api/mis/reports/ops-performance?${params.toString()}`;
-  }, [dateRange, clientTimeZone]);
+  }, [filters, clientTimeZone]);
+
+  const { data: filterOptions, isLoading: optionsLoading } =
+    useCachedApiQuery<OpsReportFilterOptions>(
+      ["mis", "reports", "ops-performance", "filters"],
+      "/api/mis/reports/ops-performance/filters"
+    );
 
   const { data, isLoading, isFetching, error, refetch } = useCachedApiQuery<OpsPerformanceReport>(
     ["mis", "reports", "ops-performance", queryUrl],
@@ -281,7 +318,16 @@ export default function OpsPerformanceReportDashboard() {
           fixed: "left",
           ellipsis: true,
         },
-      ]),
+      ]).map((col) =>
+        col.key === "tbd"
+          ? {
+              ...col,
+              title: "QA Pending",
+              width: 110,
+              render: (v: number) => coloredCount(v, "#f59e0b"),
+            }
+          : col
+      ),
     []
   );
 
@@ -468,19 +514,16 @@ export default function OpsPerformanceReportDashboard() {
         </Text>
       </div>
 
-      <Card style={{ ...cardStyle, marginBottom: 16 }} styles={{ body: { padding: 20 } }}>
+      <OpsPerformanceFilterBar
+        filters={filters}
+        options={filterOptions}
+        optionsLoading={optionsLoading}
+        onChange={setFilters}
+        onClearAll={clearAllFilters}
+      />
+
+      <Card style={{ ...cardStyle, marginBottom: 16 }} styles={{ body: { padding: 16 } }}>
         <Row gutter={[12, 12]} align="middle">
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <RangePicker
-              allowClear={false}
-              style={{ width: "100%" }}
-              value={dateRange}
-              format="DD MMM YYYY"
-              onChange={(vals) => {
-                if (vals?.[0] && vals?.[1]) setDateRange([vals[0], vals[1]]);
-              }}
-            />
-          </Col>
           <Col>
             <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>
               Refresh
@@ -489,8 +532,10 @@ export default function OpsPerformanceReportDashboard() {
           {data?.date_range && (
             <Col flex="auto">
               <Text type="secondary" style={{ fontSize: 13 }}>
-                Period: {dayjs(data.date_range.start).format("DD MMM YYYY")} –{" "}
-                {dayjs(data.date_range.end).format("DD MMM YYYY")}
+                Period: {dayjs(data.date_range.start).format("DD MMM YYYY")}{" "}
+                {data.date_range.start_time ?? filters.startTime.format("HH:mm")} –{" "}
+                {dayjs(data.date_range.end).format("DD MMM YYYY")}{" "}
+                {data.date_range.end_time ?? filters.endTime.format("HH:mm")}
               </Text>
             </Col>
           )}
