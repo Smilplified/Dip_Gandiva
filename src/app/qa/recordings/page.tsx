@@ -31,6 +31,7 @@ import {
   FileZipOutlined,
 } from "@ant-design/icons";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
+import { ensureRecordingDownloadFilename } from "@/lib/qa/recording-filename";
 
 const { Title, Text } = Typography;
 
@@ -231,7 +232,7 @@ function RecordingCard({ rec }: { rec: RecordingEntry }) {
               size="small"
               icon={<DownloadOutlined style={{ color: "#722ed1" }} />}
               href={rec.url}
-              download={rec.display_name}
+              download={ensureRecordingDownloadFilename(rec.display_name, rec.original_name)}
               target="_blank"
               rel="noopener noreferrer"
               style={{ flexShrink: 0, marginTop: 2 }}
@@ -348,9 +349,10 @@ function CampaignPanel({
           const resp = await fetch(rec.url);
           if (!resp.ok) continue;
           const buf = await resp.arrayBuffer();
-          // Determine extension from url or original name
-          const ext = rec.original_name.split(".").pop() || "mp3";
-          folder.file(`${rec.display_name}.${ext}`, buf);
+          folder.file(
+            ensureRecordingDownloadFilename(rec.display_name, rec.original_name),
+            buf
+          );
           done++;
           message.loading({ content: `Preparing ZIP (${done} / ${filteredTotal})…`, key, duration: 0 });
         }

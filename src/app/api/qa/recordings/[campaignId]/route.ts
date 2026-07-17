@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { buildRecordingDownloadFilename } from "@/lib/qa/recording-filename";
 
 export const dynamic = "force-dynamic";
 
@@ -54,11 +55,6 @@ function formatDate(iso: string | null | undefined): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function safeName(s: string | null | undefined): string {
-  if (!s) return "Unknown";
-  return s.trim().replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-_]/g, "");
 }
 
 export async function GET(
@@ -184,17 +180,13 @@ export async function GET(
           .createSignedUrl(objectPath, SIGNED_URL_EXPIRY);
 
         const dateStr = formatDate(f.created_at);
-        const emailPart = lead.email
-          ? lead.email.trim().replace(/[^a-zA-Z0-9@._-]/g, "_")
-          : null;
-        const displayName = [
-          safeName(agentName),
-          safeName(campaignRow.name),
-          emailPart,
-          dateStr || "Unknown-Date",
-        ]
-          .filter(Boolean)
-          .join("_");
+        const displayName = buildRecordingDownloadFilename({
+          agentName,
+          campaignName: campaignRow.name,
+          email: lead.email,
+          date: dateStr || "Unknown-Date",
+          originalName: f.name,
+        });
 
         recordings.push({
           path: objectPath,
