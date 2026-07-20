@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -245,6 +247,7 @@ export async function GET(request: Request) {
     void logAudit({
       organizationId: orgId,
       actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(await fetchUserRoleNames(supabase, user.id)),
       category: "exports",
       eventType: "lead_export",
       description: `Exported ${rows.length.toLocaleString()} rows (${type}, ${format})`,

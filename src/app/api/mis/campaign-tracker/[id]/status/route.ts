@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +71,7 @@ export async function PATCH(
 
     const { data: existing, error: fetchError } = await admin
       .from("campaigns")
-      .select("id, status")
+      .select("id, name, status")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -88,6 +91,21 @@ export async function PATCH(
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
+
+    const prev = existing as { id: string; name: string; status: string };
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "campaigns",
+      eventType: "campaign_status_changed",
+      description: `Changed campaign status from ${prev.status} to ${status}`,
+      targetType: "campaign",
+      targetId: campaignId,
+      targetLabel: prev.name,
+      metadata: { previous_status: prev.status, new_status: status, source: "mis_campaign_tracker" },
+      request,
+    });
 
     return NextResponse.json({ campaign: updated });
   } catch (err) {

@@ -13,6 +13,7 @@ import {
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -173,6 +174,7 @@ export async function GET(request: NextRequest) {
       void logAudit({
         organizationId: orgId,
         actorId: user.id,
+        actorRole: resolvePrimaryAuditRole(roleNames),
         category: "exports",
         eventType: "lead_export",
         description: `Exported ${leads.length.toLocaleString()} leads (TL leads list)`,

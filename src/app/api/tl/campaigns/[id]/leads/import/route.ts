@@ -17,6 +17,8 @@ import {
 import { appendQaAuditLeadHistory } from "@/lib/qa-audit-history";
 import { stripQaAuditFieldsFromImport } from "@/lib/lead-import-sanitize";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +108,7 @@ export async function POST(
 
     const { data: campaign } = await dataClient
       .from("campaigns")
-      .select("id")
+      .select("id, name")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -443,6 +445,28 @@ export async function POST(
         }
       }
     }
+
+    const campaignRow = campaign as { id: string; name?: string | null };
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "leads",
+      eventType: "bulk_lead_import",
+      description: `Bulk imported ${rawLeads.length} lead row(s): ${created} created, ${updated} updated`,
+      targetType: "campaign",
+      targetId: campaignId,
+      targetLabel: campaignRow.name ?? campaignId,
+      metadata: {
+        total_rows: rawLeads.length,
+        created,
+        updated,
+        error_count: errors.length,
+        is_qa_importer: isQaImporter,
+        can_edit_delivery: canEditDelivery,
+      },
+      request,
+    });
 
     return NextResponse.json({ created, updated, total: rawLeads.length, errors });
   } catch (err) {

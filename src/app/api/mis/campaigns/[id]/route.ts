@@ -13,6 +13,8 @@ import {
   fetchMisCampaignScoredLeadsPage,
   type MisCampaignLeadRow,
 } from "@/lib/mis/campaign-leads";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +166,25 @@ export async function GET(
       metrics,
       MIS_DELIVERED_ACHIEVED_OPTIONS
     );
+
+    if (exportAll) {
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        actorRole: resolvePrimaryAuditRole(roleNames),
+        category: "exports",
+        eventType: "lead_export",
+        description: `Exported ${leadsTotal.toLocaleString()} scored leads (MIS campaign detail)`,
+        targetType: "campaign",
+        targetId: campaignId,
+        targetLabel: String(camp.name ?? campaignId),
+        metadata: {
+          row_count: leadsTotal,
+          source: "mis_campaign_detail",
+        },
+        request,
+      });
+    }
 
     return NextResponse.json({
       campaign: campaignWithAllocation,

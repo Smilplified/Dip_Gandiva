@@ -10,6 +10,8 @@ import {
 } from "@/lib/tl/leads-list";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -166,6 +168,27 @@ export async function GET(request: NextRequest) {
         rectified_reason: (row.rectified_reason as string | null) ?? null,
       };
     });
+
+    if (exportAll) {
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        actorRole: resolvePrimaryAuditRole(roleNames),
+        category: "exports",
+        eventType: "lead_export",
+        description: `Exported ${total.toLocaleString()} leads (MIS leads list)`,
+        targetType: "export",
+        targetLabel: "mis_leads",
+        metadata: {
+          row_count: total,
+          search: searchRaw || null,
+          agent_ids: agentIds.length ? agentIds : null,
+          date_from: dateFrom ?? null,
+          date_to: dateTo ?? null,
+        },
+        request,
+      });
+    }
 
     return NextResponse.json({
       leads,

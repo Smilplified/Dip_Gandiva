@@ -9,6 +9,8 @@ import {
 import { appendQaAuditLeadHistory } from "@/lib/qa-audit-history";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -277,6 +279,8 @@ export async function PATCH(
 
     const canEditQa = roleNames.includes("qa");
     const canEditDelivery = roleNames.includes("mis");
+    let previousQaStatus: string | null = null;
+    let previousDeliveryStatus: string | null = null;
     let qaHistoryContext: {
       existing: {
         qa_status: string | null;
@@ -328,6 +332,7 @@ export async function PATCH(
         qa_audited_at: string | null;
         qa_name: string | null;
       };
+      previousQaStatus = existing.qa_status;
 
       let qaStamped = false;
       let qaAuditorLabel = "";
@@ -382,6 +387,7 @@ export async function PATCH(
       if (!existingLead) {
         return NextResponse.json({ error: "Lead not found" }, { status: 404 });
       }
+      previousDeliveryStatus = existingLead.delivery_status;
       const alreadyDelivered =
         existingLead.delivery_status === "delivered" && updates.delivery_status === "delivered";
       const missingDeliveredAt = !existingLead.delivered_at;
@@ -434,6 +440,60 @@ export async function PATCH(
         user.id,
         qaHistoryContext.auditorLabel
       );
+    }
+
+    const auditRole = resolvePrimaryAuditRole(roleNames);
+    const leadLabel =
+      (updated as { lead_id?: string | null }).lead_id ?? leadRowId;
+
+    if (qa_status !== undefined && canEditQa) {
+      const newQa = (updates.qa_status as string | null) ?? null;
+      if (newQa !== previousQaStatus) {
+        void logAudit({
+          organizationId: orgId,
+          actorId: user.id,
+          actorRole: auditRole,
+          category: "leads",
+          eventType: "qa_status_changed",
+          description: `QA status changed from ${previousQaStatus ?? "pending"} to ${newQa ?? "pending"}`,
+          targetType: "lead",
+          targetId: leadRowId,
+          targetLabel: leadLabel,
+          metadata: {
+            campaign_id: campaignId,
+            previous_qa_status: previousQaStatus,
+            new_qa_status: newQa,
+          },
+          request,
+        });
+      }
+    }
+
+    if (delivery_status !== undefined && canEditDelivery) {
+      const newDelivery = (updates.delivery_status as string | null) ?? null;
+      if (newDelivery !== previousDeliveryStatus) {
+        void logAudit({
+          organizationId: orgId,
+          actorId: user.id,
+          actorRole: auditRole,
+          category: "leads",
+          eventType:
+            newDelivery === "delivered" ? "lead_delivered" : "lead_delivery_updated",
+          description:
+            newDelivery === "delivered"
+              ? `Marked lead as delivered`
+              : `Delivery status changed from ${previousDeliveryStatus ?? "pending"} to ${newDelivery ?? "pending"}`,
+          targetType: "lead",
+          targetId: leadRowId,
+          targetLabel: leadLabel,
+          metadata: {
+            campaign_id: campaignId,
+            previous_delivery_status: previousDeliveryStatus,
+            new_delivery_status: newDelivery,
+          },
+          request,
+        });
+      }
     }
 
     return NextResponse.json({ success: true });

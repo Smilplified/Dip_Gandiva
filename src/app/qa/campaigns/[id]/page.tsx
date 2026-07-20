@@ -281,6 +281,17 @@ export default function QACampaignDetailPage() {
       campaign?.lead_type
     );
     message.success(`Exported ${filteredLeads.length} leads`);
+    void fetch("/api/qa/recordings/export-audit", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        export_kind: "leads_xlsx",
+        campaign_id: id,
+        campaign_name: campaign?.name,
+        row_count: filteredLeads.length,
+      }),
+    });
   };
 
   const handleUploadFile = (file: File) => {

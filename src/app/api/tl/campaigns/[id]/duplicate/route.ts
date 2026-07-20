@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { hasOrgWideCampaignAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { duplicateCampaign } from "@/lib/campaign/duplicate-campaign";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +56,24 @@ export async function POST(
       sourceCampaignId,
       newName: name,
       userId: user.id,
+    });
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "campaigns",
+      eventType: "campaign_duplicated",
+      description: `Duplicated campaign as "${name}"`,
+      targetType: "campaign",
+      targetId: result.id,
+      targetLabel: name,
+      metadata: {
+        source_campaign_id: sourceCampaignId,
+        files_copied: result.filesCopied,
+        file_error_count: result.fileErrors.length,
+      },
+      request,
     });
 
     return NextResponse.json({

@@ -6,6 +6,8 @@ import {
 } from "@/lib/auth/tl-access";
 import { createNotification } from "@/lib/notifications";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import {
@@ -213,6 +215,29 @@ export async function GET(
       MIS_DELIVERED_ACHIEVED_OPTIONS
     );
 
+    if (exportAll) {
+      const exportRoleNames = await fetchUserRoleNames(supabase, user.id);
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        actorRole: resolvePrimaryAuditRole(exportRoleNames),
+        category: "exports",
+        eventType: "lead_export",
+        description: `Exported ${leadsTotal.toLocaleString()} leads (campaign detail)`,
+        targetType: "campaign",
+        targetId: campaignId,
+        targetLabel: String(camp.name ?? campaignId),
+        metadata: {
+          row_count: leadsTotal,
+          source: "tl_campaign_detail",
+          search: searchRaw || null,
+          date_from: dateFrom ?? null,
+          date_to: dateTo ?? null,
+        },
+        request,
+      });
+    }
+
     return NextResponse.json({
       campaign: campaignWithAllocation,
       leads: leadsWithRecordings,
@@ -263,7 +288,7 @@ export async function PATCH(
 
     const { data: existingCampaign, error: existingError } = await supabase
       .from("campaigns")
-      .select("id, name, assigned_team_leader_id")
+      .select("id, name, status, assigned_team_leader_id")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -275,6 +300,7 @@ export async function PATCH(
     const existing = existingCampaign as {
       id: string;
       name: string;
+      status: string;
       assigned_team_leader_id: string | null;
     };
 
@@ -428,6 +454,41 @@ export async function PATCH(
         reference_type: "campaign",
         reference_id: updated.id,
         organization_id: orgId,
+      });
+    }
+
+    const auditRole = resolvePrimaryAuditRole(roleNames);
+    if (typeof updates.status === "string" && updates.status !== existing.status) {
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        actorRole: auditRole,
+        category: "campaigns",
+        eventType: "campaign_status_changed",
+        description: `Changed campaign status from ${existing.status} to ${updates.status}`,
+        targetType: "campaign",
+        targetId: campaignId,
+        targetLabel: String(updated.name ?? existing.name),
+        metadata: {
+          previous_status: existing.status,
+          new_status: updates.status,
+          source: "tl_campaigns",
+        },
+        request,
+      });
+    } else if (Object.keys(updates).length > 0) {
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        actorRole: auditRole,
+        category: "campaigns",
+        eventType: "campaign_updated",
+        description: `Updated campaign (${Object.keys(updates).join(", ")})`,
+        targetType: "campaign",
+        targetId: campaignId,
+        targetLabel: String(updated.name ?? existing.name),
+        metadata: { changed_fields: Object.keys(updates) },
+        request,
       });
     }
 

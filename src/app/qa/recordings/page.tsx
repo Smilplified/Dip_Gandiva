@@ -389,6 +389,17 @@ function CampaignPanel({
       a.click();
       URL.revokeObjectURL(url);
       message.success({ content: `Downloaded ${done} recording${done !== 1 ? "s" : ""} as ZIP`, key });
+      void fetch("/api/qa/recordings/export-audit", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          export_kind: "recordings_zip",
+          campaign_id: campaign.id,
+          campaign_name: campaign.name,
+          recording_count: done,
+        }),
+      });
     } catch (e) {
       message.error({ content: e instanceof Error ? e.message : "Export failed", key });
     } finally {
