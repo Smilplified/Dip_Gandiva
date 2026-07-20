@@ -11,6 +11,10 @@ import { buildPaginationMeta } from "@/lib/api-pagination";
 
 const LEADS_PAGE_SIZE = 1000;
 
+/** Minimal columns for dashboard KPIs / list counts / charts. */
+export const LEADS_SELECT_AUDIT =
+  "id, campaign_id, qa_status, created_at, updated_at, qa_audited_at, audit_date";
+
 const leadsSelectBase =
   "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition";
 const leadsSelectExtended =
@@ -72,23 +76,31 @@ export type QaCampaignsListResult = {
 
 export type QaLeadUploadRange = { startUtc: string; endUtc: string };
 
+export type ScoredLeadsFetchMode = "audit" | "full";
+
 /** Paginated fetch — Supabase returns at most 1000 rows per request. */
 export async function fetchScoredLeadsForCampaigns(
   supabase: SupabaseClient,
   orgId: string,
   campaignIds: string[],
-  uploadRange?: QaLeadUploadRange
+  uploadRange?: QaLeadUploadRange,
+  mode: ScoredLeadsFetchMode = "full"
 ): Promise<Record<string, unknown>[]> {
   if (campaignIds.length === 0) return [];
 
   const all: Record<string, unknown>[] = [];
   let offset = 0;
-  let useExtendedSelect = true;
+  let useExtendedSelect = mode === "full";
 
   for (;;) {
-    const select = useExtendedSelect
-      ? leadsSelectExtended + ", disqualification_reasons, disqualification_reason, rectified_reason"
-      : leadsSelectBase + ", disqualification_reasons, disqualification_reason, rectified_reason";
+    const select =
+      mode === "audit"
+        ? LEADS_SELECT_AUDIT
+        : useExtendedSelect
+          ? leadsSelectExtended +
+            ", disqualification_reasons, disqualification_reason, rectified_reason"
+          : leadsSelectBase +
+            ", disqualification_reasons, disqualification_reason, rectified_reason";
 
     let query = applyScoredLeadTaggingFilter(
       supabase
@@ -110,6 +122,7 @@ export async function fetchScoredLeadsForCampaigns(
 
     if (
       error &&
+      mode === "full" &&
       useExtendedSelect &&
       (error.message?.includes("column") || error.message?.includes("disqualification"))
     ) {
@@ -122,13 +135,17 @@ export async function fetchScoredLeadsForCampaigns(
     if (error) throw new Error(error.message);
 
     const chunk = (data ?? []) as unknown as Record<string, unknown>[];
-    for (const row of chunk) {
-      all.push({
-        ...row,
-        disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
-        disqualification_reason: (row.disqualification_reason as string | null) ?? null,
-        rectified_reason: (row.rectified_reason as string | null) ?? null,
-      });
+    if (mode === "audit") {
+      for (const row of chunk) all.push(row);
+    } else {
+      for (const row of chunk) {
+        all.push({
+          ...row,
+          disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
+          disqualification_reason: (row.disqualification_reason as string | null) ?? null,
+          rectified_reason: (row.rectified_reason as string | null) ?? null,
+        });
+      }
     }
     if (chunk.length < LEADS_PAGE_SIZE) break;
     offset += LEADS_PAGE_SIZE;
@@ -139,6 +156,37 @@ export async function fetchScoredLeadsForCampaigns(
 
 function escapeIlikePattern(value: string): string {
   return value.replace(/%/g, "").replace(/_/g, "");
+}
+
+function groupLeadsByCampaign(
+  campaignIds: string[],
+  leads: Record<string, unknown>[]
+): Record<string, Record<string, unknown>[]> {
+  const leadsByCampaign: Record<string, Record<string, unknown>[]> = {};
+  for (const id of campaignIds) {
+    leadsByCampaign[id] = [];
+  }
+  for (const l of leads) {
+    const cid = l.campaign_id as string;
+    if (leadsByCampaign[cid]) {
+      leadsByCampaign[cid].push(l);
+    }
+  }
+  return leadsByCampaign;
+}
+
+function activityMsFromLeads(leads: Record<string, unknown>[]): number {
+  let activityMs = 0;
+  for (const l of leads) {
+    const createdMs = new Date(String(l.created_at)).getTime();
+    const updatedMs = new Date(String(l.updated_at ?? l.created_at)).getTime();
+    const ms = Math.max(
+      Number.isFinite(createdMs) ? createdMs : 0,
+      Number.isFinite(updatedMs) ? updatedMs : 0
+    );
+    if (ms > activityMs) activityMs = ms;
+  }
+  return activityMs;
 }
 
 export async function loadQaCampaignsForDateRange(
@@ -232,33 +280,22 @@ export async function loadQaCampaignsForDateRange(
   }
 
   const campaignIds = campaignsList.map((c) => c.id);
-  const rawLeads = await fetchScoredLeadsForCampaigns(supabase, orgId, campaignIds, {
-    startUtc,
-    endUtc,
-  });
-  const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, rawLeads, orgId);
 
-  const leadsByCampaign: Record<string, typeof leadsWithNames> = {};
-  for (const c of campaignsList) {
-    leadsByCampaign[c.id] = [];
-  }
-  for (const l of leadsWithNames) {
-    const cid = l.campaign_id as string;
-    if (leadsByCampaign[cid]) {
-      leadsByCampaign[cid].push(l);
-    }
-  }
+  // List/KPI path: audit columns only (not the 80+ column export select).
+  const auditLeads = await fetchScoredLeadsForCampaigns(
+    supabase,
+    orgId,
+    campaignIds,
+    { startUtc, endUtc },
+    "audit"
+  );
+  const auditByCampaign = groupLeadsByCampaign(campaignIds, auditLeads);
 
   const visible: QaCampaignRow[] = [];
 
   for (const c of campaignsList) {
-    const leads = (leadsByCampaign[c.id] ?? []) as Record<string, unknown>[];
-
-    let activityMs = 0;
-    for (const l of leads) {
-      const createdMs = new Date(String(l.created_at)).getTime();
-      if (Number.isFinite(createdMs) && createdMs > activityMs) activityMs = createdMs;
-    }
+    const leads = auditByCampaign[c.id] ?? [];
+    const activityMs = activityMsFromLeads(leads);
 
     visible.push({
       ...c,
@@ -288,20 +325,40 @@ export async function loadQaCampaignsForDateRange(
     return bCreated - aCreated;
   });
 
-  const leadsInRange = visible.flatMap((c) => c.leads);
   const summary: QaCampaignsSummary = {
-    total_leads_uploaded: leadsInRange.length,
-    total_audited: countAuditedLeads(leadsInRange as { qa_status?: string | null }[]),
-    pending_audit: countPendingAuditLeads(leadsInRange as { qa_status?: string | null }[]),
+    total_leads_uploaded: auditLeads.length,
+    total_audited: countAuditedLeads(auditLeads as { qa_status?: string | null }[]),
+    pending_audit: countPendingAuditLeads(auditLeads as { qa_status?: string | null }[]),
     campaign_count: visible.filter((c) => (c.leads_uploaded ?? 0) > 0).length,
   };
 
-  const paged = visible.slice(offset, offset + limit).map((c) =>
-    includeLeads ? c : { ...c, leads: [] as Record<string, unknown>[] }
+  const pageSlice = visible.slice(offset, offset + limit);
+
+  if (!includeLeads) {
+    return {
+      campaigns: pageSlice.map((c) => ({ ...c, leads: [] as Record<string, unknown>[] })),
+      summary,
+      pagination: buildPaginationMeta(page, limit, visible.length),
+    };
+  }
+
+  // Export path: full rows only for the page/selected campaigns.
+  const exportIds = pageSlice.map((c) => c.id);
+  const fullLeads = await fetchScoredLeadsForCampaigns(
+    supabase,
+    orgId,
+    exportIds,
+    { startUtc, endUtc },
+    "full"
   );
+  const fullWithNames = await enrichLeadsWithCreatorNames(supabase, fullLeads, orgId);
+  const fullByCampaign = groupLeadsByCampaign(exportIds, fullWithNames);
 
   return {
-    campaigns: paged,
+    campaigns: pageSlice.map((c) => ({
+      ...c,
+      leads: fullByCampaign[c.id] ?? [],
+    })),
     summary,
     pagination: buildPaginationMeta(page, limit, visible.length),
   };

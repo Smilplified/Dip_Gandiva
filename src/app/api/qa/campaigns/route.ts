@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { resolveDateRangeParams } from "@/lib/date-range-tz";
 import { loadQaCampaignsForDateRange } from "@/lib/qa-campaigns-data";
 
@@ -28,6 +30,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    const canView = roleNames.includes("qa") || roleNames.includes("admin");
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden: QA or Admin role required" }, { status: 403 });
+    }
+
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
+
     const sp = new URL(request.url).searchParams;
     const range = resolveDateRangeParams(sp, "UTC");
     if ("error" in range) {
@@ -49,8 +62,9 @@ export async function GET(request: Request) {
       campaignIds.length > 0 ? Math.max(requestedLimit, campaignIds.length) : requestedLimit
     );
 
+    // Admin + org scope avoids multi-policy RLS cost on leads (MIS pattern).
     const { campaigns, summary, pagination } = await loadQaCampaignsForDateRange(
-      supabase,
+      admin,
       orgId,
       range.startUtc,
       range.endUtc,
