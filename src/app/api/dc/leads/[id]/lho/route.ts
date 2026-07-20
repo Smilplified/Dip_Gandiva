@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { isLeadInDcScope, verifyDcRole } from "@/lib/dc/access";
+import { listLhoFilesForLead } from "@/lib/lead-assets";
 
 export const dynamic = "force-dynamic";
-
-const LHO_BUCKET = "campaign-files";
 
 type LeadRecord = {
   id: string;
@@ -69,39 +68,7 @@ export async function GET(
     }
 
     const lead = leadRaw as LeadRecord;
-    const prefix = `${orgId}/${lead.campaign_id}/${lead.id}/lho`;
-
-    const { data: entries, error: listError } = await admin.storage
-      .from(LHO_BUCKET)
-      .list(prefix, {
-        limit: 20,
-        sortBy: { column: "created_at", order: "desc" } as never,
-      });
-
-    if (listError) {
-      return NextResponse.json(
-        { error: listError.message ?? "Failed to list LHO files" },
-        { status: 500 }
-      );
-    }
-
-    const files = [];
-    for (const f of entries ?? []) {
-      const objectPath = `${prefix}/${f.name}`;
-      const { data: signed, error: urlError } = await admin.storage
-        .from(LHO_BUCKET)
-        .createSignedUrl(objectPath, 60 * 60);
-
-      files.push({
-        name: f.name,
-        id: objectPath,
-        path: objectPath,
-        size: (f as { size?: number }).size ?? null,
-        created_at: (f as { created_at?: string }).created_at ?? null,
-        url: urlError ? null : signed?.signedUrl ?? null,
-      });
-    }
-
+    const files = await listLhoFilesForLead(admin, admin, orgId, lead);
     return NextResponse.json({ files });
   } catch (err) {
     console.error("DC LHO GET error:", err);

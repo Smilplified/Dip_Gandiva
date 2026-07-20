@@ -1,7 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
+import {
+  listVoiceFromStorageFallback,
+  listVoiceRecordingsForLeads,
+  VOICE_BUCKET,
+  type VoiceRecording,
+} from "@/lib/lead-assets";
 
-export const VOICE_BUCKET = "campaign-files";
+export { VOICE_BUCKET, type VoiceRecording };
 
 /** Roles that may list/upload lead voice recordings without agent campaign assignment. */
 export const PRIVILEGED_VOICE_ROLES = new Set([
@@ -13,18 +19,12 @@ export const PRIVILEGED_VOICE_ROLES = new Set([
   "admin",
   "sales",
   "dc",
-]);export const MAX_VOICE_RECORDINGS_PER_LEAD = 4;
+]);
 
-export type VoiceRecording = {
-  id: string;
-  name: string;
-  path: string;
-  url: string | null;
-  size: number | null;
-  created_at: string | null;
-};
+export const MAX_VOICE_RECORDINGS_PER_LEAD = 4;
 
 type StorageClient = Pick<SupabaseClient, "storage">;
+type DbClient = Pick<SupabaseClient, "from" | "storage">;
 
 export async function listLeadVoiceRecordings(
   storageClient: StorageClient,
@@ -32,41 +32,15 @@ export async function listLeadVoiceRecordings(
   campaignId: string,
   leadId: string
 ): Promise<VoiceRecording[]> {
-  const prefix = `${orgId}/${campaignId}/${leadId}`;
-
-  const { data: files, error: listError } = await storageClient.storage
-    .from(VOICE_BUCKET)
-    .list(prefix, {
-      limit: 10,
-      sortBy: { column: "created_at", order: "desc" } as never,
-    });
-
-  if (listError) {
-    console.error("listLeadVoiceRecordings:", listError.message);
-    return [];
+  // Prefer DB catalog when the storage client is also a DB client (admin/server).
+  const db = storageClient as DbClient;
+  if (typeof db.from === "function") {
+    const map = await listVoiceRecordingsForLeads(db, storageClient, orgId, [
+      { id: leadId, campaign_id: campaignId, organization_id: orgId },
+    ]);
+    return map[leadId] ?? [];
   }
-
-  const recordings: VoiceRecording[] = [];
-
-  for (const f of files ?? []) {
-    if (!f.name || f.name === "lho") continue;
-
-    const objectPath = `${prefix}/${f.name}`;
-    const { data: signed, error: urlError } = await storageClient.storage
-      .from(VOICE_BUCKET)
-      .createSignedUrl(objectPath, 60 * 60);
-
-    recordings.push({
-      name: f.name,
-      id: objectPath,
-      path: objectPath,
-      size: (f as { size?: number }).size ?? null,
-      created_at: (f as { created_at?: string }).created_at ?? null,
-      url: urlError ? null : signed?.signedUrl ?? null,
-    });
-  }
-
-  return recordings;
+  return listVoiceFromStorageFallback(storageClient, orgId, campaignId, leadId);
 }
 
 function leadRowId(lead: unknown): string | null {
@@ -74,27 +48,42 @@ function leadRowId(lead: unknown): string | null {
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
+function leadCampaignId(lead: unknown): string | null {
+  const id = (lead as { campaign_id?: unknown }).campaign_id;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
 export async function attachVoiceRecordingsToLeads<T>(
-  storageClient: StorageClient,
+  storageClient: DbClient,
   orgId: string,
   campaignId: string,
   leads: T[]
 ): Promise<(T & { voice_recordings: VoiceRecording[] })[]> {
   if (leads.length === 0) return [];
 
-  const withRecordings = await Promise.all(
-    leads.map(async (lead) => {
+  const leadRefs = leads
+    .map((lead) => {
       const id = leadRowId(lead);
-      return {
-        ...lead,
-        voice_recordings: id
-          ? await listLeadVoiceRecordings(storageClient, orgId, campaignId, id)
-          : [],
-      };
+      const cid = leadCampaignId(lead) ?? campaignId;
+      if (!id) return null;
+      return { id, campaign_id: cid, organization_id: orgId };
     })
+    .filter((l): l is { id: string; campaign_id: string; organization_id: string } => !!l);
+
+  const byLead = await listVoiceRecordingsForLeads(
+    storageClient,
+    storageClient,
+    orgId,
+    leadRefs
   );
 
-  return withRecordings;
+  return leads.map((lead) => {
+    const id = leadRowId(lead);
+    return {
+      ...lead,
+      voice_recordings: id ? byLead[id] ?? [] : [],
+    };
+  });
 }
 
 /** Attach voice recordings when admin storage is available; otherwise empty arrays. */

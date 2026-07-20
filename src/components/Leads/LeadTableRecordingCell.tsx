@@ -146,7 +146,7 @@ export function LeadTableRecordingCell({
         return;
       }
 
-      const { signedUrl } = presignJson as { signedUrl: string };
+      const { signedUrl, path } = presignJson as { signedUrl: string; path?: string };
       const uploadRes = await fetch(signedUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type || "audio/mpeg" },
@@ -155,6 +155,27 @@ export function LeadTableRecordingCell({
       if (!uploadRes.ok) {
         message.error("Upload failed");
         return;
+      }
+
+      if (path) {
+        const registerRes = await fetch(`/api/agent/leads/${leadId}/voice-lock/register`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path,
+            fileName: file.name,
+            mimeType: file.type || "audio/mpeg",
+            fileSize: file.size,
+          }),
+        });
+        if (!registerRes.ok) {
+          const regJson = await registerRes.json().catch(() => ({}));
+          message.warning(
+            (regJson as { error?: string })?.error ||
+              "Uploaded but catalog sync failed. Refresh if recording is missing."
+          );
+        }
       }
 
       message.success("Recording uploaded");

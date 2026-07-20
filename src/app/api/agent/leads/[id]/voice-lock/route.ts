@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { getLeadForLeadAssetApi } from "@/lib/lead-api-access";
+import {
+  countLeadAssets,
+  deleteLeadAssetByPath,
+  insertLeadAsset,
+  listVoiceRecordingsForLeads,
+} from "@/lib/lead-assets";
+import { MAX_VOICE_RECORDINGS_PER_LEAD, VOICE_BUCKET } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
-// Reuse the existing Supabase bucket used for campaign files
-const VOICE_BUCKET = "campaign-files";
-const MAX_RECORDINGS_PER_LEAD = 4;
+const MAX_RECORDINGS_PER_LEAD = MAX_VOICE_RECORDINGS_PER_LEAD;
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ALLOWED_AUDIO_TYPES = [
   "audio/mpeg",
@@ -22,15 +27,6 @@ type LeadRecord = {
   id: string;
   campaign_id: string;
   organization_id: string;
-};
-
-type VoiceObject = {
-  name: string;
-  id: string;
-  path: string;
-  size: number | null;
-  created_at: string | null;
-  url: string | null;
 };
 
 function sanitizeFileName(name: string): string {
@@ -72,53 +68,13 @@ async function getAuthContext() {
   return { supabase, admin, userId: user.id, orgId };
 }
 
-async function listVoiceObjects(
-  storageClient: { storage: NonNullable<ReturnType<typeof getAdminClientSafe>>["storage"] },
+async function listVoiceForLead(
+  admin: NonNullable<ReturnType<typeof getAdminClientSafe>>,
   orgId: string,
   lead: LeadRecord
-): Promise<{ recordings: VoiceObject[]; error?: NextResponse }> {
-  const prefix = `${orgId}/${lead.campaign_id}/${lead.id}`;
-
-  const { data: files, error: listError } = await storageClient.storage
-    .from(VOICE_BUCKET)
-    .list(prefix, {
-      limit: 10,
-      sortBy: { column: "created_at", order: "desc" } as never,
-    });
-
-  if (listError) {
-    return {
-      recordings: [],
-      error: NextResponse.json(
-        { error: listError.message ?? "Failed to list voice recordings" },
-        { status: 500 }
-      ),
-    };
-  }
-
-  const entries = files ?? [];
-  const recordings: VoiceObject[] = [];
-
-  for (const f of entries) {
-    // Skip logical subfolders like the LHO directory so they don't appear as recordings
-    if (!f.name || f.name === "lho") continue;
-
-    const objectPath = `${prefix}/${f.name}`;
-    const { data: signed, error: urlError } = await storageClient.storage
-      .from(VOICE_BUCKET)
-      .createSignedUrl(objectPath, 60 * 60);
-
-    recordings.push({
-      name: f.name,
-      id: objectPath,
-      path: objectPath,
-      size: (f as { size?: number }).size ?? null,
-      created_at: (f as { created_at?: string }).created_at ?? null,
-      url: urlError ? null : signed?.signedUrl ?? null,
-    });
-  }
-
-  return { recordings };
+) {
+  const map = await listVoiceRecordingsForLeads(admin, admin, orgId, [lead]);
+  return map[lead.id] ?? [];
 }
 
 export async function GET(
@@ -145,9 +101,7 @@ export async function GET(
     if ("error" in leadResult) return leadResult.error;
     const { lead } = leadResult;
 
-    const { recordings, error } = await listVoiceObjects(admin, orgId, lead);
-    if (error) return error;
-
+    const recordings = await listVoiceForLead(admin, orgId, lead);
     return NextResponse.json({ recordings });
   } catch (err) {
     console.error("Voice Log GET error:", err);
@@ -179,8 +133,8 @@ export async function POST(
     if ("error" in leadResult) return leadResult.error;
     const { lead } = leadResult;
 
-    const { recordings: existing } = await listVoiceObjects(admin, orgId, lead);
-    if (existing.length >= MAX_RECORDINGS_PER_LEAD) {
+    const existingCount = await countLeadAssets(admin, orgId, lead.id, "voice");
+    if (existingCount >= MAX_RECORDINGS_PER_LEAD) {
       return NextResponse.json(
         { error: `Maximum of ${MAX_RECORDINGS_PER_LEAD} recordings reached for this lead` },
         { status: 400 }
@@ -234,9 +188,19 @@ export async function POST(
       );
     }
 
-    const { recordings, error } = await listVoiceObjects(admin, orgId, lead);
-    if (error) return error;
+    await insertLeadAsset(admin, {
+      organization_id: orgId,
+      campaign_id: lead.campaign_id,
+      lead_id: lead.id,
+      asset_type: "voice",
+      file_name: safeName,
+      file_path: objectPath,
+      file_size: file.size,
+      mime_type: mime,
+      uploaded_by: userId,
+    });
 
+    const recordings = await listVoiceForLead(admin, orgId, lead);
     return NextResponse.json({ recordings });
   } catch (err) {
     console.error("Voice Log POST error:", err);
@@ -276,7 +240,7 @@ export async function DELETE(
     }
 
     const expectedPrefix = `${orgId}/${lead.campaign_id}/${lead.id}/`;
-    if (!path.startsWith(expectedPrefix)) {
+    if (!path.startsWith(expectedPrefix) || path.includes("/lho/")) {
       return NextResponse.json({ error: "Invalid recording path" }, { status: 400 });
     }
 
@@ -291,13 +255,12 @@ export async function DELETE(
       );
     }
 
-    const { recordings, error } = await listVoiceObjects(admin, orgId, lead);
-    if (error) return error;
+    await deleteLeadAssetByPath(admin, orgId, path);
 
+    const recordings = await listVoiceForLead(admin, orgId, lead);
     return NextResponse.json({ recordings });
   } catch (err) {
     console.error("Voice Log DELETE error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

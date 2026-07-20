@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { buildRecordingDownloadFilename } from "@/lib/qa/recording-filename";
+import {
+  createSignedUrlMap,
+  fetchLeadAssetsByCampaign,
+  listVoiceFromStorageFallback,
+} from "@/lib/lead-assets";
 
 export const dynamic = "force-dynamic";
 
-const VOICE_BUCKET = "campaign-files";
 const SIGNED_URL_EXPIRY = 60 * 60; // 1 hour
 
 type LeadRow = {
@@ -22,12 +26,6 @@ type UserRow = {
   id: string;
   full_name: string | null;
   email: string | null;
-};
-
-type StorageFile = {
-  name: string;
-  size?: number;
-  created_at?: string;
 };
 
 export type RecordingEntry = {
@@ -63,7 +61,10 @@ export async function GET(
 ) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -89,7 +90,6 @@ export async function GET(
       return NextResponse.json({ error: "Campaign ID required" }, { status: 400 });
     }
 
-    // Verify campaign belongs to org
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
       .select("id, name")
@@ -102,20 +102,29 @@ export async function GET(
     }
     const campaignRow = campaign as { id: string; name: string };
 
-    // List all lead folders under this campaign in storage
-    const campaignPrefix = `${orgId}/${campaignId}`;
-    const { data: leadFolders, error: listErr } = await admin.storage
-      .from(VOICE_BUCKET)
-      .list(campaignPrefix, { limit: 1000 });
+    const assets = await fetchLeadAssetsByCampaign(admin, orgId, campaignId, "voice");
 
-    if (listErr) {
-      return NextResponse.json({ error: listErr.message }, { status: 500 });
+    // Group by lead; if catalog empty, fall back to Storage once (legacy / pre-backfill)
+    let assetsByLead = new Map<string, typeof assets>();
+    for (const row of assets) {
+      const list = assetsByLead.get(row.lead_id) ?? [];
+      list.push(row);
+      assetsByLead.set(row.lead_id, list);
     }
 
-    // These are subfolder entries (lead UUIDs) — exclude campaign-level files
-    const leadIds: string[] = (leadFolders ?? [])
-      .filter((f) => !f.name.includes(".") && f.name !== "lho")
-      .map((f) => f.name);
+    let leadIds = [...assetsByLead.keys()];
+
+    if (leadIds.length === 0) {
+      // Rare: no catalog rows — probe Storage campaign folder for lead UUIDs, then list per lead (fallback only)
+      const campaignPrefix = `${orgId}/${campaignId}`;
+      const { data: leadFolders } = await admin.storage
+        .from("campaign-files")
+        .list(campaignPrefix, { limit: 1000 });
+      const fallbackLeadIds = (leadFolders ?? [])
+        .filter((f) => !f.name.includes(".") && f.name !== "lho")
+        .map((f) => f.name);
+      leadIds = fallbackLeadIds;
+    }
 
     if (leadIds.length === 0) {
       return NextResponse.json({
@@ -124,7 +133,6 @@ export async function GET(
       });
     }
 
-    // Fetch lead rows (batch)
     const { data: leads, error: leadsErr } = await supabase
       .from("leads")
       .select("id, lead_id, name, first_name, last_name, email, assigned_agent_id")
@@ -138,8 +146,9 @@ export async function GET(
 
     const leadsArr = (leads ?? []) as LeadRow[];
 
-    // Fetch agent names (batch by unique agent ids)
-    const agentIds = [...new Set(leadsArr.map((l) => l.assigned_agent_id).filter(Boolean) as string[])];
+    const agentIds = [
+      ...new Set(leadsArr.map((l) => l.assigned_agent_id).filter(Boolean) as string[]),
+    ];
     const agentMap: Record<string, string> = {};
     if (agentIds.length > 0) {
       const { data: users } = await supabase
@@ -151,16 +160,12 @@ export async function GET(
       }
     }
 
+    const allDbPaths = assets.map((a) => a.file_path);
+    const urlByPath = await createSignedUrlMap(admin, allDbPaths, SIGNED_URL_EXPIRY);
+
     const leadsWithRecordings: LeadWithRecordings[] = [];
 
     for (const lead of leadsArr) {
-      const leadPrefix = `${campaignPrefix}/${lead.id}`;
-      const { data: files, error: filesErr } = await admin.storage
-        .from(VOICE_BUCKET)
-        .list(leadPrefix, { limit: 20, sortBy: { column: "created_at", order: "desc" } as never });
-
-      if (filesErr || !files || files.length === 0) continue;
-
       const agentName = lead.assigned_agent_id
         ? (agentMap[lead.assigned_agent_id] ?? "Unknown")
         : "Unknown";
@@ -170,31 +175,50 @@ export async function GET(
         lead.lead_id ||
         lead.id;
 
-      const recordings: RecordingEntry[] = [];
+      let recordings: RecordingEntry[] = [];
+      const leadAssets = assetsByLead.get(lead.id) ?? [];
 
-      for (const f of files as StorageFile[]) {
-        if (!f.name || f.name === "lho") continue;
-        const objectPath = `${leadPrefix}/${f.name}`;
-        const { data: signed } = await admin.storage
-          .from(VOICE_BUCKET)
-          .createSignedUrl(objectPath, SIGNED_URL_EXPIRY);
-
-        const dateStr = formatDate(f.created_at);
-        const displayName = buildRecordingDownloadFilename({
-          agentName,
-          campaignName: campaignRow.name,
-          email: lead.email,
-          date: dateStr || "Unknown-Date",
-          originalName: f.name,
+      if (leadAssets.length > 0) {
+        recordings = leadAssets.map((row) => {
+          const dateStr = formatDate(row.created_at);
+          return {
+            path: row.file_path,
+            url: urlByPath.get(row.file_path) ?? null,
+            display_name: buildRecordingDownloadFilename({
+              agentName,
+              campaignName: campaignRow.name,
+              email: lead.email,
+              date: dateStr || "Unknown-Date",
+              originalName: row.file_name,
+            }),
+            original_name: row.file_name,
+            size: row.file_size,
+            created_at: row.created_at,
+          };
         });
-
-        recordings.push({
-          path: objectPath,
-          url: signed?.signedUrl ?? null,
-          display_name: displayName,
-          original_name: f.name,
-          size: f.size ?? null,
-          created_at: f.created_at ?? null,
+      } else {
+        const fallback = await listVoiceFromStorageFallback(
+          admin,
+          orgId,
+          campaignId,
+          lead.id
+        );
+        recordings = fallback.map((f) => {
+          const dateStr = formatDate(f.created_at);
+          return {
+            path: f.path,
+            url: f.url,
+            display_name: buildRecordingDownloadFilename({
+              agentName,
+              campaignName: campaignRow.name,
+              email: lead.email,
+              date: dateStr || "Unknown-Date",
+              originalName: f.name,
+            }),
+            original_name: f.name,
+            size: f.size,
+            created_at: f.created_at,
+          };
         });
       }
 

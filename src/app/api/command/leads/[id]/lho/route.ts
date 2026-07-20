@@ -3,69 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getRoleNames, getProfile } from "@/lib/command/db";
+import { listLhoFilesForLead } from "@/lib/lead-assets";
 
 export const dynamic = "force-dynamic";
-
-const LHO_BUCKET = "campaign-files";
 
 type LeadRecord = {
   id: string;
   campaign_id: string;
   organization_id: string;
 };
-
-type LhoObject = {
-  name: string;
-  id: string;
-  path: string;
-  size: number | null;
-  created_at: string | null;
-  url: string | null;
-};
-
-async function listLhoObjects(
-  storageClient: NonNullable<ReturnType<typeof getAdminClientSafe>>,
-  orgId: string,
-  lead: LeadRecord
-): Promise<{ files: LhoObject[]; error?: NextResponse }> {
-  const prefix = `${orgId}/${lead.campaign_id}/${lead.id}/lho`;
-
-  const { data: entries, error: listError } = await storageClient.storage
-    .from(LHO_BUCKET)
-    .list(prefix, {
-      limit: 20,
-      sortBy: { column: "created_at", order: "desc" } as never,
-    });
-
-  if (listError) {
-    return {
-      files: [],
-      error: NextResponse.json(
-        { error: listError.message ?? "Failed to list LHO files" },
-        { status: 500 }
-      ),
-    };
-  }
-
-  const files: LhoObject[] = [];
-  for (const f of entries ?? []) {
-    const objectPath = `${prefix}/${f.name}`;
-    const { data: signed, error: urlError } = await storageClient.storage
-      .from(LHO_BUCKET)
-      .createSignedUrl(objectPath, 60 * 60);
-
-    files.push({
-      name: f.name,
-      id: objectPath,
-      path: objectPath,
-      size: (f as { size?: number }).size ?? null,
-      created_at: (f as { created_at?: string }).created_at ?? null,
-      url: urlError ? null : signed?.signedUrl ?? null,
-    });
-  }
-
-  return { files };
-}
 
 export async function GET(
   _request: Request,
@@ -127,9 +73,7 @@ export async function GET(
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
-    const { files, error } = await listLhoObjects(admin, orgId, lead);
-    if (error) return error;
-
+    const files = await listLhoFilesForLead(admin, admin, orgId, lead);
     return NextResponse.json({ files });
   } catch (err) {
     console.error("Command LHO GET error:", err);

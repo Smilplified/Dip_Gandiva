@@ -354,7 +354,29 @@ export function LeadForm({
         return;
       }
 
-      // Step 3 — refresh recordings list from server (signed URLs for playback)
+      // Step 3 — catalog path in lead_assets (avoids Storage.list N+1)
+      if (path) {
+        const registerRes = await fetch(`/api/agent/leads/${lead.id}/voice-lock/register`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path,
+            fileName: file.name,
+            mimeType: file.type || "audio/mpeg",
+            fileSize: file.size,
+          }),
+        });
+        if (!registerRes.ok) {
+          const regJson = await registerRes.json().catch(() => ({}));
+          message.warning(
+            (regJson as { error?: string })?.error ||
+              "Uploaded but catalog sync failed. Refresh if recording is missing."
+          );
+        }
+      }
+
+      // Step 4 — refresh recordings list from server (signed URLs for playback)
       const listRes = await fetch(`/api/agent/leads/${lead.id}/voice-lock`, {
         credentials: "include",
       });
@@ -370,7 +392,6 @@ export function LeadForm({
         );
       }
 
-      // Verify the file actually landed (path returned by presign)
       if (!path) {
         message.warning("Uploaded but could not confirm. Refresh to check.");
       } else {

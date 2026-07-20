@@ -597,6 +597,47 @@ export type Database = {
           created_at?: string;
         };
       };
+      lead_assets: {
+        Row: {
+          id: string;
+          organization_id: string;
+          campaign_id: string;
+          lead_id: string;
+          asset_type: "voice" | "lho";
+          file_name: string;
+          file_path: string;
+          file_size: number | null;
+          mime_type: string | null;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          campaign_id: string;
+          lead_id: string;
+          asset_type: "voice" | "lho";
+          file_name: string;
+          file_path: string;
+          file_size?: number | null;
+          mime_type?: string | null;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          campaign_id?: string;
+          lead_id?: string;
+          asset_type?: "voice" | "lho";
+          file_name?: string;
+          file_path?: string;
+          file_size?: number | null;
+          mime_type?: string | null;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+      };
       clients: {
         Row: {
           id: string;

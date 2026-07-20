@@ -2,17 +2,19 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { getLeadForLeadAssetApi } from "@/lib/lead-api-access";
+import { countLeadAssets } from "@/lib/lead-assets";
+import { MAX_VOICE_RECORDINGS_PER_LEAD, VOICE_BUCKET } from "@/lib/voice-recordings";
 
 export const dynamic = "force-dynamic";
 
-const VOICE_BUCKET = "campaign-files";
-const MAX_RECORDINGS_PER_LEAD = 4;
 const ALLOWED_AUDIO_TYPES = [
-  "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
-  "audio/webm", "audio/ogg",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
 ];
-
-type LeadRecord = { id: string; campaign_id: string; organization_id: string };
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200);
@@ -29,13 +31,19 @@ export async function POST(
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { data: profile } = await supabase
-      .from("users").select("organization_id").eq("id", user.id).single();
+      .from("users")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
     const orgId = (profile as { organization_id: string | null } | null)?.organization_id;
     if (!orgId) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
@@ -56,19 +64,14 @@ export async function POST(
     if ("error" in leadResult) return leadResult.error;
     const l = leadResult.lead;
 
-    // Check current recording count
-    const prefix = `${orgId}/${l.campaign_id}/${l.id}`;
-    const { data: existing } = await admin.storage
-      .from(VOICE_BUCKET).list(prefix, { limit: 10 });
-    const existingCount = (existing ?? []).filter((f) => f.name && f.name !== "lho").length;
-    if (existingCount >= MAX_RECORDINGS_PER_LEAD) {
+    const existingCount = await countLeadAssets(admin, orgId, l.id, "voice");
+    if (existingCount >= MAX_VOICE_RECORDINGS_PER_LEAD) {
       return NextResponse.json(
-        { error: `Maximum of ${MAX_RECORDINGS_PER_LEAD} recordings reached` },
+        { error: `Maximum of ${MAX_VOICE_RECORDINGS_PER_LEAD} recordings reached` },
         { status: 400 }
       );
     }
 
-    // Validate file metadata sent from client
     const body = await request.json();
     const fileName = typeof body?.fileName === "string" ? body.fileName : "recording";
     const mimeType = typeof body?.mimeType === "string" ? body.mimeType : "audio/mpeg";
@@ -80,7 +83,6 @@ export async function POST(
     const safeName = sanitizeFileName(fileName);
     const objectPath = `${orgId}/${l.campaign_id}/${l.id}/${crypto.randomUUID()}_${safeName}`;
 
-    // Create a signed upload URL (valid 5 minutes)
     const { data: signed, error: signErr } = await admin.storage
       .from(VOICE_BUCKET)
       .createSignedUploadUrl(objectPath);
