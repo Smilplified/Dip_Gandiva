@@ -14,6 +14,8 @@ import {
   resolveOpsReportAgentScope,
   resolveOpsReportCampaigns,
 } from "@/lib/mis/ops-performance-filters";
+import { canAccessMisOpsReports } from "@/lib/mis/ops-performance-access";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -61,16 +63,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("roles(name)")
-      .eq("user_id", user.id);
-    const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[]).map((r) =>
-      r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_")
-    );
-    const canView = roleNames.includes("mis") || roleNames.includes("admin");
-    if (!canView) {
-      return NextResponse.json({ error: "Forbidden: MIS or Admin role required" }, { status: 403 });
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    if (!canAccessMisOpsReports(roleNames)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const admin = getAdminClientSafe();

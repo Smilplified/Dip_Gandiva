@@ -39,6 +39,12 @@ const omInsightMenuItems: CrmSidebarItem[] = [
     label: "Revenue",
     href: "/tl/revenue-report",
   },
+  {
+    key: "/tl/reports",
+    icon: <BarChartOutlined />,
+    label: "Reports",
+    href: "/tl/reports",
+  },
   { key: "/tl/team", icon: <TeamOutlined />, label: "Team", href: "/tl/team" },
   {
     key: "/tl/campaigns",
@@ -101,6 +107,12 @@ const tlCampaignLeaderItems: CrmSidebarItem[] = [
 ];
 
 const omRevenueOnly: CrmSidebarItem[] = [
+  {
+    key: "/tl/reports",
+    icon: <BarChartOutlined />,
+    label: "Reports",
+    href: "/tl/reports",
+  },
   {
     key: "/tl/revenue-report",
     icon: <DollarOutlined />,

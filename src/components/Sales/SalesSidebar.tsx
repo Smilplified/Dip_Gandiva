@@ -31,13 +31,13 @@ const commonMenuItems: CrmSidebarItem[] = [
   { key: "/sales/deals", icon: <ProjectOutlined />, label: "Deals", href: "/sales/deals" },
   { key: "/sales/activities", icon: <ScheduleOutlined />, label: "Activities", href: "/sales/activities" },
   { key: "/sales/tasks", icon: <ScheduleOutlined />, label: "Follow-ups", href: "/sales/tasks" },
-  { key: "/sales/reports", icon: <BarChartOutlined />, label: "Reports", href: "/sales/reports" },
   { key: "/sales/settings", icon: <SettingOutlined />, label: "Settings", href: "/sales/settings" },
 ];
 
 const managerInsightItems: CrmSidebarItem[] = [
   { key: "/sales/team-performance", icon: <BarChartOutlined />, label: "Performance", href: "/sales/team-performance" },
   { key: "/sales/revenue-report", icon: <DollarOutlined />, label: "Revenue", href: "/sales/revenue-report" },
+  { key: "/sales/reports", icon: <BarChartOutlined />, label: "Reports", href: "/sales/reports" },
 ];
 
 const checkDataMenuItem: CrmSidebarItem = {

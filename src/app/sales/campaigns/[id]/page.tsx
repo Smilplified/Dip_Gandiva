@@ -28,6 +28,7 @@ import {
   DeleteOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
+  CheckCircleOutlined,
   FileOutlined,
   DownloadOutlined,
   MessageOutlined,
@@ -127,6 +128,7 @@ export default function SalesCampaignDetailPage() {
   }, [isFeedView, feedChatOpen, markRead]);
   const hasSalesAccess =
     hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
+  const canCompleteCampaign = hasRole("sales_manager") || hasRole("admin");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [files, setFiles] = useState<CampaignFile[]>([]);
@@ -207,7 +209,9 @@ export default function SalesCampaignDetailPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error("Failed");
-      message.success("Campaign updated");
+      message.success(
+        newStatus === "completed" ? "Campaign marked as completed" : "Campaign updated"
+      );
       fetchCampaign(id);
     } catch {
       message.error("Failed to update campaign");
@@ -507,6 +511,17 @@ export default function SalesCampaignDetailPage() {
                   Pause
                 </Button>
               )}
+              {canCompleteCampaign &&
+                (campaign.status === "active" || campaign.status === "paused") && (
+                  <Popconfirm
+                    title="Mark campaign as completed?"
+                    description="This will set the campaign status to Completed across the system."
+                    onConfirm={() => handleStatusChange("completed")}
+                    okText="Completed"
+                  >
+                    <Button icon={<CheckCircleOutlined />}>Completed</Button>
+                  </Popconfirm>
+                )}
               <Popconfirm
                 title="Delete campaign?"
                 description="This action cannot be undone."

@@ -24,7 +24,6 @@ const salesMenuItems: CrmSidebarItem[] = [
   { key: "/sales/campaigns", icon: <FundProjectionScreenOutlined />, label: "Campaigns", href: "/sales/campaigns" },
   { key: "/sales/deals", icon: <ProjectOutlined />, label: "Deals", href: "/sales/deals" },
   { key: "/sales/accounts", icon: <CustomerServiceOutlined />, label: "Companies", href: "/sales/accounts" },
-  { key: "/sales/reports", icon: <BarChartOutlined />, label: "Reports", href: "/sales/reports" },
   { key: "/sales/activities", icon: <FileTextOutlined />, label: "Activities", href: "/sales/activities" },
   { key: "/sales/settings", icon: <SettingOutlined />, label: "Settings", href: "/sales/settings" },
 ];

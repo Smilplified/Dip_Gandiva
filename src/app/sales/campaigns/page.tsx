@@ -19,6 +19,8 @@ import {
   Popconfirm,
   Input,
   Select,
+  Modal,
+  Form,
 } from "antd";
 import {
   FundProjectionScreenOutlined,
@@ -26,13 +28,14 @@ import {
   TeamOutlined,
   PlusOutlined,
   EyeOutlined,
-  EditOutlined,
-  DeleteOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
+  CheckCircleOutlined,
+  CopyOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
+import { buildDefaultDuplicateCampaignName } from "@/lib/campaign/duplicate-campaign";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
 import {
   serverTableInitialLoading,
@@ -75,9 +78,13 @@ export default function SalesCampaignsPage() {
   const { hasRole, isInitialized } = useAuth();
   const hasSalesAccess =
     hasRole("sales") || hasRole("sales_manager") || hasRole("admin");
+  const canCompleteCampaign = hasRole("sales_manager") || hasRole("admin");
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [duplicateTarget, setDuplicateTarget] = useState<CampaignRow | null>(null);
+  const [duplicateName, setDuplicateName] = useState("");
+  const [duplicating, setDuplicating] = useState(false);
   const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination();
 
@@ -155,27 +162,59 @@ export default function SalesCampaignsPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) throw new Error("Failed");
-      message.success("Campaign updated");
+      message.success(
+        newStatus === "completed" ? "Campaign marked as completed" : "Campaign updated"
+      );
       refreshLists();
     } catch {
       message.error("Failed to update campaign");
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const openDuplicateModal = (campaign: CampaignRow) => {
+    setDuplicateTarget(campaign);
+    setDuplicateName(buildDefaultDuplicateCampaignName(campaign.name));
+  };
+
+  const closeDuplicateModal = () => {
+    setDuplicateTarget(null);
+    setDuplicateName("");
+  };
+
+  const handleDuplicateConfirm = async () => {
+    if (!duplicateTarget) return;
+    const trimmed = duplicateName.trim();
+    if (!trimmed) {
+      message.error("Campaign name is required");
+      return;
+    }
+    setDuplicating(true);
     try {
-      const res = await fetch(`/api/tl/campaigns/${id}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/tl/campaigns/${duplicateTarget.id}/duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ name: trimmed }),
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to delete");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to duplicate campaign");
+
+      if (data.file_errors?.length) {
+        message.warning(
+          `Campaign duplicated. ${data.files_copied ?? 0} file(s) copied; some files could not be copied.`
+        );
+      } else {
+        message.success("Campaign duplicated successfully");
       }
-      message.success("Campaign deleted");
+      closeDuplicateModal();
       refreshLists();
+      if (data.campaign_id) {
+        router.push(`/sales/campaigns/${data.campaign_id}`);
+      }
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Failed to delete campaign");
+      message.error(err instanceof Error ? err.message : "Failed to duplicate campaign");
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -336,7 +375,7 @@ export default function SalesCampaignsPage() {
     {
       title: "Actions",
       key: "actions",
-      width: 200,
+      width: 180,
       fixed: "right" as const,
       render: (_: unknown, r: CampaignRow) => (
         <div className="table-actions-cell" style={{ display: "flex", gap: 8, flexWrap: "nowrap" }}>
@@ -348,12 +387,12 @@ export default function SalesCampaignsPage() {
               onClick={() => router.push(`/sales/campaigns/${r.id}`)}
             />
           </Tooltip>
-          <Tooltip title="Edit">
+          <Tooltip title="Duplicate">
             <Button
               type="text"
               size="small"
-              icon={<EditOutlined />}
-              onClick={() => router.push(`/sales/campaigns/create?id=${r.id}`)}
+              icon={<CopyOutlined />}
+              onClick={() => openDuplicateModal(r)}
             />
           </Tooltip>
           {r.status === "draft" || r.status === "paused" ? (
@@ -374,18 +413,29 @@ export default function SalesCampaignsPage() {
                 onClick={() => handleStatusChange(r.id, "paused")}
               />
             </Tooltip>
-          ) : null}
-          <Popconfirm
-            title="Delete campaign?"
-            description="This action cannot be undone. Related leads and assignments may be affected."
-            onConfirm={() => handleDelete(r.id)}
-            okText="Delete"
-            okType="danger"
-          >
-            <Tooltip title="Delete">
-              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+          ) : r.status === "completed" ? (
+            <Tooltip title="Completed">
+              <Button
+                type="text"
+                size="small"
+                icon={<CheckCircleOutlined style={{ color: "#52c41a" }} />}
+                tabIndex={-1}
+                style={{ cursor: "default" }}
+              />
             </Tooltip>
-          </Popconfirm>
+          ) : null}
+          {canCompleteCampaign && (r.status === "active" || r.status === "paused") ? (
+            <Tooltip title="Mark completed">
+              <Popconfirm
+                title="Mark campaign as completed?"
+                description="This will set the campaign status to Completed across the system."
+                onConfirm={() => handleStatusChange(r.id, "completed")}
+                okText="Completed"
+              >
+                <Button type="text" size="small" icon={<CheckCircleOutlined />} />
+              </Popconfirm>
+            </Tooltip>
+          ) : null}
         </div>
       ),
     },
@@ -480,6 +530,31 @@ export default function SalesCampaignsPage() {
           </Card>
         </>
       )}
+
+      <Modal
+        title="Duplicate campaign"
+        open={duplicateTarget != null}
+        onCancel={closeDuplicateModal}
+        onOk={handleDuplicateConfirm}
+        okText="Create duplicate"
+        confirmLoading={duplicating}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+          Copies campaign settings, client, creatives, and files. Leads and team/agent
+          assignments are not copied.
+        </Typography.Paragraph>
+        <Form layout="vertical">
+          <Form.Item label="Campaign name" required style={{ marginBottom: 0 }}>
+            <Input
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              placeholder="Enter campaign name"
+              maxLength={255}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }
