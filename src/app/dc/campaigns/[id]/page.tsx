@@ -186,8 +186,6 @@ export default function DCCampaignDetailPage() {
     showLhoFile: true,
     lhoApiPrefix: "/api/dc/leads",
     pagination: { current: leadsPage, pageSize: leadsPageSize },
-    showVoiceRecordings: true,
-    onVoiceRecordingsChange: () => { void fetchData(); },
   });
 
   return (

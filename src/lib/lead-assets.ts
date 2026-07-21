@@ -45,6 +45,15 @@ type StorageClient = Pick<SupabaseClient, "storage">;
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
+/**
+ * Legacy Storage.list path for voice/LHO when lead_assets has no row.
+ * Off by default — each list() call hits storage.search and burns Disk IO.
+ * Set ENABLE_STORAGE_LIST_FALLBACK=true only for one-off backfill/debug.
+ */
+export function isStorageListFallbackEnabled(): boolean {
+  return process.env.ENABLE_STORAGE_LIST_FALLBACK === "true";
+}
+
 export function assetRowToVoiceRecording(
   row: Pick<LeadAssetRow, "file_name" | "file_path" | "file_size" | "created_at">,
   url: string | null
@@ -270,7 +279,7 @@ export async function listLhoFromStorageFallback(
 
 /**
  * Batch-list voice recordings for many leads from lead_assets.
- * Leads with zero DB rows fall back to Storage.list (rollout safety).
+ * Leads with zero DB rows return [] unless ENABLE_STORAGE_LIST_FALLBACK=true.
  */
 export async function listVoiceRecordingsForLeads(
   db: DbClient,
@@ -314,7 +323,7 @@ export async function listVoiceRecordingsForLeads(
     );
   }
 
-  if (missing.length > 0) {
+  if (missing.length > 0 && isStorageListFallbackEnabled()) {
     const fallbacks = await Promise.all(
       missing.map(async (lead) => ({
         leadId: lead.id,
@@ -342,6 +351,7 @@ export async function listLhoFilesForLead(
 ): Promise<VoiceRecording[]> {
   const rows = await fetchLeadAssetsByLeadIds(db, orgId, [lead.id], "lho");
   if (rows.length === 0) {
+    if (!isStorageListFallbackEnabled()) return [];
     return listLhoFromStorageFallback(storageClient, orgId, lead.campaign_id, lead.id);
   }
   const urlByPath = await createSignedUrlMap(

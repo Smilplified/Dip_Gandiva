@@ -400,8 +400,6 @@ export default function QACampaignDetailPage() {
     onEdit: openEditLeadDrawer,
     pagination: { current: leadsPage, pageSize: leadsPageSize },
     showDeliveryStatus: true,
-    showVoiceRecordings: true,
-    onVoiceRecordingsChange: id ? () => { void fetchCampaign(id); } : undefined,
   });
 
   const headerCode = campaignHeaderDisplayCode(campaign);

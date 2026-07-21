@@ -192,23 +192,62 @@ export default function NotificationBell() {
     [user, offset]
   );
 
-  // ── Initial load + unread count polling ───────────────────────────────────
+  // ── Unread badge: poll count only (full list loads when drawer opens) ─────
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/notifications/unread-count");
+      if (!res.ok) return;
+      const json = (await res.json()) as { unread_count?: number };
+      setUnreadCount(json.unread_count ?? 0);
+    } catch {
+      // ignore
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    void fetchNotifications(true);
+    void fetchUnreadCount();
 
-    // Poll unread count every 60 s as a fallback
-    const timer = setInterval(() => {
-      fetch("/api/notifications?limit=1&offset=0")
-        .then((r) => r.json())
-        .then((j) => setUnreadCount(j.unread_count ?? 0))
-        .catch(() => {});
-    }, 60_000);
+    const POLL_MS = 120_000;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    const startPolling = () => {
+      if (timer) return;
+      timer = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          void fetchUnreadCount();
+        }
+      }, POLL_MS);
+    };
+
+    const stopPolling = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void fetchUnreadCount();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    if (document.visibilityState === "visible") {
+      startPolling();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [user, fetchUnreadCount]);
 
   // ── Supabase Realtime subscription ────────────────────────────────────────
 

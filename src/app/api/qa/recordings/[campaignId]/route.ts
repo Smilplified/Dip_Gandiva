@@ -2,11 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { buildRecordingDownloadFilename } from "@/lib/qa/recording-filename";
-import {
-  createSignedUrlMap,
-  fetchLeadAssetsByCampaign,
-  listVoiceFromStorageFallback,
-} from "@/lib/lead-assets";
+import { createSignedUrlMap, fetchLeadAssetsByCampaign } from "@/lib/lead-assets";
 
 export const dynamic = "force-dynamic";
 
@@ -104,27 +100,14 @@ export async function GET(
 
     const assets = await fetchLeadAssetsByCampaign(admin, orgId, campaignId, "voice");
 
-    // Group by lead; if catalog empty, fall back to Storage once (legacy / pre-backfill)
-    let assetsByLead = new Map<string, typeof assets>();
+    const assetsByLead = new Map<string, typeof assets>();
     for (const row of assets) {
       const list = assetsByLead.get(row.lead_id) ?? [];
       list.push(row);
       assetsByLead.set(row.lead_id, list);
     }
 
-    let leadIds = [...assetsByLead.keys()];
-
-    if (leadIds.length === 0) {
-      // Rare: no catalog rows — probe Storage campaign folder for lead UUIDs, then list per lead (fallback only)
-      const campaignPrefix = `${orgId}/${campaignId}`;
-      const { data: leadFolders } = await admin.storage
-        .from("campaign-files")
-        .list(campaignPrefix, { limit: 1000 });
-      const fallbackLeadIds = (leadFolders ?? [])
-        .filter((f) => !f.name.includes(".") && f.name !== "lho")
-        .map((f) => f.name);
-      leadIds = fallbackLeadIds;
-    }
+    const leadIds = [...assetsByLead.keys()];
 
     if (leadIds.length === 0) {
       return NextResponse.json({
@@ -166,6 +149,9 @@ export async function GET(
     const leadsWithRecordings: LeadWithRecordings[] = [];
 
     for (const lead of leadsArr) {
+      const leadAssets = assetsByLead.get(lead.id) ?? [];
+      if (leadAssets.length === 0) continue;
+
       const agentName = lead.assigned_agent_id
         ? (agentMap[lead.assigned_agent_id] ?? "Unknown")
         : "Unknown";
@@ -175,63 +161,32 @@ export async function GET(
         lead.lead_id ||
         lead.id;
 
-      let recordings: RecordingEntry[] = [];
-      const leadAssets = assetsByLead.get(lead.id) ?? [];
+      const recordings: RecordingEntry[] = leadAssets.map((row) => {
+        const dateStr = formatDate(row.created_at);
+        return {
+          path: row.file_path,
+          url: urlByPath.get(row.file_path) ?? null,
+          display_name: buildRecordingDownloadFilename({
+            agentName,
+            campaignName: campaignRow.name,
+            email: lead.email,
+            date: dateStr || "Unknown-Date",
+            originalName: row.file_name,
+          }),
+          original_name: row.file_name,
+          size: row.file_size,
+          created_at: row.created_at,
+        };
+      });
 
-      if (leadAssets.length > 0) {
-        recordings = leadAssets.map((row) => {
-          const dateStr = formatDate(row.created_at);
-          return {
-            path: row.file_path,
-            url: urlByPath.get(row.file_path) ?? null,
-            display_name: buildRecordingDownloadFilename({
-              agentName,
-              campaignName: campaignRow.name,
-              email: lead.email,
-              date: dateStr || "Unknown-Date",
-              originalName: row.file_name,
-            }),
-            original_name: row.file_name,
-            size: row.file_size,
-            created_at: row.created_at,
-          };
-        });
-      } else {
-        const fallback = await listVoiceFromStorageFallback(
-          admin,
-          orgId,
-          campaignId,
-          lead.id
-        );
-        recordings = fallback.map((f) => {
-          const dateStr = formatDate(f.created_at);
-          return {
-            path: f.path,
-            url: f.url,
-            display_name: buildRecordingDownloadFilename({
-              agentName,
-              campaignName: campaignRow.name,
-              email: lead.email,
-              date: dateStr || "Unknown-Date",
-              originalName: f.name,
-            }),
-            original_name: f.name,
-            size: f.size,
-            created_at: f.created_at,
-          };
-        });
-      }
-
-      if (recordings.length > 0) {
-        leadsWithRecordings.push({
-          id: lead.id,
-          lead_id: lead.lead_id,
-          name: leadName,
-          email: lead.email ?? null,
-          agent_name: agentName,
-          recordings,
-        });
-      }
+      leadsWithRecordings.push({
+        id: lead.id,
+        lead_id: lead.lead_id,
+        name: leadName,
+        email: lead.email ?? null,
+        agent_name: agentName,
+        recordings,
+      });
     }
 
     return NextResponse.json({

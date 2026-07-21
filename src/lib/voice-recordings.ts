@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import {
+  isStorageListFallbackEnabled,
   listVoiceFromStorageFallback,
   listVoiceRecordingsForLeads,
   VOICE_BUCKET,
@@ -40,6 +41,7 @@ export async function listLeadVoiceRecordings(
     ]);
     return map[leadId] ?? [];
   }
+  if (!isStorageListFallbackEnabled()) return [];
   return listVoiceFromStorageFallback(storageClient, orgId, campaignId, leadId);
 }
 

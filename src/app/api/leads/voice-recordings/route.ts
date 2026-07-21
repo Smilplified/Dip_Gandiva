@@ -13,8 +13,8 @@ type LeadRow = { id: string; campaign_id: string; organization_id: string };
 /**
  * Batch voice recordings for the leads visible on one table page.
  * Reads lead_assets catalog (one query) and mints signed URLs in a single
- * createSignedUrls call. Falls back to Storage.list per lead only when the
- * catalog has no rows for that lead.
+ * createSignedUrls call. Missing catalog rows return [] unless
+ * ENABLE_STORAGE_LIST_FALLBACK=true.
  */
 export async function POST(request: Request) {
   try {

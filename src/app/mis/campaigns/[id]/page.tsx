@@ -532,12 +532,6 @@ export default function MISCampaignDetailPage() {
         showChannel: false,
         showAuditBy: true,
         showCreatedBy: true,
-        showVoiceRecordings: true,
-        onVoiceRecordingsChange: id
-          ? () => {
-              void loadCampaignLeads(id, { silent: true });
-            }
-          : undefined,
       }),
     [
       handleDeliveryStatusChange,

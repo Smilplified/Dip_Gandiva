@@ -706,8 +706,6 @@ export default function CampaignDashboard({
         ? clientViewerShowsLhoFile(campaign.campaign_type)
         : true,
       pagination: { current: leadPage, pageSize: leadPageSize },
-      showVoiceRecordings: true,
-      onVoiceRecordingsChange: () => { void fetchLeads(); },
     }) as unknown as ColumnsType<LeadRow>
   );
 

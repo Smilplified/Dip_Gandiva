@@ -616,8 +616,6 @@ export default function CampaignDetailPage() {
     onEdit: openEditLeadDrawer,
     pagination: { current: page, pageSize },
     showDeliveryStatus: true,
-    showVoiceRecordings: true,
-    onVoiceRecordingsChange: id ? () => { void fetchCampaign(id); } : undefined,
   });
 
   const overviewRowStyle = {
