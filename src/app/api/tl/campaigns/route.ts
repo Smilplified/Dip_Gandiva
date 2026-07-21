@@ -36,10 +36,36 @@ export async function GET(request: NextRequest) {
 
     const { page, limit, offset } = parseListPagination(request.nextUrl.searchParams);
     const statusFilter = request.nextUrl.searchParams.get("status")?.trim() || null;
+    const clientIdFilter = request.nextUrl.searchParams.get("client_id")?.trim() || null;
+    const clientNameFilter = request.nextUrl.searchParams.get("client_name")?.trim() || null;
     const searchRaw = request.nextUrl.searchParams.get("q")?.trim() || "";
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const seeAllOrgCampaigns = hasOrgWideCampaignAccess(roleNames);
+
+    let scopedCampaignIds: string[] | null = null;
+    if (!seeAllOrgCampaigns) {
+      const junctionCampaignIds = await fetchCampaignIdsForTeamLeader(supabase, user.id, orgId);
+      if (junctionCampaignIds.length > 0) {
+        scopedCampaignIds = junctionCampaignIds;
+      }
+    }
+
+    const applyCampaignScope = <
+      T extends {
+        or: (filters: string) => T;
+        eq: (column: string, value: string) => T;
+      },
+    >(
+      query: T
+    ): T => {
+      if (seeAllOrgCampaigns) return query;
+      if (scopedCampaignIds && scopedCampaignIds.length > 0) {
+        const idList = scopedCampaignIds.map((id) => `"${id}"`).join(",");
+        return query.or(`assigned_team_leader_id.eq.${user.id},id.in.(${idList})`);
+      }
+      return query.eq("assigned_team_leader_id", user.id);
+    };
 
     let campaignsQuery = supabase
       .from("campaigns")
@@ -54,20 +80,16 @@ export async function GET(request: NextRequest) {
       )
       .eq("organization_id", orgId);
 
-    if (!seeAllOrgCampaigns) {
-      const junctionCampaignIds = await fetchCampaignIdsForTeamLeader(supabase, user.id, orgId);
-      if (junctionCampaignIds.length > 0) {
-        const idList = junctionCampaignIds.map((id) => `"${id}"`).join(",");
-        campaignsQuery = campaignsQuery.or(
-          `assigned_team_leader_id.eq.${user.id},id.in.(${idList})`
-        );
-      } else {
-        campaignsQuery = campaignsQuery.eq("assigned_team_leader_id", user.id);
-      }
-    }
+    campaignsQuery = applyCampaignScope(campaignsQuery);
 
     if (statusFilter) {
       campaignsQuery = campaignsQuery.eq("status", statusFilter);
+    }
+
+    if (clientIdFilter) {
+      campaignsQuery = campaignsQuery.eq("client_id", clientIdFilter);
+    } else if (clientNameFilter) {
+      campaignsQuery = campaignsQuery.eq("client_name", clientNameFilter);
     }
 
     if (searchRaw.length > 0) {
@@ -78,9 +100,21 @@ export async function GET(request: NextRequest) {
       if (orFilter) campaignsQuery = campaignsQuery.or(orFilter);
     }
 
-    const { data: campaigns, error: campaignsError, count } = await campaignsQuery
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    let clientsOptionsQuery = supabase
+      .from("campaigns")
+      .select("client_id, client_name")
+      .eq("organization_id", orgId)
+      .not("client_name", "is", null);
+
+    clientsOptionsQuery = applyCampaignScope(clientsOptionsQuery);
+
+    const [
+      { data: campaigns, error: campaignsError, count },
+      { data: clientOptionRows },
+    ] = await Promise.all([
+      campaignsQuery.order("created_at", { ascending: false }).range(offset, offset + limit - 1),
+      clientsOptionsQuery,
+    ]);
 
     if (campaignsError) {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });
@@ -158,9 +192,28 @@ export async function GET(request: NextRequest) {
       );
     });
 
+    const clientOptionsByKey = new Map<string, { id: string | null; name: string }>();
+    for (const row of (clientOptionRows ?? []) as {
+      client_id: string | null;
+      client_name: string | null;
+    }[]) {
+      const name = row.client_name?.trim();
+      if (!name) continue;
+      const key = row.client_id ?? `name:${name.toLowerCase()}`;
+      if (!clientOptionsByKey.has(key)) {
+        clientOptionsByKey.set(key, { id: row.client_id, name });
+      }
+    }
+    const clientOptions = [...clientOptionsByKey.values()].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
     return NextResponse.json({
       campaigns: campaignsWithCounts,
       pagination: buildPaginationMeta(page, limit, total),
+      filterOptions: {
+        clients: clientOptions,
+      },
     });
   } catch (err) {
     console.error("Fetch campaigns error:", err);

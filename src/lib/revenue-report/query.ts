@@ -10,6 +10,7 @@ import { fetchCampaignIdsForTeamLeader } from "@/lib/campaign/team-leader-assign
 import {
   buildCampaignRevenueSnapshot,
   resolveCampaignChannel,
+  resolveContractRevenue,
   aggregateRevenueReportSummary,
   type CampaignRevenueSnapshot,
 } from "@/lib/campaign-revenue-metrics";
@@ -350,6 +351,23 @@ function isTimestampInPeriod(ts: string, dateFrom: string, dateTo: string): bool
   );
 }
 
+/** Booked / allocation metrics: campaign start_date must fall in the selected period (end_date ignored). */
+export function isCampaignStartDateInPeriod(
+  startDate: string | null | undefined,
+  dateFrom: string,
+  dateTo: string
+): boolean {
+  if (!startDate?.trim()) return false;
+  const start = dayjs(startDate.trim());
+  if (!start.isValid()) return false;
+  const from = dayjs(dateFrom).startOf("day");
+  const to = dayjs(dateTo).endOf("day");
+  return (
+    (start.isAfter(from) || start.isSame(from, "day")) &&
+    (start.isBefore(to) || start.isSame(to, "day"))
+  );
+}
+
 export async function aggregateLeadMetricsByCampaignInPeriod(
   supabase: SupabaseClient,
   orgId: string,
@@ -422,8 +440,32 @@ export async function aggregateLeadMetricsByCampaignInPeriod(
 export type FetchRevenueReportRowsOptions = {
   date_from: string;
   date_to: string;
+  /** When true, hide campaigns with no period lead activity unless they have contract/booked value. */
   activityOnly?: boolean;
 };
+
+function campaignHasContractValue(campaign: CampaignDbRow): boolean {
+  const contract = resolveContractRevenue(campaign);
+  return contract != null && contract > 0;
+}
+
+function applyContractMetricsPeriodFilter(
+  snapshot: CampaignRevenueSnapshot,
+  startDate: string | null | undefined,
+  dateFrom: string | undefined,
+  dateTo: string | undefined
+): CampaignRevenueSnapshot {
+  if (!dateFrom || !dateTo) return snapshot;
+  if (isCampaignStartDateInPeriod(startDate, dateFrom, dateTo)) return snapshot;
+
+  return {
+    ...snapshot,
+    booked: null,
+    pending_revenue: null,
+    total_allocation: 0,
+    pending_allocation: null,
+  };
+}
 
 export type FetchRevenueReportResult = {
   rows: RevenueReportCampaignRow[];
@@ -551,7 +593,14 @@ export async function fetchRevenueReportRows(
 
   for (const c of campaigns) {
     const periodMetrics = periodAggregation?.byCampaign[c.id];
-    if (options?.activityOnly && (!periodMetrics || periodMetrics.total === 0)) {
+    const hasPeriodActivity = (periodMetrics?.total ?? 0) > 0;
+    const startInPeriod =
+      options?.date_from && options?.date_to
+        ? isCampaignStartDateInPeriod(c.start_date, options.date_from, options.date_to)
+        : true;
+    const hasBookedInPeriod = startInPeriod && campaignHasContractValue(c);
+
+    if (options?.activityOnly && !hasPeriodActivity && !hasBookedInPeriod) {
       continue;
     }
 
@@ -575,11 +624,16 @@ export async function fetchRevenueReportRows(
 
     const dq = periodMetrics?.dq ?? 0;
     const channel = resolveCampaignChannel(metric?.channel_split ?? null, c.campaign_type);
-    const snapshot = buildCampaignRevenueSnapshot(campaignForSnapshot, counts, {
-      leadsRejected: dq,
-      totalCampaignSpend: metric?.total_campaign_spend,
-      deliveredLeads: periodMetrics?.delivered ?? metric?.total_leads_delivered,
-    });
+    const snapshot = applyContractMetricsPeriodFilter(
+      buildCampaignRevenueSnapshot(campaignForSnapshot, counts, {
+        leadsRejected: dq,
+        totalCampaignSpend: metric?.total_campaign_spend,
+        deliveredLeads: periodMetrics?.delivered ?? metric?.total_leads_delivered,
+      }),
+      c.start_date,
+      options?.date_from,
+      options?.date_to
+    );
 
     const tlNames = tlByCampaign[c.id] ?? [];
     if (c.assigned_team_leader_id) {

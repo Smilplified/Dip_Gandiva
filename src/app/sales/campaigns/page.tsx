@@ -72,6 +72,14 @@ type Stats = {
   totalLeads: number;
 };
 
+type ClientFilterOption = { id: string | null; name: string };
+
+type CampaignsListResponse = {
+  filterOptions?: {
+    clients?: ClientFilterOption[];
+  };
+};
+
 export default function SalesCampaignsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -82,6 +90,7 @@ export default function SalesCampaignsPage() {
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState<string | null>(null);
   const [duplicateTarget, setDuplicateTarget] = useState<CampaignRow | null>(null);
   const [duplicateName, setDuplicateName] = useState("");
   const [duplicating, setDuplicating] = useState(false);
@@ -95,7 +104,7 @@ export default function SalesCampaignsPage() {
 
   useEffect(() => {
     resetPage();
-  }, [debouncedSearch, statusFilter, resetPage]);
+  }, [debouncedSearch, statusFilter, clientFilter, resetPage]);
 
   const listEnabled = isInitialized && hasSalesAccess;
 
@@ -113,6 +122,7 @@ export default function SalesCampaignsPage() {
   const {
     items: campaigns,
     pagination,
+    response,
     isLoading: campaignsLoading,
     error: campaignsError,
   } = usePaginatedListQuery<CampaignRow>({
@@ -123,10 +133,19 @@ export default function SalesCampaignsPage() {
       limit: pageSize,
       q: debouncedSearch || undefined,
       status: statusFilter || undefined,
+      client_id: clientFilter?.startsWith("id:")
+        ? clientFilter.slice(3)
+        : undefined,
+      client_name: clientFilter?.startsWith("name:")
+        ? clientFilter.slice(5)
+        : undefined,
     },
     listField: "campaigns",
     enabled: listEnabled,
   });
+
+  const clientOptions =
+    (response as CampaignsListResponse | undefined)?.filterOptions?.clients ?? [];
 
   useSyncListPaginationTotal(pagination, applyPaginationMeta);
 
@@ -514,6 +533,19 @@ export default function SalesCampaignsPage() {
                   options={statusOptions}
                   style={{ width: 160 }}
                 />
+                <Select
+                  placeholder="Filter by client"
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  value={clientFilter}
+                  onChange={setClientFilter}
+                  options={clientOptions.map((c) => ({
+                    value: c.id ? `id:${c.id}` : `name:${c.name}`,
+                    label: c.name,
+                  }))}
+                  style={{ width: 220 }}
+                />
               </div>
             }
           >
@@ -524,7 +556,12 @@ export default function SalesCampaignsPage() {
               rowKey="id"
               scroll={{ x: 1920 }}
               pagination={tablePagination}
-              locale={{ emptyText: debouncedSearch || statusFilter ? "No campaigns match the filter." : "No campaigns yet. Create your first campaign." }}
+              locale={{
+                emptyText:
+                  debouncedSearch || statusFilter || clientFilter
+                    ? "No campaigns match the filter."
+                    : "No campaigns yet. Create your first campaign.",
+              }}
               tableLayout="fixed"
             />
           </Card>

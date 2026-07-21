@@ -157,6 +157,245 @@ const STATUS_FILTER_OPTIONS = [
   { value: "completed", label: "Completed" },
 ];
 
+function uniqueColumnFilters(
+  rows: RevenueReportCampaignRow[],
+  getValue: (row: RevenueReportCampaignRow) => string | null | undefined
+): { text: string; value: string }[] {
+  const seen = new Set<string>();
+  const filters: { text: string; value: string }[] = [];
+  for (const row of rows) {
+    const value = getValue(row)?.trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    filters.push({ text: value, value });
+  }
+  return filters.sort((a, b) => a.text.localeCompare(b.text));
+}
+
+function compareNullableStrings(
+  a: string | null | undefined,
+  b: string | null | undefined
+): number {
+  return (a ?? "").localeCompare(b ?? "");
+}
+
+function compareNullableNumbers(
+  a: number | null | undefined,
+  b: number | null | undefined
+): number {
+  return (a ?? 0) - (b ?? 0);
+}
+
+function buildCampaignColumns(
+  campaigns: RevenueReportCampaignRow[]
+): ColumnsType<RevenueReportCampaignRow> {
+  const ownerFilters = uniqueColumnFilters(campaigns, (r) => r.campaign_owner);
+  const channelFilters = uniqueColumnFilters(campaigns, (r) => r.channel);
+  const aggregatorFilters = uniqueColumnFilters(campaigns, (r) => r.aggregator);
+  const leadTypeFilters = uniqueColumnFilters(campaigns, (r) => r.lead_type);
+  const regionFilters = uniqueColumnFilters(campaigns, (r) => r.geography);
+
+  return [
+    {
+      title: "Campaign Owner",
+      key: "campaign_owner",
+      width: 160,
+      ellipsis: true,
+      sorter: (a, b) => compareNullableStrings(a.campaign_owner, b.campaign_owner),
+      filters: ownerFilters.length > 1 ? ownerFilters : undefined,
+      onFilter: (value, record) => (record.campaign_owner?.trim() ?? "") === String(value),
+      render: (_v, r) => {
+        const owner = r.campaign_owner?.trim() || "—";
+        const tl = r.assigned_team_leader_name?.trim();
+        if (!tl) return owner;
+        return (
+          <div>
+            <div>{owner}</div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              TL: {tl}
+            </Text>
+          </div>
+        );
+      },
+    },
+    {
+      title: "Channel",
+      dataIndex: "channel",
+      key: "channel",
+      width: 110,
+      sorter: (a, b) => compareNullableStrings(a.channel, b.channel),
+      filters: channelFilters.length > 1 ? channelFilters : undefined,
+      onFilter: (value, record) => (record.channel?.trim() ?? "") === String(value),
+    },
+    {
+      title: "Aggregator",
+      dataIndex: "aggregator",
+      key: "aggregator",
+      width: 110,
+      ellipsis: true,
+      sorter: (a, b) => compareNullableStrings(a.aggregator, b.aggregator),
+      filters: aggregatorFilters.length > 1 ? aggregatorFilters : undefined,
+      onFilter: (value, record) => (record.aggregator?.trim() ?? "") === String(value),
+    },
+    {
+      title: "Campaign Name",
+      dataIndex: "name",
+      key: "name",
+      width: 180,
+      ellipsis: true,
+      sorter: (a, b) => compareNullableStrings(a.name, b.name),
+    },
+    {
+      title: "Lead Type",
+      dataIndex: "lead_type",
+      key: "lead_type",
+      width: 110,
+      ellipsis: true,
+      sorter: (a, b) => compareNullableStrings(a.lead_type, b.lead_type),
+      filters: leadTypeFilters.length > 1 ? leadTypeFilters : undefined,
+      onFilter: (value, record) => (record.lead_type?.trim() ?? "") === String(value),
+    },
+    {
+      title: "Start Date",
+      dataIndex: "start_date",
+      key: "start_date",
+      width: 110,
+      sorter: (a, b) => compareNullableStrings(a.start_date, b.start_date),
+    },
+    {
+      title: "End Date",
+      dataIndex: "end_date",
+      key: "end_date",
+      width: 110,
+      sorter: (a, b) => compareNullableStrings(a.end_date, b.end_date),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 100,
+      sorter: (a, b) => compareNullableStrings(a.status, b.status),
+      filters: STATUS_FILTER_OPTIONS.map((option) => ({
+        text: option.label,
+        value: option.value,
+      })),
+      onFilter: (value, record) => record.status === String(value),
+      render: (status: string) => {
+        const label =
+          STATUS_FILTER_OPTIONS.find((o) => o.value === status)?.label ??
+          (status === "paused" ? "Pause" : status);
+        return <Tag color={STATUS_COLORS[status] ?? "default"}>{label}</Tag>;
+      },
+    },
+    {
+      title: "CPL",
+      key: "cpl",
+      width: 90,
+      sorter: (a, b) => compareNullableNumbers(a.metrics.cpl, b.metrics.cpl),
+      render: (_v, r) => formatCurrency(r.metrics.cpl),
+    },
+    {
+      title: "Revenue",
+      key: "revenue",
+      width: 110,
+      sorter: (a, b) => compareNullableNumbers(a.metrics.revenue, b.metrics.revenue),
+      render: (_v, r) => formatCurrency(r.metrics.revenue),
+    },
+    {
+      title: "Booked",
+      key: "booked",
+      width: 100,
+      sorter: (a, b) => compareNullableNumbers(a.metrics.booked, b.metrics.booked),
+      render: (_v, r) => formatCurrency(r.metrics.booked),
+    },
+    {
+      title: "Pending Revenue",
+      key: "pending_revenue",
+      width: 130,
+      sorter: (a, b) =>
+        compareNullableNumbers(a.metrics.pending_revenue, b.metrics.pending_revenue),
+      render: (_v, r) => formatCurrency(r.metrics.pending_revenue),
+    },
+    {
+      title: "Total Allocation",
+      key: "total_allocation",
+      width: 120,
+      sorter: (a, b) =>
+        compareNullableNumbers(a.metrics.total_allocation, b.metrics.total_allocation),
+      render: (_v, r) => r.metrics.total_allocation.toLocaleString("en-US"),
+    },
+    {
+      title: "Post QA",
+      key: "post_qa",
+      width: 90,
+      sorter: (a, b) => compareNullableNumbers(a.metrics.post_qa, b.metrics.post_qa),
+      render: (_v, r) => r.metrics.post_qa.toLocaleString("en-US"),
+    },
+    {
+      title: "Achieved",
+      key: "achieved",
+      width: 90,
+      sorter: (a, b) => compareNullableNumbers(a.metrics.achieved, b.metrics.achieved),
+      render: (_v, r) =>
+        r.metrics.achieved != null ? r.metrics.achieved.toLocaleString("en-US") : "—",
+    },
+    {
+      title: "Pending Allocation",
+      key: "pending_allocation",
+      width: 130,
+      sorter: (a, b) =>
+        compareNullableNumbers(a.metrics.pending_allocation, b.metrics.pending_allocation),
+      render: (_v, r) => r.metrics.pending_allocation ?? "—",
+    },
+    {
+      title: "Leads Rejected",
+      key: "leads_rejected",
+      width: 120,
+      sorter: (a, b) =>
+        compareNullableNumbers(a.metrics.leads_rejected, b.metrics.leads_rejected),
+      render: (_v, r) => r.metrics.leads_rejected.toLocaleString("en-US"),
+    },
+    {
+      title: "Region",
+      dataIndex: "geography",
+      key: "geography",
+      width: 110,
+      ellipsis: true,
+      sorter: (a, b) => compareNullableStrings(a.geography, b.geography),
+      filters: regionFilters.length > 1 ? regionFilters : undefined,
+      onFilter: (value, record) => (record.geography?.trim() ?? "") === String(value),
+    },
+    {
+      title: "CPC",
+      key: "cpc",
+      width: 90,
+      sorter: (a, b) => compareNullableNumbers(a.metrics.cpc, b.metrics.cpc),
+      render: (_v, r) => formatCurrency(r.metrics.cpc),
+    },
+    {
+      title: "Weekly Call",
+      dataIndex: "weekly_call",
+      key: "weekly_call",
+      width: 110,
+      ellipsis: true,
+    },
+    {
+      title: "Weekly Report",
+      dataIndex: "weekly_report",
+      key: "weekly_report",
+      width: 110,
+      ellipsis: true,
+    },
+    {
+      title: "Additional Comments",
+      dataIndex: "additional_comments",
+      key: "additional_comments",
+      width: 160,
+      ellipsis: true,
+    },
+  ];
+}
+
 function CampaignRevenueTooltip({
   active,
   payload,
@@ -312,117 +551,6 @@ export default function RevenueReportDashboard() {
     }
   };
 
-  const campaignColumns: ColumnsType<RevenueReportCampaignRow> = [
-    {
-      title: "Campaign Owner",
-      key: "campaign_owner",
-      width: 160,
-      ellipsis: true,
-      render: (_v, r) => {
-        const owner = r.campaign_owner?.trim() || "—";
-        const tl = r.assigned_team_leader_name?.trim();
-        if (!tl) return owner;
-        return (
-          <div>
-            <div>{owner}</div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              TL: {tl}
-            </Text>
-          </div>
-        );
-      },
-    },
-    { title: "Channel", dataIndex: "channel", key: "channel", width: 110 },
-    { title: "Aggregator", dataIndex: "aggregator", key: "aggregator", width: 110, ellipsis: true },
-    { title: "Campaign Name", dataIndex: "name", key: "name", width: 180, ellipsis: true },
-    { title: "Lead Type", dataIndex: "lead_type", key: "lead_type", width: 110, ellipsis: true },
-    { title: "Start Date", dataIndex: "start_date", key: "start_date", width: 110 },
-    { title: "End Date", dataIndex: "end_date", key: "end_date", width: 110 },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 100,
-      render: (status: string) => {
-        const label =
-          STATUS_FILTER_OPTIONS.find((o) => o.value === status)?.label ??
-          (status === "paused" ? "Pause" : status);
-        return <Tag color={STATUS_COLORS[status] ?? "default"}>{label}</Tag>;
-      },
-    },
-    {
-      title: "CPL",
-      key: "cpl",
-      width: 90,
-      render: (_v, r) => formatCurrency(r.metrics.cpl),
-    },
-    {
-      title: "Revenue",
-      key: "revenue",
-      width: 110,
-      render: (_v, r) => formatCurrency(r.metrics.revenue),
-    },
-    {
-      title: "Booked",
-      key: "booked",
-      width: 100,
-      render: (_v, r) => formatCurrency(r.metrics.booked),
-    },
-    {
-      title: "Pending Revenue",
-      key: "pending_revenue",
-      width: 130,
-      render: (_v, r) => formatCurrency(r.metrics.pending_revenue),
-    },
-    {
-      title: "Total Allocation",
-      key: "total_allocation",
-      width: 120,
-      render: (_v, r) => r.metrics.total_allocation.toLocaleString("en-US"),
-    },
-    {
-      title: "Post QA",
-      key: "post_qa",
-      width: 90,
-      render: (_v, r) => r.metrics.post_qa.toLocaleString("en-US"),
-    },
-    {
-      title: "Achieved",
-      key: "achieved",
-      width: 90,
-      render: (_v, r) =>
-        r.metrics.achieved != null ? r.metrics.achieved.toLocaleString("en-US") : "—",
-    },
-    {
-      title: "Pending Allocation",
-      key: "pending_allocation",
-      width: 130,
-      render: (_v, r) => r.metrics.pending_allocation ?? "—",
-    },
-    {
-      title: "Leads Rejected",
-      key: "leads_rejected",
-      width: 120,
-      render: (_v, r) => r.metrics.leads_rejected.toLocaleString("en-US"),
-    },
-    { title: "Region", dataIndex: "geography", key: "geography", width: 110, ellipsis: true },
-    {
-      title: "CPC",
-      key: "cpc",
-      width: 90,
-      render: (_v, r) => formatCurrency(r.metrics.cpc),
-    },
-    { title: "Weekly Call", dataIndex: "weekly_call", key: "weekly_call", width: 110, ellipsis: true },
-    { title: "Weekly Report", dataIndex: "weekly_report", key: "weekly_report", width: 110, ellipsis: true },
-    {
-      title: "Additional Comments",
-      dataIndex: "additional_comments",
-      key: "additional_comments",
-      width: 160,
-      ellipsis: true,
-    },
-  ];
-
   const clientColumns: ColumnsType<RevenueReportClientGroup> = [
     {
       title: "#",
@@ -524,7 +652,9 @@ export default function RevenueReportDashboard() {
               </span>
             )}
             {" · "}
-            Metrics reflect lead activity (delivery, QA, updates) within this period.
+            Revenue, Achieved, and Post QA reflect lead activity in this period. Booked, Total
+            Allocation, and Pending Revenue include campaigns whose start date falls in this period
+            (end date is ignored).
           </Text>
         </div>
         <Row gutter={[12, 12]}>
@@ -782,7 +912,7 @@ export default function RevenueReportDashboard() {
             expandedRowRender: (record) => (
               <Table
                 rowKey="id"
-                columns={campaignColumns}
+                columns={buildCampaignColumns(record.campaigns)}
                 dataSource={record.campaigns}
                 pagination={false}
                 size="small"

@@ -178,11 +178,8 @@ export type LhoData = {
   cq5: string;
   extraCq: Record<string, string>;
   campaignQuestions: { label: string; answer: string }[];
-  leadStatus: string;
-  leadTagging: string;
   leadDisposition: string;
   assetTitle: string;
-  status: string;
   tenurity: string;
   vvStatus: string;
   emailStatus: string;

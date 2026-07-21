@@ -78,6 +78,7 @@ type LoadedCampaign = {
   id: string;
   client_id: string | null;
   name: string;
+  description: string | null;
   lead_type: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -195,6 +196,7 @@ export default function SalesCreateCampaignPage() {
         form.setFieldsValue({
           client_id: campaign.client_id ?? undefined,
           name: campaign.name,
+          description: campaign.description ?? "",
           lead_type: leadTypesArray.length ? leadTypesArray : undefined,
           start_date: campaign.start_date ? dayjs(campaign.start_date) : null,
           end_date: campaign.end_date ? dayjs(campaign.end_date) : null,
@@ -277,6 +279,7 @@ export default function SalesCreateCampaignPage() {
       const payload = {
         client_name: selectedClient?.company_name ?? values.client_name,
         name: values.name,
+        description: values.description?.trim() || null,
         lead_type: leadTypeValue,
         start_date: values.start_date?.format?.("YYYY-MM-DD") ?? null,
         end_date: values.end_date?.format?.("YYYY-MM-DD") ?? null,
@@ -453,6 +456,14 @@ export default function SalesCreateCampaignPage() {
                     });
                   }}
                 />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col span={24}>
+              <Form.Item name="description" label="Overview (Description)">
+                <TextArea rows={3} placeholder="Campaign objective / brief" />
               </Form.Item>
             </Col>
           </Row>
