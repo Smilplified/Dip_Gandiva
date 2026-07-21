@@ -302,6 +302,10 @@ export default function AgentCampaignDetailPage() {
         pagination: { current: page, pageSize },
         showDeliveryStatus: true,
         showFollowupDate: false,
+        showVoiceRecordings: true,
+        onVoiceRecordingsChange: () => {
+          void fetchLeads();
+        },
       }),
     [page, pageSize, fetchLeads, openEditLeadDrawer]
   );

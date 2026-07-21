@@ -120,6 +120,7 @@ export default function AgentMyLeadsPage() {
     pagination: { current: page, pageSize },
     showDeliveryStatus: true,
     showFollowupDate: false,
+    showVoiceRecordings: true,
   });
   const campaignColumn = {
     title: "Campaign",
