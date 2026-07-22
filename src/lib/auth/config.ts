@@ -40,6 +40,7 @@ export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
   "/qa": ["qa", "admin"],
   "/mis": ["mis", "admin"],
   "/dc": ["dc"],
+  "/emm": ["email_marketing_manager", "admin"],
 };
 
 export const COMMAND_CENTER_ROLES = [
@@ -61,6 +62,7 @@ export const ROLE_DEFAULT_REDIRECT: Record<string, string> = {
   qa: "/qa/dashboard",
   mis: "/mis/dashboard",
   dc: "/dc/dashboard",
+  email_marketing_manager: "/emm/dashboard",
   client_viewer: "/dashboard/campaigns",
   internal_operator: "/dashboard/campaigns",
   internal_admin: "/dashboard/campaigns",

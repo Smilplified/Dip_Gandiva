@@ -53,7 +53,7 @@ export async function verifyOrgAdmin() {
   return c;
 }
 
-/** Lead Finder: Admin, Operations Manager, and Team Leader only. */
+/** Lead Finder: Admin, Operations Manager, Team Leader, and Email Marketing Manager. */
 export async function verifyLeadFinderAccess() {
   const ctx = await getDeviceApiUser();
   if ("error" in ctx && ctx.error) return { error: ctx.error };
@@ -63,7 +63,8 @@ export async function verifyLeadFinderAccess() {
     (c.isAdmin ||
       c.roles.includes("operations_manager") ||
       c.roles.includes("team_leader") ||
-      c.roles.includes("tl"));
+      c.roles.includes("tl") ||
+      c.roles.includes("email_marketing_manager"));
   if (!allowed) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }

@@ -65,6 +65,7 @@ const roleDisplayMap: Record<string, string> = {
   agent: "Agent",
   qa: "QA",
   mis: "MIS",
+  email_marketing_manager: "Email Marketing Manager",
 };
 
 const ASSIGNED_CAMPAIGNS_PAGE_SIZE = 8;

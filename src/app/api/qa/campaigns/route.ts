@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { canAccessQaCampaignApis } from "@/lib/auth/qa-campaign-access";
 import { resolveDateRangeParams } from "@/lib/date-range-tz";
 import { loadQaCampaignsForDateRange } from "@/lib/qa-campaigns-data";
 
@@ -31,9 +32,11 @@ export async function GET(request: Request) {
     }
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
-    const canView = roleNames.includes("qa") || roleNames.includes("admin");
-    if (!canView) {
-      return NextResponse.json({ error: "Forbidden: QA or Admin role required" }, { status: 403 });
+    if (!canAccessQaCampaignApis(roleNames)) {
+      return NextResponse.json(
+        { error: "Forbidden: QA, Email Marketing Manager, or Admin role required" },
+        { status: 403 }
+      );
     }
 
     const admin = getAdminClientSafe();

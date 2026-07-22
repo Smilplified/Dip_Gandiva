@@ -48,24 +48,33 @@ const QA_STATUS_FILTER_OPTIONS = [
 type AgentOption = { id: string; name: string };
 
 type TeamLeaderLeadsPageProps = {
-  /** MIS reuses this page with org-wide leads and /mis/campaigns links. */
-  variant?: "tl" | "mis";
+  /** MIS / EMM reuse this page with org-wide leads and role-specific campaign links. */
+  variant?: "tl" | "mis" | "emm";
 };
 
-/** Reusable view — MIS renders this with variant="mis"; the route wrapper is at the bottom. */
+/** Reusable view — MIS/EMM render this with org-wide variant; TL is the default. */
 export function TeamLeaderLeadsView({ variant = "tl" }: TeamLeaderLeadsPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { hasTLAccess, hasRole, isInitialized } = useAuth();
-  const isMisView = variant === "mis";
-  const canAccessPage = isMisView
-    ? hasRole("mis") || hasRole("admin")
+  const isOrgWideView = variant === "mis" || variant === "emm";
+  const canAccessPage = isOrgWideView
+    ? variant === "emm"
+      ? hasRole("email_marketing_manager") || hasRole("admin")
+      : hasRole("mis") || hasRole("admin")
     : hasTLAccess();
-  const leadsApiPath = isMisView ? "/api/mis/leads" : "/api/tl/leads";
-  const campaignLinkPrefix = isMisView ? "/mis/campaigns" : "/tl/campaigns";
-  const queryKeyPrefix = isMisView ? (["mis", "leads"] as const) : (["tl", "leads"] as const);
-  const exportFilenamePrefix = isMisView ? "mis-leads" : "tl-leads";
+  const leadsApiPath = isOrgWideView ? "/api/mis/leads" : "/api/tl/leads";
+  const campaignLinkPrefix =
+    variant === "emm" ? "/emm/campaigns" : variant === "mis" ? "/mis/campaigns" : "/tl/campaigns";
+  const queryKeyPrefix =
+    variant === "emm"
+      ? (["emm", "leads"] as const)
+      : variant === "mis"
+        ? (["mis", "leads"] as const)
+        : (["tl", "leads"] as const);
+  const exportFilenamePrefix =
+    variant === "emm" ? "emm-leads" : variant === "mis" ? "mis-leads" : "tl-leads";
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [leadSearch, setLeadSearch] = useState("");
@@ -296,7 +305,7 @@ export function TeamLeaderLeadsView({ variant = "tl" }: TeamLeaderLeadsPageProps
           Leads
         </Typography.Title>
         <Typography.Text type="secondary">
-          {isMisView
+          {isOrgWideView
             ? "All leads across your organization, including assigned agents and campaign context."
             : "All leads from your campaigns, including assigned agents and campaign context."}
         </Typography.Text>
@@ -406,7 +415,7 @@ export function TeamLeaderLeadsView({ variant = "tl" }: TeamLeaderLeadsPageProps
           <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 12 }}>
             {hasActiveFilters
               ? `${total.toLocaleString()} leads match your filters. Showing page ${page} (${leads.length} rows).`
-              : isMisView
+              : isOrgWideView
                 ? `${total.toLocaleString()} leads across your organization. Showing page ${page} (${leads.length} rows).`
                 : `${total.toLocaleString()} leads across your campaigns. Showing page ${page} (${leads.length} rows).`}
           </Typography.Text>
@@ -422,7 +431,7 @@ export function TeamLeaderLeadsView({ variant = "tl" }: TeamLeaderLeadsPageProps
             locale={{
               emptyText: hasActiveFilters
                 ? "No leads match the current filters."
-                : isMisView
+                : isOrgWideView
                   ? "No leads found for your organization."
                   : "No leads found for your assigned campaigns.",
             }}

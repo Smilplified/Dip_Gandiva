@@ -51,7 +51,10 @@ export async function GET(
     const roleNames = ((roleRows ?? []) as { roles: { name: string } | null }[]).map((r) =>
       r.roles?.name?.toLowerCase().trim().replace(/\s+/g, "_")
     );
-    const canView = roleNames.includes("mis") || roleNames.includes("admin");
+    const canView =
+      roleNames.includes("mis") ||
+      roleNames.includes("admin") ||
+      roleNames.includes("email_marketing_manager");
     if (!canView) {
       return NextResponse.json({ error: "Forbidden: MIS or Admin role required" }, { status: 403 });
     }

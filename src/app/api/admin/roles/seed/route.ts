@@ -12,6 +12,10 @@ const DEFAULT_ROLES = [
   { name: "Sales", description: "Sales team member – can view only their own performance" },
   { name: "QA", description: "Quality assurance team member" },
   { name: "MIS", description: "Management Information System - reporting and data management" },
+  {
+    name: "Email Marketing Manager",
+    description: "Email marketing — Lead Finder, campaigns, and leads",
+  },
   // Campaign Command Center roles
   { name: "client_viewer", description: "Read-only access for external clients — sees only their own campaigns and leads" },
   { name: "internal_operator", description: "Create/edit campaigns, manage leads and status changes" },

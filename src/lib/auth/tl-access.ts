@@ -38,7 +38,13 @@ export function hasOrgWideCampaignAccess(
   if (hasOperationsManagerAccess(roleNames)) return true;
   return roleNames.some((name) => {
     const n = normalizeRoleName(name);
-    return n === "sales" || n === "sales_manager" || n === "admin" || n === "mis";
+    return (
+      n === "sales" ||
+      n === "sales_manager" ||
+      n === "admin" ||
+      n === "mis" ||
+      n === "email_marketing_manager"
+    );
   });
 }
 
