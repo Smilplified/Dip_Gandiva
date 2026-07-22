@@ -33,8 +33,9 @@ export type LeadFinderFilters = {
   file_name: string;
 };
 
-export const MAX_FETCH_COUNT = 100_000;
-export const FETCH_COUNT_WARN_THRESHOLD = 5_000;
+/** Hard cap per run — Form Mode + JSON Mode + API all enforce this. */
+export const MAX_FETCH_COUNT = 1_000;
+export const FETCH_COUNT_WARN_THRESHOLD = 500;
 /** Engine pricing (free tier): $2 per 1k leads + $0.02 start fee. */
 export const COST_PER_1K_USD = 2;
 

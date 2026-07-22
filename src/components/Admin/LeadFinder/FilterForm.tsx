@@ -558,20 +558,42 @@ export default function FilterForm({ onStarted }: { onStarted: (runId: string) =
                   <Form.Item
                     name="fetch_count"
                     label={<Text strong>#️⃣ Number of leads</Text>}
-                    rules={[{ required: true, message: "Required" }]}
+                    rules={[
+                      { required: true, message: "Required" },
+                      {
+                        type: "number",
+                        min: 1,
+                        max: MAX_FETCH_COUNT,
+                        message: `Must be between 1 and ${MAX_FETCH_COUNT}`,
+                      },
+                    ]}
+                    getValueFromEvent={(value) => {
+                      if (value === null || value === undefined || value === "") return value;
+                      const n = typeof value === "number" ? value : Number(value);
+                      if (!Number.isFinite(n)) return value;
+                      return Math.min(MAX_FETCH_COUNT, Math.max(1, Math.floor(n)));
+                    }}
                     extra={
                       <Text
                         type={fetchCount > FETCH_COUNT_WARN_THRESHOLD ? "warning" : "secondary"}
                         style={{ fontSize: 12 }}
                       >
-                        Estimated cost ≈ ${estimateCostUsd(fetchCount)}
+                        Max {MAX_FETCH_COUNT.toLocaleString()} leads · Estimated cost ≈ $
+                        {estimateCostUsd(fetchCount)}
                         {fetchCount > FETCH_COUNT_WARN_THRESHOLD
                           ? " — large run, this will consume real credits"
                           : " (~$2 per 1,000 leads)"}
                       </Text>
                     }
                   >
-                    <InputNumber min={1} max={MAX_FETCH_COUNT} style={{ width: 170 }} />
+                    <InputNumber
+                      min={1}
+                      max={MAX_FETCH_COUNT}
+                      step={1}
+                      precision={0}
+                      controls
+                      style={{ width: 170 }}
+                    />
                   </Form.Item>
                   <Form.Item
                     name="file_name"
