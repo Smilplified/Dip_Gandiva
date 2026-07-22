@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button, Input, Select, Space, Table, Tag, Typography, message } from "antd";
-import { DownloadOutlined, LinkedinOutlined } from "@ant-design/icons";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Dropdown, Input, Select, Space, Table, Tag, Typography, message } from "antd";
+import { DownloadOutlined, DownOutlined, LinkedinOutlined } from "@ant-design/icons";
+import type { MenuProps } from "antd";
 import type { SorterResult } from "antd/es/table/interface";
 import { usePaginatedListQuery } from "@/hooks/usePaginatedListQuery";
 
@@ -28,6 +29,8 @@ type LeadRow = {
   created_at: string;
 };
 
+type ExportScope = "all" | "filtered" | "page";
+
 export default function LeadsTable({ initialBatch }: { initialBatch?: string | null }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -37,6 +40,7 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string | n
   const [industry, setIndustry] = useState("");
   const [title, setTitle] = useState("");
   const [state, setState] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [sort, setSort] = useState<{ field: string; dir: "asc" | "desc" }>({
     field: "created_at",
     dir: "desc",
@@ -52,17 +56,32 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string | n
     return () => clearTimeout(t);
   }, [search]);
 
+  const filterParams = useMemo(
+    () => ({
+      q: debounced || undefined,
+      batch: batch || undefined,
+      industry: industry.trim() || undefined,
+      title: title.trim() || undefined,
+      state: state.trim() || undefined,
+      sort: sort.field,
+      dir: sort.dir,
+    }),
+    [debounced, batch, industry, title, state, sort.field, sort.dir]
+  );
+
   const params = {
     page,
     limit: pageSize,
-    q: debounced || undefined,
-    batch: batch || undefined,
-    industry: industry.trim() || undefined,
-    title: title.trim() || undefined,
-    state: state.trim() || undefined,
-    sort: sort.field,
-    dir: sort.dir,
+    ...filterParams,
   };
+
+  const hasActiveFilters = Boolean(
+    filterParams.q ||
+      filterParams.batch ||
+      filterParams.industry ||
+      filterParams.title ||
+      filterParams.state
+  );
 
   const { items, pagination, response, isLoading, error } = usePaginatedListQuery<LeadRow>({
     queryKeyPrefix: ["lead-finder", "leads"],
@@ -78,17 +97,113 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string | n
   }, [error]);
 
   const batchOptions = (response?.batches as string[] | undefined) ?? [];
+  const totalLeads = pagination?.total ?? 0;
 
-  const handleExport = () => {
-    const sp = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && key !== "page" && key !== "limit") {
-        sp.set(key, String(value));
-      }
+  const handleExport = async (scope: ExportScope) => {
+    if (scope === "filtered" && !hasActiveFilters) {
+      message.info("No filters applied — exporting all leads instead.");
+      scope = "all";
     }
-    // Browser download — streams from the server, filtered set only.
-    window.open(`/api/admin/lead-finder/leads/export?${sp.toString()}`, "_blank");
+    if (scope === "page" && items.length === 0) {
+      message.warning("No leads on this page to export.");
+      return;
+    }
+    if (scope === "filtered" && totalLeads === 0) {
+      message.warning("No leads match the current filters to export.");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const sp = new URLSearchParams();
+      sp.set("scope", scope);
+      sp.set("sort", sort.field);
+      sp.set("dir", sort.dir);
+
+      if (scope === "filtered" || scope === "page") {
+        for (const [key, value] of Object.entries(filterParams)) {
+          if (value !== undefined && key !== "sort" && key !== "dir") {
+            sp.set(key, String(value));
+          }
+        }
+      }
+
+      if (scope === "page") {
+        sp.set("page", String(page));
+        sp.set("limit", String(pageSize));
+      }
+
+      const res = await fetch(`/api/admin/lead-finder/leads/export?${sp.toString()}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        let errMsg = "Failed to export CSV";
+        try {
+          const json = (await res.json()) as { error?: string };
+          if (json.error) errMsg = json.error;
+        } catch {
+          /* non-JSON error body */
+        }
+        throw new Error(errMsg);
+      }
+
+      const blob = await res.blob();
+      if (blob.size < 10) {
+        message.warning("Export returned no rows.");
+        return;
+      }
+
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename =
+        match?.[1] ??
+        `lead-finder-${scope}-${new Date().toISOString().slice(0, 10)}.csv`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      const label =
+        scope === "all"
+          ? "all leads"
+          : scope === "page"
+            ? `page ${page} (${items.length} rows)`
+            : "filtered leads";
+      message.success(`Exported ${label}`);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
   };
+
+  const exportMenuItems: MenuProps["items"] = [
+    {
+      key: "all",
+      label: hasActiveFilters
+        ? "All leads (ignore filters)"
+        : `All leads${totalLeads ? ` (${totalLeads.toLocaleString()})` : ""}`,
+      onClick: () => void handleExport("all"),
+    },
+    {
+      key: "filtered",
+      label: hasActiveFilters
+        ? `Filtered leads (${totalLeads.toLocaleString()})`
+        : "Filtered leads (no filters applied)",
+      disabled: !hasActiveFilters,
+      onClick: () => void handleExport("filtered"),
+    },
+    {
+      key: "page",
+      label: `Current page (${items.length})`,
+      onClick: () => void handleExport("page"),
+    },
+  ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -145,9 +260,11 @@ export default function LeadsTable({ initialBatch }: { initialBatch?: string | n
           style={{ width: 130 }}
           allowClear
         />
-        <Button icon={<DownloadOutlined />} onClick={handleExport}>
-          Export CSV
-        </Button>
+        <Dropdown menu={{ items: exportMenuItems }} trigger={["click"]} disabled={exporting}>
+          <Button icon={<DownloadOutlined />} loading={exporting}>
+            Export CSV <DownOutlined />
+          </Button>
+        </Dropdown>
       </Space>
 
       <Table<LeadRow>
