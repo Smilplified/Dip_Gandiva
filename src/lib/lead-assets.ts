@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const VOICE_BUCKET = "campaign-files";
+export const MAX_VOICE_RECORDINGS_PER_LEAD = 4;
 
 export type VoiceRecording = {
   id: string;
@@ -45,6 +46,9 @@ type StorageClient = Pick<SupabaseClient, "storage">;
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
+/** Minimum path depth for Storage.list — org/campaign/lead (never bucket or campaign root). */
+const MIN_LIST_PREFIX_SEGMENTS = 3;
+
 /**
  * Legacy Storage.list path for voice/LHO when lead_assets has no row.
  * Off by default — each list() call hits storage.search and burns Disk IO.
@@ -52,6 +56,32 @@ const SIGNED_URL_TTL_SECONDS = 60 * 60;
  */
 export function isStorageListFallbackEnabled(): boolean {
   return process.env.ENABLE_STORAGE_LIST_FALLBACK === "true";
+}
+
+/** Reject broad prefixes (bucket root, org-only, org/campaign) before any Storage.list. */
+export function assertLeadLevelListPrefix(prefix: string): void {
+  const segments = prefix.split("/").filter(Boolean);
+  if (segments.length < MIN_LIST_PREFIX_SEGMENTS) {
+    throw new Error(
+      `Storage.list blocked: prefix must be org/campaign/lead or deeper, got "${prefix}"`
+    );
+  }
+}
+
+export function leadVoiceStoragePrefix(
+  orgId: string,
+  campaignId: string,
+  leadId: string
+): string {
+  return `${orgId}/${campaignId}/${leadId}`;
+}
+
+export function leadLhoStoragePrefix(
+  orgId: string,
+  campaignId: string,
+  leadId: string
+): string {
+  return `${orgId}/${campaignId}/${leadId}/lho`;
 }
 
 export function assetRowToVoiceRecording(
@@ -204,19 +234,22 @@ export async function createSignedUrlMap(
   return urlByPath;
 }
 
-/** Storage.list fallback for one lead when DB catalog has no rows yet. */
+/** Storage.list fallback for one lead folder only (never campaign/bucket root). */
 export async function listVoiceFromStorageFallback(
   storageClient: StorageClient,
   orgId: string,
   campaignId: string,
   leadId: string
 ): Promise<VoiceRecording[]> {
-  const prefix = `${orgId}/${campaignId}/${leadId}`;
+  if (!isStorageListFallbackEnabled()) return [];
+
+  const prefix = leadVoiceStoragePrefix(orgId, campaignId, leadId);
+  assertLeadLevelListPrefix(prefix);
+
   const { data: files, error: listError } = await storageClient.storage
     .from(VOICE_BUCKET)
     .list(prefix, {
-      limit: 10,
-      sortBy: { column: "created_at", order: "desc" } as never,
+      limit: MAX_VOICE_RECORDINGS_PER_LEAD,
     });
 
   if (listError) {
@@ -247,12 +280,15 @@ export async function listLhoFromStorageFallback(
   campaignId: string,
   leadId: string
 ): Promise<VoiceRecording[]> {
-  const prefix = `${orgId}/${campaignId}/${leadId}/lho`;
+  if (!isStorageListFallbackEnabled()) return [];
+
+  const prefix = leadLhoStoragePrefix(orgId, campaignId, leadId);
+  assertLeadLevelListPrefix(prefix);
+
   const { data: files, error: listError } = await storageClient.storage
     .from(VOICE_BUCKET)
     .list(prefix, {
       limit: 20,
-      sortBy: { column: "created_at", order: "desc" } as never,
     });
 
   if (listError) {

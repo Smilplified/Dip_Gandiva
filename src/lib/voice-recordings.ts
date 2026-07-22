@@ -1,14 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import {
-  isStorageListFallbackEnabled,
-  listVoiceFromStorageFallback,
   listVoiceRecordingsForLeads,
+  MAX_VOICE_RECORDINGS_PER_LEAD,
   VOICE_BUCKET,
   type VoiceRecording,
 } from "@/lib/lead-assets";
 
-export { VOICE_BUCKET, type VoiceRecording };
+export { VOICE_BUCKET, MAX_VOICE_RECORDINGS_PER_LEAD, type VoiceRecording };
 
 /** Roles that may list/upload lead voice recordings without agent campaign assignment. */
 export const PRIVILEGED_VOICE_ROLES = new Set([
@@ -22,28 +21,7 @@ export const PRIVILEGED_VOICE_ROLES = new Set([
   "dc",
 ]);
 
-export const MAX_VOICE_RECORDINGS_PER_LEAD = 4;
-
-type StorageClient = Pick<SupabaseClient, "storage">;
 type DbClient = Pick<SupabaseClient, "from" | "storage">;
-
-export async function listLeadVoiceRecordings(
-  storageClient: StorageClient,
-  orgId: string,
-  campaignId: string,
-  leadId: string
-): Promise<VoiceRecording[]> {
-  // Prefer DB catalog when the storage client is also a DB client (admin/server).
-  const db = storageClient as DbClient;
-  if (typeof db.from === "function") {
-    const map = await listVoiceRecordingsForLeads(db, storageClient, orgId, [
-      { id: leadId, campaign_id: campaignId, organization_id: orgId },
-    ]);
-    return map[leadId] ?? [];
-  }
-  if (!isStorageListFallbackEnabled()) return [];
-  return listVoiceFromStorageFallback(storageClient, orgId, campaignId, leadId);
-}
 
 function leadRowId(lead: unknown): string | null {
   const id = (lead as { id?: unknown }).id;

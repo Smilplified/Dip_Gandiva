@@ -9,7 +9,12 @@ import {
 } from "@ant-design/icons";
 import type { VoiceRecording } from "@/lib/voice-recordings";
 import { MAX_VOICE_RECORDINGS_PER_LEAD } from "@/lib/voice-recordings";
-import { fetchLeadRecordingsBatched } from "@/lib/voice-recordings-client";
+import {
+  fetchLeadRecordingsBatched,
+  getCachedLeadRecordings,
+  invalidateLeadRecordingsCache,
+  setCachedLeadRecordings,
+} from "@/lib/voice-recordings-client";
 
 type LeadTableRecordingCellProps = {
   leadId: string;
@@ -25,14 +30,22 @@ export function LeadTableRecordingCell({
   onRecordingsChange,
 }: LeadTableRecordingCellProps) {
   const playTooltip = leadEmail?.trim() || "No email";
-  const [recordings, setRecordings] = useState<VoiceRecording[]>(initialRecordings ?? []);
-  const [loading, setLoading] = useState(!initialRecordings);
+  const cachedOnMount = getCachedLeadRecordings(leadId);
+  const [recordings, setRecordings] = useState<VoiceRecording[]>(
+    initialRecordings ?? cachedOnMount ?? []
+  );
+  const [loading, setLoading] = useState(
+    initialRecordings === undefined && cachedOnMount === null
+  );
   const [uploading, setUploading] = useState(false);
   const [playingPath, setPlayingPath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const fetchStartedRef = useRef(false);
 
   const refreshRecordings = useCallback(async () => {
+    invalidateLeadRecordingsCache(leadId);
     setLoading(true);
     try {
       const res = await fetch(`/api/agent/leads/${leadId}/voice-lock`, {
@@ -43,7 +56,9 @@ export function LeadTableRecordingCell({
         message.error(json?.error || "Failed to load recordings");
         return;
       }
-      setRecordings((json.recordings ?? []) as VoiceRecording[]);
+      const next = (json.recordings ?? []) as VoiceRecording[];
+      setCachedLeadRecordings(leadId, next);
+      setRecordings(next);
     } catch {
       message.error("Failed to load recordings");
     } finally {
@@ -54,29 +69,63 @@ export function LeadTableRecordingCell({
   useEffect(() => {
     if (initialRecordings !== undefined) {
       setRecordings(initialRecordings);
+      setCachedLeadRecordings(leadId, initialRecordings);
       setLoading(false);
     }
-  }, [initialRecordings]);
+  }, [initialRecordings, leadId]);
 
   useEffect(() => {
     if (initialRecordings !== undefined) return;
-    // Lazy path: list APIs no longer embed recordings, so cells load them via a
-    // coalesced batch request (one call per table page, not one per row).
+
+    const cached = getCachedLeadRecordings(leadId);
+    if (cached !== null) {
+      setRecordings(cached);
+      setLoading(false);
+      return;
+    }
+
+    const el = containerRef.current;
+    if (!el) return;
+
     let cancelled = false;
-    setLoading(true);
-    fetchLeadRecordingsBatched(leadId)
-      .then((recs) => {
-        if (!cancelled) setRecordings(recs);
-      })
-      .catch(() => {
-        // Silent per-cell failure — a toast per row would flood the page.
-        if (!cancelled) setRecordings([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+
+    const loadRecordings = () => {
+      if (fetchStartedRef.current || cancelled) return;
+      fetchStartedRef.current = true;
+      setLoading(true);
+      fetchLeadRecordingsBatched(leadId)
+        .then((recs) => {
+          if (!cancelled) setRecordings(recs);
+        })
+        .catch(() => {
+          if (!cancelled) setRecordings([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+
+    if (typeof IntersectionObserver === "undefined") {
+      loadRecordings();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          observer.disconnect();
+          loadRecordings();
+        }
+      },
+      { rootMargin: "120px" }
+    );
+    observer.observe(el);
+
     return () => {
       cancelled = true;
+      observer.disconnect();
     };
   }, [leadId, initialRecordings]);
 
@@ -193,19 +242,9 @@ export function LeadTableRecordingCell({
 
   const iconBtnStyle = { width: 24, height: 24, padding: 0, minWidth: 24 } as const;
 
-  if (loading) {
-    return (
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 24 }}
-      >
-        <Spin size="small" />
-      </div>
-    );
-  }
-
   return (
     <div
+      ref={containerRef}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
       style={{
@@ -229,7 +268,9 @@ export function LeadTableRecordingCell({
         }}
       />
 
-      {recordings.length === 0 ? (
+      {loading && recordings.length === 0 ? (
+        <Spin size="small" />
+      ) : recordings.length === 0 ? (
         <Tooltip title="Upload recording">
           <Button
             type="dashed"
