@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { QA_VISIBLE_LEAD_TAGGING_VALUES } from "@/lib/lead-tagging";
 
 const LEADS_PAGE_SIZE = 1000;
 
@@ -112,7 +113,7 @@ export async function aggregateScoredLeadCountsByCampaign(
     .select("campaign_id, delivery_status")
     .eq("organization_id", orgId)
     .in("campaign_id", campaignIds)
-    .eq("lead_tagging", "Scored");
+    .in("lead_tagging", QA_VISIBLE_LEAD_TAGGING_VALUES);
 
   if (error) throw new Error(error.message);
 

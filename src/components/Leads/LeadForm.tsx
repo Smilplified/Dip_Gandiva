@@ -38,6 +38,11 @@ import {
   type CampaignQuestion,
 } from "@/lib/campaign-questions";
 import { LEAD_MEETING_NOTES_LABEL } from "@/lib/lead-field-labels";
+import {
+  CLOUDTHAT_AG_LEAD_TAGGING_OPTIONS,
+  isCloudThatAgCampaign,
+  shouldShowDemandForCloudThatAgTagging,
+} from "@/lib/cloudthat-ag";
 import { CampaignCqAnswerFields } from "@/components/Leads/CampaignCqAnswerFields";
 import {
   digitsOnlyFormRules,
@@ -163,6 +168,8 @@ type LeadFormProps = {
   canEditQaAudit?: boolean;
   /** When set, show campaign-defined question labels (agents answer only). */
   campaignQuestions?: CampaignQuestion[] | null;
+  /** Campaign display name — used for CloudThat AG-only form rules. */
+  campaignName?: string | null;
   /** Agent per-lead type (options from campaign.lead_type). */
   showLeadTypeField?: boolean;
   leadTypeOptions?: { value: string; label: string }[];
@@ -174,12 +181,24 @@ export function LeadForm({
   lead,
   canEditQaAudit = false,
   campaignQuestions = null,
+  campaignName = null,
   showLeadTypeField = false,
   leadTypeOptions = [],
 }: LeadFormProps) {
   const showOpenLink = mode === "edit";
   const useCampaignCq =
     Array.isArray(campaignQuestions) && campaignQuestions.length > 0;
+  const isCloudThatAg = isCloudThatAgCampaign(campaignName);
+  const leadTaggingOptions = isCloudThatAg
+    ? CLOUDTHAT_AG_LEAD_TAGGING_OPTIONS
+    : LEAD_TAGGING_OPTIONS;
+  const watchedLeadTagging = Form.useWatch("lead_tagging", form) as
+    | string
+    | null
+    | undefined;
+  const showDemandSection =
+    useCampaignCq &&
+    (!isCloudThatAg || shouldShowDemandForCloudThatAgTagging(watchedLeadTagging));
   const { profile, hasRole, user } = useAuth();
   const isAgentEntry = hasRole("agent");
   const loggedInQaName =
@@ -1261,7 +1280,12 @@ export function LeadForm({
                 )}
                 <Col xs={24} sm={12}>
                   <Form.Item label="Lead Tagging" name="lead_tagging" rules={[{ required: true, message: "Please select Lead Tagging" }]}>
-                    <Select placeholder="Select tag" options={LEAD_TAGGING_OPTIONS} allowClear />
+                    <Select
+                      placeholder="Select tag"
+                      options={leadTaggingOptions}
+                      allowClear
+                      style={isCloudThatAg ? { width: "100%" } : undefined}
+                    />
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
@@ -1398,7 +1422,7 @@ export function LeadForm({
         </Col>
       </Row>
 
-      {useCampaignCq && (
+      {showDemandSection && (
         <Collapse
           defaultActiveKey={["campaign-cq"]}
           expandIconPosition="end"
@@ -1417,7 +1441,12 @@ export function LeadForm({
         <Input.TextArea rows={3} placeholder="Notes, context, objections..." />
       </Form.Item>
 
-      <GenerateLhoButton form={form} lead={lead} campaignQuestions={campaignQuestions} />
+      <GenerateLhoButton
+        form={form}
+        lead={lead}
+        campaignQuestions={campaignQuestions}
+        campaignName={campaignName}
+      />
     </Form>
   );
 }
@@ -1428,10 +1457,12 @@ function GenerateLhoButton({
   form,
   lead,
   campaignQuestions = null,
+  campaignName = null,
 }: {
   form: ReturnType<typeof Form.useForm>[0];
   lead?: Lead | null;
   campaignQuestions?: CampaignQuestion[] | null;
+  campaignName?: string | null;
 }) {
   const [generating, setGenerating] = useState(false);
   const { roles, profile, user } = useAuth();
@@ -1474,7 +1505,7 @@ function GenerateLhoButton({
         null,
     };
 
-    const data = buildLhoDataFromLead(raw, { campaignQuestions });
+    const data = buildLhoDataFromLead(raw, { campaignQuestions, campaignName });
 
     setGenerating(true);
     try {

@@ -692,6 +692,7 @@ export default function QACampaignDetailPage() {
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
           campaignQuestions={campaignQuestions}
+          campaignName={campaign?.name}
         />
       </Drawer>
 

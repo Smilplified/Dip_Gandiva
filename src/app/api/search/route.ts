@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
+import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
 
@@ -132,8 +133,8 @@ export async function GET(request: Request) {
       if (isAgent) {
         query = query.eq("assigned_agent_id", user!.id);
       } else if (isQA) {
-        // QA typically reviews scored leads
-        query = query.or("lead_tagging.eq.Scored,lead_tagging.eq.scored");
+        // QA typically reviews scored / scored-equivalent leads
+        query = applyScoredLeadTaggingFilter(query);
       }
       // TL, MIS, Admin see all org leads (leads table is org-scoped via campaigns)
 

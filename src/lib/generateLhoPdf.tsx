@@ -179,6 +179,7 @@ export type LhoData = {
   extraCq: Record<string, string>;
   campaignQuestions: { label: string; answer: string }[];
   leadDisposition: string;
+  leadTagging?: string;
   assetTitle: string;
   tenurity: string;
   vvStatus: string;
@@ -341,6 +342,7 @@ function LhoDocument({
                 { label: "Meeting Date", value: data.meetingDate },
                 { label: "Meeting Time", value: data.meetingTime },
                 { label: "Agent Name", value: data.agentName },
+                { label: "Lead Tagging", value: data.leadTagging },
                 { label: "Asset Title", value: data.assetTitle },
                 { label: "Lead Disposition", value: data.leadDisposition },
                 { label: "Channel", value: data.channel },

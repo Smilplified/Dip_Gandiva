@@ -10,6 +10,10 @@ import {
   resolveClientName,
 } from "@/lib/lho/meeting-report-format";
 import type { CampaignQuestion } from "@/lib/campaign-questions";
+import {
+  isCloudThatAgCampaign,
+  shouldShowDemandForCloudThatAgTagging,
+} from "@/lib/cloudthat-ag";
 
 function str(val: unknown): string {
   return val != null ? String(val).trim() : "";
@@ -33,14 +37,28 @@ function formatLegacyDateTime(val: unknown, tz: unknown): string {
   return tzLabel ? `${wall} (${tzLabel})` : wall;
 }
 
+function resolveCampaignName(raw: Record<string, unknown>): string {
+  const direct = str(raw.campaign_name);
+  if (direct) return direct;
+  const campaigns = raw.campaigns;
+  if (campaigns && typeof campaigns === "object" && !Array.isArray(campaigns)) {
+    return str((campaigns as Record<string, unknown>).name);
+  }
+  return "";
+}
+
 export function buildLhoDataFromLead(
   raw: Record<string, unknown>,
-  options?: { campaignQuestions?: CampaignQuestion[] | null }
+  options?: {
+    campaignQuestions?: CampaignQuestion[] | null;
+    campaignName?: string | null;
+  }
 ): LhoData {
   const scoredAt = str(raw.scored) || null;
   const scoredTimezone = str(raw.scored_timezone) || null;
   const appointmentAt = str(raw.appointment) || null;
   const appointmentTimezone = str(raw.appointment_timezone) || null;
+  const leadTagging = str(raw.lead_tagging);
 
   const cqFields = {
     cq1: str(raw.cq1),
@@ -51,8 +69,15 @@ export function buildLhoDataFromLead(
     extraCq: normalizeExtraCqMap(raw.extra_cq),
   };
 
+  const campaignName =
+    str(options?.campaignName) || resolveCampaignName(raw);
   const campaignQuestionConfig =
     options?.campaignQuestions ?? resolveCampaignQuestionsFromLeadRaw(raw);
+
+  // Align with LeadForm: CloudThat AG Azure/SCI hide DEMAND; GCP shows it.
+  const includeDemandSection =
+    !isCloudThatAgCampaign(campaignName) ||
+    shouldShowDemandForCloudThatAgTagging(leadTagging);
 
   return {
     salutation: str(raw.salutation),
@@ -94,8 +119,11 @@ export function buildLhoDataFromLead(
     callBack: str(raw.call_back),
     callNotes: str(raw.call_notes),
     ...cqFields,
-    campaignQuestions: buildLhoCampaignQuestionRows(cqFields, campaignQuestionConfig),
+    campaignQuestions: includeDemandSection
+      ? buildLhoCampaignQuestionRows(cqFields, campaignQuestionConfig)
+      : [],
     leadDisposition: str(raw.lead_disposition),
+    leadTagging,
     assetTitle: str(raw.asset_title),
     tenurity: str(raw.tenurity),
     vvStatus: str(raw.vv_status),

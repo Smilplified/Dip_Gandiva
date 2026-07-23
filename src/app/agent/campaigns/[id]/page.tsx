@@ -46,6 +46,10 @@ import { getLeadTableColumns } from "@/components/Leads/LeadTableColumns";
 import { buildLeadPayload, leadToFormValues } from "@/lib/leadPayload";
 import type { Lead } from "@/types/lead.types";
 import { LEAD_TAGGING_OPTIONS } from "@/types/lead.types";
+import {
+  CLOUDTHAT_AG_LEAD_TAGGING_OPTIONS,
+  isCloudThatAgCampaign,
+} from "@/lib/cloudthat-ag";
 import { ExpandableText, renderExpandableOverviewValue } from "@/components/ExpandableText";
 import { parseLeadsCsv, parseLeadsExcel } from "@/lib/leadsImport";
 import { campaignHeaderDisplayCode } from "@/lib/campaign-display";
@@ -217,6 +221,14 @@ export default function AgentCampaignDetailPage() {
   const campaignQuestions = useMemo(
     () => normalizeCampaignQuestions(campaign?.campaign_questions),
     [campaign?.campaign_questions]
+  );
+
+  const leadTaggingFilterOptions = useMemo(
+    () =>
+      isCloudThatAgCampaign(campaign?.name)
+        ? CLOUDTHAT_AG_LEAD_TAGGING_OPTIONS
+        : LEAD_TAGGING_OPTIONS,
+    [campaign?.name]
   );
 
   useEffect(() => {
@@ -850,9 +862,9 @@ export default function AgentCampaignDetailPage() {
               <Select
                 placeholder="All"
                 allowClear
-                style={{ width: 180 }}
+                style={{ width: isCloudThatAgCampaign(campaign?.name) ? 360 : 180 }}
                 value={leadTaggingFilter ?? undefined}
-                options={LEAD_TAGGING_OPTIONS}
+                options={leadTaggingFilterOptions}
                 onChange={(v) => setLeadTaggingFilter(v ?? null)}
               />
             </Col>
@@ -1017,6 +1029,7 @@ export default function AgentCampaignDetailPage() {
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
           campaignQuestions={campaignQuestions}
+          campaignName={campaign?.name}
           showLeadTypeField
           leadTypeOptions={leadTypeOptions}
           introText={

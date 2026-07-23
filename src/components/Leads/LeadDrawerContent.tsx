@@ -19,6 +19,7 @@ type LeadDrawerContentProps = {
   canEditQaAudit?: boolean;
   introText?: string;
   campaignQuestions?: CampaignQuestion[] | null;
+  campaignName?: string | null;
   showLeadTypeField?: boolean;
   leadTypeOptions?: { value: string; label: string }[];
 };
@@ -30,6 +31,7 @@ export function LeadDrawerContent({
   canEditQaAudit = false,
   introText = DEFAULT_INTRO,
   campaignQuestions = null,
+  campaignName = null,
   showLeadTypeField = false,
   leadTypeOptions = [],
 }: LeadDrawerContentProps) {
@@ -44,6 +46,7 @@ export function LeadDrawerContent({
         lead={lead}
         canEditQaAudit={canEditQaAudit}
         campaignQuestions={campaignQuestions}
+        campaignName={campaignName}
         showLeadTypeField={showLeadTypeField}
         leadTypeOptions={leadTypeOptions}
       />

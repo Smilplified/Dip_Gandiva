@@ -861,6 +861,7 @@ export default function MISCampaignDetailPage() {
           lead={editingLead ?? undefined}
           canEditQaAudit={canEditQaAudit}
           campaignQuestions={campaignQuestions}
+          campaignName={campaign?.name}
         />
       </Drawer>
 
