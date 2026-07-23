@@ -1,11 +1,9 @@
 /**
- * Apify item → lead_finder_leads row mapping.
+ * Lead-engine dataset item → lead_finder_leads row mapping.
  *
- * The actor's dataset field names vary between apollo-style exports, so every
- * mapped field checks several candidate keys (top-level and nested
- * `organization`/`company` objects). The COMPLETE original item is always
- * stored in raw_data, so nothing is ever lost — after the first 25-lead test
- * run, tighten this mapping against the real keys if needed.
+ * Field names vary between export styles, so every mapped field checks several
+ * candidate keys (top-level and nested `organization`/`company` objects). The
+ * COMPLETE original item is always stored in raw_data so nothing is lost.
  */
 
 type Raw = Record<string, unknown>;
@@ -75,10 +73,17 @@ export function extractActorError(item: Raw): string | null {
   const hasLeadData = Boolean(
     pick(item, ["email", "first_name", "last_name", "name", "organization_name", "company_name"])
   );
-  return hasLeadData ? null : error;
+  if (hasLeadData) return null;
+  // Never surface vendor billing URLs from dataset notice rows.
+  return (
+    error
+      .replace(/https?:\/\/[^\s)]+/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim() || "Lead engine returned an error item"
+  );
 }
 
-export function mapApifyItem(item: Raw): MappedLead {
+export function mapEngineItem(item: Raw): MappedLead {
   const firstName = pick(item, ["first_name", "firstName"]);
   const lastName = pick(item, ["last_name", "lastName"]);
   const fullName =

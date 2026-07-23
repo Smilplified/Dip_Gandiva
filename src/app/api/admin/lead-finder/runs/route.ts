@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await admin
       .from("lead_finder_runs")
       .select(
-        "id, apify_run_id, dataset_id, filters, batch_name, status, total_found, inserted_count, updated_count, skipped_count, progress, error_message, started_by, created_at, finished_at",
+        "id, engine_run_id, dataset_id, filters, batch_name, status, total_found, inserted_count, updated_count, skipped_count, progress, error_message, started_by, created_at, finished_at",
         { count: "exact" }
       )
       .eq("organization_id", orgId)

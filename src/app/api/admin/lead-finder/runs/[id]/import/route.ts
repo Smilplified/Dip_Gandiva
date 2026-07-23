@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import type { AdminClient } from "@/lib/supabase/admin";
-import { fetchDatasetItems, getDatasetItemCount } from "@/lib/lead-finder/apify";
-import { extractActorError, mapApifyItem } from "@/lib/lead-finder/mapping";
+import { fetchDatasetItems, getDatasetItemCount } from "@/lib/lead-finder/lead-engine";
+import { extractActorError, mapEngineItem } from "@/lib/lead-finder/mapping";
 import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ async function importPage(
   let updated = 0;
   let skipped = 0;
 
-  const mapped = items.map(mapApifyItem);
+  const mapped = items.map(mapEngineItem);
 
   // Dedupe on email (case-insensitive — emails are stored lowercased):
   // fetch which of this page's emails already exist, then split insert/update.
@@ -60,7 +60,7 @@ async function importPage(
 
   const seenInPage = new Set<string>();
   const toInsert: Record<string, unknown>[] = [];
-  const toUpdate: { id: string; lead: ReturnType<typeof mapApifyItem> }[] = [];
+  const toUpdate: { id: string; lead: ReturnType<typeof mapEngineItem> }[] = [];
 
   for (const lead of mapped) {
     if (lead.email) {

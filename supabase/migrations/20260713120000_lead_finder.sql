@@ -1,5 +1,5 @@
 -- ============================================================================
--- Lead Finder module (Apify B2B lead scraper — admin only)
+-- Lead Finder module (B2B lead search — admin only)
 -- Runs + scraped leads + saved filter templates. Kept fully separate from the
 -- operational campaign `leads` table so nothing leaks into agent/QA flows.
 -- Idempotent: safe to re-run.
@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS public.lead_finder_runs (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id   uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  apify_run_id      text,
+  engine_run_id     text,
   dataset_id        text,
   filters           jsonb NOT NULL,
   batch_name        text NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS public.lead_finder_leads (
   contact_city      text,
   contact_state     text,
   contact_country   text,
-  source            text NOT NULL DEFAULT 'apify_lead_finder',
+  source            text NOT NULL DEFAULT 'lead_finder',
   -- Complete original record — no field is ever lost.
   raw_data          jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at        timestamptz NOT NULL DEFAULT now(),
@@ -127,6 +127,6 @@ CREATE POLICY lead_finder_templates_admin
   );
 
 COMMENT ON TABLE public.lead_finder_runs IS
-  'Apify lead-finder actor runs (admin-only module); progress doubles as import resume offset.';
+  'Lead Finder engine runs (admin-only module); progress doubles as import resume offset.';
 COMMENT ON TABLE public.lead_finder_leads IS
-  'B2B prospects imported from Apify — separate from operational campaign leads.';
+  'B2B prospects imported by Lead Finder — separate from operational campaign leads.';

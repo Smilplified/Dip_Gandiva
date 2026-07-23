@@ -11,7 +11,7 @@ const POLL_MS = 10_000;
 
 type StatusResponse = {
   run: LeadFinderRun;
-  apify_status: string | null;
+  engine_status: string | null;
   ready_to_import: boolean;
   error?: string;
 };
@@ -57,7 +57,7 @@ export default function RunStatusCard({
   // Once an import cycle reports done, never auto-start another for this run.
   const completedRef = useRef(false);
 
-  // Drive the self-continuing import once the Apify run has succeeded.
+  // Drive the self-continuing import once the engine run has succeeded.
   useEffect(() => {
     const shouldImport =
       !completedRef.current &&
@@ -175,7 +175,7 @@ export default function RunStatusCard({
         ) : run.status === "RUNNING" ? (
           <Text type="secondary">
             🤖 AI agent is searching the B2B database
-            {data?.apify_status ? ` (${data.apify_status.toLowerCase()})` : ""} — this can take a
+            {data?.engine_status ? ` (${data.engine_status.toLowerCase()})` : ""} — this can take a
             few minutes depending on lead count…
           </Text>
         ) : null}

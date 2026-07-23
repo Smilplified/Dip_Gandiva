@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
-import { getActorRun, getDatasetItemCount } from "@/lib/lead-finder/apify";
+import { getActorRun, getDatasetItemCount } from "@/lib/lead-finder/lead-engine";
 
 export const dynamic = "force-dynamic";
 
 type RunRow = {
   id: string;
-  apify_run_id: string | null;
+  engine_run_id: string | null;
   dataset_id: string | null;
   status: string;
   total_found: number;
@@ -22,9 +22,12 @@ type RunRow = {
   finished_at: string | null;
 };
 
+const RUN_SELECT =
+  "id, engine_run_id, dataset_id, status, total_found, inserted_count, updated_count, skipped_count, progress, error_message, batch_name, filters, created_at, finished_at";
+
 /**
- * Run status for the frontend poller. While the Apify run is RUNNING this
- * also syncs Apify's state into the row (SUCCEEDED → ready to import;
+ * Run status for the frontend poller. While the engine run is RUNNING this
+ * also syncs engine state into the row (SUCCEEDED → ready to import;
  * FAILED/ABORTED/TIMED-OUT → failed).
  */
 export async function GET(
@@ -44,9 +47,7 @@ export async function GET(
     const { id } = await params;
     const { data } = await admin
       .from("lead_finder_runs")
-      .select(
-        "id, apify_run_id, dataset_id, status, total_found, inserted_count, updated_count, skipped_count, progress, error_message, batch_name, filters, created_at, finished_at"
-      )
+      .select(RUN_SELECT)
       .eq("id", id)
       .eq("organization_id", orgId)
       .maybeSingle();
@@ -56,23 +57,23 @@ export async function GET(
     }
     let run = data as RunRow;
 
-    // Sync live Apify state while the actor is still running.
-    let apifyStatus: string | null = null;
-    if (run.status === "RUNNING" && run.apify_run_id) {
+    // Sync live engine state while the actor is still running.
+    let engineStatus: string | null = null;
+    if (run.status === "RUNNING" && run.engine_run_id) {
       try {
-        const apifyRun = await getActorRun(run.apify_run_id);
-        apifyStatus = apifyRun.status;
+        const engineRun = await getActorRun(run.engine_run_id);
+        engineStatus = engineRun.status;
         const updates: Record<string, unknown> = {};
 
-        if (!run.dataset_id && apifyRun.defaultDatasetId) {
-          updates.dataset_id = apifyRun.defaultDatasetId;
+        if (!run.dataset_id && engineRun.defaultDatasetId) {
+          updates.dataset_id = engineRun.defaultDatasetId;
         }
-        if (["FAILED", "ABORTED", "TIMED-OUT"].includes(apifyRun.status)) {
-          updates.status = apifyRun.status === "FAILED" ? "FAILED" : "ABORTED";
-          updates.error_message = `Search run ${apifyRun.status.toLowerCase().replace("-", " ")}`;
+        if (["FAILED", "ABORTED", "TIMED-OUT"].includes(engineRun.status)) {
+          updates.status = engineRun.status === "FAILED" ? "FAILED" : "ABORTED";
+          updates.error_message = `Search run ${engineRun.status.toLowerCase().replace("-", " ")}`;
           updates.finished_at = new Date().toISOString();
         }
-        if (apifyRun.status === "SUCCEEDED" && run.total_found === 0) {
+        if (engineRun.status === "SUCCEEDED" && run.total_found === 0) {
           const datasetId = (updates.dataset_id as string) ?? run.dataset_id;
           if (datasetId) {
             const itemCount = await getDatasetItemCount(datasetId);
@@ -85,23 +86,21 @@ export async function GET(
             .from("lead_finder_runs")
             .update(updates as never)
             .eq("id", run.id)
-            .select(
-              "id, apify_run_id, dataset_id, status, total_found, inserted_count, updated_count, skipped_count, progress, error_message, batch_name, filters, created_at, finished_at"
-            )
+            .select(RUN_SELECT)
             .single();
           if (updated) run = updated as RunRow;
         }
       } catch (err) {
-        console.warn("Lead finder Apify status sync failed:", err);
+        console.warn("Lead finder engine status sync failed:", err);
       }
     }
 
     return NextResponse.json({
       run,
-      apify_status: apifyStatus,
+      engine_status: engineStatus,
       // Frontend triggers the import when the actor is done but import hasn't run.
       ready_to_import:
-        run.status === "RUNNING" && apifyStatus === "SUCCEEDED" && Boolean(run.dataset_id),
+        run.status === "RUNNING" && engineStatus === "SUCCEEDED" && Boolean(run.dataset_id),
     });
   } catch (err) {
     console.error("Lead finder run status error:", err);

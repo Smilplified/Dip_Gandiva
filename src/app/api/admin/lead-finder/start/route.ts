@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { verifyLeadFinderAccess } from "@/lib/devices/api-auth";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { validateFilters } from "@/lib/lead-finder/types";
-import { ApifyError, startActorRun } from "@/lib/lead-finder/apify";
+import { LeadEngineError, startActorRun } from "@/lib/lead-finder/lead-engine";
 import { estimateCostUsd } from "@/lib/lead-finder/types";
 import { logAudit } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
-/** Start an Apify lead-finder run and create the tracking row. Admin / OM / TL only. */
+/** Start a Lead Finder engine run and create the tracking row. Admin / OM / TL only. */
 export async function POST(request: Request) {
   try {
     const ctx = await verifyLeadFinderAccess();
@@ -30,25 +30,33 @@ export async function POST(request: Request) {
     }
     const filters = validation.filters;
 
-    let apifyRun;
+    let engineRun;
     try {
-      apifyRun = await startActorRun(filters as unknown as Record<string, unknown>);
+      engineRun = await startActorRun(filters as unknown as Record<string, unknown>);
     } catch (err) {
       const message =
-        err instanceof ApifyError && err.status === 401
-          ? "Lead engine token is invalid (check APIFY_API_TOKEN)"
-          : err instanceof Error
+        err instanceof LeadEngineError
           ? err.message
-          : "Failed to start the search";
-      return NextResponse.json({ error: message }, { status: 502 });
+          : err instanceof Error
+            ? err.message
+            : "Failed to start the search";
+      const status =
+        err instanceof LeadEngineError && err.status === 402
+          ? 402
+          : err instanceof LeadEngineError && err.status === 401
+            ? 401
+            : err instanceof LeadEngineError && err.status === 503
+              ? 503
+              : 502;
+      return NextResponse.json({ error: message }, { status });
     }
 
     const { data: run, error } = await admin
       .from("lead_finder_runs")
       .insert({
         organization_id: orgId,
-        apify_run_id: apifyRun.id,
-        dataset_id: apifyRun.defaultDatasetId,
+        engine_run_id: engineRun.id,
+        dataset_id: engineRun.defaultDatasetId,
         filters: filters as never,
         batch_name: filters.file_name,
         status: "RUNNING",
@@ -78,7 +86,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(
-      { run_id: (run as { id: string }).id, apify_run_id: apifyRun.id },
+      { run_id: (run as { id: string }).id, engine_run_id: engineRun.id },
       { status: 201 }
     );
   } catch (err) {

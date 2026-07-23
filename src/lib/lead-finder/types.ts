@@ -43,7 +43,7 @@ export type RunStatus = "RUNNING" | "IMPORTING" | "SUCCEEDED" | "FAILED" | "ABOR
 
 export type LeadFinderRun = {
   id: string;
-  apify_run_id: string | null;
+  engine_run_id: string | null;
   dataset_id: string | null;
   filters: LeadFinderFilters;
   batch_name: string;
