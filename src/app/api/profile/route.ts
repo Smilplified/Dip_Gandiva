@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
+import {
+  normalizeClientLogoUrls,
+  primaryClientLogoUrl,
+} from "@/lib/admin/client-logos";
 
 export async function GET() {
   const supabase = await createClient();
@@ -32,7 +36,22 @@ export async function GET() {
     const rpc = await supabase.rpc("get_my_profile_context" as never);
     const rpcProfile = rpc.data as Record<string, unknown> | null;
     if (!rpc.error && rpcProfile && typeof rpcProfile === "object") {
-      return NextResponse.json({ profile: rpcProfile });
+      const fromArray = Array.isArray(rpcProfile.client_logo_urls)
+        ? (rpcProfile.client_logo_urls as unknown[]).filter(
+            (u): u is string => typeof u === "string" && u.trim().length > 0
+          )
+        : [];
+      const single =
+        typeof rpcProfile.client_logo_url === "string" ? rpcProfile.client_logo_url : null;
+      const clientLogoUrls =
+        fromArray.length > 0 ? fromArray : single?.trim() ? [single.trim()] : [];
+      return NextResponse.json({
+        profile: {
+          ...rpcProfile,
+          client_logo_urls: clientLogoUrls,
+          client_logo_url: primaryClientLogoUrl(clientLogoUrls),
+        },
+      });
     }
     if (rpc.error) {
       console.warn(
@@ -138,28 +157,57 @@ export async function GET() {
     assignedCampaigns = tlList.map((c) => ({ id: c.id, name: c.name }));
   }
 
-  let clientLogoUrl: string | null = null;
+  let clientLogoUrls: string[] = [];
   const admin = getAdminClientSafe();
   const normalizedRoles = roles.map((r) => r.toLowerCase().trim().replace(/\s+/g, "_"));
   if (profile?.organization_id && admin) {
     if (profile.client_id) {
-      const { data: clientRow } = await admin
+      const withUrls = await admin
         .from("clients")
-        .select("logo_url")
+        .select("logo_url, logo_urls")
         .eq("id", profile.client_id)
         .eq("organization_id", profile.organization_id)
         .maybeSingle();
-      clientLogoUrl = (clientRow as { logo_url: string | null } | null)?.logo_url ?? null;
+      if (!withUrls.error && withUrls.data) {
+        clientLogoUrls = normalizeClientLogoUrls(
+          withUrls.data as { logo_url: string | null; logo_urls: string[] | null }
+        );
+      } else {
+        const legacy = await admin
+          .from("clients")
+          .select("logo_url")
+          .eq("id", profile.client_id)
+          .eq("organization_id", profile.organization_id)
+          .maybeSingle();
+        clientLogoUrls = normalizeClientLogoUrls(
+          legacy.data as { logo_url: string | null } | null
+        );
+      }
     }
-    if (!clientLogoUrl && normalizedRoles.includes("dc")) {
-      const { data: orgClients } = await admin
+    if (clientLogoUrls.length === 0 && normalizedRoles.includes("dc")) {
+      const withUrls = await admin
         .from("clients")
-        .select("logo_url, name")
+        .select("logo_url, logo_urls, name")
         .eq("organization_id", profile.organization_id);
-      const dcClient = ((orgClients ?? []) as { logo_url: string | null; name: string | null }[]).find(
-        (c) => (c.name ?? "").trim().toLowerCase() === "dc"
-      );
-      clientLogoUrl = dcClient?.logo_url ?? null;
+      if (!withUrls.error) {
+        const dcClient = (
+          (withUrls.data ?? []) as {
+            logo_url: string | null;
+            logo_urls: string[] | null;
+            name: string | null;
+          }[]
+        ).find((c) => (c.name ?? "").trim().toLowerCase() === "dc");
+        clientLogoUrls = normalizeClientLogoUrls(dcClient);
+      } else {
+        const { data: orgClients } = await admin
+          .from("clients")
+          .select("logo_url, name")
+          .eq("organization_id", profile.organization_id);
+        const dcClient = (
+          (orgClients ?? []) as { logo_url: string | null; name: string | null }[]
+        ).find((c) => (c.name ?? "").trim().toLowerCase() === "dc");
+        clientLogoUrls = normalizeClientLogoUrls(dcClient);
+      }
     }
   }
 
@@ -170,7 +218,8 @@ export async function GET() {
       manager_name: managerName,
       assigned_campaigns: assignedCampaigns,
       joining_date: profile?.joining_date ?? profile?.created_at,
-      client_logo_url: clientLogoUrl,
+      client_logo_urls: clientLogoUrls,
+      client_logo_url: primaryClientLogoUrl(clientLogoUrls),
     },
   });
 }

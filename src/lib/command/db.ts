@@ -583,6 +583,8 @@ export async function aggregateCommandLeadStatsByCampaign(
   campaignIds: string[]
 ): Promise<Record<string, CommandListLeadAgg>> {
   const postQaVerified = new Set(["qualified", "registered", "attended", "no_show"]);
+  /** PostgREST caps a single response at 1000 rows — must page for multi-campaign lists. */
+  const PAGE = 1000;
 
   const empty = (): CommandListLeadAgg => ({
     total: 0,
@@ -596,41 +598,50 @@ export async function aggregateCommandLeadStatsByCampaign(
     verified: 0,
   });
   if (campaignIds.length === 0) return {};
-  const leadsQuery = supabase
-    .from("leads")
-    .select("campaign_id, status, qa_status, consent_status, delivery_status")
-    .eq("organization_id", organizationId)
-    .in("campaign_id", campaignIds);
-  const { data, error } = await leadsQuery;
-  if (error) throw new Error(error.message);
   const out: Record<string, CommandListLeadAgg> = {};
   for (const id of campaignIds) out[id] = empty();
-  for (const row of (data ?? []) as {
+
+  type LeadAggRow = {
     campaign_id: string;
     status: string;
     qa_status: string | null;
     consent_status: string | null;
     delivery_status: string | null;
-  }[]) {
-    const b = out[row.campaign_id];
-    if (!b) continue;
-    b.total += 1;
-    const st = String(row.status ?? "").toLowerCase().trim();
-    const qa = String(row.qa_status ?? "").toLowerCase().trim();
-    const qaOrStatus = qa || st;
-    if (String(row.delivery_status ?? "").trim().toLowerCase() === "delivered") {
-      b.delivered += 1;
+  };
+
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("campaign_id, status, qa_status, consent_status, delivery_status")
+      .eq("organization_id", organizationId)
+      .in("campaign_id", campaignIds)
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as LeadAggRow[];
+    for (const row of rows) {
+      const b = out[row.campaign_id];
+      if (!b) continue;
+      b.total += 1;
+      const st = String(row.status ?? "").toLowerCase().trim();
+      const qa = String(row.qa_status ?? "").toLowerCase().trim();
+      const qaOrStatus = qa || st;
+      if (String(row.delivery_status ?? "").trim().toLowerCase() === "delivered") {
+        b.delivered += 1;
+      }
+      // Keep campaign list qualified% consistent with dashboard analytics:
+      // treat post-QA leads (qualified/registered/attended/no_show) as qualified-like.
+      if (postQaVerified.has(qaOrStatus) || postQaVerified.has(st)) b.qualified += 1;
+      if (postQaVerified.has(qaOrStatus) || postQaVerified.has(st)) b.qa_verified += 1;
+      if (qaOrStatus === "disqualified" || st === "disqualified") b.dq += 1;
+      const cs = String(row.consent_status ?? "pending").toLowerCase();
+      if (cs === "missing") b.missingConsent += 1;
+      else if (cs === "disputed") b.disputedConsent += 1;
+      else if (cs === "pending") b.pendingConsent += 1;
+      else if (cs === "verified") b.verified += 1;
     }
-    // Keep campaign list qualified% consistent with dashboard analytics:
-    // treat post-QA leads (qualified/registered/attended/no_show) as qualified-like.
-    if (postQaVerified.has(qaOrStatus) || postQaVerified.has(st)) b.qualified += 1;
-    if (postQaVerified.has(qaOrStatus) || postQaVerified.has(st)) b.qa_verified += 1;
-    if (qaOrStatus === "disqualified" || st === "disqualified") b.dq += 1;
-    const cs = String(row.consent_status ?? "pending").toLowerCase();
-    if (cs === "missing") b.missingConsent += 1;
-    else if (cs === "disputed") b.disputedConsent += 1;
-    else if (cs === "pending") b.pendingConsent += 1;
-    else if (cs === "verified") b.verified += 1;
+    if (rows.length < PAGE) break;
   }
   return out;
 }

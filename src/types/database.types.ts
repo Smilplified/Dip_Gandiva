@@ -670,6 +670,7 @@ export type Database = {
           budget_range: string | null;
           expected_start_date: string | null;
           logo_url: string | null;
+          logo_urls: string[];
         };
         Insert: {
           id?: string;
@@ -702,6 +703,7 @@ export type Database = {
           budget_range?: string | null;
           expected_start_date?: string | null;
           logo_url?: string | null;
+          logo_urls?: string[];
         };
         Update: {
           id?: string;
@@ -734,6 +736,7 @@ export type Database = {
           budget_range?: string | null;
           expected_start_date?: string | null;
           logo_url?: string | null;
+          logo_urls?: string[];
         };
       };
       leads: {
