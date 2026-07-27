@@ -1,14 +1,16 @@
 "use client";
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { Button, Card, Drawer, message } from "antd";
-import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
+import { Button, Card, Drawer, message, Space } from "antd";
+import { ArrowLeftOutlined, EditOutlined, FileTextOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
 import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import CampaignDashboard from "@/components/command/CampaignDashboard";
 import CampaignForm from "@/components/command/CampaignForm";
+import CampaignPerformanceReportDrawer from "@/components/command/CampaignPerformanceReportDrawer";
+import { isCampaignReportMvpUser } from "@/lib/command/campaign-performance-report";
 
 interface CampaignBasic {
   id: string;
@@ -54,16 +56,19 @@ export default function CampaignDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { hasRole, authVersion } = useAuth();
+  const { hasRole, authVersion, user } = useAuth();
   const authReady = useAuthReady();
 
   const campaignId = params.id as string;
   const shouldEditOnMount = searchParams.get("edit") === "true";
 
   const [editDrawer, setEditDrawer] = useState(false);
+  const [reportDrawer, setReportDrawer] = useState(false);
   const [campaignBasic, setCampaignBasic] = useState<CampaignBasic | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [feedMode, setFeedMode] = useState(() => searchParams.get("tab") === "feed");
+  // TODO: expand Campaign Report visibility beyond Shlok S (ssshlok554@gmail.com).
+  const canViewCampaignReport = isCampaignReportMvpUser(user?.email);
   const metrics = campaignBasic
     ? (Array.isArray(campaignBasic.campaign_metrics)
       ? campaignBasic.campaign_metrics[0]
@@ -144,14 +149,25 @@ export default function CampaignDetailPage() {
           </Button>
         </div>
 
-        {canEdit && (
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => setEditDrawer(true)}
-          >
-            Edit Campaign
-          </Button>
-        )}
+        <Space wrap>
+          {canViewCampaignReport && (
+            <Button
+              type="primary"
+              icon={<FileTextOutlined />}
+              onClick={() => setReportDrawer(true)}
+            >
+              View Report
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => setEditDrawer(true)}
+            >
+              Edit Campaign
+            </Button>
+          )}
+        </Space>
       </div>
       )}
 
@@ -198,6 +214,14 @@ export default function CampaignDetailPage() {
             />
           )}
         </Drawer>
+      )}
+
+      {canViewCampaignReport && (
+        <CampaignPerformanceReportDrawer
+          open={reportDrawer}
+          onClose={() => setReportDrawer(false)}
+          campaignId={campaignId}
+        />
       )}
     </div>
   );
