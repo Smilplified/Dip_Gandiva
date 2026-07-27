@@ -292,7 +292,7 @@ function HorizontalBars({
   maxItems = 8,
 }: {
   entries: NamedValueEntry[] | undefined;
-  labelKey: "role" | "scenario" | "date" | "state";
+  labelKey: "role" | "scenario" | "seniority" | "date" | "state";
   color?: string;
   title: string;
   maxItems?: number;
@@ -333,12 +333,18 @@ function HorizontalBars({
   );
 }
 
-function ScenarioGrid({ entries }: { entries: NamedValueEntry[] | undefined }) {
-  const data = chartEntriesFromNamed(entries, "scenario").slice(0, 5);
+function ScenarioGrid({
+  entries,
+  title = "Job Seniority",
+}: {
+  entries: NamedValueEntry[] | undefined;
+  title?: string;
+}) {
+  const data = chartEntriesFromNamed(entries, "seniority").slice(0, 5);
   if (data.length === 0) return null;
   return (
     <View style={styles.card} wrap={false}>
-      <Text style={styles.cardTitle}>Job Scenarios</Text>
+      <Text style={styles.cardTitle}>{title}</Text>
       <View style={styles.scenarioGrid}>
         {data.map((item) => (
           <View key={item.name} style={styles.scenarioCard}>
@@ -536,13 +542,13 @@ function CampaignPerformanceReportDocument({
             />
           </View>
         </View>
-        <ScenarioGrid entries={report.outbound_data?.jobScenarioEntries} />
+        <ScenarioGrid entries={report.outbound_data?.jobScenarioEntries} title="Job Seniority" />
         <PageFooter report={report} pageLabel="Outbound" pageNum={1} totalPages={TOTAL_PAGES} />
       </Page>
 
-      {/* Page 2 — Opens + Clicks */}
+      {/* Page 2 — Email Opens + Clicks */}
       <Page size="A4" style={styles.page} wrap={false}>
-        <Text style={styles.sectionTitle}>PoC Opens</Text>
+        <Text style={styles.sectionTitle}>Email Open Report</Text>
         <KpiRow>
           <Kpi label="Total ECs Opened" value={formatReportNumber(opensTotal)} accent="#0ea5e9" />
           <Kpi label="EC Open Ratio" value={formatReportPercent(opensRatio)} accent="#4f46e5" last />
@@ -566,9 +572,9 @@ function CampaignPerformanceReportDocument({
             />
           </View>
         </View>
-        <ScenarioGrid entries={report.poc_opens_data?.jobScenarioEntries} />
+        <ScenarioGrid entries={report.poc_opens_data?.jobScenarioEntries} title="Open Seniority" />
 
-        <Text style={[styles.sectionTitle, { marginTop: 10 }]}>PoC Clicks</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Email Click Report</Text>
         <KpiRow>
           <Kpi label="Total ECs Clicked" value={formatReportNumber(clicksTotal)} accent="#10b981" />
           <Kpi label="EC Click Ratio" value={formatReportPercent(clicksRatio)} accent="#0ea5e9" last />
@@ -592,8 +598,8 @@ function CampaignPerformanceReportDocument({
             />
           </View>
         </View>
-        <ScenarioGrid entries={report.poc_clicks_data?.jobScenarioEntries} />
-        <PageFooter report={report} pageLabel="Opens & Clicks" pageNum={2} totalPages={TOTAL_PAGES} />
+        <ScenarioGrid entries={report.poc_clicks_data?.jobScenarioEntries} title="Click Seniority" />
+        <PageFooter report={report} pageLabel="Email Open & Click Report" pageNum={2} totalPages={TOTAL_PAGES} />
       </Page>
 
       {/* Page 3 — Landing + Web Vitals */}

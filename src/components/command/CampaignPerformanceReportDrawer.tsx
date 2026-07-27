@@ -271,9 +271,9 @@ function IndustryMixCard({
 }
 
 function ScenarioCards({ entries }: { entries: NamedValueEntry[] | undefined }) {
-  const items = chartEntriesFromNamed(entries, "scenario");
+  const items = chartEntriesFromNamed(entries, "seniority");
   if (items.length === 0) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No scenario data" />;
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No seniority data" />;
   }
   const max = Math.max(...items.map((i) => i.value), 1);
   return (
@@ -575,7 +575,7 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
             </Card>
           </Col>
         </Row>
-        <Card title="Job Scenarios" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
+        <Card title="Job Seniority" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
           <ScenarioCards entries={report.outbound_data?.jobScenarioEntries} />
         </Card>
       </section>
@@ -583,7 +583,7 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
       <Divider style={{ margin: 0 }} />
 
       <section>
-        <SectionHeader icon={<EyeOutlined />} title="PoC Opens" accent="#0ea5e9" />
+        <SectionHeader icon={<EyeOutlined />} title="Email Open Report" accent="#0ea5e9" />
         <Row gutter={[12, 12]} style={{ marginBottom: 14 }}>
           <Col xs={12} md={8}>
             <KpiTile label="Total ECs Opened" value={formatReportNumber(opensTotal)} accent="#0ea5e9" />
@@ -604,7 +604,7 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
             </Card>
           </Col>
         </Row>
-        <Card title="Open Scenarios" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
+        <Card title="Open Seniority" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
           <ScenarioCards entries={report.poc_opens_data?.jobScenarioEntries} />
         </Card>
       </section>
@@ -612,7 +612,7 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
       <Divider style={{ margin: 0 }} />
 
       <section>
-        <SectionHeader icon={<AimOutlined />} title="PoC Clicks" accent="#10b981" />
+        <SectionHeader icon={<AimOutlined />} title="Email Click Report" accent="#10b981" />
         <Row gutter={[12, 12]} style={{ marginBottom: 14 }}>
           <Col xs={12} md={8}>
             <KpiTile label="Total ECs Clicked" value={formatReportNumber(clicksTotal)} accent="#10b981" />
@@ -633,7 +633,7 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
             </Card>
           </Col>
         </Row>
-        <Card title="Click Scenarios" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
+        <Card title="Click Seniority" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
           <ScenarioCards entries={report.poc_clicks_data?.jobScenarioEntries} />
         </Card>
       </section>

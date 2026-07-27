@@ -9,7 +9,9 @@ export const CAMPAIGN_REPORT_MVP_EMAIL = "ssshlok554@gmail.com";
 export type NamedValueEntry = {
   id?: string;
   role?: string;
+  /** Generator still stores seniority labels under `scenario`; prefer `seniority` when present. */
   scenario?: string;
+  seniority?: string;
   date?: string;
   state?: string;
   value?: string | number | null;
@@ -187,12 +189,17 @@ export function pickFormValue(
 
 export function chartEntriesFromNamed(
   entries: NamedValueEntry[] | undefined,
-  labelKey: "role" | "scenario" | "date" | "state"
+  labelKey: "role" | "scenario" | "seniority" | "date" | "state"
 ): Array<{ name: string; value: number }> {
   if (!Array.isArray(entries)) return [];
   return entries
     .map((e, i) => {
-      const rawLabel = e[labelKey];
+      const rawLabel =
+        labelKey === "seniority"
+          ? e.seniority ?? e.scenario
+          : labelKey === "scenario"
+            ? e.scenario ?? e.seniority
+            : e[labelKey];
       const name =
         typeof rawLabel === "string" && rawLabel.trim()
           ? rawLabel.trim()
@@ -278,7 +285,7 @@ export function buildCampaignReportSummary(
 
   if (opensTotal !== "—" || clicksTotal !== "—") {
     paragraphs.push(
-      `Engagement reached ${opensTotal} EC opens (${openRatio}) and ${clicksTotal} EC clicks (${clickRatio}).`
+      `Email engagement reached ${opensTotal} opens (${openRatio}) and ${clicksTotal} clicks (${clickRatio}).`
     );
   }
 
