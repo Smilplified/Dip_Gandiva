@@ -9,7 +9,10 @@ import {
   resolveAgentName,
   resolveClientName,
 } from "@/lib/lho/meeting-report-format";
-import type { CampaignQuestion } from "@/lib/campaign-questions";
+import {
+  normalizeCqAnswerValue,
+  type CampaignQuestion,
+} from "@/lib/campaign-questions";
 import {
   isCloudThatAgCampaign,
   shouldShowDemandForCloudThatAgTagging,
@@ -23,7 +26,7 @@ function normalizeExtraCqMap(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== "object") return {};
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    const v = str(value);
+    const v = normalizeCqAnswerValue(value);
     if (v) out[key] = v;
   }
   return out;
@@ -61,11 +64,11 @@ export function buildLhoDataFromLead(
   const leadTagging = str(raw.lead_tagging);
 
   const cqFields = {
-    cq1: str(raw.cq1),
-    cq2: str(raw.cq2),
-    cq3: str(raw.cq3),
-    cq4: str(raw.cq4),
-    cq5: str(raw.cq5),
+    cq1: normalizeCqAnswerValue(raw.cq1),
+    cq2: normalizeCqAnswerValue(raw.cq2),
+    cq3: normalizeCqAnswerValue(raw.cq3),
+    cq4: normalizeCqAnswerValue(raw.cq4),
+    cq5: normalizeCqAnswerValue(raw.cq5),
     extraCq: normalizeExtraCqMap(raw.extra_cq),
   };
 

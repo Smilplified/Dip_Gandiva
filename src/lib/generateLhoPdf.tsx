@@ -397,6 +397,8 @@ function LhoDocument({
               ]}
             />
 
+            <CampaignQuestionsSection rows={data.campaignQuestions} />
+
             <FieldsSection
               title="COMMENTS & NOTES"
               fields={[
@@ -406,7 +408,6 @@ function LhoDocument({
               ]}
             />
 
-            <CampaignQuestionsSection rows={data.campaignQuestions} />
           </View>
         </View>
       </Page>

@@ -1,6 +1,7 @@
 import type { LhoData } from "@/lib/generateLhoPdf";
 import {
   normalizeCampaignQuestions,
+  normalizeCqAnswerValue,
   type CampaignQuestion,
 } from "@/lib/campaign-questions";
 
@@ -18,12 +19,12 @@ function answerForKey(
   key: string
 ): string {
   const k = key.toLowerCase();
-  if (k === "cq1") return data.cq1;
-  if (k === "cq2") return data.cq2;
-  if (k === "cq3") return data.cq3;
-  if (k === "cq4") return data.cq4;
-  if (k === "cq5") return data.cq5;
-  return data.extraCq[k] ?? "";
+  if (k === "cq1") return normalizeCqAnswerValue(data.cq1);
+  if (k === "cq2") return normalizeCqAnswerValue(data.cq2);
+  if (k === "cq3") return normalizeCqAnswerValue(data.cq3);
+  if (k === "cq4") return normalizeCqAnswerValue(data.cq4);
+  if (k === "cq5") return normalizeCqAnswerValue(data.cq5);
+  return normalizeCqAnswerValue(data.extraCq[k]);
 }
 
 function hasCqAnswer(value: string): boolean {

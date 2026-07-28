@@ -1488,6 +1488,7 @@ function GenerateLhoButton({
     const raw: Record<string, unknown> = {
       ...(lead as Record<string, unknown> | undefined),
       ...v,
+      campaign_questions: campaignQuestions ?? undefined,
       scored: wallClockDayjsToUtcIso(
         v.scored as Parameters<typeof wallClockDayjsToUtcIso>[0],
         scoredTz

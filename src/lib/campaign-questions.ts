@@ -25,6 +25,15 @@ function normalizeQuestionOptions(raw: unknown): string[] | undefined {
   return options.length > 0 ? options : undefined;
 }
 
+export function normalizeCqAnswerValue(val: unknown): string {
+  if (val == null) return "";
+  if (Array.isArray(val)) {
+    const last = val[val.length - 1];
+    return last != null ? String(last).trim() : "";
+  }
+  return String(val).trim();
+}
+
 export function isDropdownCampaignQuestion(question: CampaignQuestion): boolean {
   return Boolean(question.options && question.options.length > 0);
 }

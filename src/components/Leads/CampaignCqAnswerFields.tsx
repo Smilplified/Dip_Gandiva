@@ -4,8 +4,46 @@ import { Form, Input, Row, Col, Select } from "antd";
 import {
   isDropdownCampaignQuestion,
   leadAnswerFieldName,
+  normalizeCqAnswerValue,
   type CampaignQuestion,
 } from "@/lib/campaign-questions";
+
+type CampaignCqDropdownAnswerProps = {
+  value?: string;
+  onChange?: (value: string) => void;
+  options: string[];
+};
+
+/** Single-value select that also accepts a newly typed option on Enter. */
+function CampaignCqDropdownAnswer({
+  value,
+  onChange,
+  options,
+}: CampaignCqDropdownAnswerProps) {
+  const tagValue =
+    value != null && String(value).trim() !== "" ? [String(value).trim()] : [];
+
+  return (
+    <Select
+      mode="tags"
+      maxCount={1}
+      value={tagValue}
+      onChange={(vals) => {
+        const next = Array.isArray(vals) ? (vals[vals.length - 1] ?? "") : "";
+        onChange?.(normalizeCqAnswerValue(next));
+      }}
+      placeholder="Select or type new answer and press Enter"
+      tokenSeparators={[","]}
+      allowClear
+      showSearch
+      optionFilterProp="label"
+      options={options.map((option) => ({
+        value: option,
+        label: option,
+      }))}
+    />
+  );
+}
 
 type CampaignCqAnswerFieldsProps = {
   questions: CampaignQuestion[];
@@ -23,19 +61,11 @@ export function CampaignCqAnswerFields({ questions }: CampaignCqAnswerFieldsProp
             className="lead-campaign-cq-item"
             label={q.label}
             name={leadAnswerFieldName(q.key)}
+            normalize={normalizeCqAnswerValue}
             style={{ marginBottom: 16 }}
           >
             {isDropdownCampaignQuestion(q) ? (
-              <Select
-                placeholder="Select answer"
-                allowClear
-                showSearch
-                optionFilterProp="label"
-                options={(q.options ?? []).map((option) => ({
-                  value: option,
-                  label: option,
-                }))}
-              />
+              <CampaignCqDropdownAnswer options={q.options ?? []} />
             ) : (
               <Input placeholder="Your answer" allowClear />
             )}
