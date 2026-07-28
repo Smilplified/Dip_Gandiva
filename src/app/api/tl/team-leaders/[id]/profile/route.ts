@@ -4,26 +4,27 @@ import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
-import { hasTLAccess } from "@/lib/auth/tl-access";
+import { hasTLAccess, hasOrgWideInsightsAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
-import { fetchAgentCampaignStats, type AgentCampaignStats } from "@/lib/tl/agent-profile";
+import {
+  fetchTeamLeaderCampaignStats,
+  type TeamLeaderCampaignStats,
+} from "@/lib/tl/team-leader-profile";
 
 export const dynamic = "force-dynamic";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-export type AgentProfileResponse = {
-  agent: {
+export type TeamLeaderProfileResponse = {
+  team_leader: {
     id: string;
     full_name: string | null;
     email: string | null;
-    agent_code: string | null;
     status: string;
-    department: string | null;
-    designation: string | null;
   };
-  campaigns: AgentCampaignStats[];
+  agent_count: number;
+  campaigns: TeamLeaderCampaignStats[];
   date_range: { start: string; end: string };
 };
 
@@ -61,7 +62,7 @@ export async function GET(
     }
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
-    if (!hasTLAccess(roleNames) && !roleNames.includes("admin")) {
+    if (!hasTLAccess(roleNames) && !hasOrgWideInsightsAccess(roleNames)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -76,9 +77,9 @@ export async function GET(
       return NextResponse.json({ error: "No organization" }, { status: 400 });
     }
 
-    const { id: agentId } = await params;
-    if (!agentId) {
-      return NextResponse.json({ error: "Agent ID required" }, { status: 400 });
+    const { id: tlId } = await params;
+    if (!tlId) {
+      return NextResponse.json({ error: "Team leader ID required" }, { status: 400 });
     }
 
     const admin = getAdminClientSafe();
@@ -96,62 +97,58 @@ export async function GET(
     const startUtc = utcStartOfDayInTz(startDate, appTz);
     const endUtc = utcEndOfDayInTz(endDate, appTz);
 
-    const { data: agent, error: agentError } = await admin
+    const { data: tlUser, error: tlError } = await admin
       .from("users")
-      .select("id, full_name, email, agent_code, status, department, designation, organization_id")
-      .eq("id", agentId)
+      .select("id, full_name, email, status, organization_id")
+      .eq("id", tlId)
       .single();
 
-    if (agentError || !agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    if (tlError || !tlUser) {
+      return NextResponse.json({ error: "Team leader not found" }, { status: 404 });
     }
 
-    const typedAgent = agent as {
+    const typedTl = tlUser as {
       id: string;
       full_name: string | null;
       email: string | null;
-      agent_code: string | null;
       status: string;
-      department: string | null;
-      designation: string | null;
       organization_id: string | null;
     };
 
-    if (typedAgent.organization_id !== orgId) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    if (typedTl.organization_id !== orgId) {
+      return NextResponse.json({ error: "Team leader not found" }, { status: 404 });
     }
 
-    let campaigns: AgentCampaignStats[] = [];
+    let stats: Awaited<ReturnType<typeof fetchTeamLeaderCampaignStats>>;
     try {
-      campaigns = await fetchAgentCampaignStats(admin, {
+      stats = await fetchTeamLeaderCampaignStats(admin, {
         orgId,
-        agentId,
+        tlId,
         startUtc,
         endUtc,
+        supabase,
       });
     } catch (statsErr) {
       const msg =
-        statsErr instanceof Error ? statsErr.message : "Failed to load agent campaign stats";
+        statsErr instanceof Error ? statsErr.message : "Failed to load team leader campaigns";
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
-    const response: AgentProfileResponse = {
-      agent: {
-        id: typedAgent.id,
-        full_name: typedAgent.full_name,
-        email: typedAgent.email,
-        agent_code: typedAgent.agent_code,
-        status: typedAgent.status,
-        department: typedAgent.department,
-        designation: typedAgent.designation,
+    const response: TeamLeaderProfileResponse = {
+      team_leader: {
+        id: typedTl.id,
+        full_name: typedTl.full_name,
+        email: typedTl.email,
+        status: typedTl.status,
       },
-      campaigns,
+      agent_count: stats.agent_count,
+      campaigns: stats.campaigns,
       date_range: { start: startDate, end: endDate },
     };
 
     return NextResponse.json(response);
   } catch (err) {
-    console.error("TL agent profile error:", err);
+    console.error("TL team leader profile error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

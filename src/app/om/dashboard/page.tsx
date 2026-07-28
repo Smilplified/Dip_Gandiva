@@ -60,6 +60,8 @@ import type { AgentPerformance, TeamPerformanceResponse } from "@/app/api/tl/tea
 import type { DashboardSummaryResponse } from "@/app/api/tl/dashboard/summary/route";
 import type { TLCampaignRow } from "@/hooks/useTLDashboard";
 import type { AgentProfileResponse } from "@/app/api/tl/agents/[id]/profile/route";
+import type { TeamLeaderProfileResponse } from "@/app/api/tl/team-leaders/[id]/profile/route";
+import type { TLSummary } from "@/app/api/tl/team-performance/route";
 
 type OmCampaignRow = TLCampaignRow & {
   campaign_type?: string | null;
@@ -105,11 +107,42 @@ function useIsCompactViewport(): boolean {
   return isCompact;
 }
 
-async function fetchAgentProfile(agentId: string): Promise<AgentProfileResponse> {
-  const res = await fetch(`/api/tl/agents/${agentId}/profile`, { credentials: "include" });
+async function fetchAgentProfile(
+  agentId: string,
+  startDate: string,
+  endDate: string,
+  timeZone: string
+): Promise<AgentProfileResponse> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+    tz: timeZone,
+  });
+  const res = await fetch(`/api/tl/agents/${agentId}/profile?${params.toString()}`, {
+    credentials: "include",
+  });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to load agent profile");
   return json as AgentProfileResponse;
+}
+
+async function fetchTeamLeaderProfile(
+  tlId: string,
+  startDate: string,
+  endDate: string,
+  timeZone: string
+): Promise<TeamLeaderProfileResponse> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+    tz: timeZone,
+  });
+  const res = await fetch(`/api/tl/team-leaders/${tlId}/profile?${params.toString()}`, {
+    credentials: "include",
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to load team leader profile");
+  return json as TeamLeaderProfileResponse;
 }
 
 export default function OperationsManagerDashboardPage() {
@@ -117,6 +150,7 @@ export default function OperationsManagerDashboardPage() {
   const isCompact = useIsCompactViewport();
   const [isOffline, setIsOffline] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectedTlId, setSelectedTlId] = useState<string | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [selectedCampaignTlId, setSelectedCampaignTlId] = useState<string | null>(null);
   const [selectedSummaryCard, setSelectedSummaryCard] = useState<
@@ -133,6 +167,10 @@ export default function OperationsManagerDashboardPage() {
   const [campaignStatusFilter, setCampaignStatusFilter] = useState<string | null>(null);
   const [campaignSearchTerm, setCampaignSearchTerm] = useState("");
   const [campaignSearchDebounced, setCampaignSearchDebounced] = useState("");
+  const [agentSearchTerm, setAgentSearchTerm] = useState("");
+  const [agentSearchDebounced, setAgentSearchDebounced] = useState("");
+  const [tlSearchTerm, setTlSearchTerm] = useState("");
+  const [tlSearchDebounced, setTlSearchDebounced] = useState("");
 
   const enabled = Boolean(isInitialized && hasTLAccess());
 
@@ -140,6 +178,16 @@ export default function OperationsManagerDashboardPage() {
     const handle = setTimeout(() => setCampaignSearchDebounced(campaignSearchTerm.trim()), 350);
     return () => clearTimeout(handle);
   }, [campaignSearchTerm]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => setAgentSearchDebounced(agentSearchTerm.trim()), 350);
+    return () => clearTimeout(handle);
+  }, [agentSearchTerm]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => setTlSearchDebounced(tlSearchTerm.trim()), 350);
+    return () => clearTimeout(handle);
+  }, [tlSearchTerm]);
 
   const timeZone = useMemo(() => {
     if (typeof Intl === "undefined") return "UTC";
@@ -240,10 +288,49 @@ export default function OperationsManagerDashboardPage() {
     });
   }, [selectedCampaignDetailQuery.data, selectedCampaignTlId]);
 
+  const agentProfileApiParams = useMemo(() => {
+    if (!selectedAgentId) return null;
+    return {
+      agentId: selectedAgentId,
+      startDate: selectedDateRange[0].format("YYYY-MM-DD"),
+      endDate: selectedDateRange[1].format("YYYY-MM-DD"),
+      timeZone,
+    };
+  }, [selectedAgentId, selectedDateRange, timeZone]);
+
   const agentProfileQuery = useQuery({
-    queryKey: ["tl", "agent-profile", selectedAgentId],
-    queryFn: () => fetchAgentProfile(selectedAgentId ?? ""),
-    enabled: Boolean(selectedAgentId),
+    queryKey: ["tl", "agent-profile", agentProfileApiParams],
+    queryFn: () =>
+      fetchAgentProfile(
+        agentProfileApiParams!.agentId,
+        agentProfileApiParams!.startDate,
+        agentProfileApiParams!.endDate,
+        agentProfileApiParams!.timeZone
+      ),
+    enabled: Boolean(agentProfileApiParams),
+    staleTime: 60_000,
+  });
+
+  const tlProfileApiParams = useMemo(() => {
+    if (!selectedTlId) return null;
+    return {
+      tlId: selectedTlId,
+      startDate: selectedDateRange[0].format("YYYY-MM-DD"),
+      endDate: selectedDateRange[1].format("YYYY-MM-DD"),
+      timeZone,
+    };
+  }, [selectedTlId, selectedDateRange, timeZone]);
+
+  const tlProfileQuery = useQuery({
+    queryKey: ["tl", "team-leader-profile", tlProfileApiParams],
+    queryFn: () =>
+      fetchTeamLeaderProfile(
+        tlProfileApiParams!.tlId,
+        tlProfileApiParams!.startDate,
+        tlProfileApiParams!.endDate,
+        tlProfileApiParams!.timeZone
+      ),
+    enabled: Boolean(tlProfileApiParams),
     staleTime: 60_000,
   });
 
@@ -312,11 +399,26 @@ export default function OperationsManagerDashboardPage() {
   const displayedAgents = useMemo(() => {
     if (!performance?.agents?.length) return [];
     const sorted = [...performance.agents].sort((a, b) => b.total_leads - a.total_leads);
+    const searchTerm = agentSearchDebounced.toLowerCase();
+
+    if (searchTerm) {
+      return sorted.filter((agent) => {
+        const haystack = [
+          agent.agent_name,
+          agent.agent_code ?? "",
+          agent.tl_name ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(searchTerm);
+      });
+    }
+
     if (showLowestPerformers) {
       return [...sorted].reverse().slice(0, 6);
     }
     return sorted.slice(0, 6);
-  }, [performance?.agents, showLowestPerformers]);
+  }, [performance?.agents, showLowestPerformers, agentSearchDebounced]);
 
   const statsCards = useMemo(() => {
     const s = summary ?? {
@@ -482,7 +584,11 @@ export default function OperationsManagerDashboardPage() {
         title: "Status",
         dataIndex: "status",
         key: "status",
-        render: (status: string) => <Tag color={statusColors[status] ?? "default"}>{status}</Tag>,
+        render: (status: string) => (
+          <Tag color={statusColors[status] ?? "default"} style={{ textTransform: "capitalize" }}>
+            {status}
+          </Tag>
+        ),
       },
       { title: "Leads", dataIndex: "total_leads", key: "total_leads", width: 90 },
       { title: "Agents", dataIndex: "total_agents", key: "total_agents", width: 90 },
@@ -503,10 +609,67 @@ export default function OperationsManagerDashboardPage() {
   const drawerTitle = agentProfileQuery.data?.agent.full_name ?? "Agent details";
   const drawerLoading = agentProfileQuery.isLoading;
   const agentProfile = agentProfileQuery.data;
+  const agentCampaignRows = agentProfile?.campaigns ?? [];
 
-  const tlRows = useMemo(() => performance?.tl_summaries ?? [], [performance?.tl_summaries]);
+  const agentCampaignColumns: ColumnsType<(typeof agentCampaignRows)[number]> = useMemo(
+    () => [
+      {
+        title: "Campaign",
+        key: "campaign_name",
+        render: (_value, record) => (
+          <div>
+            <Text strong>{record.campaign_name}</Text>
+            {record.campaign_code ? (
+              <div style={{ color: "#6b7280", fontSize: 12 }}>{record.campaign_code}</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        width: 110,
+        render: (status: string) => (
+          <Tag color={statusColors[status] ?? "default"} style={{ textTransform: "capitalize" }}>
+            {status}
+          </Tag>
+        ),
+      },
+      { title: "Leads", dataIndex: "total_leads", key: "total_leads", width: 90, align: "center" },
+      {
+        title: "Qualified",
+        dataIndex: "qualified_leads",
+        key: "qualified_leads",
+        width: 100,
+        align: "center",
+      },
+      {
+        title: "Disqualified",
+        dataIndex: "disqualified_leads",
+        key: "disqualified_leads",
+        width: 110,
+        align: "center",
+      },
+      {
+        title: "Delivered",
+        dataIndex: "delivered_leads",
+        key: "delivered_leads",
+        width: 100,
+        align: "center",
+      },
+    ],
+    []
+  );
 
-  const tlColumns: ColumnsType<{ tl_id: string; tl_name: string | null; agent_count: number; campaign_count: number; total_leads: number; today_leads: number }> = useMemo(
+  const tlRows = useMemo(() => {
+    const rows = performance?.tl_summaries ?? [];
+    const searchTerm = tlSearchDebounced.toLowerCase();
+    if (!searchTerm) return rows;
+    return rows.filter((tl) => (tl.tl_name ?? "").toLowerCase().includes(searchTerm));
+  }, [performance?.tl_summaries, tlSearchDebounced]);
+
+  const tlColumns: ColumnsType<TLSummary> = useMemo(
     () => [
       {
         title: "#",
@@ -517,10 +680,8 @@ export default function OperationsManagerDashboardPage() {
       {
         title: "Team Leader",
         key: "tl_name",
-        render: (_: unknown, record: { tl_name: string | null; tl_id: string }) => (
-          <Link href={`/tl/team-leader/${record.tl_id}`} style={{ fontWeight: 600 }}>
-            {record.tl_name ?? "Unknown TL"}
-          </Link>
+        render: (_: unknown, record: TLSummary) => (
+          <Text strong>{record.tl_name ?? "Unknown TL"}</Text>
         ),
       },
       {
@@ -541,24 +702,38 @@ export default function OperationsManagerDashboardPage() {
         title: "Total leads",
         dataIndex: "total_leads",
         key: "total_leads",
-        width: 120,
+        width: 110,
         align: "center",
       },
       {
-        title: "Today",
-        dataIndex: "today_leads",
-        key: "today_leads",
-        width: 90,
+        title: "Qualified",
+        dataIndex: "qualified_leads",
+        key: "qualified_leads",
+        width: 100,
+        align: "center",
+      },
+      {
+        title: "Disqualified",
+        dataIndex: "disqualified_leads",
+        key: "disqualified_leads",
+        width: 110,
+        align: "center",
+      },
+      {
+        title: "Delivered",
+        dataIndex: "delivered_leads",
+        key: "delivered_leads",
+        width: 100,
         align: "center",
       },
       {
         title: "",
         key: "action",
-        width: 120,
-        render: (_: unknown, record: { tl_id: string }) => (
-          <Link href={`/tl/team-leader/${record.tl_id}`}>
-            <Button type="link">View team</Button>
-          </Link>
+        width: 90,
+        render: (_: unknown, record: TLSummary) => (
+          <Button type="link" onClick={() => setSelectedTlId(record.tl_id)}>
+            View
+          </Button>
         ),
       },
     ],
@@ -566,8 +741,66 @@ export default function OperationsManagerDashboardPage() {
   );
 
   const closeDrawer = useCallback(() => setSelectedAgentId(null), []);
+  const closeTlDrawer = useCallback(() => setSelectedTlId(null), []);
   const closeCampaignDrawer = useCallback(() => setSelectedCampaignId(null), []);
   const closeSummaryDrawer = useCallback(() => setSelectedSummaryCard(null), []);
+
+  const tlProfile = tlProfileQuery.data;
+  const tlCampaignRows = tlProfile?.campaigns ?? [];
+  const tlDrawerLoading = tlProfileQuery.isLoading;
+
+  const tlCampaignColumns: ColumnsType<(typeof tlCampaignRows)[number]> = useMemo(
+    () => [
+      {
+        title: "Campaign",
+        key: "campaign_name",
+        render: (_value, record) => (
+          <div>
+            <Text strong>{record.campaign_name}</Text>
+            {record.campaign_code ? (
+              <div style={{ color: "#6b7280", fontSize: 12 }}>{record.campaign_code}</div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        title: "Agents",
+        dataIndex: "agents_count",
+        key: "agents_count",
+        width: 90,
+        align: "center",
+      },
+      {
+        title: "Total leads",
+        dataIndex: "total_leads",
+        key: "total_leads",
+        width: 110,
+        align: "center",
+      },
+      {
+        title: "Qualified",
+        dataIndex: "qualified_leads",
+        key: "qualified_leads",
+        width: 100,
+        align: "center",
+      },
+      {
+        title: "Disqualified",
+        dataIndex: "disqualified_leads",
+        key: "disqualified_leads",
+        width: 110,
+        align: "center",
+      },
+      {
+        title: "Delivered",
+        dataIndex: "delivered_leads",
+        key: "delivered_leads",
+        width: 100,
+        align: "center",
+      },
+    ],
+    []
+  );
 
   const selectedCampaignDetail = selectedCampaignDetailQuery.data;
   const selectedCampaign = selectedCampaignDetail?.campaigns?.[0] ?? null;
@@ -638,13 +871,6 @@ export default function OperationsManagerDashboardPage() {
       `}</style>
       <div style={{ marginBottom: isCompact ? 16 : 24 }}>
         <DashboardGreeting />
-        {summary ? (
-          <Text type="secondary" style={{ display: "block", marginTop: 4 }}>
-            {summary.scope === "organization"
-              ? "Organization-wide operations dashboard"
-              : "Team-level operations dashboard"}
-          </Text>
-        ) : null}
       </div>
 
       <Row
@@ -920,13 +1146,44 @@ export default function OperationsManagerDashboardPage() {
             <Col xs={24}>
               <Card
                 title={
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 12,
+                    }}
+                  >
                     <Text strong style={{ fontSize: isCompact ? 14 : 16 }}>
                       {showLowestPerformers ? "Lowest performers" : "Top agents"}
                     </Text>
-                    <Button type="default" size="small" onClick={() => setShowLowestPerformers((current) => !current)}>
-                      {showLowestPerformers ? "Show top" : "Show lowest"}
-                    </Button>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        marginLeft: "auto",
+                      }}
+                    >
+                      <Input.Search
+                        value={agentSearchTerm}
+                        onChange={(e) => setAgentSearchTerm(e.target.value)}
+                        allowClear
+                        placeholder="Search agents…"
+                        style={{ width: isCompact ? 200 : 260 }}
+                        size={isCompact ? "small" : "middle"}
+                      />
+                      <Button
+                        type="default"
+                        size={isCompact ? "small" : "middle"}
+                        onClick={() => setShowLowestPerformers((current) => !current)}
+                        disabled={Boolean(agentSearchDebounced)}
+                      >
+                        {showLowestPerformers ? "Show top" : "Show lowest"}
+                      </Button>
+                    </div>
                   </div>
                 }
                 bordered={false}
@@ -936,12 +1193,19 @@ export default function OperationsManagerDashboardPage() {
                 {!performanceReady ? (
                   <Skeleton active paragraph={{ rows: 5 }} />
                 ) : displayedAgents.length === 0 ? (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No active agents yet" />
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      agentSearchDebounced
+                        ? "No agents match your search"
+                        : "No active agents yet"
+                    }
+                  />
                 ) : (
                   <Table
                     dataSource={displayedAgents}
                     rowKey="agent_id"
-                    pagination={false}
+                    pagination={agentSearchDebounced ? { pageSize: 10, showSizeChanger: false } : false}
                     size={isCompact ? "small" : "middle"}
                     columns={agentColumns}
                     scroll={isCompact ? { x: 560 } : undefined}
@@ -954,7 +1218,29 @@ export default function OperationsManagerDashboardPage() {
           <Row gutter={isCompact ? [10, 10] : [20, 20]} style={{ marginBottom: isCompact ? 12 : 24 }}>
             <Col xs={24}>
               <Card
-                title={<Text strong style={{ fontSize: isCompact ? 14 : 16 }}>Team Leaders</Text>}
+                title={
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 12,
+                    }}
+                  >
+                    <Text strong style={{ fontSize: isCompact ? 14 : 16 }}>
+                      Team Leaders
+                    </Text>
+                    <Input.Search
+                      value={tlSearchTerm}
+                      onChange={(e) => setTlSearchTerm(e.target.value)}
+                      allowClear
+                      placeholder="Search team leaders…"
+                      style={{ width: isCompact ? 200 : 260, marginLeft: "auto" }}
+                      size={isCompact ? "small" : "middle"}
+                    />
+                  </div>
+                }
                 bordered={false}
                 style={{ ...cardStyle, borderTop: "4px solid #52c41a" }}
                 styles={{ body: { padding: isCompact ? 12 : 24 } }}
@@ -962,15 +1248,22 @@ export default function OperationsManagerDashboardPage() {
                 {!performanceReady ? (
                   <Skeleton active paragraph={{ rows: 6 }} />
                 ) : tlRows.length === 0 ? (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No team leaders found" />
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      tlSearchDebounced
+                        ? "No team leaders match your search"
+                        : "No team leaders found"
+                    }
+                  />
                 ) : (
                   <Table
                     dataSource={tlRows}
                     rowKey="tl_id"
-                    pagination={false}
+                    pagination={tlSearchDebounced ? { pageSize: 10, showSizeChanger: false } : false}
                     size={isCompact ? "small" : "middle"}
                     columns={tlColumns}
-                    scroll={isCompact ? { x: 600 } : undefined}
+                    scroll={isCompact ? { x: 900 } : undefined}
                   />
                 )}
               </Card>
@@ -1318,8 +1611,21 @@ export default function OperationsManagerDashboardPage() {
       </Drawer>
 
       <Drawer
-        title={drawerTitle}
-        width={isCompact ? "85%" : 480}
+        title={
+          <div>
+            <Text strong style={{ fontSize: 18 }}>
+              {drawerTitle}
+            </Text>
+            {agentProfile?.agent.agent_code ? (
+              <div style={{ marginTop: 4 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Code {agentProfile.agent.agent_code}
+                </Text>
+              </div>
+            ) : null}
+          </div>
+        }
+        width={isCompact ? "85%" : "50%"}
         onClose={closeDrawer}
         open={Boolean(selectedAgentId)}
         bodyStyle={{ padding: isCompact ? 14 : 24 }}
@@ -1328,30 +1634,215 @@ export default function OperationsManagerDashboardPage() {
         {drawerLoading ? (
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : agentProfile ? (
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Text type="secondary">Agent code</Text>
-            <Text strong>{agentProfile.agent.agent_code ?? "—"}</Text>
-            <Text type="secondary">Email</Text>
-            <Text>{agentProfile.agent.email ?? "—"}</Text>
-            <Text type="secondary">Status</Text>
-            <Tag color={agentProfile.agent.status === "active" ? "green" : "default"}>
-              {agentProfile.agent.status}
-            </Tag>
-            {agentProfile.agent.department ? (
-              <>
-                <Text type="secondary">Department</Text>
-                <Text>{agentProfile.agent.department}</Text>
-              </>
-            ) : null}
-            {agentProfile.agent.designation ? (
-              <>
-                <Text type="secondary">Designation</Text>
-                <Text>{agentProfile.agent.designation}</Text>
-              </>
-            ) : null}
+          <Space direction="vertical" size={20} style={{ width: "100%" }}>
+            <Row gutter={[16, 12]}>
+              <Col xs={24} sm={12}>
+                <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
+                  Email
+                </Text>
+                <Text>{agentProfile.agent.email ?? "—"}</Text>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
+                  Status
+                </Text>
+                <Tag color={agentProfile.agent.status === "active" ? "green" : "default"}>
+                  {agentProfile.agent.status}
+                </Tag>
+              </Col>
+              {agentProfile.agent.department ? (
+                <Col xs={24} sm={12}>
+                  <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
+                    Department
+                  </Text>
+                  <Text>{agentProfile.agent.department}</Text>
+                </Col>
+              ) : null}
+              {agentProfile.agent.designation ? (
+                <Col xs={24} sm={12}>
+                  <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
+                    Designation
+                  </Text>
+                  <Text>{agentProfile.agent.designation}</Text>
+                </Col>
+              ) : null}
+            </Row>
+
+            <div>
+              <Text strong style={{ fontSize: 16, display: "block", marginBottom: 4 }}>
+                Assigned campaigns
+              </Text>
+              <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+                Lead activity for {agentProfile.date_range.start} to {agentProfile.date_range.end}
+              </Text>
+              {agentCampaignRows.length === 0 ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="No assigned campaigns for this agent"
+                />
+              ) : (
+                <Table
+                  dataSource={agentCampaignRows}
+                  rowKey="campaign_id"
+                  pagination={false}
+                  size={isCompact ? "small" : "middle"}
+                  columns={agentCampaignColumns}
+                  scroll={isCompact ? { x: 720 } : undefined}
+                  summary={(pageData) => {
+                    const totals = pageData.reduce(
+                      (acc, row) => ({
+                        total_leads: acc.total_leads + row.total_leads,
+                        qualified_leads: acc.qualified_leads + row.qualified_leads,
+                        disqualified_leads: acc.disqualified_leads + row.disqualified_leads,
+                        delivered_leads: acc.delivered_leads + row.delivered_leads,
+                      }),
+                      {
+                        total_leads: 0,
+                        qualified_leads: 0,
+                        disqualified_leads: 0,
+                        delivered_leads: 0,
+                      }
+                    );
+
+                    return (
+                      <Table.Summary.Row>
+                        <Table.Summary.Cell index={0}>
+                          <Text strong>Total</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={1} />
+                        <Table.Summary.Cell index={2} align="center">
+                          <Text strong>{totals.total_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={3} align="center">
+                          <Text strong>{totals.qualified_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={4} align="center">
+                          <Text strong>{totals.disqualified_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={5} align="center">
+                          <Text strong>{totals.delivered_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                      </Table.Summary.Row>
+                    );
+                  }}
+                />
+              )}
+            </div>
           </Space>
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Agent details unavailable" />
+        )}
+      </Drawer>
+
+      <Drawer
+        title={
+          <div>
+            <Text strong style={{ fontSize: 18 }}>
+              {tlProfile?.team_leader.full_name ?? "Team leader details"}
+            </Text>
+            <div style={{ marginTop: 4 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {tlProfile
+                  ? `${tlProfile.agent_count} agents · ${tlProfile.campaigns.length} campaigns`
+                  : "Loading team details…"}
+              </Text>
+            </div>
+          </div>
+        }
+        width={isCompact ? "85%" : "50%"}
+        onClose={closeTlDrawer}
+        open={Boolean(selectedTlId)}
+        bodyStyle={{ padding: isCompact ? 14 : 24 }}
+        rootClassName="om-dashboard-drawer"
+      >
+        {tlDrawerLoading ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : tlProfile ? (
+          <Space direction="vertical" size={20} style={{ width: "100%" }}>
+            <Row gutter={[16, 12]}>
+              <Col xs={24} sm={12}>
+                <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
+                  Email
+                </Text>
+                <Text>{tlProfile.team_leader.email ?? "—"}</Text>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Text type="secondary" style={{ display: "block", marginBottom: 4 }}>
+                  Status
+                </Text>
+                <Tag color={tlProfile.team_leader.status === "active" ? "green" : "default"}>
+                  {tlProfile.team_leader.status}
+                </Tag>
+              </Col>
+            </Row>
+
+            <div>
+              <Text strong style={{ fontSize: 16, display: "block", marginBottom: 4 }}>
+                Campaigns
+              </Text>
+              <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+                Team lead activity for {tlProfile.date_range.start} to {tlProfile.date_range.end}
+              </Text>
+              {tlCampaignRows.length === 0 ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="No campaigns assigned to this team leader"
+                />
+              ) : (
+                <Table
+                  dataSource={tlCampaignRows}
+                  rowKey="campaign_id"
+                  pagination={false}
+                  size={isCompact ? "small" : "middle"}
+                  columns={tlCampaignColumns}
+                  scroll={isCompact ? { x: 780 } : undefined}
+                  summary={(pageData) => {
+                    const totals = pageData.reduce(
+                      (acc, row) => ({
+                        agents_count: acc.agents_count + row.agents_count,
+                        total_leads: acc.total_leads + row.total_leads,
+                        qualified_leads: acc.qualified_leads + row.qualified_leads,
+                        disqualified_leads: acc.disqualified_leads + row.disqualified_leads,
+                        delivered_leads: acc.delivered_leads + row.delivered_leads,
+                      }),
+                      {
+                        agents_count: 0,
+                        total_leads: 0,
+                        qualified_leads: 0,
+                        disqualified_leads: 0,
+                        delivered_leads: 0,
+                      }
+                    );
+
+                    return (
+                      <Table.Summary.Row>
+                        <Table.Summary.Cell index={0}>
+                          <Text strong>Total</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={1} align="center">
+                          <Text strong>{totals.agents_count.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={2} align="center">
+                          <Text strong>{totals.total_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={3} align="center">
+                          <Text strong>{totals.qualified_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={4} align="center">
+                          <Text strong>{totals.disqualified_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                        <Table.Summary.Cell index={5} align="center">
+                          <Text strong>{totals.delivered_leads.toLocaleString()}</Text>
+                        </Table.Summary.Cell>
+                      </Table.Summary.Row>
+                    );
+                  }}
+                />
+              )}
+            </div>
+          </Space>
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Team leader details unavailable" />
         )}
       </Drawer>
     </div>

@@ -71,6 +71,9 @@ export type TLSummary = {
   agent_count: number;
   campaign_count: number;
   total_leads: number;
+  qualified_leads: number;
+  disqualified_leads: number;
+  delivered_leads: number;
   today_leads: number;
   week_leads: number;
   month_leads: number;
@@ -164,6 +167,7 @@ type LeadActivityRow = {
   assigned_agent_id: string | null;
   created_by: string | null;
   qa_status: string | null;
+  delivery_status: string | null;
   created_at: string;
 };
 
@@ -194,7 +198,7 @@ async function fetchLeadActivityRows(
   if (!admin || params.campaignIds.length === 0) return [];
 
   const select =
-    "id, campaign_id, assigned_agent_id, created_by, qa_status, created_at";
+    "id, campaign_id, assigned_agent_id, created_by, qa_status, delivery_status, created_at";
   const all: LeadActivityRow[] = [];
   let offset = 0;
 
@@ -627,6 +631,9 @@ export async function GET(request: Request) {
         const tlCampIds = campaignIdsByTl.get(tl.id) ?? new Set<string>();
 
         let totalLeads = 0;
+        let qualifiedLeads = 0;
+        let disqualifiedLeads = 0;
+        let deliveredLeads = 0;
         let todayLeads = 0;
         let weekLeads = 0;
         let monthLeads = 0;
@@ -636,6 +643,11 @@ export async function GET(request: Request) {
           const agId = resolveLeadAgentId(l);
           if (!agId || !tlAgentIdSet.has(agId)) continue;
           totalLeads++;
+          if (isQualifiedQa(l.qa_status)) qualifiedLeads++;
+          const qa = String(l.qa_status ?? "").trim().toLowerCase();
+          if (qa === "disqualified") disqualifiedLeads++;
+          const ds = String(l.delivery_status ?? "").trim().toLowerCase();
+          if (ds === "delivered" || ds === "delivered_by_mis") deliveredLeads++;
           const d = leadDayInTz(l.created_at, appTz);
           if (singleDayRange) {
             todayLeads = totalLeads;
@@ -654,6 +666,9 @@ export async function GET(request: Request) {
           agent_count: node?.agent_count ?? 0,
           campaign_count: node?.campaign_count ?? 0,
           total_leads: totalLeads,
+          qualified_leads: qualifiedLeads,
+          disqualified_leads: disqualifiedLeads,
+          delivered_leads: deliveredLeads,
           today_leads: todayLeads,
           week_leads: weekLeads,
           month_leads: monthLeads,
