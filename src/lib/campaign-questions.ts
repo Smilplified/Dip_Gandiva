@@ -6,13 +6,28 @@ export const DEMAND_QUALIFICATION_INSIGHTS_LABEL = "DEMAND & QUALIFICATION INSIG
 export type CampaignQuestion = {
   key: string;
   label: string;
+  /** When set, agents pick from this list instead of free text. */
+  options?: string[];
 };
 
 export type CampaignQuestionFormRow = {
   label: string;
+  options?: string[];
 };
 
 const CQ_KEY_RE = /^cq(\d+)$/i;
+
+function normalizeQuestionOptions(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const options = raw
+    .map((item) => (item != null ? String(item).trim() : ""))
+    .filter(Boolean);
+  return options.length > 0 ? options : undefined;
+}
+
+export function isDropdownCampaignQuestion(question: CampaignQuestion): boolean {
+  return Boolean(question.options && question.options.length > 0);
+}
 
 export function isStandardCqKey(key: string): boolean {
   const match = CQ_KEY_RE.exec(key);
@@ -58,7 +73,12 @@ export function normalizeCampaignQuestions(raw: unknown): CampaignQuestion[] {
         while (out.some((q) => q.key === key)) nextIndex += 1;
         nextIndex += 1;
       }
-      out.push({ key, label });
+      const options = normalizeQuestionOptions(row.options);
+      out.push({
+        key,
+        label,
+        ...(options ? { options } : {}),
+      });
     }
     return out;
   }
@@ -87,9 +107,12 @@ export function campaignQuestionsToFormRows(
 ): CampaignQuestionFormRow[] {
   const normalized = normalizeCampaignQuestions(questions ?? []);
   if (normalized.length === 0) {
-    return Array.from({ length: 5 }, () => ({ label: "" }));
+    return Array.from({ length: 5 }, () => ({ label: "", options: [] }));
   }
-  return normalized.map((q) => ({ label: q.label }));
+  return normalized.map((q) => ({
+    label: q.label,
+    options: q.options ?? [],
+  }));
 }
 
 export function formRowsToCampaignQuestions(
@@ -100,10 +123,16 @@ export function formRowsToCampaignQuestions(
   for (const row of rows ?? []) {
     const label = row?.label != null ? String(row.label).trim() : "";
     if (!label) continue;
+    const options = normalizeQuestionOptions(row.options);
+    const question = {
+      key: "",
+      label,
+      ...(options ? { options } : {}),
+    };
     if (out.length < 5) {
-      out.push({ key: cqKeyForIndex(out.length + 1), label });
+      out.push({ ...question, key: cqKeyForIndex(out.length + 1) });
     } else {
-      out.push({ key: cqKeyForIndex(nextExtra), label });
+      out.push({ ...question, key: cqKeyForIndex(nextExtra) });
       nextExtra += 1;
     }
   }

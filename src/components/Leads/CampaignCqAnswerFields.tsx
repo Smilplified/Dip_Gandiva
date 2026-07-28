@@ -1,8 +1,11 @@
 "use client";
 
-import { Form, Input, Row, Col } from "antd";
-import type { CampaignQuestion } from "@/lib/campaign-questions";
-import { leadAnswerFieldName } from "@/lib/campaign-questions";
+import { Form, Input, Row, Col, Select } from "antd";
+import {
+  isDropdownCampaignQuestion,
+  leadAnswerFieldName,
+  type CampaignQuestion,
+} from "@/lib/campaign-questions";
 
 type CampaignCqAnswerFieldsProps = {
   questions: CampaignQuestion[];
@@ -22,7 +25,20 @@ export function CampaignCqAnswerFields({ questions }: CampaignCqAnswerFieldsProp
             name={leadAnswerFieldName(q.key)}
             style={{ marginBottom: 16 }}
           >
-            <Input placeholder="Your answer" allowClear />
+            {isDropdownCampaignQuestion(q) ? (
+              <Select
+                placeholder="Select answer"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={(q.options ?? []).map((option) => ({
+                  value: option,
+                  label: option,
+                }))}
+              />
+            ) : (
+              <Input placeholder="Your answer" allowClear />
+            )}
           </Form.Item>
         </Col>
       ))}
