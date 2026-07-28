@@ -36,9 +36,12 @@ export async function GET(request: NextRequest) {
 
     const { page, limit, offset } = parseListPagination(request.nextUrl.searchParams);
     const statusFilter = request.nextUrl.searchParams.get("status")?.trim() || null;
+    const typeFilter = request.nextUrl.searchParams.get("type")?.trim() || null;
     const clientIdFilter = request.nextUrl.searchParams.get("client_id")?.trim() || null;
     const clientNameFilter = request.nextUrl.searchParams.get("client_name")?.trim() || null;
     const searchRaw = request.nextUrl.searchParams.get("q")?.trim() || "";
+    const sort = request.nextUrl.searchParams.get("sort")?.trim() || null;
+    const skipFilterOptions = request.nextUrl.searchParams.get("skip_filter_options") === "1";
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const seeAllOrgCampaigns = hasOrgWideCampaignAccess(roleNames);
@@ -71,7 +74,7 @@ export async function GET(request: NextRequest) {
       .from("campaigns")
       .select(
         `
-        id, campaign_id, campaign_code, name, client_name, client_id, description, industry, geography, lead_type, status,
+        id, campaign_id, campaign_code, name, client_name, client_id, description, industry, geography, lead_type, campaign_type, status,
         start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved,
         pending_allocation, weekly_call, weekly_report, additional_comments,
         assigned_team_leader_id, created_by, created_at
@@ -100,6 +103,20 @@ export async function GET(request: NextRequest) {
       if (orFilter) campaignsQuery = campaignsQuery.or(orFilter);
     }
 
+    if (typeFilter) {
+      campaignsQuery = campaignsQuery.or(
+        `campaign_type.eq.${typeFilter},lead_type.eq.${typeFilter}`
+      );
+    }
+
+    if (sort === "active_first") {
+      campaignsQuery = campaignsQuery
+        .order("status", { ascending: true })
+        .order("created_at", { ascending: false });
+    } else {
+      campaignsQuery = campaignsQuery.order("created_at", { ascending: false });
+    }
+
     let clientsOptionsQuery = supabase
       .from("campaigns")
       .select("client_id, client_name")
@@ -108,12 +125,16 @@ export async function GET(request: NextRequest) {
 
     clientsOptionsQuery = applyCampaignScope(clientsOptionsQuery);
 
+    const clientsOptionsPromise = skipFilterOptions
+      ? Promise.resolve({ data: [] as { client_id: string | null; client_name: string | null }[] })
+      : clientsOptionsQuery;
+
     const [
       { data: campaigns, error: campaignsError, count },
       { data: clientOptionRows },
     ] = await Promise.all([
-      campaignsQuery.order("created_at", { ascending: false }).range(offset, offset + limit - 1),
-      clientsOptionsQuery,
+      campaignsQuery.range(offset, offset + limit - 1),
+      clientsOptionsPromise,
     ]);
 
     if (campaignsError) {
@@ -131,6 +152,7 @@ export async function GET(request: NextRequest) {
       industry: string | null;
       geography: string | null;
       lead_type: string | null;
+      campaign_type: string | null;
       status: string;
       start_date: string | null;
       end_date: string | null;

@@ -17,7 +17,7 @@ import type { Database } from "@/types/database.types";
 import { leadsToCsv } from "@/lib/leadsExport";
 import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 import type { Lead } from "@/types/lead.types";
-import { getClientViewerCampaignIds } from "@/lib/command/client-viewer-scope";
+import { getClientViewerCampaignIds, getClientViewerEmailCampaignOverride } from "@/lib/command/client-viewer-scope";
 import {
   CLIENT_VIEWER_HIDDEN_EXPORT_KEYS,
   clientViewerHidesAppointment,
@@ -340,14 +340,16 @@ export async function GET(request: NextRequest) {
 
   let clientViewerCampaignIds: string[] | null = null;
   if (isClientViewer) {
-    if (!profile?.client_id || !orgId) {
+    const hasOverride = getClientViewerEmailCampaignOverride(user.email) !== null;
+    if ((!profile?.client_id && !hasOverride) || !orgId) {
       return emptyResponse();
     }
     try {
       clientViewerCampaignIds = await getClientViewerCampaignIds(
         supabase,
         orgId,
-        profile.client_id
+        profile?.client_id ?? null,
+        user.email
       );
     } catch (e) {
       return NextResponse.json(

@@ -10,7 +10,7 @@ import { fetchWithAuthRetry } from "@/lib/api/fetch-with-auth-retry";
 import CampaignDashboard from "@/components/command/CampaignDashboard";
 import CampaignForm from "@/components/command/CampaignForm";
 import CampaignPerformanceReportDrawer from "@/components/command/CampaignPerformanceReportDrawer";
-import { isCampaignReportMvpUser } from "@/lib/command/campaign-performance-report";
+import { canViewCampaignPerformanceReport } from "@/lib/command/campaign-performance-report";
 
 interface CampaignBasic {
   id: string;
@@ -67,8 +67,11 @@ export default function CampaignDetailPage() {
   const [campaignBasic, setCampaignBasic] = useState<CampaignBasic | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [feedMode, setFeedMode] = useState(() => searchParams.get("tab") === "feed");
-  // TODO: expand Campaign Report visibility beyond Shlok S (ssshlok554@gmail.com).
-  const canViewCampaignReport = isCampaignReportMvpUser(user?.email);
+  // Shlok MVP: all bound-client campaigns; kstagnito2: only the 3 allowlisted campaigns.
+  const canViewCampaignReport = canViewCampaignPerformanceReport(
+    user?.email,
+    campaignId
+  );
   const metrics = campaignBasic
     ? (Array.isArray(campaignBasic.campaign_metrics)
       ? campaignBasic.campaign_metrics[0]

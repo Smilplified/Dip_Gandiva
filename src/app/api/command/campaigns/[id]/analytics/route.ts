@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getRoleNames, getCampaignAnalytics, getProfile } from "@/lib/command/db";
+import {
+  buildClientViewerCampaignScope,
+  guardClientViewerCampaign,
+} from "@/lib/command/client-viewer-scope";
 import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
@@ -139,13 +143,9 @@ export async function GET(
   const profile = await getProfile(supabase, user.id);
 
   if (userRoles.includes("client_viewer")) {
-    const { data: campaignGuard } = await supabase
-      .from("campaigns")
-      .select("id")
-      .eq("id", id)
-      .eq("client_id", profile?.client_id ?? "__no_client__")
-      .single();
-    if (!campaignGuard) {
+    const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+    const allowed = await guardClientViewerCampaign(supabase, scope, id);
+    if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }

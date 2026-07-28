@@ -3,6 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getRoleNames, getProfile } from "@/lib/command/db";
+import {
+  buildClientViewerCampaignScope,
+  applyClientViewerCampaignListScope,
+} from "@/lib/command/client-viewer-scope";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
 
 export const dynamic = "force-dynamic";
@@ -52,9 +56,9 @@ export async function POST(
       .eq("organization_id", orgId);
 
     if (isClientViewer) {
-      campaignQuery = campaignQuery
-        .eq("client_id", profile?.client_id ?? "__no_client__")
-        .eq("created_by", user.id);
+      const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+      campaignQuery = applyClientViewerCampaignListScope(campaignQuery, scope);
+      campaignQuery = campaignQuery.eq("created_by", user.id);
     }
 
     const { data: campaign } = await campaignQuery.single();

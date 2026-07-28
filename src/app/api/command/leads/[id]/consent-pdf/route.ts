@@ -7,6 +7,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getRoleNames, queryLeadHistory, getProfile } from "@/lib/command/db";
+import {
+  buildClientViewerCampaignScope,
+  applyClientViewerLeadScope,
+} from "@/lib/command/client-viewer-scope";
 import { generateConsentPDF, type ConsentPDFData } from "@/lib/command/pdf";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +78,8 @@ export async function GET(
     .eq("id", id);
 
   if (userRoles.includes("client_viewer")) {
-    leadQuery = leadQuery.eq("campaigns.client_id", profile?.client_id ?? "__no_client__");
+    const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+    leadQuery = applyClientViewerLeadScope(leadQuery, scope, { joinOnCampaigns: true });
   }
 
   const { data: leadRaw, error: leadErr } = (await leadQuery

@@ -53,7 +53,8 @@ export async function authorizeCampaignFeed(
     campaignId,
     orgId,
     roleNames,
-    profile?.client_id ?? null
+    profile?.client_id ?? null,
+    user.email
   );
 
   if (!access.ok) {

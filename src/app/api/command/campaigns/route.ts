@@ -29,6 +29,11 @@ import {
   formatCampaignAlertTimestamp,
   sendClientViewerCampaignAlertEmail,
 } from "@/lib/email/client-viewer-campaign-alerts";
+import {
+  applyClientViewerCampaignListScope,
+  buildClientViewerCampaignScope,
+  clientViewerScopeHasAccess,
+} from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +69,10 @@ export async function GET(request: NextRequest) {
     const dateFrom = sp.get("date_from")?.trim() ?? "";
     const dateTo = sp.get("date_to")?.trim() ?? "";
 
-    const clientViewerId = profile?.client_id ?? null;
+    const clientViewerScope = buildClientViewerCampaignScope(
+      user.email,
+      profile?.client_id ?? null
+    );
     const emptySummary = {
       total: 0,
       active: 0,
@@ -73,7 +81,7 @@ export async function GET(request: NextRequest) {
       draft: 0,
     };
 
-    if (userRoles.includes("client_viewer") && !clientViewerId) {
+    if (userRoles.includes("client_viewer") && !clientViewerScopeHasAccess(clientViewerScope)) {
       return NextResponse.json({
         campaigns: [],
         total: 0,
@@ -86,7 +94,14 @@ export async function GET(request: NextRequest) {
 
     const scopeFilters = {
       organizationId: orgId,
-      clientId: userRoles.includes("client_viewer") ? clientViewerId : null,
+      clientId:
+        userRoles.includes("client_viewer") && clientViewerScope.mode === "client"
+          ? clientViewerScope.clientId
+          : null,
+      campaignIds:
+        userRoles.includes("client_viewer") && clientViewerScope.mode === "campaign_ids"
+          ? clientViewerScope.campaignIds
+          : null,
       qRaw,
       dateFrom,
       dateTo,
@@ -116,8 +131,8 @@ export async function GET(request: NextRequest) {
       .order("id", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (userRoles.includes("client_viewer") && clientViewerId) {
-      listQuery = listQuery.eq("client_id", clientViewerId);
+    if (userRoles.includes("client_viewer")) {
+      listQuery = applyClientViewerCampaignListScope(listQuery, clientViewerScope);
     }
 
     if (qRaw.length > 0) {
@@ -269,12 +284,17 @@ export async function GET(request: NextRequest) {
     .order("id", { ascending: false })
     .limit(limit + 1);
 
-  // client_viewer: restrict to their bound client's campaigns
+  const clientViewerScope = buildClientViewerCampaignScope(
+    user.email,
+    profile?.client_id ?? null
+  );
+
+  // client_viewer: restrict to their bound client's campaigns (or email override)
   if (userRoles.includes("client_viewer")) {
-    if (!profile?.client_id || !profile?.organization_id) {
+    if (!clientViewerScopeHasAccess(clientViewerScope) || !profile?.organization_id) {
       return NextResponse.json({ campaigns: [], total: 0, limit, nextCursor: null, hasMore: false });
     }
-    query = query.eq("client_id", profile.client_id);
+    query = applyClientViewerCampaignListScope(query, clientViewerScope);
   }
 
   // Cursor-based pagination

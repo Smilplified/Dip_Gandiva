@@ -6,9 +6,9 @@ import {
   getRoleNames,
   queryAlerts,
   clampLimit,
-  getAllowedCampaignIdsForClientViewer,
   type AlertListStatusFilter,
 } from "@/lib/command/db";
+import { getClientViewerCampaignIds } from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +49,11 @@ export async function GET(request: NextRequest) {
   try {
     const isClientViewer = userRoles.includes("client_viewer");
     const allowedCampaignIds = isClientViewer
-      ? await getAllowedCampaignIdsForClientViewer(
+      ? await getClientViewerCampaignIds(
           supabase,
           profile?.organization_id ?? "",
-          profile?.client_id ?? null
+          profile?.client_id ?? null,
+          user.email
         )
       : null;
 

@@ -366,7 +366,7 @@ export default function CampaignDashboard({
   initialDeliveryStatus,
   onFeedModeChange,
 }: CampaignDashboardProps) {
-  const { hasRole, roles, authVersion } = useAuth();
+  const { hasRole, roles, authVersion, user } = useAuth();
   const authReady = useAuthReady();
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null);
@@ -399,6 +399,8 @@ export default function CampaignDashboard({
   const [allocationBaseline, setAllocationBaseline] = useState<number | null>(null);
 
   const isClientViewer = hasRole("client_viewer");
+  const isKstagnitoViewer =
+    (user?.email ?? "").trim().toLowerCase() === "kstagnito2@rh-hub.com";
   const showFeedTab = hasCampaignFeedRole(
     roles.map((r) => (typeof r === "string" ? r : (r.role_name ?? r.name ?? "")))
   );
@@ -1287,6 +1289,10 @@ export default function CampaignDashboard({
                     {metrics?.sponsor_name?.trim() || "—"}
                   </Text>
                 </div>
+                {!(
+                  isKstagnitoViewer &&
+                  (campaign.client_name ?? "").trim().toLowerCase() === "7 knots digital inc"
+                ) && (
                 <div style={{ minWidth: 120, maxWidth: 280 }}>
                   <Text
                     type="secondary"
@@ -1303,6 +1309,7 @@ export default function CampaignDashboard({
                     {campaign.client_name?.trim() || "—"}
                   </Text>
                 </div>
+                )}
                 <div style={{ minWidth: 120, maxWidth: 280 }}>
                   <Text
                     type="secondary"

@@ -22,7 +22,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -315,31 +314,73 @@ function RoleDonut({ entries }: { entries: NamedValueEntry[] | undefined }) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No role data" />;
   }
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <PieChart>
-        <Pie
-          data={data}
-          dataKey="value"
-          nameKey="name"
-          cx="50%"
-          cy="46%"
-          innerRadius={58}
-          outerRadius={88}
-          paddingAngle={3}
-        >
-          {data.map((entry, i) => (
-            <Cell key={entry.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-          ))}
-        </Pie>
-        <RechartsTooltip contentStyle={tooltipStyle} />
-        <Legend
-          verticalAlign="bottom"
-          height={36}
-          iconType="circle"
-          wrapperStyle={{ fontSize: 11 }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+    <div>
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            innerRadius={52}
+            outerRadius={78}
+            paddingAngle={3}
+          >
+            {data.map((entry, i) => (
+              <Cell key={entry.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+            ))}
+          </Pie>
+          <RechartsTooltip contentStyle={tooltipStyle} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px 14px",
+          justifyContent: "center",
+          padding: "4px 4px 2px",
+          maxWidth: "100%",
+        }}
+      >
+        {data.map((entry, i) => (
+          <div
+            key={entry.name}
+            title={`${entry.name}: ${entry.value}%`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              maxWidth: "100%",
+              minWidth: 0,
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: CHART_COLORS[i % CHART_COLORS.length],
+                flexShrink: 0,
+              }}
+            />
+            <Text
+              style={{
+                fontSize: 11,
+                lineHeight: 1.35,
+                color: "#475569",
+                whiteSpace: "normal",
+                wordBreak: "break-word",
+              }}
+            >
+              {entry.name}
+              <span style={{ color: "#94a3b8", marginLeft: 4 }}>{entry.value}%</span>
+            </Text>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

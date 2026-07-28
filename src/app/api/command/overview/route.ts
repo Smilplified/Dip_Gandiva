@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getProfile, getRoleNames } from "@/lib/command/db";
+import {
+  buildClientViewerCampaignScope,
+  applyClientViewerCampaignListScope,
+  clientViewerScopeHasAccess,
+} from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +66,11 @@ export async function GET(request: NextRequest) {
     .eq("organization_id", profile?.organization_id ?? "");
 
   if (roles.includes("client_viewer")) {
-    if (!profile?.client_id) {
+    const clientViewerScope = buildClientViewerCampaignScope(
+      user.email,
+      profile?.client_id ?? null
+    );
+    if (!clientViewerScopeHasAccess(clientViewerScope)) {
       return NextResponse.json({
         campaigns: [],
         selectedCampaignId: campaignIdParam ?? null,
@@ -81,7 +90,7 @@ export async function GET(request: NextRequest) {
         performance: { deliveryRate: 0, deficitRate: 0, registrationRate: 0, attendanceRate: 0 },
       });
     }
-    campaignsQuery = campaignsQuery.eq("client_id", profile.client_id);
+    campaignsQuery = applyClientViewerCampaignListScope(campaignsQuery, clientViewerScope);
   }
 
   if (campaignIdParam) campaignsQuery = campaignsQuery.eq("id", campaignIdParam);

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  buildClientViewerCampaignScope,
+  applyClientViewerCampaignListScope,
+  clientViewerScopeHasAccess,
+} from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +34,15 @@ export async function GET() {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("organization_id, client_id")
+      .select("organization_id, client_id, email")
       .eq("id", user.id)
       .single();
 
-    const profileRow = profile as { organization_id: string | null; client_id: string | null } | null;
+    const profileRow = profile as {
+      organization_id: string | null;
+      client_id: string | null;
+      email: string | null;
+    } | null;
     const orgId = profileRow?.organization_id;
     if (!orgId) {
       return NextResponse.json({ error: "No organization" }, { status: 400 });
@@ -67,10 +76,14 @@ export async function GET() {
       .order("name", { ascending: true });
 
     if (!canViewAllClients && isClientViewer) {
-      if (!userClientId) {
+      const scope = buildClientViewerCampaignScope(
+        profileRow?.email ?? user.email,
+        userClientId
+      );
+      if (!clientViewerScopeHasAccess(scope)) {
         return NextResponse.json({ clients: [] as ChatInboxClientRow[] });
       }
-      query = query.eq("client_id", userClientId);
+      query = applyClientViewerCampaignListScope(query, scope);
     }
 
     const { data: rows, error: qErr } = await query;

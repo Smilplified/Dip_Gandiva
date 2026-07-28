@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getProfile, getRoleNames, queryCampaignMetricsHistory } from "@/lib/command/db";
+import {
+  buildClientViewerCampaignScope,
+  guardClientViewerCampaign,
+} from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +27,9 @@ export async function GET(
 
   const profile = await getProfile(supabase, user.id);
   if (roles.includes("client_viewer")) {
-    const { data: guard } = await supabase
-      .from("campaigns")
-      .select("id")
-      .eq("id", id)
-      .eq("client_id", profile?.client_id ?? "__no_client__")
-      .single();
-    if (!guard) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+    const allowed = await guardClientViewerCampaign(supabase, scope, id);
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const limitRaw = Number(req.nextUrl.searchParams.get("limit") ?? "120");

@@ -5,6 +5,7 @@ import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getProfile, getRoleNames } from "@/lib/command/db";
 import {
   isCampaignReportMvpUser,
+  canViewCampaignPerformanceReport,
   type CampaignPerformanceReportRow,
 } from "@/lib/command/campaign-performance-report";
 
@@ -99,10 +100,11 @@ export async function GET(
     const userRoles = await getRoleNames(supabase, user.id);
     const email = user.email ?? null;
     const isMvpClient = isCampaignReportMvpUser(email);
+    const canViewReport = canViewCampaignPerformanceReport(email, campaignId);
     const isInternal = hasCommandRole(userRoles);
 
-    // TODO: expand Campaign Report visibility beyond Shlok S (ssshlok554@gmail.com).
-    if (!isMvpClient && !isInternal) {
+    // Shlok MVP (all bound-client campaigns) + kstagnito2 (3 allowlisted campaigns) + internal.
+    if (!canViewReport && !isInternal) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -127,7 +129,8 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (isMvpClient) {
+    // MVP Shlok: must match bound client. Other allowlisted emails are scoped by campaign UUID.
+    if (isMvpClient && !isInternal) {
       const clientId = (profile as { client_id: string | null }).client_id;
       if (!clientId || campaignRow.client_id !== clientId) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });

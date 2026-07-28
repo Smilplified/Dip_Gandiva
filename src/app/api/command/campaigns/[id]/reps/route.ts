@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getProfile, getRoleNames } from "@/lib/command/db";
+import {
+  buildClientViewerCampaignScope,
+  guardClientViewerCampaign,
+} from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +40,16 @@ export async function GET(
 
   let campQuery = supabase.from("campaigns").select("id").eq("id", campaignId);
   if (userRoles.includes("client_viewer")) {
-    campQuery = campQuery.eq("client_id", profile?.client_id ?? "__no_client__");
-  }
-  const { data: camp, error: campErr } = await campQuery.single();
-  if (campErr || !camp) {
-    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+    const allowed = await guardClientViewerCampaign(supabase, scope, campaignId);
+    if (!allowed) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+  } else {
+    const { data: camp, error: campErr } = await campQuery.single();
+    if (campErr || !camp) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
   }
 
   const { data: assignments, error: asgErr } = (await supabase

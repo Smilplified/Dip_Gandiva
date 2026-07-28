@@ -7,6 +7,12 @@ import dayjs, { type Dayjs } from "dayjs";
 import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
 import { useQuery } from "@tanstack/react-query";
 import { useCachedApiQuery } from "@/hooks/useCachedApiQuery";
+import {
+  useServerTablePagination,
+  useSyncListPaginationTotal,
+  serverTableInitialLoading,
+} from "@/hooks/useServerTablePagination";
+import type { ApiPaginationMeta } from "@/lib/api-pagination";
 import { useAuth } from "@/context/AuthContext";
 import {
   Card,
@@ -62,6 +68,7 @@ import type { TLCampaignRow } from "@/hooks/useTLDashboard";
 import type { AgentProfileResponse } from "@/app/api/tl/agents/[id]/profile/route";
 import type { TeamLeaderProfileResponse } from "@/app/api/tl/team-leaders/[id]/profile/route";
 import type { TLSummary } from "@/app/api/tl/team-performance/route";
+import type { OmCampaignDetailResponse } from "@/app/api/tl/campaigns/[id]/om-detail/route";
 
 type OmCampaignRow = TLCampaignRow & {
   campaign_type?: string | null;
@@ -71,6 +78,8 @@ type OmCampaignRow = TLCampaignRow & {
 };
 
 const { Text } = Typography;
+
+const CAMPAIGN_PAGE_SIZE = 15;
 
 const cardStyle = {
   borderRadius: 16,
@@ -105,6 +114,25 @@ function useIsCompactViewport(): boolean {
     return () => window.removeEventListener("resize", compute);
   }, []);
   return isCompact;
+}
+
+async function fetchCampaignOmDetail(
+  campaignId: string,
+  startDate: string,
+  endDate: string,
+  timeZone: string
+): Promise<OmCampaignDetailResponse> {
+  const params = new URLSearchParams({
+    start_date: startDate,
+    end_date: endDate,
+    tz: timeZone,
+  });
+  const res = await fetch(`/api/tl/campaigns/${campaignId}/om-detail?${params.toString()}`, {
+    credentials: "include",
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to load campaign detail");
+  return json as OmCampaignDetailResponse;
 }
 
 async function fetchAgentProfile(
@@ -172,6 +200,23 @@ export default function OperationsManagerDashboardPage() {
   const [tlSearchTerm, setTlSearchTerm] = useState("");
   const [tlSearchDebounced, setTlSearchDebounced] = useState("");
 
+  const {
+    page: campaignPage,
+    pageSize: campaignPageSize,
+    resetPage: resetCampaignPage,
+    applyPaginationMeta: applyCampaignPaginationMeta,
+    tablePagination: campaignTablePaginationBase,
+  } = useServerTablePagination(CAMPAIGN_PAGE_SIZE);
+
+  const campaignTablePagination = useMemo(
+    () => ({
+      ...campaignTablePaginationBase,
+      pageSize: CAMPAIGN_PAGE_SIZE,
+      showSizeChanger: false,
+    }),
+    [campaignTablePaginationBase]
+  );
+
   const enabled = Boolean(isInitialized && hasTLAccess());
 
   useEffect(() => {
@@ -188,6 +233,10 @@ export default function OperationsManagerDashboardPage() {
     const handle = setTimeout(() => setTlSearchDebounced(tlSearchTerm.trim()), 350);
     return () => clearTimeout(handle);
   }, [tlSearchTerm]);
+
+  useEffect(() => {
+    resetCampaignPage();
+  }, [campaignSearchDebounced, campaignStatusFilter, campaignTypeFilter, resetCampaignPage]);
 
   const timeZone = useMemo(() => {
     if (typeof Intl === "undefined") return "UTC";
@@ -220,49 +269,64 @@ export default function OperationsManagerDashboardPage() {
   const performanceQuery = useCachedApiQuery<TeamPerformanceResponse>(
     ["tl", "team-performance", performanceApiUrl],
     performanceApiUrl,
-    { enabled, refetchInterval: 90_000 }
+    {
+      enabled: enabled && (activeView === "campaign" || activeView === "team"),
+      refetchInterval: 90_000,
+    }
   );
 
   const campaignsApiUrl = useMemo(() => {
-    const start = selectedDateRange[0].format("YYYY-MM-DD");
-    const end = selectedDateRange[1].format("YYYY-MM-DD");
-    const params = new URLSearchParams({ page: "1", limit: "100", start_date: start, end_date: end });
+    const params = new URLSearchParams({
+      page: String(campaignPage),
+      limit: String(campaignPageSize),
+      sort: "active_first",
+      skip_filter_options: "1",
+    });
     if (campaignSearchDebounced) {
-      // Search runs across every campaign in the org (server-side), so the
-      // status filter is intentionally left out while a search is active.
       params.set("q", campaignSearchDebounced);
-    } else if (campaignStatusFilter) {
-      params.set("status", campaignStatusFilter);
+    } else {
+      if (campaignStatusFilter) params.set("status", campaignStatusFilter);
+      if (campaignTypeFilter) params.set("type", campaignTypeFilter);
     }
     return `/api/tl/campaigns?${params.toString()}`;
-  }, [selectedDateRange, campaignStatusFilter, campaignSearchDebounced]);
+  }, [
+    campaignPage,
+    campaignPageSize,
+    campaignStatusFilter,
+    campaignTypeFilter,
+    campaignSearchDebounced,
+  ]);
 
-  const campaignsQuery = useCachedApiQuery<{ campaigns: OmCampaignRow[] }>(
-    ["tl", "campaigns", "dashboard", campaignsApiUrl],
-    campaignsApiUrl,
-    { enabled }
-  );
+  const campaignsQuery = useCachedApiQuery<{
+    campaigns: OmCampaignRow[];
+    pagination: ApiPaginationMeta;
+  }>(["tl", "campaigns", "dashboard", campaignsApiUrl], campaignsApiUrl, {
+    enabled: enabled && activeView === "campaign",
+  });
 
-  const selectedCampaignApiUrl = useMemo(() => {
+  useSyncListPaginationTotal(campaignsQuery.data?.pagination, applyCampaignPaginationMeta);
+
+  const campaignDetailApiParams = useMemo(() => {
     if (!selectedCampaignId) return null;
-    const start = selectedDateRange[0].format("YYYY-MM-DD");
-    const end = selectedDateRange[1].format("YYYY-MM-DD");
-    const params = new URLSearchParams({ start_date: start, end_date: end, tz: timeZone, campaign_id: selectedCampaignId });
-    return `/api/tl/team-performance?${params.toString()}`;
+    return {
+      campaignId: selectedCampaignId,
+      startDate: selectedDateRange[0].format("YYYY-MM-DD"),
+      endDate: selectedDateRange[1].format("YYYY-MM-DD"),
+      timeZone,
+    };
   }, [selectedCampaignId, selectedDateRange, timeZone]);
 
   const selectedCampaignDetailQuery = useQuery({
-    queryKey: ["tl", "campaign-detail", selectedCampaignApiUrl],
-    queryFn: async () => {
-      if (!selectedCampaignApiUrl) throw new Error("Campaign id is required");
-      const res = await fetch(selectedCampaignApiUrl, { credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load campaign detail");
-      return data as TeamPerformanceResponse;
-    },
-    enabled: Boolean(selectedCampaignApiUrl),
-    staleTime: 5 * 60_000,
-    placeholderData: undefined,
+    queryKey: ["om", "campaign-detail", campaignDetailApiParams],
+    queryFn: () =>
+      fetchCampaignOmDetail(
+        campaignDetailApiParams!.campaignId,
+        campaignDetailApiParams!.startDate,
+        campaignDetailApiParams!.endDate,
+        campaignDetailApiParams!.timeZone
+      ),
+    enabled: Boolean(campaignDetailApiParams),
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -281,11 +345,8 @@ export default function OperationsManagerDashboardPage() {
 
   const filteredCampaignAgents = useMemo(() => {
     const agents = selectedCampaignDetailQuery.data?.agents ?? [];
-    return agents.filter((agent) => {
-      if (!agent.total_leads) return false;
-      if (!selectedCampaignTlId) return true;
-      return agent.tl_id === selectedCampaignTlId;
-    });
+    if (!selectedCampaignTlId) return agents;
+    return agents.filter((agent) => agent.tl_id === selectedCampaignTlId);
   }, [selectedCampaignDetailQuery.data, selectedCampaignTlId]);
 
   const agentProfileApiParams = useMemo(() => {
@@ -381,20 +442,6 @@ export default function OperationsManagerDashboardPage() {
     ],
     []
   );
-
-  // Search runs server-side (campaignsApiUrl) across every campaign in the
-  // org — name, code, client, industry, geography — bypassing the type/status
-  // filters below. Once a search is active, campaignRows already *is* the
-  // search result set, so it's rendered as-is instead of being re-filtered.
-  const filteredCampaignRows = useMemo(() => {
-    if (campaignSearchTerm.trim()) return campaignRows;
-
-    if (!campaignTypeFilter || campaignTypeFilter === "") return campaignRows;
-    return campaignRows.filter(
-      (campaign) =>
-        campaign.campaign_type === campaignTypeFilter || campaign.lead_type === campaignTypeFilter
-    );
-  }, [campaignRows, campaignTypeFilter, campaignSearchTerm]);
 
   const displayedAgents = useMemo(() => {
     if (!performance?.agents?.length) return [];
@@ -803,20 +850,9 @@ export default function OperationsManagerDashboardPage() {
   );
 
   const selectedCampaignDetail = selectedCampaignDetailQuery.data;
-  const selectedCampaign = selectedCampaignDetail?.campaigns?.[0] ?? null;
-  const selectedCampaignMeta = useMemo(
-    () => campaignRows.find((campaign) => campaign.id === selectedCampaignId) ?? null,
-    [campaignRows, selectedCampaignId]
-  );
-  const selectedCampaignDisqualified = useMemo(
-    () =>
-      selectedCampaignDetail?.qa_summaries.reduce(
-        (sum, row) => sum + row.disqualified_leads,
-        0
-      ) ?? 0,
-    [selectedCampaignDetail]
-  );
-  const selectedCampaignMisDelivered = selectedCampaignMeta?.delivered_leads ?? 0;
+  const selectedCampaign = selectedCampaignDetail?.campaign ?? null;
+  const selectedCampaignDisqualified = selectedCampaign?.disqualified_leads ?? 0;
+  const selectedCampaignMisDelivered = selectedCampaign?.delivered_leads ?? 0;
 
   const summaryDrawerTitle = useMemo(() => {
     switch (selectedSummaryCard) {
@@ -839,7 +875,7 @@ export default function OperationsManagerDashboardPage() {
 
   const summaryReady = Boolean(summary);
   const performanceReady = Boolean(performance);
-  const campaignsReady = campaignsQuery.isSuccess;
+  const campaignsReady = !serverTableInitialLoading(campaignsQuery.isLoading, campaignRows.length);
 
   return (
     <div className="om-dashboard-page" style={{ padding: "0 4px", maxWidth: 1600, margin: "0 auto" }}>
@@ -1068,7 +1104,9 @@ export default function OperationsManagerDashboardPage() {
                     <Text strong style={{ fontSize: isCompact ? 14 : 16 }}>
                       Campaigns
                     </Text>
-                    {campaignRows.length > 0 ? <Link href="/tl/campaigns">View all</Link> : null}
+                    {(campaignsQuery.data?.pagination?.total ?? campaignRows.length) > 0 ? (
+                      <Link href="/tl/campaigns">View all</Link>
+                    ) : null}
                   </div>
                 }
                 bordered={false}
@@ -1116,16 +1154,17 @@ export default function OperationsManagerDashboardPage() {
                     />
                   </Col>
                 </Row>
-                <div style={{ maxHeight: isCompact ? 360 : 520, overflowY: "auto", overflowX: "hidden" }}>
+                <div>
                   {!campaignsReady ? (
                     <TableSkeleton rows={5} />
-                  ) : filteredCampaignRows.length === 0 ? (
+                  ) : campaignRows.length === 0 ? (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No campaigns available" />
                   ) : (
                     <Table
-                      dataSource={filteredCampaignRows}
+                      dataSource={campaignRows}
                       rowKey="id"
-                      pagination={false}
+                      pagination={campaignTablePagination}
+                      loading={campaignsQuery.isFetching && campaignRows.length > 0}
                       size={isCompact ? "small" : "middle"}
                       columns={recentCampaignColumns}
                       scroll={isCompact ? { x: 760 } : undefined}
@@ -1417,7 +1456,7 @@ export default function OperationsManagerDashboardPage() {
         bodyStyle={{ padding: isCompact ? 14 : 20 }}
         rootClassName="om-dashboard-drawer"
       >
-        {selectedCampaignDetailQuery.isFetching ? (
+        {selectedCampaignDetailQuery.isLoading ? (
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : selectedCampaignDetail ? (
           <>

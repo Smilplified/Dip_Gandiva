@@ -3,6 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getRoleNames, getProfile } from "@/lib/command/db";
+import {
+  buildClientViewerCampaignScope,
+  applyClientViewerLeadScope,
+} from "@/lib/command/client-viewer-scope";
 import { listLhoFilesForLead } from "@/lib/lead-assets";
 
 export const dynamic = "force-dynamic";
@@ -56,10 +60,8 @@ export async function GET(
       .eq("id", leadId);
 
     if (userRoles.includes("client_viewer")) {
-      leadQuery = leadQuery.eq(
-        "campaigns.client_id",
-        profile?.client_id ?? "__no_client__"
-      );
+      const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+      leadQuery = applyClientViewerLeadScope(leadQuery, scope, { joinOnCampaigns: true });
     }
 
     const { data: leadRaw, error: leadError } = await leadQuery.single();

@@ -3,10 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import {
-  getAllowedCampaignIdsForClientViewer,
   getProfile,
   getRoleNames,
 } from "@/lib/command/db";
+import { getClientViewerCampaignIds } from "@/lib/command/client-viewer-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -75,10 +75,11 @@ export async function GET(request: Request) {
 
     const pattern = `%${q}%`;
     const allowedCampaignIds = isClientViewer
-      ? await getAllowedCampaignIdsForClientViewer(
+      ? await getClientViewerCampaignIds(
           supabase,
           profile.organization_id,
-          profile.client_id ?? null
+          profile.client_id ?? null,
+          user.email
         )
       : null;
 

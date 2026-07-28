@@ -13,6 +13,11 @@ import {
   getProfile,
 } from "@/lib/command/db";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
+import {
+  buildClientViewerCampaignScope,
+  applyClientViewerCampaignListScope,
+  guardClientViewerCampaign,
+} from "@/lib/command/client-viewer-scope";
 import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
 import {
   campaignQuestionsToDbValue,
@@ -58,7 +63,8 @@ export async function GET(
     .eq("id", id);
 
   if (userRoles.includes("client_viewer")) {
-    query = query.eq("client_id", profile?.client_id ?? "__no_client__");
+    const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+    query = applyClientViewerCampaignListScope(query, scope);
   }
 
   const { data: campaign, error } = await query.single();
@@ -134,18 +140,9 @@ export async function PATCH(
   const admin = getAdminClientSafe();
 
   if (!isCommand && isClientViewer) {
-    if (!profile?.client_id) {
-      return NextResponse.json(
-        { error: "Forbidden — your account has no client assigned; contact an administrator." },
-        { status: 403 }
-      );
-    }
-    const { data: row, error: ownErr } = await supabase
-      .from("campaigns")
-      .select("id, client_id")
-      .eq("id", id)
-      .maybeSingle();
-    if (ownErr || !row || (row as { client_id: string | null }).client_id !== profile.client_id) {
+    const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+    const allowed = await guardClientViewerCampaign(supabase, scope, id);
+    if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!admin) {

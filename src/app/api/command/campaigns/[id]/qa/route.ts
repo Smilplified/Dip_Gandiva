@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { hasCommandRole } from "@/lib/command/rules-engine";
 import { getProfile, getRoleNames } from "@/lib/command/db";
 import {
+  buildClientViewerCampaignScope,
+  guardClientViewerCampaign,
+} from "@/lib/command/client-viewer-scope";
+import {
   computeQaAnalytics,
   type QaHistoryRow,
   type QaLeadRow,
@@ -60,13 +64,9 @@ export async function GET(
   const profile = await getProfile(supabase, user.id);
 
   if (userRoles.includes("client_viewer")) {
-    const { data: campaignGuard } = await supabase
-      .from("campaigns")
-      .select("id")
-      .eq("id", campaignId)
-      .eq("client_id", profile?.client_id ?? "__no_client__")
-      .single();
-    if (!campaignGuard) {
+    const scope = buildClientViewerCampaignScope(user.email, profile?.client_id ?? null);
+    const allowed = await guardClientViewerCampaign(supabase, scope, campaignId);
+    if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }

@@ -7,6 +7,10 @@ import type { Database } from "@/types/database.types";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { createNotifications } from "@/lib/notifications";
 import { getRoleDisplayLabel } from "@/lib/command/campaign-feed-access";
+import {
+  buildClientViewerCampaignScope,
+  clientViewerCanAccessCampaign,
+} from "@/lib/command/client-viewer-scope";
 import type {
   CampaignFeedAttachment,
   CampaignFeedLeadRef,
@@ -54,7 +58,8 @@ export async function assertCampaignFeedAccess(
   campaignId: string,
   orgId: string,
   roleNames: string[],
-  clientId: string | null
+  clientId: string | null,
+  userEmail?: string | null
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   let query = db(supabase)
     .from("campaigns")
@@ -72,8 +77,11 @@ export async function assertCampaignFeedAccess(
   }
 
   const isClientViewer = roleNames.includes("client_viewer");
-  if (isClientViewer && (!clientId || campaign.client_id !== clientId)) {
-    return { ok: false, status: 403, error: "Forbidden" };
+  if (isClientViewer) {
+    const scope = buildClientViewerCampaignScope(userEmail, clientId);
+    if (!clientViewerCanAccessCampaign(scope, campaignId, campaign.client_id)) {
+      return { ok: false, status: 403, error: "Forbidden" };
+    }
   }
 
   return { ok: true };

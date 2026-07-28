@@ -6,6 +6,18 @@
 // TODO: expand Campaign Report visibility beyond Shlok S (ssshlok554@gmail.com).
 export const CAMPAIGN_REPORT_MVP_EMAIL = "ssshlok554@gmail.com";
 
+/** Per-email allowlist: View Report only on these campaign UUIDs. */
+export const CAMPAIGN_REPORT_EMAIL_CAMPAIGN_ALLOWLIST: Record<
+  string,
+  readonly string[]
+> = {
+  "kstagnito2@rh-hub.com": [
+    "4562aeae-e14b-4c24-b6c5-c63c9d9e8bbb", // Fierce Biotech – BIO Preview 2026
+    "92e6bc07-b9f8-49e0-829b-fe39c6ac5f72", // PMMI Media Group - Columbia Machine, Inc.; ...
+    "06038f73-3764-4300-a6c8-81a157674a65", // Broadsign Pilot - MQL Content Syndication
+  ],
+};
+
 export type NamedValueEntry = {
   id?: string;
   role?: string;
@@ -139,6 +151,22 @@ export type CampaignPerformanceReportRow = {
 
 export function isCampaignReportMvpUser(email: string | null | undefined): boolean {
   return (email ?? "").trim().toLowerCase() === CAMPAIGN_REPORT_MVP_EMAIL;
+}
+
+function normalizeReportEmail(email: string | null | undefined): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
+/** True when this email may open View Report for the given campaign UUID. */
+export function canViewCampaignPerformanceReport(
+  email: string | null | undefined,
+  campaignUuid: string | null | undefined
+): boolean {
+  if (isCampaignReportMvpUser(email)) return true;
+  if (!campaignUuid) return false;
+  const allowed =
+    CAMPAIGN_REPORT_EMAIL_CAMPAIGN_ALLOWLIST[normalizeReportEmail(email)];
+  return !!allowed?.includes(campaignUuid);
 }
 
 export function parseNumeric(value: unknown): number | null {
