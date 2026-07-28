@@ -59,13 +59,20 @@ const statusColors: Record<string, string> = {
 
 export default function TeamLeaderDashboardPage() {
   const router = useRouter();
-  const { hasTLAccess, isInitialized, profile } = useAuth();
+  const { hasTLAccess, isInitialized, hasRole } = useAuth();
   const [isOffline, setIsOffline] = useState(false);
 
   const enabled = Boolean(isInitialized && hasTLAccess());
   const { stats, campaigns, refetch } = useTLDashboard(enabled);
 
   // Auth guard is handled by the layout (useRoleGuard). No redirect needed here.
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (hasRole("operations_manager")) {
+      router.replace("/om/dashboard");
+    }
+  }, [hasRole, isInitialized, router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

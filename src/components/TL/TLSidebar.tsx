@@ -25,6 +25,13 @@ const tlDashboardItem: CrmSidebarItem = {
   href: "/tl/dashboard",
 };
 
+const omDashboardItem: CrmSidebarItem = {
+  key: "/om/dashboard",
+  icon: <DashboardOutlined />,
+  label: "Dashboard",
+  href: "/om/dashboard",
+};
+
 /** OM org-wide tools — mirrors admin OM section, on /tl routes. */
 const omInsightMenuItems: CrmSidebarItem[] = [
   {
@@ -132,11 +139,16 @@ export default function TLSidebar() {
     const withCheckData = (items: CrmSidebarItem[]) =>
       isOm ? [...items, checkDataMenuItem] : items;
 
+    const dashboardItem = isOm ? omDashboardItem : tlDashboardItem;
+    const tlItemsWithDashboard = tlCampaignLeaderItems.map((item) =>
+      item.key === "/tl/dashboard" ? dashboardItem : item
+    );
+
     if (isOm && !isCampaignTl) {
-      return [[tlDashboardItem], withCheckData(withLeadFinder(omInsightMenuItems))];
+      return [[dashboardItem], withCheckData(withLeadFinder(omInsightMenuItems))];
     }
     if (isOm && isCampaignTl) {
-      return [withCheckData(withLeadFinder(tlCampaignLeaderItems)), omRevenueOnly];
+      return [withCheckData(withLeadFinder(tlItemsWithDashboard)), omRevenueOnly];
     }
     if (isCampaignTl) {
       return [withLeadFinder(tlCampaignLeaderItems)];
@@ -146,7 +158,11 @@ export default function TLSidebar() {
 
   const allItems = useMemo(() => sections.flat(), [sections]);
 
-  const selectedKey = resolveSidebarSelectedKey(pathname, allItems, "/tl/dashboard");
+  const selectedKey = resolveSidebarSelectedKey(
+    pathname,
+    allItems,
+    isOm ? "/om/dashboard" : "/tl/dashboard"
+  );
 
   return <CrmSidebar sections={sections} selectedKey={selectedKey} />;
 }

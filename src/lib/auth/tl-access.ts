@@ -90,6 +90,11 @@ export function getTLGuardRoles(): string[] {
   return [...TL_ACCESS_ROLES, "admin"];
 }
 
+/** Role slugs for useRoleGuard on /om routes (dashboard only — other OM tools stay on /tl). */
+export function getOMGuardRoles(): string[] {
+  return ["operations_manager", "admin"];
+}
+
 /** Human-readable label for the TL-area header (prefers Operations Manager when assigned). */
 export function getTLAreaRoleDisplayName(
   roles: Array<{ role_name?: string; name?: string } | string | null | undefined>

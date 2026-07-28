@@ -35,6 +35,7 @@ export function isDeviceAuthPath(pathname: string) {
 export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
   "/admin": ["admin"],
   "/agent": ["agent"],
+  "/om": ["operations_manager", "admin"],
   "/tl": ["team_leader", "tl", "operations_manager", "admin"],
   "/sales": ["sales", "sales_manager", "admin"],
   "/qa": ["qa", "admin"],
@@ -56,7 +57,7 @@ export const ROLE_DEFAULT_REDIRECT: Record<string, string> = {
   agent: "/agent/dashboard",
   team_leader: "/tl/dashboard",
   tl: "/tl/dashboard",
-  operations_manager: "/tl/dashboard",
+  operations_manager: "/om/dashboard",
   sales_manager: "/sales/dashboard",
   sales: "/sales",
   qa: "/qa/dashboard",
