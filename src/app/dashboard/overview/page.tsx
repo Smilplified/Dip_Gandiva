@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Statistic, Typography } from "antd";
+import { Card, Col, DatePicker, Progress, Row, Select, Skeleton, Statistic, Typography, Alert } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useAuth } from "@/context/AuthContext";
 import { useAuthReady } from "@/hooks/useAuthReady";
@@ -62,6 +62,7 @@ export default function OverviewPage() {
   const authReady = useAuthReady();
   const { authVersion } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [campaignId, setCampaignId] = useState<string | undefined>(undefined);
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
@@ -82,10 +83,16 @@ export default function OverviewPage() {
       const qs = id ? `?campaign_id=${id}` : "";
       const res = await fetchWithAuthRetry(`/api/command/overview${qs}`, { signal });
       if (signal?.aborted) return;
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? "Failed to load overview");
+      }
       const json = (await res.json()) as OverviewResponse;
       setData(json);
+      setError(null);
     } catch (err) {
       if ((err as { name?: string }).name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Failed to load overview");
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -169,10 +176,13 @@ export default function OverviewPage() {
 
   return (
     <div>
+      {error ? (
+        <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} />
+      ) : null}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 12 }}>
         <div>
-          <Title level={3} style={{ margin: 0 }}>Overview (Webinar)</Title>
-          <Text type="secondary">Client analytics across campaigns</Text>
+          <Title level={3} style={{ margin: 0 }}>Overview</Title>
+          <Text type="secondary">Campaign analytics across your portfolio</Text>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <RangePicker
@@ -308,6 +318,7 @@ export default function OverviewPage() {
                   />
                   <Bar dataKey="email" stackId="channels" fill="#4f46e5" name="Email" />
                   <Bar dataKey="telemarketing" stackId="channels" fill="#52c41a" name="Telemarketing" />
+                  <Legend />
                 </BarChart>
               </ResponsiveContainer>
             )}

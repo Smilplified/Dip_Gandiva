@@ -861,6 +861,96 @@ button.crm-conversation-item:focus-visible {
   border-color: #e5e7eb !important;
 }
 
+/* Magic UI BorderBeam — traveling highlight along a bordered container. */
+@keyframes border-beam {
+  100% {
+    offset-distance: 100%;
+  }
+}
+
+.border-beam {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  border: calc(var(--border-width, 1) * 1px) solid transparent;
+  mask-clip: padding-box, border-box;
+  -webkit-mask-clip: padding-box, border-box;
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(transparent, transparent), linear-gradient(#fff, #fff);
+  -webkit-mask-image: linear-gradient(transparent, transparent), linear-gradient(#fff, #fff);
+}
+
+.border-beam::after {
+  content: "";
+  position: absolute;
+  aspect-ratio: 1;
+  width: calc(var(--size, 80) * 1px);
+  animation: border-beam var(--duration, 8s) linear infinite;
+  animation-delay: var(--delay, 0s);
+  background: linear-gradient(
+    to left,
+    var(--color-from, #94a3b8),
+    var(--color-to, #334155),
+    transparent
+  );
+  offset-anchor: 90% 50%;
+  offset-path: rect(0 auto auto 0 round var(--beam-round, 80px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .border-beam::after {
+    animation: none !important;
+  }
+}
+
+/* Executive Summary — smooth traveling border (works without offset-path). */
+.report-summary-beam-shell {
+  position: relative;
+  border-radius: 14px;
+  padding: 2px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.report-summary-beam-shell::before {
+  content: "";
+  position: absolute;
+  inset: -120%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 300deg,
+    #a5b4fc 315deg,
+    #4f46e5 330deg,
+    #818cf8 345deg,
+    transparent 360deg
+  );
+  animation: report-summary-beam-rotate 5s linear infinite;
+}
+
+@keyframes report-summary-beam-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.report-summary-beam-shell > .ant-card {
+  position: relative;
+  z-index: 1;
+  border: none !important;
+  margin: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-summary-beam-shell::before {
+    animation: none;
+    inset: 0;
+    background: linear-gradient(135deg, #818cf8, #4f46e5);
+  }
+}
+
 /* Soft entrance for dashboard sections.                                    */
 @keyframes ds-fade-in {
   from {

@@ -798,59 +798,62 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
 
       <section>
         <SectionHeader icon={<FileTextOutlined />} title="Summary" accent="#334155" />
-        <Card
-          bordered
-          style={{
-            ...CARD_STYLE,
-            background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-            borderColor: "#e2e8f0",
-          }}
-          styles={{ body: { padding: "20px 22px" } }}
-        >
-          <Text
-            type="secondary"
+        <div className="report-summary-beam-shell">
+          <Card
+            bordered={false}
             style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: 0.5,
-              display: "block",
-              marginBottom: 10,
+              ...CARD_STYLE,
+              border: "none",
+              boxShadow: "none",
+              background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
             }}
+            styles={{ body: { padding: "20px 22px" } }}
           >
-            {summary.headline.toUpperCase()}
-          </Text>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-            {summary.paragraphs.map((p) => (
-              <Text key={p.slice(0, 32)} style={{ fontSize: 14, lineHeight: 1.65, color: "#334155" }}>
-                {p}
-              </Text>
-            ))}
-          </div>
-          {summary.highlights.length > 0 ? (
-            <Row gutter={[10, 10]}>
-              {summary.highlights.map((h) => (
-                <Col xs={12} sm={8} md={4} key={h.label}>
-                  <div
-                    style={{
-                      borderRadius: 10,
-                      border: "1px solid #eef0f3",
-                      background: "#fff",
-                      padding: "10px 12px",
-                      height: "100%",
-                    }}
-                  >
-                    <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
-                      {h.label}
-                    </Text>
-                    <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
-                      {h.value}
-                    </Text>
-                  </div>
-                </Col>
+            <Text
+              type="secondary"
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: 0.5,
+                display: "block",
+                marginBottom: 10,
+              }}
+            >
+              {summary.headline.toUpperCase()}
+            </Text>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+              {summary.paragraphs.map((p) => (
+                <Text key={p.slice(0, 32)} style={{ fontSize: 14, lineHeight: 1.65, color: "#334155" }}>
+                  {p}
+                </Text>
               ))}
-            </Row>
-          ) : null}
-        </Card>
+            </div>
+            {summary.highlights.length > 0 ? (
+              <Row gutter={[10, 10]}>
+                {summary.highlights.map((h) => (
+                  <Col xs={12} sm={8} md={4} key={h.label}>
+                    <div
+                      style={{
+                        borderRadius: 10,
+                        border: "1px solid #eef0f3",
+                        background: "#fff",
+                        padding: "10px 12px",
+                        height: "100%",
+                      }}
+                    >
+                      <Text type="secondary" style={{ fontSize: 11, display: "block" }}>
+                        {h.label}
+                      </Text>
+                      <Text strong style={{ fontSize: 16, color: "#0f172a" }}>
+                        {h.value}
+                      </Text>
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+            ) : null}
+          </Card>
+        </div>
       </section>
     </div>
   );

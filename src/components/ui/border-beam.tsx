@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 type BorderBeamProps = {
@@ -12,7 +13,7 @@ type BorderBeamProps = {
   borderWidth?: number;
 };
 
-/** Animated beam traveling along the border (Magic UI–style). */
+/** Animated beam traveling along the border (Magic UI–style). Styles in globals.css. */
 export function BorderBeam({
   className,
   size = 80,
@@ -24,29 +25,19 @@ export function BorderBeam({
 }: BorderBeamProps) {
   return (
     <span
+      aria-hidden
+      className={cn("border-beam", className)}
       style={
         {
           "--size": size,
+          "--beam-round": `${size}px`,
           "--duration": `${duration}s`,
-          "--delay": `-${delay}s`,
+          "--delay": delay ? `-${delay}s` : "0s",
           "--border-width": borderWidth,
           "--color-from": colorFrom,
           "--color-to": colorTo,
-        } as React.CSSProperties
+        } as CSSProperties
       }
-      className={cn(
-        "border-beam pointer-events-none absolute inset-0 rounded-[inherit]",
-        "[border:calc(var(--border-width)*1px)_solid_transparent]",
-        "[mask-clip:padding-box,border-box] [mask-composite:intersect]",
-        "[mask-image:linear-gradient(transparent,transparent),linear-gradient(#000,#000)]",
-        "after:absolute after:aspect-square after:w-[calc(var(--size)*1px)]",
-        "after:[animation:border-beam_var(--duration)_linear_infinite]",
-        "after:[animation-delay:var(--delay)]",
-        "after:[background:linear-gradient(to_left,var(--color-from),var(--color-to),transparent)]",
-        "after:[offset-anchor:90%_50%]",
-        "after:[offset-path:rect(0_auto_auto_0_round_calc(var(--size)*1px))]",
-        className
-      )}
     />
   );
 }
