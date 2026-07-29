@@ -32,7 +32,10 @@ export async function POST(request: Request) {
 
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const canExport =
-      roleNames.includes("qa") || roleNames.includes("admin") || roleNames.includes("mis");
+      roleNames.includes("qa") ||
+      roleNames.includes("admin") ||
+      roleNames.includes("mis") ||
+      roleNames.includes("email_marketing_manager");
     if (!canExport) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

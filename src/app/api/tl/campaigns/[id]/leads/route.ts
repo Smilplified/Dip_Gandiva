@@ -44,7 +44,8 @@ export async function PATCH(
     const useAdminDataClient =
       roleNames.includes("mis") ||
       roleNames.includes("admin") ||
-      roleNames.includes("qa");
+      roleNames.includes("qa") ||
+      roleNames.includes("email_marketing_manager");
     const admin = useAdminDataClient ? getAdminClientSafe() : null;
     if (useAdminDataClient && !admin) {
       return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
