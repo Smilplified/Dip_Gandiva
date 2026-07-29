@@ -230,8 +230,8 @@ export async function fetchLeadAssetsByCampaign(
   return all;
 }
 
-/** PostgREST GET `.in()` URLs blow up past ~100–150 UUIDs — keep batches small. */
-const SIGNED_URL_BATCH = 100;
+/** Storage createSignedUrls stays reliable with smaller batches. */
+const SIGNED_URL_BATCH = 50;
 
 export async function createSignedUrlMap(
   storageClient: StorageClient,
@@ -243,16 +243,27 @@ export async function createSignedUrlMap(
 
   for (let i = 0; i < paths.length; i += SIGNED_URL_BATCH) {
     const batch = paths.slice(i, i + SIGNED_URL_BATCH);
-    const { data: signed, error: signError } = await storageClient.storage
-      .from(VOICE_BUCKET)
-      .createSignedUrls(batch, ttlSeconds);
+    try {
+      const { data: signed, error: signError } = await storageClient.storage
+        .from(VOICE_BUCKET)
+        .createSignedUrls(batch, ttlSeconds);
 
-    if (signError) {
-      console.error("createSignedUrlMap:", signError.message);
-    }
-    for (const s of signed ?? []) {
-      if (s.path) {
-        urlByPath.set(s.path, s.error ? null : s.signedUrl ?? null);
+      if (signError) {
+        console.error("createSignedUrlMap:", signError.message, `(batch ${i}-${i + batch.length})`);
+        for (const path of batch) {
+          if (!urlByPath.has(path)) urlByPath.set(path, null);
+        }
+        continue;
+      }
+      for (const s of signed ?? []) {
+        if (s.path) {
+          urlByPath.set(s.path, s.error ? null : s.signedUrl ?? null);
+        }
+      }
+    } catch (err) {
+      console.error("createSignedUrlMap threw:", err, `(batch ${i}-${i + batch.length})`);
+      for (const path of batch) {
+        if (!urlByPath.has(path)) urlByPath.set(path, null);
       }
     }
   }

@@ -5,8 +5,11 @@ import { buildRecordingDownloadFilename } from "@/lib/qa/recording-filename";
 import { createSignedUrlMap, fetchLeadAssetsByCampaign } from "@/lib/lead-assets";
 
 export const dynamic = "force-dynamic";
+/** Large campaigns need time to page leads + batch-sign storage URLs. */
+export const maxDuration = 60;
 
 const SIGNED_URL_EXPIRY = 60 * 60; // 1 hour
+const LEADS_PAGE = 1000;
 
 type LeadRow = {
   id: string;
@@ -86,7 +89,7 @@ export async function GET(
       return NextResponse.json({ error: "Campaign ID required" }, { status: 400 });
     }
 
-    const { data: campaign, error: campaignError } = await supabase
+    const { data: campaign, error: campaignError } = await admin
       .from("campaigns")
       .select("id, name")
       .eq("id", campaignId)
@@ -107,32 +110,39 @@ export async function GET(
       assetsByLead.set(row.lead_id, list);
     }
 
-    const leadIds = [...assetsByLead.keys()];
-
-    if (leadIds.length === 0) {
+    if (assetsByLead.size === 0) {
       return NextResponse.json({
         campaign: { id: campaignRow.id, name: campaignRow.name },
         leads: [],
       });
     }
 
-    // Chunk `.in()` — large campaigns (600+ leads) exceed PostgREST URL limits ("Bad Request").
-    const LEAD_IN_CHUNK = 100;
+    // Page by campaign_id — never `.in(id, hundredsOfUuids)` (PostgREST URL → "Bad Request").
     const leadsArr: LeadRow[] = [];
-    for (let i = 0; i < leadIds.length; i += LEAD_IN_CHUNK) {
-      const slice = leadIds.slice(i, i + LEAD_IN_CHUNK);
+    let offset = 0;
+    for (;;) {
       const { data: leads, error: leadsErr } = await admin
         .from("leads")
         .select("id, lead_id, name, first_name, last_name, email, assigned_agent_id")
-        .in("id", slice)
         .eq("campaign_id", campaignId)
-        .eq("organization_id", orgId);
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .range(offset, offset + LEADS_PAGE - 1);
 
       if (leadsErr) {
         console.error("QA Recordings leads fetch:", leadsErr.message);
-        return NextResponse.json({ error: leadsErr.message }, { status: 500 });
+        return NextResponse.json(
+          { error: `Failed to load leads: ${leadsErr.message}` },
+          { status: 500 }
+        );
       }
-      leadsArr.push(...((leads ?? []) as LeadRow[]));
+
+      const page = (leads ?? []) as LeadRow[];
+      for (const lead of page) {
+        if (assetsByLead.has(lead.id)) leadsArr.push(lead);
+      }
+      if (page.length < LEADS_PAGE) break;
+      offset += LEADS_PAGE;
     }
 
     const agentIds = [
@@ -140,8 +150,9 @@ export async function GET(
     ];
     const agentMap: Record<string, string> = {};
     if (agentIds.length > 0) {
-      for (let i = 0; i < agentIds.length; i += LEAD_IN_CHUNK) {
-        const slice = agentIds.slice(i, i + LEAD_IN_CHUNK);
+      const AGENT_CHUNK = 100;
+      for (let i = 0; i < agentIds.length; i += AGENT_CHUNK) {
+        const slice = agentIds.slice(i, i + AGENT_CHUNK);
         const { data: users } = await admin
           .from("users")
           .select("id, full_name, email")
@@ -152,8 +163,17 @@ export async function GET(
       }
     }
 
-    const allDbPaths = assets.map((a) => a.file_path);
-    const urlByPath = await createSignedUrlMap(admin, allDbPaths, SIGNED_URL_EXPIRY);
+    // Signing must not fail the whole page — return null urls if storage batch fails.
+    let urlByPath = new Map<string, string | null>();
+    try {
+      urlByPath = await createSignedUrlMap(
+        admin,
+        assets.map((a) => a.file_path),
+        SIGNED_URL_EXPIRY
+      );
+    } catch (signErr) {
+      console.error("QA Recordings signed URL batch failed:", signErr);
+    }
 
     const leadsWithRecordings: LeadWithRecordings[] = [];
 
@@ -204,6 +224,7 @@ export async function GET(
     });
   } catch (err) {
     console.error("QA Recordings GET error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
