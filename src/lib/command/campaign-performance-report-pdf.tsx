@@ -17,6 +17,7 @@ import {
   parseNumeric,
   pickFormValue,
   buildCampaignReportSummary,
+  resolveCampaignReportScreenshotSrc,
   type CampaignPerformanceReportRow,
   type NamedValueEntry,
 } from "@/lib/command/campaign-performance-report";
@@ -200,7 +201,7 @@ const styles = StyleSheet.create({
   },
   screenshot: {
     width: "100%",
-    height: 160,
+    maxHeight: 220,
     objectFit: "contain",
     borderRadius: 5,
   },
@@ -460,21 +461,17 @@ function CampaignPerformanceReportDocument({
   const fullyLoaded = pickFormValue(vitals, ["fullyLoadedTime"]);
 
   let screenshotSrc: string | null = null;
-  const raw = report.screenshot_data?.trim();
-  if (raw) {
-    if (raw.startsWith("data:") || raw.startsWith("http://") || raw.startsWith("https://")) {
-      screenshotSrc = raw;
-    } else {
-      screenshotSrc = `data:image/png;base64,${raw}`;
-    }
+  if (typeof window !== "undefined") {
+    screenshotSrc = resolveCampaignReportScreenshotSrc(report.screenshot_data, {
+      origin: window.location.origin,
+    });
+  } else {
+    screenshotSrc = resolveCampaignReportScreenshotSrc(report.screenshot_data);
   }
 
   const hasIndustry =
     outbound.securityPerc != null || outbound.safetyPerc != null || outbound.othersPerc != null;
   const hasSecondaryVitals = fcpValue != null || ttiValue != null || fullyLoaded != null;
-  const hasSpeedSamples =
-    Array.isArray(report.web_vitals_data?.speedEntries) &&
-    report.web_vitals_data.speedEntries.some((e) => parseNumeric(e.value) != null);
 
   const TOTAL_PAGES = 4;
 
@@ -663,22 +660,9 @@ function CampaignPerformanceReportDocument({
             />
           </KpiRow>
         ) : null}
-        {hasSpeedSamples ? (
-          <HorizontalBars
-            title="Speed Samples"
-            entries={report.web_vitals_data!.speedEntries!.map((e, i) => ({
-              id: e.id,
-              date: `S${i + 1}`,
-              value: e.value,
-            }))}
-            labelKey="date"
-            color="#64748b"
-            maxItems={6}
-          />
-        ) : null}
         {screenshotSrc ? (
           <View style={styles.card} wrap={false}>
-            <Text style={styles.cardTitle}>Page Screenshot</Text>
+            <Text style={styles.cardTitle}>Speed Samples</Text>
             {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image */}
             <Image src={screenshotSrc} style={styles.screenshot} />
           </View>

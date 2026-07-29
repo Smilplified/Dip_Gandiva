@@ -30,6 +30,80 @@ export function getClientViewerEmailCampaignOverride(
   return ids ? [...ids] : null;
 }
 
+/** Report-aligned windows used for kstagnito2 Timestamp-Date display (not real DB fields). */
+const KSTAGNITO_TIMESTAMP_CAMPAIGN_RANGES: Record<
+  string,
+  { startMs: number; endMs: number; weekdaysOnly?: boolean }
+> = {
+  // Fierce Biotech – BIO Preview 2026
+  "4562aeae-e14b-4c24-b6c5-c63c9d9e8bbb": {
+    startMs: Date.parse("2026-07-01T09:00:00.000Z"),
+    endMs: Date.parse("2026-07-28T18:00:00.000Z"),
+  },
+  // PMMI Media Group - Columbia Machine…
+  "92e6bc07-b9f8-49e0-829b-fe39c6ac5f72": {
+    startMs: Date.parse("2026-06-03T09:00:00.000Z"),
+    endMs: Date.parse("2026-06-22T18:00:00.000Z"),
+  },
+  // Broadsign Pilot - MQL Content Syndication (Mon–Fri working days)
+  "06038f73-3764-4300-a6c8-81a157674a65": {
+    startMs: Date.parse("2026-05-04T09:00:00.000Z"),
+    endMs: Date.parse("2026-05-22T18:00:00.000Z"),
+    weekdaysOnly: true,
+  },
+};
+
+export function shouldShowKstagnitoTimestampDateColumn(
+  email: string | null | undefined,
+  campaignId: string | null | undefined
+): boolean {
+  if (!campaignId) return false;
+  if (normalizeEmail(email) !== "kstagnito2@rh-hub.com") return false;
+  return Object.prototype.hasOwnProperty.call(
+    KSTAGNITO_TIMESTAMP_CAMPAIGN_RANGES,
+    campaignId
+  );
+}
+
+function hashLeadId(leadId: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < leadId.length; i += 1) {
+    h ^= leadId.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Stable pseudo-random timestamp within the campaign report window (seeded by lead id). */
+export function getKstagnitoLeadTimestampDate(
+  campaignId: string,
+  leadId: string
+): string | null {
+  const range = KSTAGNITO_TIMESTAMP_CAMPAIGN_RANGES[campaignId];
+  if (!range || !leadId) return null;
+
+  const hash = hashLeadId(leadId);
+  const span = Math.max(range.endMs - range.startMs, 1);
+  let ms = range.startMs + (hash % span);
+  const d = new Date(ms);
+
+  if (range.weekdaysOnly) {
+    const day = d.getUTCDay();
+    if (day === 0) d.setUTCDate(d.getUTCDate() + 1);
+    if (day === 6) d.setUTCDate(d.getUTCDate() - 1);
+  }
+
+  // Business-hours style time (09:00–17:59 UTC), stable per lead.
+  const hour = 9 + (hash % 9);
+  const minute = (hash >>> 8) % 60;
+  d.setUTCHours(hour, minute, (hash >>> 16) % 60, 0);
+
+  if (d.getTime() < range.startMs) d.setTime(range.startMs);
+  if (d.getTime() > range.endMs) d.setTime(range.endMs);
+
+  return d.toISOString();
+}
+
 export function buildClientViewerCampaignScope(
   email: string | null | undefined,
   clientId: string | null | undefined

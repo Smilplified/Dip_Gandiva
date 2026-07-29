@@ -200,6 +200,29 @@ export function formatReportPercent(value: unknown, fallback = "—"): string {
   return `${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
 }
 
+/** Resolve screenshot_data for <img> / react-pdf (data URL, absolute URL, or public path). */
+export function resolveCampaignReportScreenshotSrc(
+  screenshotData: string | null | undefined,
+  opts?: { origin?: string | null }
+): string | null {
+  const raw = screenshotData?.trim();
+  if (!raw) return null;
+  if (raw.startsWith("data:")) return raw;
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith("/")) {
+    const encodedPath =
+      "/" +
+      raw
+        .replace(/^\//, "")
+        .split("/")
+        .map((seg) => encodeURIComponent(seg))
+        .join("/");
+    const origin = (opts?.origin ?? "").replace(/\/$/, "");
+    return origin ? `${origin}${encodedPath}` : encodedPath;
+  }
+  return `data:image/png;base64,${raw}`;
+}
+
 /** First defined non-empty field from generator / legacy aliases. */
 export function pickFormValue(
   form: Record<string, unknown> | null | undefined,

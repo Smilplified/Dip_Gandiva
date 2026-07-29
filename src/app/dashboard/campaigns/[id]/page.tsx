@@ -61,6 +61,7 @@ export default function CampaignDetailPage() {
 
   const campaignId = params.id as string;
   const shouldEditOnMount = searchParams.get("edit") === "true";
+  const isClientViewer = hasRole("client_viewer");
 
   const [editDrawer, setEditDrawer] = useState(false);
   const [reportDrawer, setReportDrawer] = useState(false);
@@ -130,7 +131,7 @@ export default function CampaignDetailPage() {
           paddingRight: contentPad,
         }}
       >
-      {!feedMode && (
+      {!feedMode && !isClientViewer && (
       <div
         style={{
           display: "flex",
@@ -177,7 +178,7 @@ export default function CampaignDetailPage() {
       <Card
         bordered={false}
         style={
-          feedMode
+          feedMode || isClientViewer
             ? { border: "none", boxShadow: "none", background: "transparent" }
             : {
                 borderRadius: 12,
@@ -193,6 +194,16 @@ export default function CampaignDetailPage() {
           initialTab={searchParams.get("tab")}
           initialDeliveryStatus={searchParams.get("delivery_status")}
           onFeedModeChange={setFeedMode}
+          clientViewerChrome={
+            isClientViewer && !feedMode
+              ? {
+                  onBack: () => router.push("/dashboard/campaigns"),
+                  onViewReport: canViewCampaignReport
+                    ? () => setReportDrawer(true)
+                    : undefined,
+                }
+              : undefined
+          }
         />
       </Card>
 

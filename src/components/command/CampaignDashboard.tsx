@@ -39,6 +39,7 @@ import {
   CaretDownOutlined,
   MessageOutlined,
   ArrowLeftOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import AlertsPanel from "./AlertsPanel";
 import QAPanel from "./QAPanel";
@@ -59,6 +60,10 @@ import {
   clientViewerShowsLhoFile,
   isAgCampaignType,
 } from "@/lib/command/client-viewer-lead-columns";
+import {
+  getKstagnitoLeadTimestampDate,
+  shouldShowKstagnitoTimestampDateColumn,
+} from "@/lib/command/client-viewer-scope";
 import { formatEarnedRevenue } from "@/lib/campaign-revenue-metrics";
 import { hasCampaignFeedRole } from "@/lib/command/campaign-feed-access";
 import { CampaignFeedChatWidget } from "@/components/command/CampaignFeedChatWidget";
@@ -229,6 +234,14 @@ interface CampaignDashboardProps {
   initialDeliveryStatus?: string | null;
   /** Notifies parent when full-page feed mode toggles. */
   onFeedModeChange?: (isFeedView: boolean) => void;
+  /**
+   * client_viewer sticky chrome: Back + optional View Report stay pinned with tabs.
+   * When set, parent should not render its own toolbar.
+   */
+  clientViewerChrome?: {
+    onBack: () => void;
+    onViewReport?: () => void;
+  };
 }
 
 interface CampaignMetricsHistoryRow {
@@ -365,6 +378,7 @@ export default function CampaignDashboard({
   initialTab,
   initialDeliveryStatus,
   onFeedModeChange,
+  clientViewerChrome,
 }: CampaignDashboardProps) {
   const { hasRole, roles, authVersion, user } = useAuth();
   const authReady = useAuthReady();
@@ -395,10 +409,16 @@ export default function CampaignDashboard({
   const [selectedLeadKeys, setSelectedLeadKeys] = useState<Key[]>([]);
   const [allocationSaving, setAllocationSaving] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const stickyHeaderRef = useRef<HTMLDivElement | null>(null);
+  const stickyScrollYRef = useRef(0);
+  const stickyHeaderHiddenRef = useRef(false);
+  const stickyScrollAccRef = useRef(0);
+  const clientViewerChromeRef = useRef<HTMLDivElement | null>(null);
   /** Allocation snapshot when this campaign was first shown (for % trend vs initial). */
   const [allocationBaseline, setAllocationBaseline] = useState<number | null>(null);
 
   const isClientViewer = hasRole("client_viewer");
+  const useClientViewerChrome = Boolean(isClientViewer && clientViewerChrome);
   const isKstagnitoViewer =
     (user?.email ?? "").trim().toLowerCase() === "kstagnito2@rh-hub.com";
   const showFeedTab = hasCampaignFeedRole(
@@ -439,6 +459,107 @@ export default function CampaignDashboard({
   useEffect(() => {
     setDescriptionExpanded(false);
   }, [campaignId]);
+
+  // Internal roles: sticky meta/KPI bar auto-hides on scroll-down (transform-only).
+  // client_viewer: meta scrolls away; Back + View Report + tabs stay pinned instead.
+  useEffect(() => {
+    if (useClientViewerChrome || loading) return;
+    const node = stickyHeaderRef.current;
+    if (!node) return;
+
+    const getScrollParent = (el: HTMLElement): HTMLElement | Window => {
+      let parent = el.parentElement;
+      while (parent) {
+        const { overflowY } = window.getComputedStyle(parent);
+        if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
+          return parent;
+        }
+        parent = parent.parentElement;
+      }
+      return window;
+    };
+
+    const scrollParent = getScrollParent(node);
+    const readY = () =>
+      scrollParent === window
+        ? window.scrollY || document.documentElement.scrollTop
+        : (scrollParent as HTMLElement).scrollTop;
+
+    const applyHidden = (hidden: boolean) => {
+      if (stickyHeaderHiddenRef.current === hidden) return;
+      stickyHeaderHiddenRef.current = hidden;
+      // transform-only: no layout height change → no scroll jump / blink
+      node.style.transform = hidden
+        ? "translate3d(0, calc(-100% - var(--app-content-padding, 24px)), 0)"
+        : "translate3d(0, 0, 0)";
+      node.style.pointerEvents = hidden ? "none" : "auto";
+      node.style.boxShadow = hidden ? "none" : "0 4px 12px rgba(0,0,0,0.06)";
+      node.style.borderBottomColor = hidden ? "transparent" : "#f0f0f0";
+    };
+
+    stickyScrollYRef.current = readY();
+    stickyScrollAccRef.current = 0;
+    applyHidden(false);
+
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        const y = readY();
+        const delta = y - stickyScrollYRef.current;
+        stickyScrollYRef.current = y;
+
+        if (y <= 4) {
+          stickyScrollAccRef.current = 0;
+          applyHidden(false);
+          return;
+        }
+
+        stickyScrollAccRef.current += delta;
+        if (stickyScrollAccRef.current > 28) {
+          stickyScrollAccRef.current = 0;
+          applyHidden(true);
+        } else if (stickyScrollAccRef.current < -28) {
+          stickyScrollAccRef.current = 0;
+          applyHidden(false);
+        }
+      });
+    };
+
+    scrollParent.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scrollParent.removeEventListener("scroll", onScroll);
+      if (raf) window.cancelAnimationFrame(raf);
+      stickyHeaderHiddenRef.current = false;
+      node.style.transform = "translate3d(0, 0, 0)";
+      node.style.pointerEvents = "auto";
+      node.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)";
+      node.style.borderBottomColor = "#f0f0f0";
+    };
+  }, [campaignId, loading, useClientViewerChrome]);
+
+  useEffect(() => {
+    if (!useClientViewerChrome) {
+      document.documentElement.style.removeProperty("--cv-campaign-toolbar-h");
+      return;
+    }
+    const el = clientViewerChromeRef.current;
+    if (!el) return;
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        "--cv-campaign-toolbar-h",
+        `${el.offsetHeight}px`
+      );
+    };
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--cv-campaign-toolbar-h");
+    };
+  }, [useClientViewerChrome, activeTab, clientViewerChrome?.onViewReport]);
 
   useEffect(() => {
     onFeedModeChange?.(activeTab === "feed");
@@ -696,20 +817,48 @@ export default function CampaignDashboard({
   /** Remaining lead quota vs delivered: total allocation − total leads in scope. */
   const deficitLeadsKpi = allocationNow - totalLeadsKpi;
 
-  const leadColumns: ColumnsType<LeadRow> = applyLeadTableHeaderCells(
-    getLeadTableColumns({
-      showActions: false,
-      showDeliveryStatus: false,
-      showQaStatus: false,
-      showAppointment: isClientViewer
-        ? !clientViewerHidesAppointment(campaign.campaign_type)
-        : true,
-      showLhoFile: isClientViewer
-        ? clientViewerShowsLhoFile(campaign.campaign_type)
-        : true,
-      pagination: { current: leadPage, pageSize: leadPageSize },
-    }) as unknown as ColumnsType<LeadRow>
-  );
+  const leadColumns: ColumnsType<LeadRow> = (() => {
+    const showKstagnitoTimestamp = shouldShowKstagnitoTimestampDateColumn(
+      user?.email,
+      campaignId
+    );
+    const base = applyLeadTableHeaderCells(
+      getLeadTableColumns({
+        showActions: false,
+        showDeliveryStatus: false,
+        showQaStatus: false,
+        showAppointment: isClientViewer
+          ? !clientViewerHidesAppointment(campaign.campaign_type)
+          : true,
+        showLhoFile: isClientViewer
+          ? clientViewerShowsLhoFile(campaign.campaign_type)
+          : true,
+        pinMeetingAndLhoColumns: !showKstagnitoTimestamp,
+        showCreatedBy: !showKstagnitoTimestamp,
+        showCreatedAt: !showKstagnitoTimestamp,
+        pagination: { current: leadPage, pageSize: leadPageSize },
+      }) as unknown as ColumnsType<LeadRow>
+    );
+
+    if (!showKstagnitoTimestamp) {
+      return base;
+    }
+
+    const timestampCol: ColumnsType<LeadRow>[number] = {
+      title: "Timestamp-Date",
+      key: "timestamp_date",
+      width: 180,
+      fixed: "right",
+      render: (_: unknown, record: LeadRow) => {
+        const iso = getKstagnitoLeadTimestampDate(campaignId, record.id);
+        if (!iso) return "—";
+        return dayjs(iso).format("MMM D, YYYY · h:mm A");
+      },
+    };
+
+    // Fixed-right columns must be at the end for Ant Design sticky behavior.
+    return [...base, timestampCol];
+  })();
 
   const historyColumns: ColumnsType<CampaignMetricsHistoryRow> = [
     {
@@ -1215,19 +1364,81 @@ export default function CampaignDashboard({
 
   return (
     <div>
+      {useClientViewerChrome && clientViewerChrome ? (
+        <div
+          ref={clientViewerChromeRef}
+          style={{
+            position: "sticky",
+            top: "calc(-1 * var(--app-content-padding, 24px))",
+            zIndex: 40,
+            marginLeft: -24,
+            marginRight: -24,
+            marginBottom: 12,
+            padding: "8px 24px",
+            // Match AppLayout Content — covers scrolled content without a white strip.
+            background: "#f5f5f5",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <Button
+              icon={<ArrowLeftOutlined />}
+              type="text"
+              onClick={clientViewerChrome.onBack}
+              style={{ paddingLeft: 0 }}
+            >
+              Campaign Command Center
+            </Button>
+            {clientViewerChrome.onViewReport ? (
+              <Button
+                type="primary"
+                icon={<FileTextOutlined />}
+                onClick={clientViewerChrome.onViewReport}
+              >
+                View Report
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <div
-        style={{
-          position: "sticky",
-          // Pull up by dashboard Content padding so no grey strip shows above the bar while scrolling.
-          top: "calc(-1 * var(--app-content-padding, 0px))",
-          zIndex: 20,
-          background: "#fff",
-          padding: "16px 24px",
-          marginBottom: 16,
-          borderBottom: "1px solid #f0f0f0",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-          borderRadius: "12px 12px 0 0",
-        }}
+        ref={useClientViewerChrome ? undefined : stickyHeaderRef}
+        style={
+          useClientViewerChrome
+            ? {
+                background: "#fff",
+                padding: "16px 24px",
+                marginBottom: 0,
+                borderRadius: 12,
+                border: "1px solid #f0f0f0",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              }
+            : {
+                position: "sticky",
+                // Pull up by dashboard Content padding so no grey strip shows above the bar while scrolling.
+                top: "calc(-1 * var(--app-content-padding, 0px))",
+                zIndex: 20,
+                background: "#fff",
+                padding: "16px 24px",
+                marginBottom: 16,
+                borderBottom: "1px solid #f0f0f0",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                borderRadius: "12px 12px 0 0",
+                transform: "translate3d(0, 0, 0)",
+                transition:
+                  "transform 0.22s ease, box-shadow 0.22s ease, border-bottom-color 0.22s ease",
+                willChange: "transform",
+                backfaceVisibility: "hidden",
+              }
+        }
       >
         <div
           style={{
@@ -1658,14 +1869,87 @@ export default function CampaignDashboard({
         </div>
       </div>
 
-      <div style={{ padding: "0 24px 24px" }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={orderedTabItems}
-          size="small"
-          type="card"
-        />
+      <div style={{ padding: useClientViewerChrome ? "0 0 24px" : "0 24px 24px" }}>
+        {useClientViewerChrome ? (
+          <>
+            <div
+              style={{
+                position: "sticky",
+                top: "calc(-1 * var(--app-content-padding, 24px) + var(--cv-campaign-toolbar-h, 48px))",
+                zIndex: 35,
+                marginLeft: -24,
+                marginRight: -24,
+                marginTop: 12,
+                padding: "8px 24px 0",
+                background: "#f5f5f5",
+              }}
+              role="tablist"
+              aria-label="Campaign sections"
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  borderBottom: "1px solid #e8e8e8",
+                }}
+              >
+                {orderedTabItems.map((item) => {
+                  const selected = activeTab === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      onClick={() => setActiveTab(item.key)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: -1,
+                        border: selected ? "1px solid #e8e8e8" : "1px solid transparent",
+                        borderBottom: selected ? "1px solid #f5f5f5" : "1px solid transparent",
+                        background: selected ? "#fff" : "transparent",
+                        color: selected ? "#1677ff" : "rgba(0,0,0,0.65)",
+                        borderRadius: "8px 8px 0 0",
+                        padding: "8px 14px",
+                        fontSize: 13,
+                        fontWeight: selected ? 600 : 500,
+                        cursor: "pointer",
+                        lineHeight: 1.3,
+                        transition:
+                          "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div
+              style={{
+                background: "#fff",
+                border: "1px solid #f0f0f0",
+                borderTop: "none",
+                borderRadius: "0 0 12px 12px",
+                padding: 16,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              }}
+            >
+              {orderedTabItems.find((item) => item.key === activeTab)?.children ?? null}
+            </div>
+          </>
+        ) : (
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={orderedTabItems}
+            size="small"
+            type="card"
+          />
+        )}
       </div>
 
       <LeadAuditPanel

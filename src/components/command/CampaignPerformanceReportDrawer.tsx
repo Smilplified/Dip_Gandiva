@@ -47,6 +47,7 @@ import {
   parseNumeric,
   pickFormValue,
   buildCampaignReportSummary,
+  resolveCampaignReportScreenshotSrc,
   type CampaignPerformanceReportRow,
   type NamedValueEntry,
 } from "@/lib/command/campaign-performance-report";
@@ -499,13 +500,10 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
       ? `${report.start_date ?? "—"} → ${report.end_date ?? "—"}`
       : "Date range not set";
 
-  const screenshotSrc = useMemo(() => {
-    const raw = report.screenshot_data?.trim();
-    if (!raw) return null;
-    if (raw.startsWith("data:")) return raw;
-    if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
-    return `data:image/png;base64,${raw}`;
-  }, [report.screenshot_data]);
+  const screenshotSrc = useMemo(
+    () => resolveCampaignReportScreenshotSrc(report.screenshot_data),
+    [report.screenshot_data]
+  );
 
   const stateBars = chartEntriesFromNamed(report.landing_page_data?.stateEntries, "state");
   const summary = useMemo(() => buildCampaignReportSummary(report), [report]);
@@ -763,34 +761,35 @@ function ReportBody({ report }: { report: CampaignPerformanceReportRow }) {
             </Col>
           </Row>
         ) : null}
-        {Array.isArray(report.web_vitals_data?.speedEntries) &&
-          report.web_vitals_data.speedEntries.some((e) => parseNumeric(e.value) != null) && (
-            <Card title="Speed Samples" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
-              <ResponsiveContainer width="100%" height={230}>
-                <BarChart
-                  data={report.web_vitals_data.speedEntries.map((e, i) => ({
-                    name: `Sample ${i + 1}`,
-                    value: parseNumeric(e.value) ?? 0,
-                  }))}
-                  margin={{ top: 8, right: 8, left: -8, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                  <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
-                  <RechartsTooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="value" fill="#64748b" radius={[7, 7, 0, 0]} name="Speed (s)" maxBarSize={48} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          )}
         {screenshotSrc ? (
-          <Card title="Page Screenshot" size="small" style={{ ...CARD_STYLE, marginTop: 12 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={screenshotSrc}
-              alt="Campaign landing page screenshot"
-              style={{ width: "100%", borderRadius: 10, border: "1px solid #eef0f3" }}
-            />
+          <Card
+            title="Speed Samples"
+            size="small"
+            style={{ ...CARD_STYLE, height: "auto", marginTop: 12 }}
+            styles={{ body: { padding: 12 } }}
+          >
+            <div
+              style={{
+                width: "100%",
+                overflowX: "auto",
+                borderRadius: 10,
+                border: "1px solid #eef0f3",
+                background: "#f8fafc",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={screenshotSrc}
+                alt="Speed samples visualization"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  maxWidth: "100%",
+                  height: "auto",
+                  objectFit: "contain",
+                }}
+              />
+            </div>
           </Card>
         ) : null}
       </section>

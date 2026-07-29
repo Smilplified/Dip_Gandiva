@@ -41,6 +41,11 @@ type ColumnConfig = {
   showAppointment?: boolean;
   /** Download LHO file column (beside meeting datetime); uses command LHO API. */
   showLhoFile?: boolean;
+  /**
+   * When false, Date Meeting Set / Meeting Date & Time / LHO file are not sticky (fixed right).
+   * Default true.
+   */
+  pinMeetingAndLhoColumns?: boolean;
   /** API prefix for LHO list, e.g. `/api/command/leads`. */
   lhoApiPrefix?: string;
   onMarkDelivered?: (lead: Lead) => void;
@@ -59,6 +64,8 @@ type ColumnConfig = {
   showAuditBy?: boolean;
   /** Show lead uploader / creator column (created_by_name). Default true. */
   showCreatedBy?: boolean;
+  /** Show Created (created_at) column. Default true. */
+  showCreatedAt?: boolean;
   /** Inline voice log play/upload (agent campaign leads table). */
   showVoiceRecordings?: boolean;
   onVoiceRecordingsChange?: () => void;
@@ -258,6 +265,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     showMeetingSetDate = true,
     showAppointment = true,
     showLhoFile = false,
+    pinMeetingAndLhoColumns = true,
     lhoApiPrefix = "/api/command/leads",
     onMarkDelivered,
     markingDeliveredLeadId,
@@ -267,6 +275,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     showChannel = true,
     showAuditBy = false,
     showCreatedBy = true,
+    showCreatedAt = true,
     showVoiceRecordings = false,
     onVoiceRecordingsChange,
   } = config;
@@ -533,7 +542,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
             dataIndex: "scored",
             key: "scored",
             width: 200,
-            fixed: "right" as const,
+            ...(pinMeetingAndLhoColumns ? { fixed: "right" as const } : {}),
             sorter: true,
             render: (v: string | null | undefined) => {
               const text = formatLeadDateTimeCell(v);
@@ -613,7 +622,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
               dataIndex: "appointment",
               key: "appointment",
               width: 172,
-              fixed: "right" as const,
+              ...(pinMeetingAndLhoColumns ? { fixed: "right" as const } : {}),
               sorter: true,
               render: (v: string | null | undefined) => {
                 const text = formatLeadDateTimeCell(v);
@@ -632,7 +641,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
             title: "LHO file",
             key: "lho_file",
             width: 88,
-            fixed: "right" as const,
+            ...(pinMeetingAndLhoColumns ? { fixed: "right" as const } : {}),
             align: "center" as const,
             render: (_: unknown, record: Lead) => (
               <LeadLhoDownloadButton lead={record} apiPrefix={lhoApiPrefix} />
@@ -684,45 +693,52 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
           } as NonNullable<TableProps<Lead>["columns"]>[number],
         ]
       : []),
-    {
-      title: "Created",
-      dataIndex: "created_at",
-      key: "created_at",
-      width: 140,
-      filters: [
-        { text: "Today", value: "today" },
-        { text: "Last 7 days", value: "last7" },
-        { text: "Last 30 days", value: "last30" },
-        { text: "This month", value: "month" },
-        { text: "This quarter", value: "quarter" },
-      ],
-      onFilter: (value, record) => {
-        const created = record.created_at ? dayjs(record.created_at) : null;
-        if (!created) return false;
-        const now = dayjs();
-        switch (value) {
-          case "today":
-            return created.isSame(now, "day");
-          case "last7":
-            return created.isAfter(now.subtract(7, "day"));
-          case "last30":
-            return created.isAfter(now.subtract(30, "day"));
-          case "month":
-            return created.isSame(now, "month");
-          case "quarter":
-            return created.year() === now.year() && Math.floor(created.month() / 3) === Math.floor(now.month() / 3);
-          default:
-            return true;
-        }
-      },
-      render: (v: string) =>
-        v
-          ? new Date(v).toLocaleString(undefined, {
-              dateStyle: "short",
-              timeStyle: "short",
-            })
-          : "—",
-    },
+    ...(showCreatedAt
+      ? [
+          {
+            title: "Created",
+            dataIndex: "created_at",
+            key: "created_at",
+            width: 140,
+            filters: [
+              { text: "Today", value: "today" },
+              { text: "Last 7 days", value: "last7" },
+              { text: "Last 30 days", value: "last30" },
+              { text: "This month", value: "month" },
+              { text: "This quarter", value: "quarter" },
+            ],
+            onFilter: (value, record) => {
+              const created = record.created_at ? dayjs(record.created_at) : null;
+              if (!created) return false;
+              const now = dayjs();
+              switch (value) {
+                case "today":
+                  return created.isSame(now, "day");
+                case "last7":
+                  return created.isAfter(now.subtract(7, "day"));
+                case "last30":
+                  return created.isAfter(now.subtract(30, "day"));
+                case "month":
+                  return created.isSame(now, "month");
+                case "quarter":
+                  return (
+                    created.year() === now.year() &&
+                    Math.floor(created.month() / 3) === Math.floor(now.month() / 3)
+                  );
+                default:
+                  return true;
+              }
+            },
+            render: (v: string) =>
+              v
+                ? new Date(v).toLocaleString(undefined, {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })
+                : "—",
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
   ];
 
   const voiceRecordingColumn: NonNullable<TableProps<Lead>["columns"]>[number] = {
