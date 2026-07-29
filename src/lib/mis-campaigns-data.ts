@@ -200,6 +200,7 @@ export async function loadMisCampaignsForDateRange(
           employee_size, abm, seniority, job_function, creatives_url
         `)
         .eq("organization_id", orgId)
+        .order("start_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
 
       if (campaignIdFilter.length > 0) {
@@ -308,14 +309,19 @@ export async function loadMisCampaignsForDateRange(
     });
   }
 
+  // Latest-launched campaigns first (start_date), then newest created.
   visible.sort((a, b) => {
-    const aHas = (a.scored_leads_count ?? 0) > 0;
-    const bHas = (b.scored_leads_count ?? 0) > 0;
-    if (aHas !== bHas) return aHas ? -1 : 1;
-
-    const aMs = a.last_lead_activity_at ? new Date(a.last_lead_activity_at).getTime() : 0;
-    const bMs = b.last_lead_activity_at ? new Date(b.last_lead_activity_at).getTime() : 0;
-    if (bMs !== aMs) return bMs - aMs;
+    const aLaunch = a.start_date
+      ? new Date(a.start_date).getTime()
+      : a.created_at
+        ? new Date(a.created_at).getTime()
+        : 0;
+    const bLaunch = b.start_date
+      ? new Date(b.start_date).getTime()
+      : b.created_at
+        ? new Date(b.created_at).getTime()
+        : 0;
+    if (bLaunch !== aLaunch) return bLaunch - aLaunch;
 
     const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
