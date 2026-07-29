@@ -116,30 +116,39 @@ export async function GET(
       });
     }
 
-    const { data: leads, error: leadsErr } = await supabase
-      .from("leads")
-      .select("id, lead_id, name, first_name, last_name, email, assigned_agent_id")
-      .in("id", leadIds)
-      .eq("campaign_id", campaignId)
-      .eq("organization_id", orgId);
+    // Chunk `.in()` — large campaigns (600+ leads) exceed PostgREST URL limits ("Bad Request").
+    const LEAD_IN_CHUNK = 100;
+    const leadsArr: LeadRow[] = [];
+    for (let i = 0; i < leadIds.length; i += LEAD_IN_CHUNK) {
+      const slice = leadIds.slice(i, i + LEAD_IN_CHUNK);
+      const { data: leads, error: leadsErr } = await admin
+        .from("leads")
+        .select("id, lead_id, name, first_name, last_name, email, assigned_agent_id")
+        .in("id", slice)
+        .eq("campaign_id", campaignId)
+        .eq("organization_id", orgId);
 
-    if (leadsErr) {
-      return NextResponse.json({ error: leadsErr.message }, { status: 500 });
+      if (leadsErr) {
+        console.error("QA Recordings leads fetch:", leadsErr.message);
+        return NextResponse.json({ error: leadsErr.message }, { status: 500 });
+      }
+      leadsArr.push(...((leads ?? []) as LeadRow[]));
     }
-
-    const leadsArr = (leads ?? []) as LeadRow[];
 
     const agentIds = [
       ...new Set(leadsArr.map((l) => l.assigned_agent_id).filter(Boolean) as string[]),
     ];
     const agentMap: Record<string, string> = {};
     if (agentIds.length > 0) {
-      const { data: users } = await supabase
-        .from("users")
-        .select("id, full_name, email")
-        .in("id", agentIds);
-      for (const u of (users ?? []) as UserRow[]) {
-        agentMap[u.id] = u.full_name?.trim() || u.email || u.id;
+      for (let i = 0; i < agentIds.length; i += LEAD_IN_CHUNK) {
+        const slice = agentIds.slice(i, i + LEAD_IN_CHUNK);
+        const { data: users } = await admin
+          .from("users")
+          .select("id, full_name, email")
+          .in("id", slice);
+        for (const u of (users ?? []) as UserRow[]) {
+          agentMap[u.id] = u.full_name?.trim() || u.email || u.id;
+        }
       }
     }
 

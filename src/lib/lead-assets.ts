@@ -171,21 +171,27 @@ export async function fetchLeadAssetsByLeadIds(
 ): Promise<LeadAssetRow[]> {
   if (leadIds.length === 0) return [];
 
-  const { data, error } = await db
-    .from("lead_assets")
-    .select(
-      "id, organization_id, campaign_id, lead_id, asset_type, file_name, file_path, file_size, mime_type, uploaded_by, created_at"
-    )
-    .eq("organization_id", orgId)
-    .eq("asset_type", assetType)
-    .in("lead_id", leadIds)
-    .order("created_at", { ascending: false });
+  const CHUNK = 100;
+  const all: LeadAssetRow[] = [];
+  for (let i = 0; i < leadIds.length; i += CHUNK) {
+    const slice = leadIds.slice(i, i + CHUNK);
+    const { data, error } = await db
+      .from("lead_assets")
+      .select(
+        "id, organization_id, campaign_id, lead_id, asset_type, file_name, file_path, file_size, mime_type, uploaded_by, created_at"
+      )
+      .eq("organization_id", orgId)
+      .eq("asset_type", assetType)
+      .in("lead_id", slice)
+      .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("fetchLeadAssetsByLeadIds:", error.message);
-    return [];
+    if (error) {
+      console.error("fetchLeadAssetsByLeadIds:", error.message);
+      continue;
+    }
+    all.push(...((data ?? []) as LeadAssetRow[]));
   }
-  return (data ?? []) as LeadAssetRow[];
+  return all;
 }
 
 export async function fetchLeadAssetsByCampaign(
@@ -194,22 +200,38 @@ export async function fetchLeadAssetsByCampaign(
   campaignId: string,
   assetType: LeadAssetType
 ): Promise<LeadAssetRow[]> {
-  const { data, error } = await db
-    .from("lead_assets")
-    .select(
-      "id, organization_id, campaign_id, lead_id, asset_type, file_name, file_path, file_size, mime_type, uploaded_by, created_at"
-    )
-    .eq("organization_id", orgId)
-    .eq("campaign_id", campaignId)
-    .eq("asset_type", assetType)
-    .order("created_at", { ascending: false });
+  const PAGE = 1000;
+  const all: LeadAssetRow[] = [];
+  let offset = 0;
 
-  if (error) {
-    console.error("fetchLeadAssetsByCampaign:", error.message);
-    return [];
+  for (;;) {
+    const { data, error } = await db
+      .from("lead_assets")
+      .select(
+        "id, organization_id, campaign_id, lead_id, asset_type, file_name, file_path, file_size, mime_type, uploaded_by, created_at"
+      )
+      .eq("organization_id", orgId)
+      .eq("campaign_id", campaignId)
+      .eq("asset_type", assetType)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + PAGE - 1);
+
+    if (error) {
+      console.error("fetchLeadAssetsByCampaign:", error.message);
+      return all;
+    }
+
+    const chunk = (data ?? []) as LeadAssetRow[];
+    all.push(...chunk);
+    if (chunk.length < PAGE) break;
+    offset += PAGE;
   }
-  return (data ?? []) as LeadAssetRow[];
+
+  return all;
 }
+
+/** PostgREST GET `.in()` URLs blow up past ~100–150 UUIDs — keep batches small. */
+const SIGNED_URL_BATCH = 100;
 
 export async function createSignedUrlMap(
   storageClient: StorageClient,
@@ -219,16 +241,19 @@ export async function createSignedUrlMap(
   const urlByPath = new Map<string, string | null>();
   if (paths.length === 0) return urlByPath;
 
-  const { data: signed, error: signError } = await storageClient.storage
-    .from(VOICE_BUCKET)
-    .createSignedUrls(paths, ttlSeconds);
+  for (let i = 0; i < paths.length; i += SIGNED_URL_BATCH) {
+    const batch = paths.slice(i, i + SIGNED_URL_BATCH);
+    const { data: signed, error: signError } = await storageClient.storage
+      .from(VOICE_BUCKET)
+      .createSignedUrls(batch, ttlSeconds);
 
-  if (signError) {
-    console.error("createSignedUrlMap:", signError.message);
-  }
-  for (const s of signed ?? []) {
-    if (s.path) {
-      urlByPath.set(s.path, s.error ? null : s.signedUrl ?? null);
+    if (signError) {
+      console.error("createSignedUrlMap:", signError.message);
+    }
+    for (const s of signed ?? []) {
+      if (s.path) {
+        urlByPath.set(s.path, s.error ? null : s.signedUrl ?? null);
+      }
     }
   }
   return urlByPath;
