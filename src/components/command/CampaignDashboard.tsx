@@ -845,7 +845,7 @@ export default function CampaignDashboard({
     }
 
     const timestampCol: ColumnsType<LeadRow>[number] = {
-      title: "Timestamp-Date",
+      title: "Capture Timestamp-Date",
       key: "timestamp_date",
       width: 180,
       fixed: "right",

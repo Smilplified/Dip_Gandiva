@@ -30,7 +30,7 @@ export function getClientViewerEmailCampaignOverride(
   return ids ? [...ids] : null;
 }
 
-/** Report-aligned windows used for kstagnito2 Timestamp-Date display (not real DB fields). */
+/** Report-aligned windows used for kstagnito2 Capture Timestamp-Date display (not real DB fields). */
 const KSTAGNITO_TIMESTAMP_CAMPAIGN_RANGES: Record<
   string,
   { startMs: number; endMs: number; weekdaysOnly?: boolean }
