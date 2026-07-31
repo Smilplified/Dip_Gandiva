@@ -30,7 +30,7 @@ export function getClientViewerEmailCampaignOverride(
   return ids ? [...ids] : null;
 }
 
-/** Report-aligned windows used for kstagnito2 Capture Timestamp-Date display (not real DB fields). */
+/** Report-aligned windows used for kstagnito Capture Timestamp-Date display (not real DB fields). */
 const KSTAGNITO_TIMESTAMP_CAMPAIGN_RANGES: Record<
   string,
   { startMs: number; endMs: number; weekdaysOnly?: boolean }
@@ -53,12 +53,17 @@ const KSTAGNITO_TIMESTAMP_CAMPAIGN_RANGES: Record<
   },
 };
 
+const KSTAGNITO_TIMESTAMP_EMAILS = new Set([
+  "kstagnito2@rh-hub.com",
+  "kstagnito@rh-hub.com",
+]);
+
 export function shouldShowKstagnitoTimestampDateColumn(
   email: string | null | undefined,
   campaignId: string | null | undefined
 ): boolean {
   if (!campaignId) return false;
-  if (normalizeEmail(email) !== "kstagnito2@rh-hub.com") return false;
+  if (!KSTAGNITO_TIMESTAMP_EMAILS.has(normalizeEmail(email))) return false;
   return Object.prototype.hasOwnProperty.call(
     KSTAGNITO_TIMESTAMP_CAMPAIGN_RANGES,
     campaignId

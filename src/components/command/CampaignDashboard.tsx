@@ -827,12 +827,17 @@ export default function CampaignDashboard({
         showActions: false,
         showDeliveryStatus: false,
         showQaStatus: false,
-        showAppointment: isClientViewer
-          ? !clientViewerHidesAppointment(campaign.campaign_type)
-          : true,
-        showLhoFile: isClientViewer
-          ? clientViewerShowsLhoFile(campaign.campaign_type)
-          : true,
+        showMeetingSetDate: !showKstagnitoTimestamp,
+        showAppointment: showKstagnitoTimestamp
+          ? false
+          : isClientViewer
+            ? !clientViewerHidesAppointment(campaign.campaign_type)
+            : true,
+        showLhoFile: showKstagnitoTimestamp
+          ? false
+          : isClientViewer
+            ? clientViewerShowsLhoFile(campaign.campaign_type)
+            : true,
         pinMeetingAndLhoColumns: !showKstagnitoTimestamp,
         showCreatedBy: !showKstagnitoTimestamp,
         showCreatedAt: !showKstagnitoTimestamp,

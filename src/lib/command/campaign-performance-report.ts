@@ -16,6 +16,9 @@ export const CAMPAIGN_REPORT_EMAIL_CAMPAIGN_ALLOWLIST: Record<
     "92e6bc07-b9f8-49e0-829b-fe39c6ac5f72", // PMMI Media Group - Columbia Machine, Inc.; ...
     "06038f73-3764-4300-a6c8-81a157674a65", // Broadsign Pilot - MQL Content Syndication
   ],
+  "kstagnito@rh-hub.com": [
+    "06038f73-3764-4300-a6c8-81a157674a65", // Broadsign Pilot - MQL Content Syndication
+  ],
 };
 
 export type NamedValueEntry = {

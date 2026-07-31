@@ -103,7 +103,7 @@ export async function GET(
     const canViewReport = canViewCampaignPerformanceReport(email, campaignId);
     const isInternal = hasCommandRole(userRoles);
 
-    // Shlok MVP (all bound-client campaigns) + kstagnito2 (3 allowlisted campaigns) + internal.
+    // Shlok MVP (all bound-client campaigns) + kstagnito emails (allowlisted campaigns) + internal.
     if (!canViewReport && !isInternal) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

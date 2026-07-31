@@ -68,7 +68,7 @@ export default function CampaignDetailPage() {
   const [campaignBasic, setCampaignBasic] = useState<CampaignBasic | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [feedMode, setFeedMode] = useState(() => searchParams.get("tab") === "feed");
-  // Shlok MVP: all bound-client campaigns; kstagnito2: only the 3 allowlisted campaigns.
+  // Shlok MVP: all bound-client campaigns; kstagnito*: allowlisted campaigns only.
   const canViewCampaignReport = canViewCampaignPerformanceReport(
     user?.email,
     campaignId
