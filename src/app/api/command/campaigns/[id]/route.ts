@@ -23,6 +23,8 @@ import {
   campaignQuestionsToDbValue,
   normalizeCampaignQuestions,
 } from "@/lib/campaign-questions";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 const COMMAND_CAMPAIGN_LEAD_IMPORT_MAX = 500;
 
@@ -257,6 +259,52 @@ export async function PATCH(
         return NextResponse.json({ error: insertLeadsError.message }, { status: 500 });
       }
     }
+  }
+
+  const camp = campaign as { id: string; name: string | null; status?: string | null };
+  const campName = String(camp.name ?? "campaign");
+  const orgId = (profile?.organization_id ?? "") as string;
+  const changedFields = Object.keys(updates);
+  const statusChanged = typeof updates.status === "string";
+  if (statusChanged) {
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(userRoles),
+      category: "campaigns",
+      eventType: "campaign_status_changed",
+      description: `Changed campaign status to ${String(updates.status)}`,
+      targetType: "campaign",
+      targetId: id,
+      targetLabel: campName,
+      metadata: {
+        new_status: updates.status,
+        source: isClientViewer ? "command_client_viewer" : "command_campaigns",
+        changed_fields: changedFields,
+      },
+      request,
+    });
+  }
+  const nonStatusFields = changedFields.filter((f) => f !== "status");
+  if (nonStatusFields.length > 0 || rawLeads.length > 0 || Boolean(body.metrics)) {
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(userRoles),
+      category: "campaigns",
+      eventType: "campaign_updated",
+      description: `Updated campaign (${[...nonStatusFields, rawLeads.length > 0 ? "leads" : null, body.metrics ? "metrics" : null].filter(Boolean).join(", ") || "fields"})`,
+      targetType: "campaign",
+      targetId: id,
+      targetLabel: campName,
+      metadata: {
+        changed_fields: nonStatusFields,
+        leads_imported: rawLeads.length,
+        metrics_updated: Boolean(body.metrics),
+        source: isClientViewer ? "command_client_viewer" : "command_campaigns",
+      },
+      request,
+    });
   }
 
   return NextResponse.json({ campaign });

@@ -20,6 +20,8 @@ import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { parsedRowsToLeadInserts } from "@/lib/command/campaignFormLeadPayloads";
 import { createNotifications } from "@/lib/notifications";
 import { normalizeRoleName } from "@/lib/auth/config";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 import {
   campaignQuestionsToDbValue,
   normalizeCampaignQuestions,
@@ -577,6 +579,27 @@ export async function POST(request: Request) {
       }
     }
   }
+
+  const campRow = campaign as { id: string; name: string | null };
+  const campName = String(campRow.name ?? body.name ?? "Untitled Campaign");
+  void logAudit({
+    organizationId: (profile?.organization_id ?? "") as string,
+    actorId: user.id,
+    actorRole: resolvePrimaryAuditRole(userRoles),
+    category: "campaigns",
+    eventType: "campaign_created",
+    description: `Created campaign "${campName}"`,
+    targetType: "campaign",
+    targetId: campRow.id,
+    targetLabel: campName,
+    metadata: {
+      campaign_display_id: (campaign as { campaign_id?: string | null }).campaign_id ?? null,
+      status: (body.status as string) ?? "active",
+      client_name: resolvedClientName,
+      source: isClientViewer ? "command_client_viewer" : "command_campaigns",
+    },
+    request,
+  });
 
   return NextResponse.json({ campaign }, { status: 201 });
 }

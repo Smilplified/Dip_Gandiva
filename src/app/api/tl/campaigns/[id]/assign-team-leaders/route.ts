@@ -4,6 +4,8 @@ import { canAssignCampaignTeamLeader } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { syncCampaignTeamLeaderAssignments } from "@/lib/campaign/team-leader-assignments";
 import { createNotifications } from "@/lib/notifications";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +110,28 @@ export async function POST(
         }))
       );
     }
+
+    const removedIds = [...prevSet].filter((id) => !team_leader_ids.includes(id));
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "campaigns",
+      eventType: "campaign_team_leaders_assigned",
+      description: `Updated team leader assignments on campaign "${camp.name}" (${team_leader_ids.length} assigned)`,
+      targetType: "campaign",
+      targetId: campaignId,
+      targetLabel: camp.name,
+      metadata: {
+        assigned_count: team_leader_ids.length,
+        added_count: newlyAssigned.length,
+        removed_count: removedIds.length,
+        team_leader_ids,
+        primary_team_leader_id: primaryTeamLeaderId,
+        source: "tl_assign_team_leaders",
+      },
+      request,
+    });
 
     return NextResponse.json({
       success: true,

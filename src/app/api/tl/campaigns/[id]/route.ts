@@ -458,7 +458,11 @@ export async function PATCH(
     }
 
     const auditRole = resolvePrimaryAuditRole(roleNames);
-    if (typeof updates.status === "string" && updates.status !== existing.status) {
+    const campaignLabel = String(updated.name ?? existing.name);
+    const changedFields = Object.keys(updates);
+    const statusChanged =
+      typeof updates.status === "string" && updates.status !== existing.status;
+    if (statusChanged) {
       void logAudit({
         organizationId: orgId,
         actorId: user.id,
@@ -468,26 +472,29 @@ export async function PATCH(
         description: `Changed campaign status from ${existing.status} to ${updates.status}`,
         targetType: "campaign",
         targetId: campaignId,
-        targetLabel: String(updated.name ?? existing.name),
+        targetLabel: campaignLabel,
         metadata: {
           previous_status: existing.status,
           new_status: updates.status,
           source: "tl_campaigns",
+          changed_fields: changedFields,
         },
         request,
       });
-    } else if (Object.keys(updates).length > 0) {
+    }
+    const nonStatusFields = changedFields.filter((f) => f !== "status");
+    if (nonStatusFields.length > 0) {
       void logAudit({
         organizationId: orgId,
         actorId: user.id,
         actorRole: auditRole,
         category: "campaigns",
         eventType: "campaign_updated",
-        description: `Updated campaign (${Object.keys(updates).join(", ")})`,
+        description: `Updated campaign (${nonStatusFields.join(", ")})`,
         targetType: "campaign",
         targetId: campaignId,
-        targetLabel: String(updated.name ?? existing.name),
-        metadata: { changed_fields: Object.keys(updates) },
+        targetLabel: campaignLabel,
+        metadata: { changed_fields: nonStatusFields, source: "tl_campaigns" },
         request,
       });
     }
@@ -502,7 +509,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -529,6 +536,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Campaign ID required" }, { status: 400 });
     }
 
+    const { data: existing, error: fetchError } = await supabase
+      .from("campaigns")
+      .select("id, name, campaign_id, campaign_code, status, client_name")
+      .eq("id", campaignId)
+      .eq("organization_id", orgId)
+      .single();
+
+    if (fetchError || !existing) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+
+    const camp = existing as {
+      id: string;
+      name: string;
+      campaign_id: string | null;
+      campaign_code: string | null;
+      status: string | null;
+      client_name: string | null;
+    };
+
     const { error: deleteError } = await supabase
       .from("campaigns")
       .delete()
@@ -538,6 +565,27 @@ export async function DELETE(
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
+
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "campaigns",
+      eventType: "campaign_deleted",
+      description: `Deleted campaign "${camp.name}"`,
+      targetType: "campaign",
+      targetId: campaignId,
+      targetLabel: camp.name,
+      metadata: {
+        campaign_display_id: camp.campaign_id,
+        campaign_code: camp.campaign_code,
+        status: camp.status,
+        client_name: camp.client_name,
+        source: "tl_campaigns",
+      },
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

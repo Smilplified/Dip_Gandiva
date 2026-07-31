@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { MAX_CAMPAIGN_FILE_BYTES, MAX_CAMPAIGN_FILE_SIZE_MB } from "@/lib/campaign-file-upload-limits";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +60,7 @@ export async function POST(
 
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("id, organization_id")
+      .select("id, name, organization_id")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -65,6 +68,7 @@ export async function POST(
     if (!campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
+    const campaignName = (campaign as { name: string }).name;
 
     const formData = await request.formData();
     const uploadedFiles: { id: string; file_name: string }[] = [];
@@ -121,6 +125,27 @@ export async function POST(
 
     if (uploadedFiles.length === 0 && errors.length > 0) {
       return NextResponse.json({ error: errors.join("; "), uploaded: [] }, { status: 400 });
+    }
+
+    if (uploadedFiles.length > 0) {
+      const roleNames = await fetchUserRoleNames(supabase, user.id);
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        actorRole: resolvePrimaryAuditRole(roleNames),
+        category: "campaigns",
+        eventType: "campaign_file_uploaded",
+        description: `Uploaded ${uploadedFiles.length} file${uploadedFiles.length === 1 ? "" : "s"} to campaign "${campaignName}"`,
+        targetType: "campaign",
+        targetId: campaignId,
+        targetLabel: campaignName,
+        metadata: {
+          file_count: uploadedFiles.length,
+          file_names: uploadedFiles.map((f) => f.file_name),
+          source: "tl_campaign_files",
+        },
+        request,
+      });
     }
 
     return NextResponse.json({

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string; fileId: string }> }
 ) {
   try {
@@ -33,7 +36,7 @@ export async function DELETE(
 
     const { data: row, error: fetchError } = await supabase
       .from("campaign_files")
-      .select("id, file_path, campaign_id, organization_id")
+      .select("id, file_name, file_path, campaign_id, organization_id")
       .eq("id", fileId)
       .eq("campaign_id", campaignId)
       .eq("organization_id", orgId)
@@ -43,7 +46,8 @@ export async function DELETE(
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    const path = (row as { file_path: string }).file_path;
+    const fileRow = row as { file_name: string; file_path: string };
+    const path = fileRow.file_path;
     await supabase.storage.from("campaign-files").remove([path]);
 
     const { error: deleteError } = await supabase
@@ -55,6 +59,35 @@ export async function DELETE(
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
+
+    const { data: campMeta } = await supabase
+      .from("campaigns")
+      .select("name")
+      .eq("id", campaignId)
+      .eq("organization_id", orgId)
+      .maybeSingle();
+    const campaignName =
+      (campMeta as { name: string | null } | null)?.name?.trim() || "campaign";
+
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "campaigns",
+      eventType: "campaign_file_deleted",
+      description: `Deleted file "${fileRow.file_name}" from campaign "${campaignName}"`,
+      targetType: "campaign",
+      targetId: campaignId,
+      targetLabel: campaignName,
+      metadata: {
+        file_id: fileId,
+        file_name: fileRow.file_name,
+        file_path: path,
+        source: "tl_campaign_files",
+      },
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

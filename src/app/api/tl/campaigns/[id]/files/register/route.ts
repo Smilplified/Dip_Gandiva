@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +26,12 @@ export async function POST(
 
     const { id: campaignId } = await params;
     const { data: campaign } = await supabase
-      .from("campaigns").select("id")
+      .from("campaigns").select("id, name")
       .eq("id", campaignId).eq("organization_id", orgId).single();
     if (!campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
+    const campaignName = (campaign as { name: string }).name;
 
     const body = await request.json();
     const files = Array.isArray(body?.files) ? body.files : [];
@@ -62,6 +66,27 @@ export async function POST(
         continue;
       }
       if (row) uploaded.push(row as { id: string; file_name: string });
+    }
+
+    if (uploaded.length > 0) {
+      const roleNames = await fetchUserRoleNames(supabase, user.id);
+      void logAudit({
+        organizationId: orgId,
+        actorId: user.id,
+        actorRole: resolvePrimaryAuditRole(roleNames),
+        category: "campaigns",
+        eventType: "campaign_file_uploaded",
+        description: `Uploaded ${uploaded.length} file${uploaded.length === 1 ? "" : "s"} to campaign "${campaignName}"`,
+        targetType: "campaign",
+        targetId: campaignId,
+        targetLabel: campaignName,
+        metadata: {
+          file_count: uploaded.length,
+          file_names: uploaded.map((f) => f.file_name),
+          source: "tl_campaign_files_register",
+        },
+        request,
+      });
     }
 
     return NextResponse.json({

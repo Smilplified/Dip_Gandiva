@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe } from "@/lib/supabase/admin";
 import { generateCampaignId } from "@/lib/campaigns";
 import { createNotification } from "@/lib/notifications";
+import { fetchUserRoleNames } from "@/lib/auth/server-roles";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -151,11 +154,32 @@ export async function POST(request: Request) {
     }
 
     const row = campaign as { id: string; campaign_id: string; campaign_code: string | null } | null;
+    const trimmedName = name.trim();
+
+    const roleNames = await fetchUserRoleNames(supabase, user.id);
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "campaigns",
+      eventType: "campaign_created",
+      description: `Created campaign "${trimmedName}"`,
+      targetType: "campaign",
+      targetId: row?.id ?? null,
+      targetLabel: trimmedName,
+      metadata: {
+        campaign_display_id: row?.campaign_id ?? null,
+        status: validStatus,
+        client_name: DC_CLIENT_NAME,
+        source: "dc_campaigns",
+      },
+      request,
+    });
 
     if (assigned_team_leader_id && assigned_team_leader_id !== user.id && row?.id) {
       void createNotification({
         title: "New Campaign Assigned",
-        message: `Campaign "${name.trim()}" has been created and assigned to you.`,
+        message: `Campaign "${trimmedName}" has been created and assigned to you.`,
         type: "campaign",
         sender_id: user.id,
         receiver_id: assigned_team_leader_id as string,

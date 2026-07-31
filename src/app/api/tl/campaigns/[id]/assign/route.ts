@@ -4,6 +4,8 @@ import { createNotifications } from "@/lib/notifications";
 import { hasOperationsManagerAccess } from "@/lib/auth/tl-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { isUserAssignedToCampaignAsTeamLeader } from "@/lib/campaign/team-leader-assignments";
+import { logAudit } from "@/lib/audit/log";
+import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +50,7 @@ export async function POST(
 
     const { data: campaign } = await supabase
       .from("campaigns")
-      .select("id, assigned_team_leader_id")
+      .select("id, name, assigned_team_leader_id")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -57,7 +59,11 @@ export async function POST(
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    const camp = campaign as { id: string; assigned_team_leader_id: string | null };
+    const camp = campaign as {
+      id: string;
+      name: string;
+      assigned_team_leader_id: string | null;
+    };
     const tlAssigned = await isUserAssignedToCampaignAsTeamLeader(
       supabase,
       campaignId,
@@ -122,28 +128,39 @@ export async function POST(
         return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
 
-      // Fetch campaign name for the notification message
-      const { data: campMeta } = await supabase
-        .from("campaigns")
-        .select("name, organization_id")
-        .eq("id", campaignId)
-        .single();
-      const campName = (campMeta as { name: string; organization_id: string } | null)?.name ?? "a campaign";
-      const campOrgId = (campMeta as { name: string; organization_id: string } | null)?.organization_id ?? orgId;
-
       void createNotifications(
         toInsert.map((a) => ({
           title: "Campaign Assigned",
-          message: `You have been assigned to campaign "${campName}". Check your dashboard for leads.`,
+          message: `You have been assigned to campaign "${camp.name}". Check your dashboard for leads.`,
           type: "campaign" as const,
           sender_id: user.id,
           receiver_id: a.agent_id,
           reference_type: "campaign" as const,
           reference_id: campaignId,
-          organization_id: campOrgId,
+          organization_id: orgId,
         }))
       );
     }
+
+    void logAudit({
+      organizationId: orgId,
+      actorId: user.id,
+      actorRole: resolvePrimaryAuditRole(roleNames),
+      category: "campaigns",
+      eventType: "campaign_agents_assigned",
+      description: `Updated agent assignments on campaign "${camp.name}" (${agent_ids.length} assigned)`,
+      targetType: "campaign",
+      targetId: campaignId,
+      targetLabel: camp.name,
+      metadata: {
+        assigned_count: agent_ids.length,
+        added_count: toInsert.length,
+        removed_count: toDeactivate.length,
+        agent_ids,
+        source: "tl_campaign_assign",
+      },
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {
