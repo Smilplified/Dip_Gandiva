@@ -10,6 +10,7 @@ export default function EmmCampaignsPage() {
       guardRoles={[...EMM_GUARD_ROLES]}
       queryKeyPrefix={["emm", "campaigns"]}
       exportFilenamePrefix="emm-campaigns-export"
+      showDeliveredColumn
     />
   );
 }

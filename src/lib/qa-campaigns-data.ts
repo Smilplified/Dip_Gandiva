@@ -13,7 +13,17 @@ const LEADS_PAGE_SIZE = 1000;
 
 /** Minimal columns for dashboard KPIs / list counts / charts. */
 export const LEADS_SELECT_AUDIT =
-  "id, campaign_id, qa_status, created_at, updated_at, qa_audited_at, audit_date";
+  "id, campaign_id, qa_status, created_at, updated_at, qa_audited_at, audit_date, delivery_status";
+
+/** `delivered_by_mis` is a legacy value still present in older rows. */
+function isDeliveredLead(deliveryStatus: unknown): boolean {
+  const ds = String(deliveryStatus ?? "").trim().toLowerCase();
+  return ds === "delivered" || ds === "delivered_by_mis";
+}
+
+function countDeliveredLeads(leads: Record<string, unknown>[]): number {
+  return leads.filter((l) => isDeliveredLead(l.delivery_status)).length;
+}
 
 const leadsSelectBase =
   "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition";
@@ -60,6 +70,7 @@ export type QaCampaignRow = {
   leads_pending_audit: number;
   leads_qualified: number;
   leads_disqualified: number;
+  leads_delivered: number;
 };
 
 export type QaCampaignsSummary = {
@@ -253,6 +264,7 @@ export async function loadQaCampaignsForDateRange(
     | "leads_pending_audit"
     | "leads_qualified"
     | "leads_disqualified"
+    | "leads_delivered"
     | "assigned_team_leader_name"
   >[];
 
@@ -309,6 +321,7 @@ export async function loadQaCampaignsForDateRange(
       leads_pending_audit: countPendingAuditLeads(leads as { qa_status?: string | null }[]),
       leads_qualified: countQualifiedLeads(leads as { qa_status?: string | null }[]),
       leads_disqualified: countDisqualifiedLeads(leads as { qa_status?: string | null }[]),
+      leads_delivered: countDeliveredLeads(leads),
     });
   }
 
