@@ -20,6 +20,10 @@ import {
   Modal,
   DatePicker,
   Upload,
+  Transfer,
+  Empty,
+  Badge,
+  Tooltip,
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -35,6 +39,8 @@ import {
   DownloadOutlined,
   UploadOutlined,
   InboxOutlined,
+  UserAddOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { useRoleGuard } from "@/hooks/useRoleGuard";
@@ -117,16 +123,26 @@ function OverviewRowOrEmpty({ label, value }: { label: string; value: React.Reac
   );
 }
 
+type AssignableAgent = { id: string; full_name: string | null; email: string | null };
+
+type CampaignAgentAssignment = { agent_id: string; agent_name: string | null };
+
 export type QaCampaignDetailViewProps = {
   /** UI route prefix, e.g. `/qa/campaigns` or `/emm/campaigns`. */
   basePath?: string;
   /** Roles allowed to view this page. */
   guardRoles?: string[];
+  /**
+   * API prefix backing the agent-assignment flow, e.g. `/api/emm/campaigns`.
+   * Omit to hide the Assign Agents action entirely (QA has no assign rights).
+   */
+  assignAgentsApiPrefix?: string;
 };
 
 export function QaCampaignDetailView({
   basePath = "/qa/campaigns",
   guardRoles = ["qa", "admin"],
+  assignAgentsApiPrefix,
 }: QaCampaignDetailViewProps) {
   const router = useRouter();
   const params = useParams();
@@ -151,6 +167,76 @@ export function QaCampaignDetailView({
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [parsedLeads, setParsedLeads] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [agents, setAgents] = useState<AssignableAgent[]>([]);
+  const [assignments, setAssignments] = useState<CampaignAgentAssignment[]>([]);
+  const [assignDataLoading, setAssignDataLoading] = useState(false);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [assigning, setAssigning] = useState(false);
+
+  const assignedAgentCount = assignments.length;
+  const assignedAgentTooltip =
+    assignedAgentCount > 0
+      ? assignments
+          .map((a) => a.agent_name)
+          .filter((name): name is string => Boolean(name))
+          .join(", ") ||
+        `${assignedAgentCount} agent${assignedAgentCount === 1 ? "" : "s"} assigned`
+      : "No agents assigned yet";
+
+  const agentTransferData = useMemo(
+    () =>
+      agents.map((a) => ({
+        key: a.id,
+        title: a.full_name || a.email || "Unknown",
+        description: a.email || "",
+      })),
+    [agents]
+  );
+
+  const fetchAssignData = useCallback(async () => {
+    if (!assignAgentsApiPrefix || !id) return;
+    setAssignDataLoading(true);
+    try {
+      const res = await fetch(`${assignAgentsApiPrefix}/${id}/assign`, {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load agents");
+      setAgents(data.agents ?? []);
+      setAssignments(data.assignments ?? []);
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Failed to load agents");
+    } finally {
+      setAssignDataLoading(false);
+    }
+  }, [assignAgentsApiPrefix, id]);
+
+  const handleAssignAgents = async () => {
+    if (!assignAgentsApiPrefix || !id) return;
+    setAssigning(true);
+    try {
+      const res = await fetch(`${assignAgentsApiPrefix}/${id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ agent_ids: selectedAgentIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to assign");
+      message.success(
+        selectedAgentIds.length > 0
+          ? `${selectedAgentIds.length} agent${selectedAgentIds.length === 1 ? "" : "s"} assigned`
+          : "All agents unassigned"
+      );
+      setAssignModalOpen(false);
+      await fetchAssignData();
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Failed to assign agents");
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const campaignQuestions = useMemo(
     () => normalizeCampaignQuestions(campaign?.campaign_questions),
@@ -182,6 +268,17 @@ export function QaCampaignDetailView({
     }
     fetchCampaign(id);
   }, [id, guardStatus, router, fetchCampaign, basePath]);
+
+  useEffect(() => {
+    if (guardStatus !== "authorized") return;
+    void fetchAssignData();
+  }, [guardStatus, fetchAssignData]);
+
+  useEffect(() => {
+    if (assignModalOpen) {
+      setSelectedAgentIds(assignments.map((a) => a.agent_id));
+    }
+  }, [assignModalOpen, assignments]);
 
   const filteredLeads = leads.filter((l) => {
     const matchesSearch = !leadSearch.trim()
@@ -456,9 +553,29 @@ export function QaCampaignDetailView({
             </Space>
           </Col>
           <Col>
-            <Button icon={<ReloadOutlined />} onClick={() => fetchCampaign(id!)} loading={loading}>
-              Refresh
-            </Button>
+            <Space size="middle" wrap>
+              {assignAgentsApiPrefix && (
+                <Tooltip title={assignedAgentTooltip}>
+                  <Badge
+                    count={assignedAgentCount}
+                    size="small"
+                    offset={[-4, 2]}
+                    style={{ backgroundColor: assignedAgentCount > 0 ? "#4f46e5" : "#d1d5db" }}
+                  >
+                    <Button
+                      icon={<UserAddOutlined />}
+                      onClick={() => setAssignModalOpen(true)}
+                      loading={assignDataLoading}
+                    >
+                      {assignedAgentCount > 0 ? "Manage Agents" : "Assign Agents"}
+                    </Button>
+                  </Badge>
+                </Tooltip>
+              )}
+              <Button icon={<ReloadOutlined />} onClick={() => fetchCampaign(id!)} loading={loading}>
+                Refresh
+              </Button>
+            </Space>
           </Col>
         </Row>
       </Card>
@@ -743,6 +860,62 @@ export function QaCampaignDetailView({
           <Typography.Text style={{ display: "block", marginTop: 12, color: "#52c41a" }}>
             {parsedLeads.length} leads parsed and ready to import
           </Typography.Text>
+        )}
+      </Modal>
+
+      <Modal
+        title={
+          <span>
+            <TeamOutlined style={{ marginRight: 8 }} />
+            Assign Agents to Campaign
+          </span>
+        }
+        open={assignModalOpen}
+        onCancel={() => setAssignModalOpen(false)}
+        onOk={handleAssignAgents}
+        confirmLoading={assigning}
+        okText={
+          selectedAgentIds.length > 0
+            ? `Assign ${selectedAgentIds.length} agent${selectedAgentIds.length === 1 ? "" : "s"}`
+            : "Save (no agents)"
+        }
+        width={560}
+      >
+        <p style={{ marginBottom: 16, color: "#4b5563" }}>
+          Move agents between lists to assign or unassign them from this campaign. Assigned
+          agents can view and manage leads.
+        </p>
+        {assignDataLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
+            <Spin size="large" tip="Loading agents..." />
+          </div>
+        ) : agents.length === 0 ? (
+          <Empty
+            image={<TeamOutlined style={{ fontSize: 48, color: "#d1d5db" }} />}
+            description="No agents in your organization."
+          />
+        ) : (
+          <Transfer
+            dataSource={agentTransferData}
+            titles={["Available", "Assigned"]}
+            targetKeys={selectedAgentIds}
+            onChange={(targetKeys) => setSelectedAgentIds(targetKeys.map(String))}
+            render={(item) => (
+              <span>
+                <strong>{item.title}</strong>
+                {item.description && (
+                  <span style={{ color: "#6b7280", marginLeft: 8 }}>({item.description})</span>
+                )}
+              </span>
+            )}
+            showSearch
+            filterOption={(inputValue, item) =>
+              (item.title?.toLowerCase() ?? "").includes(inputValue.toLowerCase()) ||
+              (item.description?.toLowerCase() ?? "").includes(inputValue.toLowerCase())
+            }
+            listStyle={{ width: 240, height: 320 }}
+            pagination
+          />
         )}
       </Modal>
 
