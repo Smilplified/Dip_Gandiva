@@ -8,6 +8,7 @@ export default function EmmCampaignDetailPage() {
     <QaCampaignDetailView
       basePath="/emm/campaigns"
       guardRoles={[...EMM_GUARD_ROLES]}
+      assignAgentsApiPrefix="/api/emm/campaigns"
     />
   );
 }

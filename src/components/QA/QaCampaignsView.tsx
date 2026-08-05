@@ -72,6 +72,7 @@ type Campaign = {
   leads_pending_audit?: number;
   leads_qualified?: number;
   leads_disqualified?: number;
+  leads_delivered?: number;
 };
 
 type Summary = {
@@ -126,6 +127,8 @@ export type QaCampaignsViewProps = {
   queryKeyPrefix?: string[];
   /** Excel export filename prefix. */
   exportFilenamePrefix?: string;
+  /** Adds a Delivered count column (MIS-delivered leads). */
+  showDeliveredColumn?: boolean;
 };
 
 export function QaCampaignsView({
@@ -133,6 +136,7 @@ export function QaCampaignsView({
   guardRoles = ["qa", "admin"],
   queryKeyPrefix = ["qa", "campaigns"],
   exportFilenamePrefix = "qa-campaigns-export",
+  showDeliveredColumn = false,
 }: QaCampaignsViewProps) {
   const router = useRouter();
   const { status } = useRoleGuard(guardRoles);
@@ -671,6 +675,24 @@ export function QaCampaignsView({
                   </Typography.Text>
                 ),
               },
+              ...(showDeliveredColumn
+                ? [
+                    {
+                      title: "Delivered",
+                      key: "leads_delivered",
+                      width: 96,
+                      align: "center" as const,
+                      fixed: "right" as const,
+                      sorter: (a: Campaign, b: Campaign) =>
+                        (a.leads_delivered ?? 0) - (b.leads_delivered ?? 0),
+                      render: (_: unknown, rec: Campaign) => (
+                        <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: "#2563eb" }}>
+                          {(rec.leads_delivered ?? 0).toLocaleString()}
+                        </Typography.Text>
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
         </Card>
