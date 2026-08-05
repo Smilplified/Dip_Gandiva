@@ -410,6 +410,7 @@ export default function AdminDevicesPage() {
               { value: "sales", label: "Sales" },
               { value: "qa", label: "QA" },
               { value: "mis", label: "MIS" },
+              { value: "qa_tl", label: "QA TL" },
               { value: "dc", label: "DC" },
             ]}
           />

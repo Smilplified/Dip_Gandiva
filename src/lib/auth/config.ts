@@ -40,6 +40,7 @@ export const ROLE_ROUTE_ACCESS: Record<string, string[]> = {
   "/sales": ["sales", "sales_manager", "admin"],
   "/qa": ["qa", "admin"],
   "/mis": ["mis", "admin"],
+  "/qatl": ["qa_tl", "admin"],
   "/dc": ["dc"],
   "/emm": ["email_marketing_manager", "admin"],
 };
@@ -62,6 +63,7 @@ export const ROLE_DEFAULT_REDIRECT: Record<string, string> = {
   sales: "/sales",
   qa: "/qa/dashboard",
   mis: "/mis/dashboard",
+  qa_tl: "/qatl/dashboard",
   dc: "/dc/dashboard",
   email_marketing_manager: "/emm/dashboard",
   client_viewer: "/dashboard/campaigns",
@@ -89,7 +91,7 @@ export function isPublicPath(pathname: string) {
 
 export function getRequiredRoles(pathname: string) {
   for (const [prefix, roles] of Object.entries(ROLE_ROUTE_ACCESS)) {
-    if (pathname.startsWith(prefix)) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
       return roles;
     }
   }

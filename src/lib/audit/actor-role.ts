@@ -4,6 +4,7 @@ import { normalizeRoleName } from "@/lib/auth/config";
 const AUDIT_ROLE_PRIORITY = [
   "admin",
   "mis",
+  "qa_tl",
   "qa",
   "operations_manager",
   "sales_manager",

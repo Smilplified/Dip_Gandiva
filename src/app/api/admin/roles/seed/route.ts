@@ -12,6 +12,7 @@ const DEFAULT_ROLES = [
   { name: "Sales", description: "Sales team member – can view only their own performance" },
   { name: "QA", description: "Quality assurance team member" },
   { name: "MIS", description: "Management Information System - reporting and data management" },
+  { name: "QA_TL", description: "Quality Team Leader - reporting and data management" },
   {
     name: "Email Marketing Manager",
     description: "Email marketing — Lead Finder, campaigns, and leads",
