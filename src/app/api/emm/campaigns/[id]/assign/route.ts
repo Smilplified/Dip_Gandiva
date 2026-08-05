@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getAdminClientSafe,
+  ADMIN_NOT_CONFIGURED_MESSAGE,
+  type AdminClient,
+} from "@/lib/supabase/admin";
 import { createNotifications } from "@/lib/notifications";
 import { canAccessEmmArea } from "@/lib/auth/emm-access";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
@@ -9,7 +14,9 @@ import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 export const dynamic = "force-dynamic";
 
 type AuthorizedContext = {
-  supabase: Awaited<ReturnType<typeof createClient>>;
+  /** Service-role client: `campaigns`/`campaign_assignments` RLS has no EMM
+   *  policy, so every query below scopes `organization_id` by hand. */
+  db: AdminClient;
   userId: string;
   orgId: string;
   roleNames: string[];
@@ -59,7 +66,14 @@ async function authorize(
     return { error: NextResponse.json({ error: "Campaign ID required" }, { status: 400 }) };
   }
 
-  const { data: campaign } = await supabase
+  const admin = getAdminClientSafe();
+  if (!admin) {
+    return {
+      error: NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 }),
+    };
+  }
+
+  const { data: campaign } = await admin
     .from("campaigns")
     .select("id, name")
     .eq("id", campaignId)
@@ -72,7 +86,7 @@ async function authorize(
 
   return {
     context: {
-      supabase,
+      db: admin,
       userId: user.id,
       orgId,
       roleNames,
@@ -90,9 +104,9 @@ export async function GET(
     const { id: campaignId } = await params;
     const result = await authorize(campaignId);
     if ("error" in result) return result.error;
-    const { supabase, orgId } = result.context;
+    const { db, orgId } = result.context;
 
-    const { data: roles } = await supabase
+    const { data: roles } = await db
       .from("roles")
       .select("id, name")
       .eq("organization_id", orgId);
@@ -101,7 +115,7 @@ export async function GET(
       (r) => r.name?.toLowerCase() === "agent"
     );
 
-    const { data: assignmentRows } = await supabase
+    const { data: assignmentRows } = await db
       .from("campaign_assignments")
       .select("agent_id")
       .eq("campaign_id", campaignId)
@@ -115,7 +129,7 @@ export async function GET(
       return NextResponse.json({ agents: [], assignments: [] });
     }
 
-    const { data: userRoles } = await supabase
+    const { data: userRoles } = await db
       .from("user_roles")
       .select("user_id")
       .eq("role_id", agentRole.id);
@@ -128,7 +142,7 @@ export async function GET(
       return NextResponse.json({ agents: [], assignments: [] });
     }
 
-    const { data: users } = await supabase
+    const { data: users } = await db
       .from("users")
       .select("id, full_name, email")
       .eq("organization_id", orgId)
@@ -163,7 +177,7 @@ export async function POST(
     const { id: campaignId } = await params;
     const result = await authorize(campaignId);
     if ("error" in result) return result.error;
-    const { supabase, userId, orgId, roleNames, campaign } = result.context;
+    const { db, userId, orgId, roleNames, campaign } = result.context;
 
     const body = await request.json();
     const rawAgentIds: unknown = body?.agent_ids;
@@ -171,7 +185,7 @@ export async function POST(
       ? [...new Set(rawAgentIds.filter((v): v is string => typeof v === "string"))]
       : [];
 
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("campaign_assignments")
       .select("agent_id")
       .eq("campaign_id", campaignId);
@@ -194,7 +208,7 @@ export async function POST(
     const toDeactivate = [...existingIds].filter((agentId) => !nextIds.has(agentId));
 
     if (toReactivate.length > 0) {
-      await supabase
+      await db
         .from("campaign_assignments")
         .update({ is_active: true, assigned_by: userId } as never)
         .eq("campaign_id", campaignId)
@@ -202,7 +216,7 @@ export async function POST(
     }
 
     if (toDeactivate.length > 0) {
-      await supabase
+      await db
         .from("campaign_assignments")
         .update({ is_active: false } as never)
         .eq("campaign_id", campaignId)
@@ -210,7 +224,7 @@ export async function POST(
     }
 
     if (toInsert.length > 0) {
-      const { error: insertError } = await supabase
+      const { error: insertError } = await db
         .from("campaign_assignments")
         .insert(toInsert as never);
 
