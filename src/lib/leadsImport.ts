@@ -74,6 +74,8 @@ const HEADER_MAP: Record<string, string> = {
   "agent name": "created_by_name",
   manager_name: "team_leader_name",
   "manager name": "team_leader_name",
+  team_leader_name: "team_leader_name",
+  "team leader name": "team_leader_name",
   call_disposition: "lead_disposition",
   "call disposition": "lead_disposition",
   asset_title1: "asset_title",

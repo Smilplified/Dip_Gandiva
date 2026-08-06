@@ -41,16 +41,15 @@ function formatExportDate(value: unknown): string | null {
 
 /**
  * Client export template: header = CSV/Excel column name; key = Lead / enrich property.
- * `id` is kept so re-upload can match and update existing leads.
+ * DB uuid `id` is omitted; re-upload matches via `lead_id`.
  */
 const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
-  { key: "id", header: "id" },
   { key: "campaign_id", header: "campaign_id" },
   { key: "campaign_name", header: "campaign_name" },
   { key: "lead_type", header: "Lead Type" },
   { key: "lead_id", header: "lead_id" },
   { key: "created_by_name", header: "Agent_Name" },
-  { key: "team_leader_name", header: "Manager_Name" },
+  { key: "team_leader_name", header: "Team_Leader_Name" },
   { key: "salutation", header: "salutation" },
   { key: "first_name", header: "first_name" },
   { key: "last_name", header: "last_name" },
@@ -249,8 +248,8 @@ function leadsToSheetData(
 }
 
 /**
- * Download leads as an Excel file (.xlsx). Same columns as CSV including id
- * so that re-upload can match by id and update existing leads.
+ * Download leads as an Excel file (.xlsx). Same columns as CSV; re-upload
+ * matches existing leads by lead_id.
  */
 export function downloadExcel(
   leads: Lead[],

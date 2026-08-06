@@ -428,10 +428,10 @@ export async function generateLhoPdf(
   );
   const blob = await pdf(doc).toBlob();
 
-  const companySlug = (data.companyName || "Company").replace(/\s+/g, "_");
-  const prospectSlug =
-    [data.firstName, data.lastName].filter(Boolean).join("_") || "Prospect";
-  const fileName = `Meeting_Report_${companySlug}_${prospectSlug}.pdf`;
+  const firstName = (data.firstName || "").trim();
+  const lastName = (data.lastName || "").trim();
+  const companyName = (data.companyName || "").trim();
+  const fileName = `LHO_${firstName}_${lastName}_${companyName}.pdf`;
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
