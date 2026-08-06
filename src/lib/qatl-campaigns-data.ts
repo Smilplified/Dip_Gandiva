@@ -4,6 +4,10 @@ import { enrichCampaignAllocationFields, MIS_DELIVERED_ACHIEVED_OPTIONS } from "
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 import { countPendingAuditLeads } from "@/lib/qa-lead-audit";
+import {
+  fetchBulkCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+} from "@/lib/campaign/team-leader-assignments";
 
 const LEADS_PAGE_SIZE = 1000;
 
@@ -252,16 +256,13 @@ export async function loadQatlCampaignsForDateRange(
     };
   }
 
-  const tlIds = [
-    ...new Set(campaignsList.map((c) => c.assigned_team_leader_id).filter(Boolean)),
-  ] as string[];
-  const tlNames: Record<string, string> = {};
-  if (tlIds.length > 0) {
-    const { data: tlUsers } = await supabase.from("users").select("id, full_name, email").in("id", tlIds);
-    ((tlUsers ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
-      tlNames[u.id] = u.full_name || u.email || "Unknown";
-    });
-  }
+  const tlByCampaign = await fetchBulkCampaignTeamLeaderAssignments(
+    supabase,
+    campaignsList.map((c) => ({
+      id: c.id,
+      assigned_team_leader_id: c.assigned_team_leader_id,
+    }))
+  );
 
   const campaignIds = campaignsList.map((c) => c.id);
   const uploadRange = { startUtc, endUtc };
@@ -295,17 +296,22 @@ export async function loadQatlCampaignsForDateRange(
 
     const metrics = { total: leads.length, qualified: 0, delivered };
     const enriched = enrichCampaignAllocationFields(c, metrics, MIS_DELIVERED_ACHIEVED_OPTIONS);
+    const assigned_team_leader_name = formatTeamLeaderAssignmentLabel(
+      tlByCampaign[c.id] ?? []
+    );
+
+    const leadsWithTl = includeLeads
+      ? leads.map((l) => ({ ...l, team_leader_name: assigned_team_leader_name }))
+      : undefined;
 
     visible.push({
       ...enriched,
-      assigned_team_leader_name: c.assigned_team_leader_id
-        ? tlNames[c.assigned_team_leader_id] ?? null
-        : null,
+      assigned_team_leader_name,
       scored_leads_count: leads.length,
       qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,
       last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,
-      leads: includeLeads ? leads : undefined,
+      leads: leadsWithTl,
     });
   }
 

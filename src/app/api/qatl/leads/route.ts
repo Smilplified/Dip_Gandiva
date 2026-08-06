@@ -9,6 +9,10 @@ import {
   fetchTlLeadsPageForCampaigns,
 } from "@/lib/tl/leads-list";
 import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
+import {
+  fetchBulkCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+} from "@/lib/campaign/team-leader-assignments";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
 import { logAudit } from "@/lib/audit/log";
 import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
@@ -76,14 +80,19 @@ export async function GET(request: NextRequest) {
 
     const { data: campaigns, error: campaignsError } = await admin
       .from("campaigns")
-      .select("id, name, lead_type")
+      .select("id, name, lead_type, assigned_team_leader_id")
       .eq("organization_id", orgId);
 
     if (campaignsError) {
       return NextResponse.json({ error: campaignsError.message }, { status: 500 });
     }
 
-    const campaignList = (campaigns ?? []) as { id: string; name: string; lead_type: string | null }[];
+    const campaignList = (campaigns ?? []) as {
+      id: string;
+      name: string;
+      lead_type: string | null;
+      assigned_team_leader_id: string | null;
+    }[];
     if (campaignList.length === 0) {
       return NextResponse.json({
         leads: [],
@@ -93,10 +102,18 @@ export async function GET(request: NextRequest) {
     }
 
     const campaignIds = campaignList.map((c) => c.id);
+    const tlByCampaign = await fetchBulkCampaignTeamLeaderAssignments(admin, campaignList);
     const campaignMeta = campaignList.reduce<
-      Record<string, { name: string; lead_type: string | null }>
+      Record<
+        string,
+        { name: string; lead_type: string | null; team_leader_name: string | null }
+      >
     >((acc, c) => {
-      acc[c.id] = { name: c.name ?? "—", lead_type: c.lead_type ?? null };
+      acc[c.id] = {
+        name: c.name ?? "—",
+        lead_type: c.lead_type ?? null,
+        team_leader_name: formatTeamLeaderAssignmentLabel(tlByCampaign[c.id] ?? []),
+      };
       return acc;
     }, {});
 
@@ -163,6 +180,7 @@ export async function GET(request: NextRequest) {
           row.lead_type as string | null | undefined,
           meta?.lead_type
         ),
+        team_leader_name: meta?.team_leader_name ?? null,
         assigned_agent_name: row.assigned_agent_name ?? "—",
         created_by_name: row.created_by_name ?? "—",
         qa_status: (row.qa_status as string | null) ?? null,
