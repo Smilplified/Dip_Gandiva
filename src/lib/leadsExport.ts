@@ -40,8 +40,8 @@ function formatExportDate(value: unknown): string | null {
 }
 
 /**
- * All lead fields in export order (matches database / Lead type).
- * Header = column name in CSV/Excel; key = property on Lead.
+ * Client export template: header = CSV/Excel column name; key = Lead / enrich property.
+ * `id` is kept so re-upload can match and update existing leads.
  */
 const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "id", header: "id" },
@@ -49,46 +49,40 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "campaign_name", header: "campaign_name" },
   { key: "lead_type", header: "Lead Type" },
   { key: "lead_id", header: "lead_id" },
+  { key: "created_by_name", header: "Agent_Name" },
+  { key: "team_leader_name", header: "Manager_Name" },
   { key: "salutation", header: "salutation" },
   { key: "first_name", header: "first_name" },
   { key: "last_name", header: "last_name" },
-  { key: "company_name", header: "company_name" },
-  { key: "domain", header: "domain" },
-  { key: "email", header: "email" },
-  { key: "phone", header: "phone" },
-  { key: "direct_number", header: "direct_number" },
-  { key: "company_number", header: "company_number" },
-  { key: "phone_number_link", header: "phone_number_link" },
   { key: "job_title", header: "job_title" },
   { key: "job_level", header: "job_level" },
   { key: "department", header: "department" },
   { key: "job_title_link", header: "job_title_link" },
-  { key: "job_function", header: "job_function" },
   { key: "tenurity", header: "tenurity" },
-  { key: "vv_status", header: "vv_status" },
-  { key: "email_status", header: "email_status" },
-  { key: "ev_tool", header: "ev_tool" },
-  { key: "address", header: "address" },
+  { key: "email", header: "email_Id" },
+  { key: "domain", header: "domain" },
+  { key: "direct_number", header: "direct_number" },
+  { key: "company_number", header: "company_number" },
+  { key: "company_name", header: "company_name" },
+  { key: "company_website_link", header: "company_website_link" },
+  { key: "address", header: "address1" },
+  { key: "address2", header: "address2" },
   { key: "city", header: "city" },
   { key: "state", header: "state" },
-  { key: "country", header: "country" },
   { key: "zip_code", header: "zip_code" },
+  { key: "country", header: "country" },
+  { key: "address_link", header: "address_Link" },
   { key: "employee_size", header: "employee_size" },
-  { key: "see_all_employees", header: "see_all_employees" },
-  { key: "industry", header: "industry" },
-  { key: "channel", header: "channel" },
+  { key: "actual_employee_size", header: "Actual_employee_size" },
   { key: "employee_size_link", header: "employee_size_link" },
-  { key: "company_website_link", header: "company_website_link" },
+  { key: "industry", header: "industry_Type" },
+  { key: "industry_type_link", header: "industry_Type_Link" },
   { key: "revenue_range", header: "revenue_range" },
   { key: "revenue_link", header: "revenue_link" },
   { key: "sic_code", header: "sic_code" },
   { key: "sic_code_link", header: "sic_code_link" },
   { key: "naics_code", header: "naics_code" },
   { key: "naics_code_link", header: "naics_code_link" },
-  { key: "founded_years", header: "founded_years" },
-  { key: "founded_years_link", header: "founded_years_link" },
-  { key: "contact_linkedin_url", header: "contact_linkedin_url" },
-  { key: "company_linkedin_url", header: "company_linkedin_url" },
   { key: "scored", header: LEAD_DATETIME_EXPORT_HEADERS.scored },
   { key: "scored_timezone", header: LEAD_DATETIME_EXPORT_HEADERS.scored_timezone },
   { key: "appointment", header: LEAD_DATETIME_EXPORT_HEADERS.appointment },
@@ -97,38 +91,33 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
     header: LEAD_DATETIME_EXPORT_HEADERS.appointment_timezone,
   },
   { key: "lead_tagging", header: "lead_tagging" },
-  { key: "ra_comment", header: "ra_comment" },
+  { key: "lead_disposition", header: "Call_Disposition" },
   { key: "special_comments", header: LEAD_FIELD_EXPORT_HEADERS.special_comments },
   { key: "call_back", header: "call_back" },
   { key: "call_notes", header: "call_notes" },
-  { key: "qa_status", header: "qa_status" },
-  { key: "primary_reason", header: "primary_reason" },
-  { key: "secondary_reason", header: "secondary_reason" },
-  { key: "qa_comments", header: "qa_comments" },
+  { key: "asset_title", header: "asset_title1" },
+  { key: "asset_title2", header: "asset_title2" },
+  { key: "email_status", header: "email_status" },
+  { key: "ev_tool", header: "ev_tool" },
   { key: "cq1", header: "cq1" },
   { key: "cq2", header: "cq2" },
   { key: "cq3", header: "cq3" },
   { key: "cq4", header: "cq4" },
   { key: "cq5", header: "cq5" },
-  { key: "audit_date", header: "audit_date" },
+  { key: "extra_cq", header: "extra_cq" },
+  { key: "qa_status", header: "qa_status" },
+  { key: "primary_reason", header: "primary_reason" },
+  { key: "secondary_reason", header: "secondary_reason" },
+  { key: "qa_comments", header: "qa_comments" },
   { key: "qa_name", header: "qa_auditor" },
   { key: "qa_audited_at", header: "qa_audit_date" },
-  { key: "asset_title", header: "asset_title" },
-  { key: "status", header: "status" },
+  { key: "rectification_status", header: "Rectification_status" },
+  { key: "rectification_qa_name", header: "Rectification_qa_Name" },
+  { key: "rectification_date", header: "Rectification_Date" },
   { key: "delivery_status", header: "delivery_status" },
-  { key: "delivered_at", header: "delivered_at" },
-  { key: "rectified_reason", header: "rectified_reason" },
-  { key: "lead_disposition", header: "lead_disposition" },
-  { key: "followup_date", header: "followup_date" },
-  { key: "notes", header: "notes" },
-  { key: "assigned_agent_id", header: "assigned_agent_id" },
-  { key: "assigned_agent_name", header: "assigned_agent_name" },
-  { key: "created_by", header: "created_by" },
-  { key: "created_by_name", header: "created_by_name" },
-  { key: "creator_display_name", header: "creator_display_name" },
-  { key: "extra_cq", header: "extra_cq" },
-  { key: "created_at", header: "created_at" },
-  { key: "updated_at", header: "updated_at" },
+  { key: "delivery_remark", header: "delivery_Remark" },
+  { key: "delivered_by_name", header: "Delivery_Agent_Name" },
+  { key: "delivered_at", header: "Deliver_Date" },
 ];
 
 function serializeExportCell(
@@ -163,24 +152,28 @@ function escapeCsvValue(val: string | number | null | undefined): string {
   return s;
 }
 
-/** Adds campaign_name and resolves lead_type for export (legacy rows fall back to campaign type). */
+/** Adds campaign_name, lead_type, and team leader name for export. */
 export function enrichLeadsForExport(
   leads: Lead[],
   campaignName?: string | null,
-  campaignLeadType?: string | null
+  campaignLeadType?: string | null,
+  teamLeaderName?: string | null
 ): Lead[] {
   const nameFallback = campaignName?.trim() ?? "";
   const leadTypeFallback = campaignLeadType?.trim() ?? "";
+  const tlFallback = teamLeaderName?.trim() ?? "";
   return leads.map((lead) => {
     const record = lead as Record<string, unknown>;
     const existingName = (record.campaign_name as string | null | undefined)?.trim();
     const existingLeadType =
       (record.lead_type as string | null | undefined)?.trim() ||
       (record.campaign_lead_type as string | null | undefined)?.trim();
+    const existingTl = (record.team_leader_name as string | null | undefined)?.trim();
     return {
       ...lead,
       campaign_name: existingName || nameFallback,
       lead_type: existingLeadType || leadTypeFallback,
+      team_leader_name: existingTl || tlFallback || null,
     } as Lead;
   });
 }
@@ -189,9 +182,14 @@ export function leadsToCsv(
   leads: Lead[],
   campaignName?: string | null,
   campaignLeadType?: string | null,
-  options?: { excludeKeys?: readonly string[] }
+  options?: { excludeKeys?: readonly string[]; teamLeaderName?: string | null }
 ): string {
-  const prepared = enrichLeadsForExport(leads, campaignName, campaignLeadType);
+  const prepared = enrichLeadsForExport(
+    leads,
+    campaignName,
+    campaignLeadType,
+    options?.teamLeaderName
+  );
   const exclude = new Set(options?.excludeKeys ?? []);
   const columns = exclude.size
     ? CSV_COLUMNS.filter((c) => !exclude.has(String(c.key)))
@@ -210,9 +208,12 @@ export function downloadCsv(
   leads: Lead[],
   filename?: string,
   campaignName?: string | null,
-  campaignLeadType?: string | null
+  campaignLeadType?: string | null,
+  teamLeaderName?: string | null
 ): void {
-  const csv = leadsToCsv(leads, campaignName, campaignLeadType);
+  const csv = leadsToCsv(leads, campaignName, campaignLeadType, {
+    teamLeaderName,
+  });
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -230,9 +231,15 @@ export function downloadCsv(
 function leadsToSheetData(
   leads: Lead[],
   campaignName?: string | null,
-  campaignLeadType?: string | null
+  campaignLeadType?: string | null,
+  teamLeaderName?: string | null
 ): unknown[][] {
-  const prepared = enrichLeadsForExport(leads, campaignName, campaignLeadType);
+  const prepared = enrichLeadsForExport(
+    leads,
+    campaignName,
+    campaignLeadType,
+    teamLeaderName
+  );
   const headers = CSV_COLUMNS.map((c) => c.header);
   const rows = prepared.map((lead) => {
     const record = lead as Record<string, unknown>;
@@ -249,9 +256,15 @@ export function downloadExcel(
   leads: Lead[],
   filename?: string,
   campaignName?: string | null,
-  campaignLeadType?: string | null
+  campaignLeadType?: string | null,
+  teamLeaderName?: string | null
 ): void {
-  const data = leadsToSheetData(leads, campaignName, campaignLeadType);
+  const data = leadsToSheetData(
+    leads,
+    campaignName,
+    campaignLeadType,
+    teamLeaderName
+  );
   const ws = XLSX.utils.aoa_to_sheet(data);
   const colWidths = CSV_COLUMNS.map((_, i) => {
     const maxLen = Math.max(
@@ -280,9 +293,15 @@ export function downloadExcel(
 function leadsToAgentExportRows(
   leads: Lead[],
   campaignName?: string | null,
-  campaignLeadType?: string | null
+  campaignLeadType?: string | null,
+  teamLeaderName?: string | null
 ): string[][] {
-  const prepared = enrichLeadsForExport(leads, campaignName, campaignLeadType);
+  const prepared = enrichLeadsForExport(
+    leads,
+    campaignName,
+    campaignLeadType,
+    teamLeaderName
+  );
   return prepared.map((lead) => {
     const record = lead as Record<string, unknown>;
     return AGENT_EXPORT_COLUMNS.map((c) => {
@@ -292,26 +311,35 @@ function leadsToAgentExportRows(
   });
 }
 
-export function leadsToAgentCsv(leads: Lead[], campaignName?: string | null): string {
+export function leadsToAgentCsv(
+  leads: Lead[],
+  campaignName?: string | null,
+  teamLeaderName?: string | null
+): string {
   const headers = AGENT_EXPORT_COLUMNS.map((c) => c.header).join(",");
-  const rows = leadsToAgentExportRows(leads, campaignName).map((row) =>
-    row.map((cell) => escapeCsvValue(cell)).join(",")
+  const rows = leadsToAgentExportRows(leads, campaignName, null, teamLeaderName).map(
+    (row) => row.map((cell) => escapeCsvValue(cell)).join(",")
   );
   return [headers, ...rows].join("\n");
 }
 
-function leadsToAgentSheetData(leads: Lead[], campaignName?: string | null): unknown[][] {
+function leadsToAgentSheetData(
+  leads: Lead[],
+  campaignName?: string | null,
+  teamLeaderName?: string | null
+): unknown[][] {
   const headers = AGENT_EXPORT_COLUMNS.map((c) => c.header);
-  const rows = leadsToAgentExportRows(leads, campaignName);
+  const rows = leadsToAgentExportRows(leads, campaignName, null, teamLeaderName);
   return [headers, ...rows];
 }
 
 export function downloadAgentCsv(
   leads: Lead[],
   filename?: string,
-  campaignName?: string | null
+  campaignName?: string | null,
+  teamLeaderName?: string | null
 ): void {
-  const csv = leadsToAgentCsv(leads, campaignName);
+  const csv = leadsToAgentCsv(leads, campaignName, teamLeaderName);
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -329,9 +357,10 @@ export function downloadAgentCsv(
 export function downloadAgentExcel(
   leads: Lead[],
   filename?: string,
-  campaignName?: string | null
+  campaignName?: string | null,
+  teamLeaderName?: string | null
 ): void {
-  const data = leadsToAgentSheetData(leads, campaignName);
+  const data = leadsToAgentSheetData(leads, campaignName, teamLeaderName);
   const ws = XLSX.utils.aoa_to_sheet(data);
   const colWidths = AGENT_EXPORT_COLUMNS.map((_, i) => {
     const maxLen = Math.max(

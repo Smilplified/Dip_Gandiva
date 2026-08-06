@@ -37,6 +37,11 @@ export const LEAD_IMPORT_READONLY_FIELDS = new Set([
   "campaign_name",
   "organization_id",
   "delivered_by",
+  "delivered_by_name",
+  "delivery_agent_name",
+  "team_leader_name",
+  "manager_name",
+  "agent_name",
   "risk_flags",
   "consent_status",
   "rep_id",
@@ -54,6 +59,9 @@ export const QA_AUDIT_IMPORT_FIELD_KEYS = [
   "disqualification_reasons",
   "disqualification_reason",
   "rectified_reason",
+  "rectification_status",
+  "rectification_qa_name",
+  "rectification_date",
 ] as const;
 
 export function stripQaAuditFieldsFromImport(
@@ -65,7 +73,11 @@ export function stripQaAuditFieldsFromImport(
 }
 
 /** Postgres `date` columns on leads. */
-export const LEAD_IMPORT_DATE_FIELDS = new Set(["followup_date", "audit_date"]);
+export const LEAD_IMPORT_DATE_FIELDS = new Set([
+  "followup_date",
+  "audit_date",
+  "rectification_date",
+]);
 
 /** Postgres `timestamptz` columns on leads. */
 export const LEAD_IMPORT_TIMESTAMP_FIELDS = new Set([

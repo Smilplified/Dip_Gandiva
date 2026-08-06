@@ -382,7 +382,8 @@ export function QaCampaignDetailView({
       filteredLeads,
       `leads-${campaign?.name?.replace(/\s+/g, "-") ?? "export"}-${dayjs().format("YYYY-MM-DD")}.xlsx`,
       campaign?.name,
-      campaign?.lead_type
+      campaign?.lead_type,
+      campaign?.assigned_team_leader_name
     );
     message.success(`Exported ${filteredLeads.length} leads`);
     void fetch("/api/qa/recordings/export-audit", {

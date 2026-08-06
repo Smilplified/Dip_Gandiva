@@ -489,25 +489,42 @@ export async function GET(request: NextRequest) {
 
     const campaignMetaById = new Map<
       string,
-      { name: string; lead_type: string; campaign_type: string | null }
+      {
+        name: string;
+        lead_type: string;
+        campaign_type: string | null;
+        team_leader_name: string;
+      }
     >();
     if (campaignId) {
       const { data: camp } = await supabase
         .from("campaigns")
-        .select("name, lead_type, campaign_type")
+        .select("name, lead_type, campaign_type, assigned_team_leader_id")
         .eq("id", campaignId)
         .maybeSingle();
       const row = camp as {
         name?: string;
         lead_type?: string | null;
         campaign_type?: string | null;
+        assigned_team_leader_id?: string | null;
       } | null;
       const name = row?.name?.trim();
+      let teamLeaderName = "";
+      if (row?.assigned_team_leader_id) {
+        const { data: tl } = await supabase
+          .from("users")
+          .select("full_name, email")
+          .eq("id", row.assigned_team_leader_id)
+          .maybeSingle();
+        const tlRow = tl as { full_name: string | null; email: string | null } | null;
+        teamLeaderName = tlRow?.full_name?.trim() || tlRow?.email?.trim() || "";
+      }
       if (name) {
         campaignMetaById.set(campaignId, {
           name,
           lead_type: row?.lead_type?.trim() ?? "",
           campaign_type: row?.campaign_type?.trim() ?? null,
+          team_leader_name: teamLeaderName,
         });
       }
     } else {
@@ -521,21 +538,45 @@ export async function GET(request: NextRequest) {
       if (ids.length > 0) {
         const { data: camps } = await supabase
           .from("campaigns")
-          .select("id, name, lead_type, campaign_type")
+          .select("id, name, lead_type, campaign_type, assigned_team_leader_id")
           .in("id", ids);
-        (
-          (camps ?? []) as {
+        const campRows = (camps ?? []) as {
+          id: string;
+          name: string;
+          lead_type: string | null;
+          campaign_type: string | null;
+          assigned_team_leader_id: string | null;
+        }[];
+        const tlIds = [
+          ...new Set(
+            campRows
+              .map((c) => c.assigned_team_leader_id)
+              .filter((id): id is string => Boolean(id))
+          ),
+        ];
+        const tlNameById = new Map<string, string>();
+        if (tlIds.length > 0) {
+          const { data: tls } = await supabase
+            .from("users")
+            .select("id, full_name, email")
+            .in("id", tlIds);
+          for (const u of (tls ?? []) as {
             id: string;
-            name: string;
-            lead_type: string | null;
-            campaign_type: string | null;
-          }[]
-        ).forEach((c) => {
+            full_name: string | null;
+            email: string | null;
+          }[]) {
+            tlNameById.set(u.id, u.full_name?.trim() || u.email?.trim() || "");
+          }
+        }
+        campRows.forEach((c) => {
           if (c.name?.trim()) {
             campaignMetaById.set(c.id, {
               name: c.name.trim(),
               lead_type: c.lead_type?.trim() ?? "",
               campaign_type: c.campaign_type?.trim() ?? null,
+              team_leader_name: c.assigned_team_leader_id
+                ? tlNameById.get(c.assigned_team_leader_id) ?? ""
+                : "",
             });
           }
         });
@@ -552,6 +593,7 @@ export async function GET(request: NextRequest) {
           row.lead_type as string | null | undefined,
           meta?.lead_type
         ),
+        team_leader_name: meta?.team_leader_name ?? "",
       };
     });
 
@@ -564,8 +606,11 @@ export async function GET(request: NextRequest) {
       singleCampaignMeta?.name,
       singleCampaignMeta?.lead_type,
       hideAppointmentExport
-        ? { excludeKeys: CLIENT_VIEWER_HIDDEN_EXPORT_KEYS }
-        : undefined
+        ? {
+            excludeKeys: CLIENT_VIEWER_HIDDEN_EXPORT_KEYS,
+            teamLeaderName: singleCampaignMeta?.team_leader_name,
+          }
+        : { teamLeaderName: singleCampaignMeta?.team_leader_name }
     );
   };
 

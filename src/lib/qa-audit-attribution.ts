@@ -41,6 +41,9 @@ const QA_AUDIT_FIELD_KEYS = [
   "disqualification_reasons",
   "disqualification_reason",
   "rectified_reason",
+  "rectification_status",
+  "rectification_qa_name",
+  "rectification_date",
 ] as const;
 
 export type QaAuditFieldKey = (typeof QA_AUDIT_FIELD_KEYS)[number];
@@ -62,6 +65,9 @@ export type ExistingLeadQaSnapshot = {
   disqualification_reasons?: string | null;
   disqualification_reason?: string | null;
   rectified_reason?: string | null;
+  rectification_status?: string | null;
+  rectification_qa_name?: string | null;
+  rectification_date?: string | null;
   qa_audited_by_id?: string | null;
   qa_audited_at?: string | null;
   qa_name?: string | null;
@@ -84,7 +90,9 @@ export function buildQaUpdatesFromImportRow(
     if (
       key === "disqualification_reasons" ||
       key === "disqualification_reason" ||
-      key === "rectified_reason"
+      key === "rectified_reason" ||
+      key === "rectification_status" ||
+      key === "rectification_qa_name"
     ) {
       updates[key] =
         fields[key] && typeof fields[key] === "string" ? String(fields[key]).trim() : null;
@@ -131,6 +139,24 @@ export function shouldStampQaAuditor(
   if (
     "rectified_reason" in updates &&
     normField(updates.rectified_reason) !== normField(existing.rectified_reason)
+  ) {
+    return true;
+  }
+  if (
+    "rectification_status" in updates &&
+    normField(updates.rectification_status) !== normField(existing.rectification_status)
+  ) {
+    return true;
+  }
+  if (
+    "rectification_qa_name" in updates &&
+    normField(updates.rectification_qa_name) !== normField(existing.rectification_qa_name)
+  ) {
+    return true;
+  }
+  if (
+    "rectification_date" in updates &&
+    normField(updates.rectification_date) !== normField(existing.rectification_date)
   ) {
     return true;
   }

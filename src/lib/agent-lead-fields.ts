@@ -11,8 +11,12 @@ export const AGENT_READONLY_LEAD_FIELDS = [
   "disqualification_reasons",
   "disqualification_reason",
   "rectified_reason",
+  "rectification_status",
+  "rectification_qa_name",
+  "rectification_date",
   "lead_disposition",
   "delivery_status",
+  "delivery_remark",
   "qa_comments",
 ] as const;
 
@@ -25,6 +29,7 @@ export const AGENT_EXPORT_ONLY_HIDDEN_FIELDS = [
   "id",
   "campaign_id",
   "asset_title",
+  "asset_title2",
   "audit_date",
   "qa_name",
   "tenurity",
@@ -38,6 +43,8 @@ export const AGENT_EXPORT_ONLY_HIDDEN_FIELDS = [
   "cq3",
   "cq4",
   "cq5",
+  "delivered_by_name",
+  "delivered_at",
 ] as const;
 
 export function isHiddenFromAgentExport(columnKey: string): boolean {
