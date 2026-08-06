@@ -287,7 +287,12 @@ export function QaCampaignsView({
       }
 
       const exportLeads = exportCampaigns.flatMap((c) =>
-        enrichLeadsForExport((c.leads ?? []) as Lead[], c.name, c.lead_type)
+        enrichLeadsForExport(
+          (c.leads ?? []) as Lead[],
+          c.name,
+          c.lead_type,
+          c.assigned_team_leader_name
+        )
       );
       if (exportLeads.length === 0) {
         message.warning("No leads to export for the selected campaigns in this date range");

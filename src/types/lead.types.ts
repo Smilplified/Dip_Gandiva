@@ -44,12 +44,16 @@ export type Lead = {
   ev_tool: string | null;
   // Company
   address: string | null;
+  address2?: string | null;
+  address_link?: string | null;
   state: string | null;
   country: string | null;
   zip_code: string | null;
   employee_size: string | null;
+  actual_employee_size?: string | null;
   see_all_employees: string | null;
   industry: string | null;
+  industry_type_link?: string | null;
   employee_size_link: string | null;
   company_website_link: string | null;
   revenue_range: string | null;
@@ -98,8 +102,15 @@ export type Lead = {
   disqualification_reasons: string | null;
   disqualification_reason: string | null;
   rectified_reason: string | null;
+  rectification_status?: string | null;
+  rectification_qa_name?: string | null;
+  rectification_date?: string | null;
   asset_title: string | null;
+  asset_title2?: string | null;
+  delivery_remark?: string | null;
   lead_disposition: string | null;
+  /** Campaign team leader display name (export enrichment). */
+  team_leader_name?: string | null;
   /** Populated on agent campaign leads list for inline table playback. */
   voice_recordings?: VoiceRecording[];
 };

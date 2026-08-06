@@ -26,14 +26,17 @@ const LEAD_FIELDS = [
   "name", "first_name", "last_name", "salutation", "company_name", "phone", "email", "domain",
   "direct_number", "company_number", "phone_number_link", "job_title", "job_level", "department",
   "job_function", "job_title_link", "tenurity", "vv_status", "email_status", "ev_tool",
-  "address", "city", "state", "country", "zip_code", "employee_size", "see_all_employees",
-  "industry", "channel", "employee_size_link", "company_website_link", "revenue_range", "revenue_link",
+  "address", "address2", "address_link", "city", "state", "country", "zip_code", "employee_size",
+  "actual_employee_size", "see_all_employees",
+  "industry", "industry_type_link", "channel", "employee_size_link", "company_website_link",
+  "revenue_range", "revenue_link",
   "sic_code", "sic_code_link", "naics_code", "naics_code_link", "founded_years", "founded_years_link",
   "contact_linkedin_url", "company_linkedin_url", "scored", "scored_timezone", "appointment", "appointment_timezone", "lead_tagging", "ra_comment", "special_comments", "call_back",
   "call_notes", "primary_reason", "secondary_reason", "qa_comments", "cq1", "cq2", "cq3", "cq4", "cq5",
-  "audit_date", "qa_name", "asset_title", "status", "qa_status", "disqualification_reasons",
-  "disqualification_reason", "rectified_reason", "lead_disposition", "followup_date", "notes", "delivery_status",
-  "delivered_at",
+  "audit_date", "qa_name", "asset_title", "asset_title2", "status", "qa_status", "disqualification_reasons",
+  "disqualification_reason", "rectified_reason", "rectification_status", "rectification_qa_name",
+  "rectification_date", "lead_disposition", "followup_date", "notes", "delivery_status",
+  "delivery_remark", "delivered_at",
 ] as const;
 
 function getChannelCandidates(channel: string | null): (string | null)[] {
@@ -157,7 +160,7 @@ export async function POST(
       const { data: existingRows, error: existingErr } = await dataClient
         .from("leads")
         .select(
-          "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id, qa_audited_at, qa_name, delivery_status, delivered_at, delivered_by"
+          "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, rectification_status, rectification_qa_name, rectification_date, qa_audited_by_id, qa_audited_at, qa_name, delivery_status, delivered_at, delivered_by"
         )
         .eq("campaign_id", campaignId)
         .eq("organization_id", orgId)
@@ -339,7 +342,7 @@ export async function POST(
           const { data: oneLead } = await dataClient
             .from("leads")
             .select(
-              "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, qa_audited_by_id, qa_audited_at, qa_name"
+              "id, qa_status, qa_comments, audit_date, disqualification_reasons, disqualification_reason, rectified_reason, rectification_status, rectification_qa_name, rectification_date, qa_audited_by_id, qa_audited_at, qa_name"
             )
             .eq("id", rowId)
             .eq("campaign_id", campaignId)
