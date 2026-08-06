@@ -338,8 +338,8 @@ function LhoDocument({
                       { label: "Prepared by", value: data.preparedBy },
                     ]
                   : []),
-                { label: "Date Meeting Set", value: data.meetingSetDate },
-                { label: "Meeting Date", value: data.meetingDate },
+                { label: "Scored Date & Time", value: data.meetingSetDate },
+                { label: "Appointment Date & Time", value: data.meetingDate },
                 { label: "Meeting Time", value: data.meetingTime },
                 { label: "Agent Name", value: data.agentName },
                 { label: "Lead Tagging", value: data.leadTagging },
