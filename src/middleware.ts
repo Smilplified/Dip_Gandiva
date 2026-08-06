@@ -250,6 +250,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/sales") ||
       pathname.startsWith("/qa") ||
       pathname.startsWith("/mis") ||
+      pathname.startsWith("/qatl") ||
       pathname.startsWith("/dc") ||
       pathname.startsWith("/emm");
 

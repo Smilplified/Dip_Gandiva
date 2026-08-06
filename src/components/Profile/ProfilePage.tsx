@@ -65,6 +65,7 @@ const roleDisplayMap: Record<string, string> = {
   agent: "Agent",
   qa: "QA",
   mis: "MIS",
+  qa_tl: "QA TL",
   email_marketing_manager: "Email Marketing Manager",
 };
 
