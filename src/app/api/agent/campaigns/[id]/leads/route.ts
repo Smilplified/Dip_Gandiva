@@ -378,8 +378,6 @@ export async function POST(
         job_title_link: job_title_link || null,
         tenurity: tenurity || null,
         vv_status: vv_status || null,
-        email_status: email_status || null,
-        ev_tool: ev_tool || null,
         address: address || null,
         city: city || null,
         state: state || null,

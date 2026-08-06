@@ -18,6 +18,8 @@ export const AGENT_READONLY_LEAD_FIELDS = [
   "delivery_status",
   "delivery_remark",
   "qa_comments",
+  "email_status",
+  "ev_tool",
 ] as const;
 
 export const AGENT_READONLY_LEAD_FIELD_SET = new Set<string>(
@@ -30,7 +32,6 @@ export const AGENT_EXPORT_ONLY_HIDDEN_FIELDS = [
   "campaign_id",
   "audit_date",
   "qa_name",
-  "vv_status",
   "primary_reason",
   "secondary_reason",
   "delivered_by_name",
