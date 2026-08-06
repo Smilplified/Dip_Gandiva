@@ -58,6 +58,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "department", header: "department" },
   { key: "job_title_link", header: "job_title_link" },
   { key: "tenurity", header: "tenurity" },
+  { key: "vv_status", header: "vv_status" },
   { key: "email", header: "email_Id" },
   { key: "domain", header: "domain" },
   { key: "direct_number", header: "direct_number" },

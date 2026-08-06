@@ -667,6 +667,20 @@ export function LeadForm({
                     showOpenLink={showOpenLink}
                   />
                 </Col>
+                {isAgentEntry && (
+                  <>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label="Tenurity" name="tenurity">
+                        <Input placeholder="Tenurity" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label="VV Status" name="vv_status">
+                        <Input placeholder="VV Status" />
+                      </Form.Item>
+                    </Col>
+                  </>
+                )}
               </Row>
             )}
           </Collapse>
@@ -949,26 +963,30 @@ export function LeadForm({
                     </Form.Item>
                   </Col>
                 ) : null}
-                <Col xs={24} sm={12}>
-                  <Form.Item label="Tenurity" name="tenurity">
-                    <Input placeholder="Tenurity" disabled={!canEditQaAudit} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item label="VV Status" name="vv_status">
-                    <Input placeholder="VV Status" disabled={!canEditQaAudit} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item label="Email Status" name="email_status">
-                    <Input placeholder="Email Status" disabled={!canEditQaAudit} />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item label="EV Tool" name="ev_tool">
-                    <Input placeholder="EV Tool" disabled={!canEditQaAudit} />
-                  </Form.Item>
-                </Col>
+                {!isAgentEntry && (
+                  <>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label="Tenurity" name="tenurity">
+                        <Input placeholder="Tenurity" disabled={!canEditQaAudit} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label="VV Status" name="vv_status">
+                        <Input placeholder="VV Status" disabled={!canEditQaAudit} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label="Email Status" name="email_status">
+                        <Input placeholder="Email Status" disabled={!canEditQaAudit} />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={12}>
+                      <Form.Item label="EV Tool" name="ev_tool">
+                        <Input placeholder="EV Tool" disabled={!canEditQaAudit} />
+                      </Form.Item>
+                    </Col>
+                  </>
+                )}
                 <Col xs={24} sm={12}>
                   <Form.Item label="Primary Reason" name="primary_reason">
                     <Input placeholder="Primary Reason" disabled={!canEditQaAudit} />
