@@ -13,6 +13,12 @@ import {
   fetchQatlCampaignScoredLeadsPage,
   type QatlCampaignLeadRow,
 } from "@/lib/qatl/campaign-leads";
+import {
+  fetchCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+  normalizeTeamLeaderAssignments,
+} from "@/lib/campaign/team-leader-assignments";
+import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 import { logAudit } from "@/lib/audit/log";
 import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
@@ -86,17 +92,31 @@ export async function GET(
     }
 
     const camp = campaign as { assigned_team_leader_id?: string | null; [k: string]: unknown };
-    let assigned_team_leader_name: string | null = null;
-    if (camp.assigned_team_leader_id) {
-      const { data: tlUser } = await admin
-        .from("users")
-        .select("full_name, email")
-        .eq("id", camp.assigned_team_leader_id)
-        .single();
-      const u = tlUser as { full_name: string | null; email: string | null } | null;
-      assigned_team_leader_name = u ? (u.full_name || u.email || null) : null;
+    let team_leader_assignments = await fetchCampaignTeamLeaderAssignments(
+      admin,
+      campaignId,
+      camp.assigned_team_leader_id ?? null
+    );
+    const legacyTlId = camp.assigned_team_leader_id ?? null;
+    if (legacyTlId && !team_leader_assignments.some((a) => a.team_leader_id === legacyTlId)) {
+      const legacyNames = await resolveUserDisplayNames(admin, [legacyTlId]);
+      team_leader_assignments = [
+        ...team_leader_assignments,
+        {
+          team_leader_id: legacyTlId,
+          team_leader_name: legacyNames[legacyTlId] ?? null,
+        },
+      ];
     }
-    const campaignWithTlName = { ...(campaign as Record<string, unknown>), assigned_team_leader_name };
+    team_leader_assignments = normalizeTeamLeaderAssignments(team_leader_assignments, {
+      assigned_team_leader_id: legacyTlId,
+    });
+    const assigned_team_leader_name = formatTeamLeaderAssignmentLabel(team_leader_assignments);
+    const campaignWithTlName = {
+      ...(campaign as Record<string, unknown>),
+      assigned_team_leader_name,
+      team_leader_assignments,
+    };
 
     type FileRow = {
       id: string;
@@ -160,7 +180,11 @@ export async function GET(
     }
 
     // Voice recordings load lazily via POST /api/leads/voice-recordings.
-    const leadsWithRecordings = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
+    const leadsWithNames = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
+    const leadsWithRecordings = leadsWithNames.map((lead) => ({
+      ...lead,
+      team_leader_name: assigned_team_leader_name,
+    }));
 
     const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]);
     const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };

@@ -68,7 +68,7 @@ async function queryMisCampaignScoredLeadsPage(
       admin
         .from("leads")
         .select(
-          "id, lead_id, name, company_name, phone, email, city, status, qa_status, delivery_status, delivered_at, delivered_by, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, disqualification_reasons, disqualification_reason, rectified_reason, qa_name, qa_audited_by_id, qa_audited_at",
+          "id, lead_id, name, company_name, phone, email, city, status, qa_status, delivery_status, delivered_at, delivered_by, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, disqualification_reasons, disqualification_reason, rectified_reason, rectification_status, rectification_qa_name, rectification_date, qa_name, qa_audited_by_id, qa_audited_at",
           { count: "exact" }
         )
         .eq("campaign_id", campaignId)

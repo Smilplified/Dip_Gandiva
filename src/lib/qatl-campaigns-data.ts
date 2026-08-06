@@ -4,11 +4,15 @@ import { enrichCampaignAllocationFields, MIS_DELIVERED_ACHIEVED_OPTIONS } from "
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 import { countPendingAuditLeads } from "@/lib/qa-lead-audit";
+import {
+  fetchBulkCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+} from "@/lib/campaign/team-leader-assignments";
 
 const LEADS_PAGE_SIZE = 1000;
 
 const qatlExportLeadsSelect =
-  "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, delivered_at, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, disqualification_reasons, disqualification_reason, rectified_reason";
+  "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, delivered_at, delivered_by, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, address2, address_link, actual_employee_size, industry_type_link, delivery_remark, rectification_status, rectification_qa_name, rectification_date, disqualification_reasons, disqualification_reason, rectified_reason";
 
 export type QatlCampaignRow = {
   id: string;
@@ -252,16 +256,13 @@ export async function loadQatlCampaignsForDateRange(
     };
   }
 
-  const tlIds = [
-    ...new Set(campaignsList.map((c) => c.assigned_team_leader_id).filter(Boolean)),
-  ] as string[];
-  const tlNames: Record<string, string> = {};
-  if (tlIds.length > 0) {
-    const { data: tlUsers } = await supabase.from("users").select("id, full_name, email").in("id", tlIds);
-    ((tlUsers ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
-      tlNames[u.id] = u.full_name || u.email || "Unknown";
-    });
-  }
+  const tlByCampaign = await fetchBulkCampaignTeamLeaderAssignments(
+    supabase,
+    campaignsList.map((c) => ({
+      id: c.id,
+      assigned_team_leader_id: c.assigned_team_leader_id,
+    }))
+  );
 
   const campaignIds = campaignsList.map((c) => c.id);
   const uploadRange = { startUtc, endUtc };
@@ -295,17 +296,22 @@ export async function loadQatlCampaignsForDateRange(
 
     const metrics = { total: leads.length, qualified: 0, delivered };
     const enriched = enrichCampaignAllocationFields(c, metrics, MIS_DELIVERED_ACHIEVED_OPTIONS);
+    const assigned_team_leader_name = formatTeamLeaderAssignmentLabel(
+      tlByCampaign[c.id] ?? []
+    );
+
+    const leadsWithTl = includeLeads
+      ? leads.map((l) => ({ ...l, team_leader_name: assigned_team_leader_name }))
+      : undefined;
 
     visible.push({
       ...enriched,
-      assigned_team_leader_name: c.assigned_team_leader_id
-        ? tlNames[c.assigned_team_leader_id] ?? null
-        : null,
+      assigned_team_leader_name,
       scored_leads_count: leads.length,
       qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,
       last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,
-      leads: includeLeads ? leads : undefined,
+      leads: leadsWithTl,
     });
   }
 

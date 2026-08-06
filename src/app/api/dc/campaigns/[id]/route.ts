@@ -6,6 +6,7 @@ import {
   MIS_DELIVERED_ACHIEVED_OPTIONS,
 } from "@/lib/campaign-allocation";
 import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
+import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export async function GET(
     const campaignSelect =
       "id, campaign_id, campaign_code, name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, additional_comments, employee_size, abm, seniority, job_function, creatives_url, cpl, revenue, booked, weekly_call, weekly_report, client_name";
     const leadsSelect =
-      "id, campaign_id, organization_id, lead_id, name, first_name, last_name, salutation, email, phone, direct_number, company_name, company_number, job_title, job_level, job_function, department, industry, employee_size, address, city, state, country, zip_code, status, qa_status, delivery_status, lead_tagging, lead_disposition, followup_date, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, scored, scored_timezone, appointment, appointment_timezone, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, domain, phone_number_link, job_title_link, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, founded_years, founded_years_link, see_all_employees, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, disqualification_reasons, disqualification_reason, rectified_reason, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, vv_status, email_status, ev_tool, tenurity, channel, notes";
+      "id, campaign_id, organization_id, lead_id, name, first_name, last_name, salutation, email, phone, direct_number, company_name, company_number, job_title, job_level, job_function, department, industry, employee_size, address, address2, address_link, city, state, country, zip_code, status, qa_status, delivery_status, delivery_remark, delivered_at, delivered_by, lead_tagging, lead_disposition, followup_date, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, scored, scored_timezone, appointment, appointment_timezone, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, domain, phone_number_link, job_title_link, employee_size_link, actual_employee_size, company_website_link, industry_type_link, sic_code, sic_code_link, naics_code, naics_code_link, founded_years, founded_years_link, see_all_employees, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, disqualification_reasons, disqualification_reason, rectified_reason, rectification_status, rectification_qa_name, rectification_date, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, vv_status, email_status, ev_tool, tenurity, channel, notes";
 
     const [campaignResult, fileRowsResult, leadsResult] = (await Promise.all([
       admin
@@ -106,7 +107,11 @@ export async function GET(
     );
 
     // Voice recordings load lazily via POST /api/leads/voice-recordings.
-    const leads = (leadsResult.data ?? []) as DcLeadRow[];
+    const leads = await enrichLeadsWithCreatorNames(
+      admin,
+      (leadsResult.data ?? []) as Record<string, unknown>[],
+      orgId
+    );
 
     const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]);
     const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };

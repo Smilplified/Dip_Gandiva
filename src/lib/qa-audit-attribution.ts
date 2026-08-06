@@ -226,9 +226,9 @@ export function applyQaAuditorToImportPayload(
   return true;
 }
 
-/** True only for the dedicated QA role (not agent, MIS, TL, OM, or admin). */
+/** True for dedicated QA / QA TL roles (not agent, MIS, TL, OM, or admin). */
 export function isQaRoleForAuditImport(roleNames: string[]): boolean {
-  return roleNames.includes("qa");
+  return roleNames.includes("qa") || roleNames.includes("qa_tl");
 }
 
 export type QaAuditHistoryValue = {
