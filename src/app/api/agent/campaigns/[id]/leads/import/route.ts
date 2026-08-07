@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { AGENT_READONLY_LEAD_FIELDS } from "@/lib/agent-lead-fields";
 import {
+  finalizeImportedLeadRow,
   LEAD_IMPORT_PHONE_FIELD_KEYS,
   normalizeImportPhoneField,
   pickAndSanitizeLeadImportFields,
 } from "@/lib/lead-import-sanitize";
+import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
 
@@ -151,7 +153,9 @@ export async function POST(
     let updated = 0;
 
     for (let i = 0; i < rawLeads.length; i++) {
-      const row = rawLeads[i] as Record<string, unknown>;
+      const row = finalizeImportedLeadRow(
+        rawLeads[i] as Record<string, unknown>
+      );
 
       const rowIdRaw = row.id as string | number | undefined;
       const rowId = rowIdRaw != null ? String(rowIdRaw).trim() : "";
@@ -229,14 +233,19 @@ export async function POST(
         tenurity: fields.tenurity ?? null,
         vv_status: fields.vv_status ?? null,
         address: fields.address ?? null,
+        address2: fields.address2 ?? null,
+        address_link: fields.address_link ?? null,
         city: fields.city ?? null,
         state: fields.state ?? null,
         country: fields.country ?? null,
         zip_code: fields.zip_code ?? null,
         employee_size: fields.employee_size ?? null,
+        actual_employee_size: fields.actual_employee_size ?? null,
         see_all_employees: fields.see_all_employees ?? null,
         industry: fields.industry ?? null,
+        industry_type_link: fields.industry_type_link ?? null,
         employee_size_link: fields.employee_size_link ?? null,
+        asset_title2: fields.asset_title2 ?? null,
         company_website_link: fields.company_website_link ?? null,
         revenue_range: fields.revenue_range ?? null,
         revenue_link: fields.revenue_link ?? null,
@@ -254,7 +263,6 @@ export async function POST(
         appointment: fields.appointment ?? null,
         appointment_timezone: fields.appointment_timezone ?? null,
         lead_type: fields.lead_type ?? null,
-        lead_tagging: fields.lead_tagging ?? null,
         ra_comment: fields.ra_comment ?? null,
         special_comments: fields.special_comments ?? null,
         call_back: fields.call_back ?? null,
@@ -263,6 +271,16 @@ export async function POST(
         notes: fields.notes ?? null,
         status: leadStatus,
       };
+
+      // Only write lead_tagging when the spreadsheet provided it (or
+      // finalizeImportedLeadRow salvaged/defaulted it onto `fields`).
+      if ("lead_tagging" in fields) {
+        const tagging =
+          typeof fields.lead_tagging === "string"
+            ? normalizeLeadTaggingValue(fields.lead_tagging)
+            : null;
+        upsertPayload.lead_tagging = tagging;
+      }
 
       if (existingLeadId) {
         const updatePayload = { ...upsertPayload };

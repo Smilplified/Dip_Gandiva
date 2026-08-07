@@ -7,6 +7,12 @@ import {
   MIS_DELIVERED_ACHIEVED_OPTIONS,
 } from "@/lib/campaign-allocation";
 import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
+import {
+  fetchCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+  normalizeTeamLeaderAssignments,
+} from "@/lib/campaign/team-leader-assignments";
+import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +77,7 @@ export async function GET(
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
       .select(
-        "id, campaign_id, campaign_code, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, additional_comments, employee_size, abm, seniority, job_function, creatives_url, campaign_questions"
+        "id, campaign_id, campaign_code, name, client_name, description, industry, geography, lead_type, status, start_date, end_date, total_allocation, post_qa, achieved, pending_allocation, additional_comments, employee_size, abm, seniority, job_function, creatives_url, campaign_questions, assigned_team_leader_id"
       )
       .eq("id", campaignId)
       .eq("organization_id", orgId)
@@ -80,6 +86,32 @@ export async function GET(
     if (campaignError || !campaign) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
+
+    const camp = campaign as {
+      assigned_team_leader_id?: string | null;
+      [k: string]: unknown;
+    };
+    let team_leader_assignments = await fetchCampaignTeamLeaderAssignments(
+      supabase,
+      campaignId,
+      camp.assigned_team_leader_id ?? null
+    );
+    const legacyTlId = camp.assigned_team_leader_id ?? null;
+    if (legacyTlId && !team_leader_assignments.some((a) => a.team_leader_id === legacyTlId)) {
+      const legacyNames = await resolveUserDisplayNames(supabase, [legacyTlId]);
+      team_leader_assignments = [
+        ...team_leader_assignments,
+        {
+          team_leader_id: legacyTlId,
+          team_leader_name: legacyNames[legacyTlId] ?? null,
+        },
+      ];
+    }
+    team_leader_assignments = normalizeTeamLeaderAssignments(team_leader_assignments, {
+      assigned_team_leader_id: legacyTlId,
+    });
+    const assigned_team_leader_name =
+      formatTeamLeaderAssignmentLabel(team_leader_assignments);
 
     const { data: fileRows, error: filesError } = await supabase
       .from("campaign_files")
@@ -120,7 +152,11 @@ export async function GET(
     const leadCounts = await aggregateTlLeadCountsByCampaign(supabase, orgId, [campaignId]);
     const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
     const enrichedCampaign = enrichCampaignAllocationFields(
-      campaign,
+      {
+        ...(campaign as Record<string, unknown>),
+        assigned_team_leader_name,
+        team_leader_assignments,
+      },
       metrics,
       MIS_DELIVERED_ACHIEVED_OPTIONS
     );

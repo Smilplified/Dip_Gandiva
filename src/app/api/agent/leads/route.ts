@@ -2,11 +2,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
+import {
+  fetchBulkCampaignTeamLeaderAssignments,
+  formatTeamLeaderAssignmentLabel,
+} from "@/lib/campaign/team-leader-assignments";
+import { resolveLeadTypeForExport } from "@/lib/campaign-lead-type";
 
 export const dynamic = "force-dynamic";
 
 const LEADS_SELECT_BASE =
-  "id, lead_id, campaign_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, delivered_at";
+  "id, lead_id, campaign_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_type, lead_tagging, lead_disposition, delivery_status, delivered_at";
 const LEADS_SELECT_EXTENDED =
   LEADS_SELECT_BASE +
   ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, address2, address_link, actual_employee_size, industry_type_link";
@@ -80,29 +85,58 @@ export async function GET(request: NextRequest) {
     const total = res.count ?? rawLeads.length;
     const campaignIds = [...new Set(rawLeads.map((l) => l.campaign_id).filter(Boolean))] as string[];
 
-    let campaignNames: Record<string, string> = {};
+    const campaignMeta: Record<
+      string,
+      { name: string; lead_type: string | null; team_leader_name: string | null }
+    > = {};
     if (campaignIds.length > 0) {
       const { data: campaigns } = await supabase
         .from("campaigns")
-        .select("id, name")
+        .select("id, name, lead_type, assigned_team_leader_id")
         .in("id", campaignIds);
-      ((campaigns ?? []) as { id: string; name: string }[]).forEach((c) => {
-        campaignNames[c.id] = c.name ?? "—";
-      });
+      const campaignRows = (campaigns ?? []) as {
+        id: string;
+        name: string | null;
+        lead_type: string | null;
+        assigned_team_leader_id: string | null;
+      }[];
+      const tlByCampaign = await fetchBulkCampaignTeamLeaderAssignments(
+        supabase,
+        campaignRows
+      );
+      for (const c of campaignRows) {
+        campaignMeta[c.id] = {
+          name: c.name ?? "—",
+          lead_type: c.lead_type ?? null,
+          team_leader_name: formatTeamLeaderAssignmentLabel(
+            tlByCampaign[c.id] ?? []
+          ),
+        };
+      }
     }
 
     const enriched = await enrichLeadsWithCreatorNames(supabase, rawLeads, orgId);
 
-    const leads = enriched.map((row) => ({
-      ...row,
-      campaign_name: row.campaign_id ? campaignNames[row.campaign_id as string] ?? "—" : null,
-      assigned_agent_name: row.assigned_agent_name ?? "—",
-      created_by_name: row.created_by_name,
-      qa_status: (row.qa_status as string | null) ?? null,
-      disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
-      disqualification_reason: (row.disqualification_reason as string | null) ?? null,
-      rectified_reason: (row.rectified_reason as string | null) ?? null,
-    }));
+    const leads = enriched.map((row) => {
+      const meta = row.campaign_id
+        ? campaignMeta[row.campaign_id as string]
+        : undefined;
+      return {
+        ...row,
+        campaign_name: meta?.name ?? null,
+        lead_type: resolveLeadTypeForExport(
+          row.lead_type as string | null | undefined,
+          meta?.lead_type
+        ) || null,
+        team_leader_name: meta?.team_leader_name ?? null,
+        assigned_agent_name: row.assigned_agent_name ?? "—",
+        created_by_name: row.created_by_name,
+        qa_status: (row.qa_status as string | null) ?? null,
+        disqualification_reasons: (row.disqualification_reasons as string | null) ?? null,
+        disqualification_reason: (row.disqualification_reason as string | null) ?? null,
+        rectified_reason: (row.rectified_reason as string | null) ?? null,
+      };
+    });
 
     return NextResponse.json({
       leads,
