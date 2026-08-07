@@ -55,9 +55,21 @@ type CampaignRow = {
   total_leads: number;
   total_agents: number;
   qualified_leads: number;
+  disqualified_leads: number;
   delivered_leads: number;
   assigned_team_leader_name: string | null;
 };
+
+/** e.g. 7/Aug/2026 */
+function formatCampaignDate(value: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  const day = d.getDate();
+  const monthName = d.toLocaleString("en-US", { month: "short" });
+  const year = d.getFullYear();
+  return `${day}-${monthName}-${year}`;
+}
 
 const statCardStyle = {
   borderRadius: 16,
@@ -241,6 +253,23 @@ export default function TLCampaignsPage() {
           </Typography.Text>
         ),
       },
+
+      {
+        title: "Disqualified",
+        dataIndex: "disqualified_leads",
+        key: "disqualified_leads",
+        width: 110,
+        align: "center",
+        sorter: (a, b) => (a.disqualified_leads ?? 0) - (b.disqualified_leads ?? 0),
+        render: (v: number) => (
+          <Typography.Text
+            style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#cf1322" : undefined }}
+          >
+            {(v ?? 0).toLocaleString()}
+          </Typography.Text>
+        ),
+      },
+
       {
         title: "Delivered",
         dataIndex: "delivered_leads",
@@ -280,7 +309,7 @@ export default function TLCampaignsPage() {
         ellipsis: true,
         render: (val: string | null) => (
           <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}>
-            {val || "—"}
+            {val || "—"}6
           </Tag>
         ),
       },
@@ -302,24 +331,24 @@ export default function TLCampaignsPage() {
       ...(isOperationsManager
         ? []
         : [
-            {
-              title: "Industry",
-              dataIndex: "industry",
-              key: "industry",
-              width: 120,
-              ellipsis: { showTitle: false },
-              className: "table-col-campaign-name",
-              render: (v: string | null) => tableEllipsisCell(v),
-            },
-            {
-              title: "Geography",
-              dataIndex: "geography",
-              key: "geography",
-              width: 110,
-              ellipsis: true,
-              render: (v: string | null) => tableEllipsisCell(v),
-            },
-          ]),
+          {
+            title: "Industry",
+            dataIndex: "industry",
+            key: "industry",
+            width: 120,
+            ellipsis: { showTitle: false },
+            className: "table-col-campaign-name",
+            render: (v: string | null) => tableEllipsisCell(v),
+          },
+          {
+            title: "Geography",
+            dataIndex: "geography",
+            key: "geography",
+            width: 110,
+            ellipsis: true,
+            render: (v: string | null) => tableEllipsisCell(v),
+          },
+        ]),
       {
         title: "Status",
         dataIndex: "status",
@@ -342,17 +371,17 @@ export default function TLCampaignsPage() {
       ...(isOperationsManager
         ? leadMetricColumns
         : [
-            leadMetricColumns[0],
-            {
-              title: "Agents",
-              dataIndex: "total_agents",
-              key: "total_agents",
-              width: 72,
-              align: "center" as const,
-              sorter: (a: CampaignRow, b: CampaignRow) => a.total_agents - b.total_agents,
-              render: (v: number) => v ?? 0,
-            },
-          ]),
+          leadMetricColumns[0],
+          {
+            title: "Agents",
+            dataIndex: "total_agents",
+            key: "total_agents",
+            width: 72,
+            align: "center" as const,
+            sorter: (a: CampaignRow, b: CampaignRow) => a.total_agents - b.total_agents,
+            render: (v: number) => v ?? 0,
+          },
+        ]),
       {
         title: "Team Leader",
         dataIndex: "assigned_team_leader_name",
@@ -377,11 +406,11 @@ export default function TLCampaignsPage() {
         title: "Start Date",
         dataIndex: "start_date",
         key: "start_date",
-        width: 108,
+        width: 120,
         responsive: ["md"],
         render: (v: string | null) => (
           <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-            {v ? new Date(v).toLocaleDateString() : "—"}
+            {formatCampaignDate(v)}
           </Typography.Text>
         ),
       },
@@ -389,19 +418,19 @@ export default function TLCampaignsPage() {
         title: "End Date",
         dataIndex: "end_date",
         key: "end_date",
-        width: 108,
+        width: 120,
         responsive: ["md"],
         render: (v: string | null) => (
           <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-            {v ? new Date(v).toLocaleDateString() : "—"}
+            {formatCampaignDate(v)}
           </Typography.Text>
         ),
       },
       ...(!isOperationsManager
         ? leadMetricColumns.slice(1).map((col) => ({
-            ...col,
-            fixed: "right" as const,
-          }))
+          ...col,
+          fixed: "right" as const,
+        }))
         : []),
       {
         title: "Actions",

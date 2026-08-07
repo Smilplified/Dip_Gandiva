@@ -8,6 +8,7 @@ RETURNS TABLE (
   campaign_id uuid,
   total_leads bigint,
   qualified_leads bigint,
+  disqualified_leads bigint,
   delivered_leads bigint
 )
 LANGUAGE sql
@@ -21,6 +22,11 @@ AS $$
     COUNT(*) FILTER (
       WHERE lower(trim(coalesce(l.qa_status, ''))) IN ('qualified', 'approved', 'pass')
     )::bigint AS qualified_leads,
+
+    COUNT(*) FILTER (
+  WHERE lower(trim(coalesce(l.qa_status, ''))) = 'disqualified'
+)::bigint AS disqualified_leads, 
+
     COUNT(*) FILTER (
       WHERE lower(trim(coalesce(l.delivery_status, ''))) = 'delivered'
     )::bigint AS delivered_leads
