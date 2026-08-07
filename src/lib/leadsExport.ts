@@ -65,13 +65,13 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "company_number", header: "company_number" },
   { key: "company_name", header: "company_name" },
   { key: "company_website_link", header: "company_website_link" },
-  { key: "address", header: "address1" },
-  { key: "address2", header: "address2" },
+  { key: "address", header: "Address Line 1" },
+  { key: "address2", header: "Address Line 2" },
   { key: "city", header: "city" },
   { key: "state", header: "state" },
   { key: "zip_code", header: "zip_code" },
   { key: "country", header: "country" },
-  { key: "address_link", header: "address_Link" },
+  { key: "address_link", header: "Address Link" },
   { key: "employee_size", header: "employee_size" },
   { key: "actual_employee_size", header: "Actual_employee_size" },
   { key: "employee_size_link", header: "employee_size_link" },
@@ -90,7 +90,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
     key: "appointment_timezone",
     header: LEAD_DATETIME_EXPORT_HEADERS.appointment_timezone,
   },
-  { key: "lead_tagging", header: "lead_tagging" },
+  { key: "lead_tagging", header: "Lead Tagging" },
   { key: "lead_disposition", header: "Call_Disposition" },
   { key: "special_comments", header: LEAD_FIELD_EXPORT_HEADERS.special_comments },
   { key: "call_back", header: "call_back" },
@@ -118,6 +118,7 @@ const CSV_COLUMNS: { key: keyof Lead | string; header: string }[] = [
   { key: "delivery_remark", header: "delivery_Remark" },
   { key: "delivered_by_name", header: "Delivery_Agent_Name" },
   { key: "delivered_at", header: "Deliver_Date" },
+  { key: "created_at", header: "Lead Created Date & Time" },
 ];
 
 function serializeExportCell(
@@ -314,22 +315,32 @@ function leadsToAgentExportRows(
 export function leadsToAgentCsv(
   leads: Lead[],
   campaignName?: string | null,
+  campaignLeadType?: string | null,
   teamLeaderName?: string | null
 ): string {
   const headers = AGENT_EXPORT_COLUMNS.map((c) => c.header).join(",");
-  const rows = leadsToAgentExportRows(leads, campaignName, null, teamLeaderName).map(
-    (row) => row.map((cell) => escapeCsvValue(cell)).join(",")
-  );
+  const rows = leadsToAgentExportRows(
+    leads,
+    campaignName,
+    campaignLeadType,
+    teamLeaderName
+  ).map((row) => row.map((cell) => escapeCsvValue(cell)).join(","));
   return [headers, ...rows].join("\n");
 }
 
 function leadsToAgentSheetData(
   leads: Lead[],
   campaignName?: string | null,
+  campaignLeadType?: string | null,
   teamLeaderName?: string | null
 ): unknown[][] {
   const headers = AGENT_EXPORT_COLUMNS.map((c) => c.header);
-  const rows = leadsToAgentExportRows(leads, campaignName, null, teamLeaderName);
+  const rows = leadsToAgentExportRows(
+    leads,
+    campaignName,
+    campaignLeadType,
+    teamLeaderName
+  );
   return [headers, ...rows];
 }
 
@@ -337,9 +348,15 @@ export function downloadAgentCsv(
   leads: Lead[],
   filename?: string,
   campaignName?: string | null,
+  campaignLeadType?: string | null,
   teamLeaderName?: string | null
 ): void {
-  const csv = leadsToAgentCsv(leads, campaignName, teamLeaderName);
+  const csv = leadsToAgentCsv(
+    leads,
+    campaignName,
+    campaignLeadType,
+    teamLeaderName
+  );
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -358,9 +375,15 @@ export function downloadAgentExcel(
   leads: Lead[],
   filename?: string,
   campaignName?: string | null,
+  campaignLeadType?: string | null,
   teamLeaderName?: string | null
 ): void {
-  const data = leadsToAgentSheetData(leads, campaignName, teamLeaderName);
+  const data = leadsToAgentSheetData(
+    leads,
+    campaignName,
+    campaignLeadType,
+    teamLeaderName
+  );
   const ws = XLSX.utils.aoa_to_sheet(data);
   const colWidths = AGENT_EXPORT_COLUMNS.map((_, i) => {
     const maxLen = Math.max(

@@ -76,6 +76,7 @@ type Campaign = {
   start_date: string | null;
   end_date: string | null;
   lead_type: string | null;
+  assigned_team_leader_name?: string | null;
   total_allocation: number | null;
   post_qa: number | null;
   achieved: number | null;
@@ -157,6 +158,8 @@ export default function AgentCampaignDetailPage() {
         start_date: campaignJson.campaign.start_date,
         end_date: campaignJson.campaign.end_date,
         lead_type: campaignJson.campaign.lead_type ?? null,
+        assigned_team_leader_name:
+          campaignJson.campaign.assigned_team_leader_name ?? null,
         total_allocation: campaignJson.campaign.total_allocation ?? null,
         post_qa: campaignJson.campaign.post_qa ?? null,
         achieved: campaignJson.campaign.achieved ?? null,
@@ -502,7 +505,9 @@ export default function AgentCampaignDetailPage() {
       `agent-leads-format-${
         campaign?.name?.replace(/\s+/g, "-") ?? "export"
       }-${new Date().toISOString().slice(0, 10)}.xlsx`,
-      campaign?.name
+      campaign?.name,
+      campaign?.lead_type,
+      campaign?.assigned_team_leader_name
     );
     if (toExport.length === 0) {
       message.success("Downloaded blank Excel format template");
@@ -791,7 +796,9 @@ export default function AgentCampaignDetailPage() {
                     `leads-${
                       campaign?.name?.replace(/\s+/g, "-") ?? "export"
                     }-${new Date().toISOString().slice(0, 10)}.csv`,
-                    campaign?.name
+                    campaign?.name,
+                    campaign?.lead_type,
+                    campaign?.assigned_team_leader_name
                   );
                   message.success(`Exported ${toExport.length} leads`);
                 }
@@ -932,7 +939,9 @@ export default function AgentCampaignDetailPage() {
                 `agent-leads-format-${
                   campaign?.name?.replace(/\s+/g, "-") ?? "export"
                 }-${new Date().toISOString().slice(0, 10)}.xlsx`,
-                campaign?.name
+                campaign?.name,
+                campaign?.lead_type,
+                campaign?.assigned_team_leader_name
               );
               if (toExport.length === 0) {
                 message.success("Downloaded blank Excel format template");

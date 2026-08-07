@@ -1,6 +1,10 @@
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
-import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
+import {
+  LEAD_TAGGING_SCORED,
+  looksLikeLeadTaggingCell,
+  normalizeLeadTaggingValue,
+} from "@/lib/lead-tagging";
 
 dayjs.extend(customParseFormat);
 
@@ -266,10 +270,57 @@ export function coerceParsedImportCell(key: string, val: unknown): unknown | und
     return normalizeImportDateField(str) ?? undefined;
   }
   if (LEAD_IMPORT_TIMESTAMP_FIELDS.has(key)) {
+    // Agents often put "Scored" in the scored-date column — keep raw so
+    // finalizeImportedLeadRow can move it to lead_tagging instead of dropping it.
+    if (looksLikeLeadTaggingCell(str)) return str;
     return normalizeImportTimestampField(str) ?? undefined;
   }
   if (LEAD_IMPORT_PHONE_FIELD_KEYS.has(key)) {
     return normalizeImportPhoneField(str) ?? undefined;
   }
+  if (key === "lead_tagging") {
+    return normalizeLeadTaggingValue(str) ?? str;
+  }
   return str;
+}
+
+/**
+ * After parsing a spreadsheet row: salvage lead_tagging when "Scored" (or another
+ * tagging label) was placed in scored/appointment datetime columns, and default
+ * lead_tagging to Scored when a real scored datetime is present but tagging is empty.
+ */
+export function finalizeImportedLeadRow(
+  row: Record<string, unknown>
+): Record<string, unknown> {
+  const out = { ...row };
+
+  for (const tsKey of ["scored", "appointment"] as const) {
+    const raw = out[tsKey];
+    if (typeof raw !== "string") continue;
+    if (!looksLikeLeadTaggingCell(raw)) continue;
+    if (out.lead_tagging == null || out.lead_tagging === "") {
+      out.lead_tagging = normalizeLeadTaggingValue(raw) ?? raw;
+    }
+    delete out[tsKey];
+  }
+
+  const hasScoredTs =
+    out.scored != null &&
+    out.scored !== "" &&
+    typeof out.scored === "string" &&
+    !looksLikeLeadTaggingCell(out.scored);
+  const hasScoredTsNumber = typeof out.scored === "number" && Number.isFinite(out.scored);
+
+  if (
+    (hasScoredTs || hasScoredTsNumber) &&
+    (out.lead_tagging == null || out.lead_tagging === "")
+  ) {
+    out.lead_tagging = LEAD_TAGGING_SCORED;
+  }
+
+  if (typeof out.lead_tagging === "string") {
+    out.lead_tagging = normalizeLeadTaggingValue(out.lead_tagging) ?? out.lead_tagging;
+  }
+
+  return out;
 }

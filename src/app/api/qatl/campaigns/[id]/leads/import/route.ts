@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import {
+  finalizeImportedLeadRow,
   LEAD_IMPORT_PHONE_FIELD_KEYS,
   normalizeImportPhoneField,
   normalizeImportTimestampField,
   pickAndSanitizeLeadImportFields,
+  stripQaAuditFieldsFromImport,
 } from "@/lib/lead-import-sanitize";
 import {
   applyQaAuditorToImportPayload,
@@ -15,10 +17,10 @@ import {
   type ExistingLeadQaSnapshot,
 } from "@/lib/qa-audit-attribution";
 import { appendQaAuditLeadHistory } from "@/lib/qa-audit-history";
-import { stripQaAuditFieldsFromImport } from "@/lib/lead-import-sanitize";
 import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { logAudit } from "@/lib/audit/log";
 import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
+import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 
 export const dynamic = "force-dynamic";
 
@@ -175,7 +177,9 @@ export async function POST(
     }
 
     for (let i = 0; i < rawLeads.length; i++) {
-      const row = rawLeads[i] as Record<string, unknown>;
+      const row = finalizeImportedLeadRow(
+        rawLeads[i] as Record<string, unknown>
+      );
       const rowIdRaw = row["id"] as string | number | undefined;
       let rowId = rowIdRaw != null ? String(rowIdRaw).trim() : "";
       const rowLeadIdRaw = row["lead_id"] as string | number | undefined;
@@ -273,13 +277,17 @@ export async function POST(
         email_status: fields.email_status || null,
         ev_tool: fields.ev_tool || null,
         address: fields.address || null,
+        address2: fields.address2 || null,
+        address_link: fields.address_link || null,
         city: fields.city || null,
         state: fields.state || null,
         country: fields.country || null,
         zip_code: fields.zip_code || null,
         employee_size: fields.employee_size || null,
+        actual_employee_size: fields.actual_employee_size || null,
         see_all_employees: fields.see_all_employees || null,
         industry: fields.industry || null,
+        industry_type_link: fields.industry_type_link || null,
         channel: normalizedChannel,
         employee_size_link: fields.employee_size_link || null,
         company_website_link: fields.company_website_link || null,
@@ -295,8 +303,15 @@ export async function POST(
         contact_linkedin_url: fields.contact_linkedin_url || null,
         company_linkedin_url: fields.company_linkedin_url || null,
         scored: fields.scored || null,
+        scored_timezone: fields.scored_timezone || null,
         appointment: fields.appointment || null,
-        lead_tagging: fields.lead_tagging || null,
+        appointment_timezone: fields.appointment_timezone || null,
+        lead_tagging:
+          "lead_tagging" in fields
+            ? typeof fields.lead_tagging === "string"
+              ? normalizeLeadTaggingValue(fields.lead_tagging)
+              : null
+            : undefined,
         ra_comment: fields.ra_comment || null,
         special_comments: fields.special_comments || null,
         call_back: fields.call_back || null,
@@ -309,6 +324,7 @@ export async function POST(
         cq4: fields.cq4 || null,
         cq5: fields.cq5 || null,
         asset_title: fields.asset_title || null,
+        asset_title2: fields.asset_title2 || null,
         status: leadStatus,
         lead_disposition: fields.lead_disposition || null,
         followup_date: fields.followup_date || null,

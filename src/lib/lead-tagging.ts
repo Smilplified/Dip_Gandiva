@@ -31,6 +31,32 @@ export function normalizeLeadTaggingValue(value: string | null | undefined): str
 }
 
 /**
+ * True when a cell looks like a Lead Tagging dropdown value (not a datetime).
+ * Used to salvage rows where agents put "Scored" in the scored-date column.
+ */
+export function looksLikeLeadTaggingCell(value: string | null | undefined): boolean {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return false;
+  if (isScoredLeadTagging(trimmed)) return true;
+  if (isCloudThatAgLeadTagging(trimmed)) return true;
+  // Common tagging labels (case-insensitive) from LEAD_TAGGING_OPTIONS
+  const lower = trimmed.toLowerCase();
+  return (
+    lower === "not interested" ||
+    lower === "voicemail" ||
+    lower === "call dropped" ||
+    lower === "invalid number" ||
+    lower === "number not reachable" ||
+    lower === "call back" ||
+    lower === "dead contact" ||
+    lower === "gatekeeper declined" ||
+    lower === "follow-up scheduled" ||
+    lower === "follow up scheduled" ||
+    lower === "do not call"
+  );
+}
+
+/**
  * PostgREST filter: lead_tagging is Scored (any common casing) OR a
  * CloudThat AG scored-equivalent tag. Uses `.in()` so commas in tag values are safe.
  * Loose typing avoids Supabase query-builder deep instantiation errors when
