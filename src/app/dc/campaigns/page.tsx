@@ -35,7 +35,6 @@ interface Campaign {
   client_name: string | null;
   total_leads: number;
   qualified_leads: number;
-  
   delivered_leads: number;
   created_at: string;
 }

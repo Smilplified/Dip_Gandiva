@@ -146,7 +146,7 @@ export function downloadTeamPerformanceReport(
         Rectified: q.rectified_leads,
         "With QA Comments": q.with_qa_comments,
         Today: q.today_audited,
-        "This Week": q.week_audited, 
+        "This Week": q.week_audited,
         "This Month": q.month_audited,
       }))
     );
@@ -166,4 +166,4 @@ export function downloadTeamPerformanceReport(
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-} 
+}

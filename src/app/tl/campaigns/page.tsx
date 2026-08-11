@@ -309,7 +309,7 @@ export default function TLCampaignsPage() {
         ellipsis: true,
         render: (val: string | null) => (
           <Tag color="blue" style={{ fontFamily: "monospace", fontSize: 12, margin: 0 }}>
-            {val || "—"}6
+            {val || "—"}
           </Tag>
         ),
       },
