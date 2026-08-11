@@ -163,7 +163,7 @@ export async function GET(
     const leadsWithRecordings = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
 
     const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]);
-    const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, delivered: 0 };
+    const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, disqualified: 0, delivered: 0 };
     const campaignWithAllocation = enrichCampaignAllocationFields(
       campaignWithTlName,
       metrics,

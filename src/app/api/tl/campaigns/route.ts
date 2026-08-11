@@ -203,6 +203,7 @@ export async function GET(request: NextRequest) {
           total_leads: totalLeads,
           total_agents: agentsByCampaign[c.id] ?? 0,
           qualified_leads: leadCounts?.qualified ?? 0,
+          disqualified_leads: leadCounts?.disqualified ?? 0,
           delivered_leads: leadCounts?.delivered ?? 0,
         },
         {

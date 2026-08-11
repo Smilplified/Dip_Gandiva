@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Row, Col, Typography, Table, Tag, Avatar, Progress, Spin, Empty } from "antd";
+import { Card, Row, Col, Typography, Table, Tag, Avatar, Progress, Spin, Empty, DatePicker } from "antd";
 import DashboardGreeting from "@/components/Dashboard/DashboardGreeting";
+import dayjs, { type Dayjs } from "dayjs";
 import {
+  FundProjectionScreenOutlined,
   TeamOutlined,
-  TrophyOutlined,
   DollarOutlined,
   RiseOutlined,
   ArrowUpOutlined,
@@ -13,15 +14,13 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   Legend,
 } from "recharts";
 
@@ -55,16 +54,44 @@ type ActivityRow = {
   type: string;
 };
 
+type CampaignRevenueRow = {
+  key: string;
+  name: string;
+  status: string;
+  cpl: number;
+  achieved: number;
+  revenue: number;
+  revenueLabel: string;
+};
+
 type ManagerDashboardData = {
   stats: {
-    teamMembers: StatCard;
-    teamDealsClosed: StatCard;
+    campaigns: StatCard;
+    clients: StatCard;
     teamRevenue: StatCard;
     avgConversion: StatCard;
   };
-  monthlyTeamData: { month: string; revenue: number; deals: number }[];
-  pipelineStages: { stage: string; count: number; color: string; max: number }[];
-  repPerformanceData: { name: string; deals: number; revenue: number }[];
+  campaignRevenueTrend: { name: string; fullName?: string; revenue: number }[];
+  campaignRevenueData: CampaignRevenueRow[];
+  latestCampaigns: {
+    id: string;
+    name: string;
+    status: string;
+    achieved: number;
+    allocation: number;
+    percent: number;
+    revenue?: number;
+    revenueLabel?: string;
+    color: string;
+    dateLabel?: string | null;
+  }[];
+  repPerformanceData: {
+    name: string;
+    leads: number;
+    deals: number;
+    activities?: number;
+    revenue: number;
+  }[];
   recentActivities: ActivityRow[];
   teamMembers: TeamMemberRow[];
 };
@@ -80,11 +107,22 @@ const cardStyle = {
 export default function SalesManagerDashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ManagerDashboardData | null>(null);
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
+    dayjs().startOf("month"),
+    dayjs().endOf("day"),
+  ]);
 
   useEffect(() => {
     void (async () => {
+      setLoading(true);
       try {
-        const res = await fetch("/api/sales/manager-dashboard", { credentials: "include" });
+        const params = new URLSearchParams({
+          start_date: dateRange[0].format("YYYY-MM-DD"),
+          end_date: dateRange[1].format("YYYY-MM-DD"),
+        });
+        const res = await fetch(`/api/sales/manager-dashboard?${params.toString()}`, {
+          credentials: "include",
+        });
         const j = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(j.error || "Failed to load dashboard");
         setData(j);
@@ -95,31 +133,31 @@ export default function SalesManagerDashboard() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [dateRange]);
 
   const statsCards = useMemo(() => {
     const s = data?.stats;
     return [
       {
-        title: "Team Members",
-        value: s?.teamMembers.value ?? "0",
-        change: s?.teamMembers.change ?? "—",
-        trend: s?.teamMembers.trend ?? "neutral",
-        icon: <TeamOutlined />,
+        title: "Total Campaigns",
+        value: s?.campaigns.value ?? "0",
+        change: s?.campaigns.change ?? "—",
+        trend: s?.campaigns.trend ?? "neutral",
+        icon: <FundProjectionScreenOutlined />,
         color: "#4f46e5",
         bgColor: "#eef2ff",
       },
       {
-        title: "Team Deals Closed",
-        value: s?.teamDealsClosed.value ?? "0",
-        change: s?.teamDealsClosed.change ?? "—",
-        trend: s?.teamDealsClosed.trend ?? "neutral",
-        icon: <TrophyOutlined />,
+        title: "Total Clients",
+        value: s?.clients.value ?? "0",
+        change: s?.clients.change ?? "—",
+        trend: s?.clients.trend ?? "neutral",
+        icon: <TeamOutlined />,
         color: "#52c41a",
         bgColor: "#f6ffed",
       },
       {
-        title: "Team Revenue",
+        title: "Total Revenue",
         value: s?.teamRevenue.value ?? "$0",
         change: s?.teamRevenue.change ?? "—",
         trend: s?.teamRevenue.trend ?? "neutral",
@@ -139,11 +177,55 @@ export default function SalesManagerDashboard() {
     ];
   }, [data]);
 
-  const monthlyTeamData = data?.monthlyTeamData ?? [];
-  const pipelineStages = data?.pipelineStages ?? [];
+  const campaignRevenueTrend = data?.campaignRevenueTrend ?? [];
+  const campaignRevenueData = data?.campaignRevenueData ?? [];
+  const latestCampaigns = data?.latestCampaigns ?? [];
   const repPerformanceData = data?.repPerformanceData ?? [];
   const recentActivities = data?.recentActivities ?? [];
   const teamMembers = data?.teamMembers ?? [];
+
+  const campaignRevenueColumns = [
+    {
+      title: "Campaign",
+      dataIndex: "name",
+      key: "name",
+      render: (name: string) => <Text strong>{name}</Text>,
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (status: string) => {
+        const s = status.toLowerCase();
+        const color =
+          s === "active" ? "success" : s === "paused" ? "warning" : s === "completed" ? "blue" : "default";
+        const label = s ? s.charAt(0).toUpperCase() + s.slice(1) : status;
+        return <Tag color={color}>{label}</Tag>;
+      },
+    },
+    {
+      title: "CPL",
+      dataIndex: "cpl",
+      key: "cpl",
+      render: (v: number) => <Text>${Number(v).toLocaleString()}</Text>,
+    },
+    {
+      title: "Achieved",
+      dataIndex: "achieved",
+      key: "achieved",
+      render: (v: number) => <Text strong>{v}</Text>,
+    },
+    {
+      title: "Earned Revenue",
+      dataIndex: "revenueLabel",
+      key: "revenue",
+      render: (v: string) => (
+        <Text strong style={{ color: "#52c41a" }}>
+          {v}
+        </Text>
+      ),
+    },
+  ];
 
   const teamColumns = [
     {
@@ -211,17 +293,46 @@ export default function SalesManagerDashboard() {
     },
   ];
 
-  if (loading) {
+  if (loading && !data) {
     return (
-      <div style={{ minHeight: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Spin size="large" />
+      <div style={{ padding: "0 4px" }}>
+        <DashboardGreeting
+          extra={
+            <DatePicker.RangePicker
+              value={dateRange}
+              onChange={(range) => {
+                if (!range || range.length !== 2 || !range[0] || !range[1]) return;
+                setDateRange([range[0].startOf("day"), range[1].endOf("day")]);
+              }}
+              allowClear={false}
+              format="DD MMM YYYY"
+              style={{ width: 280 }}
+            />
+          }
+        />
+        <div style={{ minHeight: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Spin size="large" />
+        </div>
       </div>
     );
   }
 
   return (
     <div style={{ padding: "0 4px" }}>
-      <DashboardGreeting />
+      <DashboardGreeting
+        extra={
+          <DatePicker.RangePicker
+            value={dateRange}
+            onChange={(range) => {
+              if (!range || range.length !== 2 || !range[0] || !range[1]) return;
+              setDateRange([range[0].startOf("day"), range[1].endOf("day")]);
+            }}
+            allowClear={false}
+            format="DD MMM YYYY"
+            style={{ width: 280 }}
+          />
+        }
+      />
 
       <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
         {statsCards.map((stat, index) => (
@@ -285,196 +396,240 @@ export default function SalesManagerDashboard() {
         ))}
       </Row>
 
-      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+      <Row gutter={[20, 20]} style={{ marginBottom: 24 }} align="stretch">
         <Col xs={24} xl={14}>
-          <Card
-            title={<Text strong style={{ fontSize: 16 }}>Team Revenue Trend</Text>}
-            bordered={false}
-            style={cardStyle}
-            styles={{ body: { padding: "24px 24px 16px" } }}
-          >
-            {monthlyTeamData.length === 0 || monthlyTeamData.every((d) => d.revenue === 0) ? (
-              <Empty description="No revenue data yet" style={{ padding: "48px 0" }} />
-            ) : (
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={monthlyTeamData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="colorRevSM" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="month" stroke="#6b7280" fontSize={11} />
-                  <YAxis
-                    stroke="#6b7280"
-                    fontSize={11}
-                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-                  />
-                  <RechartsTooltip
-                    contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
-                    formatter={(v: number) => [`$${(v / 1000).toFixed(1)}k`, "Revenue"]}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#4f46e5"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorRevSM)"
-                    name="Revenue"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-        </Col>
-
-        <Col xs={24} xl={10}>
-          <Card
-            title={<Text strong style={{ fontSize: 16 }}>Pipeline Overview</Text>}
-            bordered={false}
-            style={{ ...cardStyle, height: "100%" }}
-            styles={{ body: { padding: "24px" } }}
-          >
-            {pipelineStages.length === 0 ? (
-              <Empty description="No leads in pipeline" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {pipelineStages.map((stage) => (
-                  <div key={stage.stage}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <Text style={{ fontSize: 13 }}>{stage.stage}</Text>
-                      <Text strong style={{ fontSize: 13 }}>
-                        {stage.count}
-                      </Text>
-                    </div>
-                    <Progress
-                      percent={Math.round((stage.count / stage.max) * 100)}
-                      showInfo={false}
-                      strokeColor={stage.color}
-                      size="small"
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, height: "100%" }}>
+            <Card
+              title={<Text strong style={{ fontSize: 16 }}>Campaign Revenue Trend</Text>}
+              bordered={false}
+              style={cardStyle}
+              styles={{ body: { padding: "20px 20px 12px" } }}
+            >
+              {campaignRevenueTrend.length === 0 ? (
+                <Empty description="No campaign revenue yet" style={{ padding: "32px 0" }} />
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={campaignRevenueTrend} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="name" stroke="#6b7280" fontSize={11} interval={0} />
+                    <YAxis
+                      stroke="#6b7280"
+                      fontSize={11}
+                      tickFormatter={(v: number) =>
+                        v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
+                      }
                     />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                    <RechartsTooltip
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: "1px solid #f0f0f0",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                      }}
+                      formatter={(v: number) => [
+                        `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                        "Revenue",
+                      ]}
+                      labelFormatter={(_label, payload) => {
+                        const row = payload?.[0]?.payload as { fullName?: string; name?: string } | undefined;
+                        return row?.fullName || row?.name || "";
+                      }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                    <Bar
+                      dataKey="revenue"
+                      fill="#4f46e5"
+                      radius={[6, 6, 0, 0]}
+                      name="Earned Revenue"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </Card>
+
+            <Card
+              title={<Text strong style={{ fontSize: 16 }}>Rep Performance</Text>}
+              bordered={false}
+              style={{ ...cardStyle, flex: 1 }}
+              styles={{ body: { padding: "20px 20px 12px" } }}
+            >
+              {repPerformanceData.length === 0 ? (
+                <Empty description="No rep activity found" style={{ padding: "32px 0" }} />
+              ) : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={repPerformanceData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="name" stroke="#6b7280" fontSize={11} />
+                    <YAxis stroke="#6b7280" fontSize={11} />
+                    <RechartsTooltip
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: "1px solid #f0f0f0",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                      }}
+                      formatter={(v: number, name: string) => {
+                        if (name === "revenue") return [`$${v}k`, "Revenue"];
+                        if (name === "leads") return [v, "Leads"];
+                        if (name === "activities") return [v, "Activities"];
+                        return [v, "Deals"];
+                      }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="leads" fill="#722ed1" radius={[6, 6, 0, 0]} name="Leads" />
+                    <Bar dataKey="deals" fill="#4f46e5" radius={[6, 6, 0, 0]} name="Deals" />
+                    <Bar dataKey="activities" fill="#f59e0b" radius={[6, 6, 0, 0]} name="Activities" />
+                    <Bar dataKey="revenue" fill="#52c41a" radius={[6, 6, 0, 0]} name="Revenue ($k)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </Card>
+          </div>
+        </Col>
+
+        <Col xs={24} xl={10}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, height: "100%" }}>
+            <Card
+              title={
+                <Text strong style={{ fontSize: 16 }}>
+                  Campaign Progress
+                  {latestCampaigns.length > 0 ? (
+                    <Text type="secondary" style={{ fontSize: 13, fontWeight: 400, marginLeft: 8 }}>
+                      ({latestCampaigns.length})
+                    </Text>
+                  ) : null}
+                </Text>
+              }
+              bordered={false}
+              style={cardStyle}
+              styles={{ body: { padding: "16px 20px 20px" } }}
+            >
+              {latestCampaigns.length === 0 ? (
+                <Empty description="No campaigns in selected dates" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 420, overflowY: "auto" }}>
+                  {latestCampaigns.map((campaign) => (
+                    <div key={campaign.id}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 4,
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <Text style={{ fontSize: 13, display: "block" }} ellipsis={{ tooltip: campaign.name }}>
+                            {campaign.name}
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            {campaign.dateLabel ? `${campaign.dateLabel} · ` : ""}
+                            {campaign.status}
+                            {campaign.revenueLabel ? ` · ${campaign.revenueLabel}` : ""}
+                          </Text>
+                        </div>
+                        <Text strong style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                          {campaign.achieved}/{campaign.allocation || 0} ({campaign.percent}%)
+                        </Text>
+                      </div>
+                      <Progress
+                        percent={campaign.percent}
+                        showInfo={false}
+                        strokeColor={campaign.color || (
+                          campaign.percent >= 100
+                            ? "#52c41a"
+                            : campaign.percent > 50
+                              ? "#1677ff"
+                              : "#f59e0b"
+                        )}
+                        size="small"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <Card
+              title={<Text strong style={{ fontSize: 16 }}>Recent Team Activity</Text>}
+              bordered={false}
+              style={{ ...cardStyle, flex: 1 }}
+              styles={{ body: { padding: "16px 20px 20px" } }}
+            >
+              {recentActivities.length === 0 ? (
+                <Empty description="No recent activity" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 280, overflowY: "auto" }}>
+                  {recentActivities.map((activity) => (
+                    <div key={activity.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                      <Avatar
+                        size={34}
+                        style={{
+                          backgroundColor: activity.type === "success" ? "#52c41a" : "#4f46e5",
+                          flexShrink: 0,
+                          fontSize: 13,
+                        }}
+                      >
+                        {activity.user[0]?.toUpperCase()}
+                      </Avatar>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, lineHeight: 1.5, color: "#1f1f1f" }}>
+                          <Text strong style={{ fontSize: 13 }}>
+                            {activity.user}
+                          </Text>{" "}
+                          <Text type="secondary" style={{ fontSize: 13 }}>
+                            {activity.action}
+                          </Text>{" "}
+                          <Text strong style={{ fontSize: 13 }}>
+                            {activity.target}
+                          </Text>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 3 }}>
+                          {activity.value !== "—" && (
+                            <Text strong style={{ fontSize: 12, color: "#52c41a" }}>
+                              {activity.value}
+                            </Text>
+                          )}
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            {activity.time}
+                          </Text>
+                        </div>
+                      </div>
+                      {activity.type === "success" && (
+                        <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 15, marginTop: 3 }} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
         </Col>
       </Row>
 
       <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
-        <Col xs={24} xl={14}>
-          <Card
-            title={<Text strong style={{ fontSize: 16 }}>Rep Performance (This Month)</Text>}
-            bordered={false}
-            style={cardStyle}
-            styles={{ body: { padding: "24px 24px 16px" } }}
-          >
-            {repPerformanceData.length === 0 ? (
-              <Empty description="No rep activity this month" style={{ padding: "48px 0" }} />
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={repPerformanceData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="name" stroke="#6b7280" fontSize={11} />
-                  <YAxis stroke="#6b7280" fontSize={11} />
-                  <RechartsTooltip
-                    contentStyle={{ borderRadius: 8, border: "1px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
-                    formatter={(v: number, name: string) => [
-                      name === "revenue" ? `$${v}k` : v,
-                      name === "revenue" ? "Revenue" : "Deals",
-                    ]}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="deals" fill="#4f46e5" radius={[6, 6, 0, 0]} name="Deals" />
-                  <Bar dataKey="revenue" fill="#52c41a" radius={[6, 6, 0, 0]} name="Revenue ($k)" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-        </Col>
-
-        <Col xs={24} xl={10}>
-          <Card
-            title={<Text strong style={{ fontSize: 16 }}>Recent Team Activity</Text>}
-            bordered={false}
-            style={{ ...cardStyle, height: "100%" }}
-            styles={{ body: { padding: "20px 24px" } }}
-          >
-            {recentActivities.length === 0 ? (
-              <Empty description="No recent activity" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {recentActivities.map((activity) => (
-                  <div key={activity.id} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                    <Avatar
-                      size={34}
-                      style={{
-                        backgroundColor: activity.type === "success" ? "#52c41a" : "#4f46e5",
-                        flexShrink: 0,
-                        fontSize: 13,
-                      }}
-                    >
-                      {activity.user[0]?.toUpperCase()}
-                    </Avatar>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, lineHeight: 1.5, color: "#1f1f1f" }}>
-                        <Text strong style={{ fontSize: 13 }}>
-                          {activity.user}
-                        </Text>{" "}
-                        <Text type="secondary" style={{ fontSize: 13 }}>
-                          {activity.action}
-                        </Text>{" "}
-                        <Text strong style={{ fontSize: 13 }}>
-                          {activity.target}
-                        </Text>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 3 }}>
-                        {activity.value !== "—" && (
-                          <Text strong style={{ fontSize: 12, color: "#52c41a" }}>
-                            {activity.value}
-                          </Text>
-                        )}
-                        <Text type="secondary" style={{ fontSize: 11 }}>
-                          {activity.time}
-                        </Text>
-                      </div>
-                    </div>
-                    {activity.type === "success" && (
-                      <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 15, marginTop: 3 }} />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[20, 20]}>
         <Col xs={24}>
           <Card
-            title={<Text strong style={{ fontSize: 16 }}>Team Leaderboard</Text>}
+            title={<Text strong style={{ fontSize: 16 }}>Campaign-wise Revenue</Text>}
             bordered={false}
             style={cardStyle}
           >
-            {teamMembers.length === 0 ? (
-              <Empty description="No team members found" />
+            {campaignRevenueData.length === 0 ? (
+              <Empty description="No campaigns found" />
             ) : (
               <Table
-                columns={teamColumns}
-                dataSource={teamMembers}
-                pagination={false}
+                columns={campaignRevenueColumns}
+                dataSource={campaignRevenueData}
+                pagination={{ pageSize: 10, showSizeChanger: false }}
                 rowKey="key"
                 size="middle"
-                scroll={{ x: 640 }}
+                scroll={{ x: 720 }}
               />
             )}
           </Card>
         </Col>
       </Row>
+
+      
     </div>
   );
 }

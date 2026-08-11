@@ -49,6 +49,7 @@ export async function fetchTlDashboardLeads(
 export type TlCampaignLeadCounts = {
   total: number;
   qualified: number;
+  disqualified: number;
   delivered: number;
 };
 
@@ -56,6 +57,7 @@ type TlCampaignLeadCountsRpcRow = {
   campaign_id: string;
   total_leads: number | string;
   qualified_leads: number | string;
+  disqualified_leads: number | string;
   delivered_leads: number | string;
 };
 
@@ -65,7 +67,7 @@ export async function aggregateTlLeadCountsByCampaign(
   orgId: string,
   campaignIds: string[]
 ): Promise<Record<string, TlCampaignLeadCounts>> {
-  const empty = (): TlCampaignLeadCounts => ({ total: 0, qualified: 0, delivered: 0 });
+  const empty = (): TlCampaignLeadCounts => ({ total: 0, qualified: 0, disqualified: 0, delivered: 0 });
   const out: Record<string, TlCampaignLeadCounts> = {};
   for (const id of campaignIds) out[id] = empty();
   if (campaignIds.length === 0) return out;
@@ -76,15 +78,28 @@ export async function aggregateTlLeadCountsByCampaign(
   });
 
   if (!error && data) {
-    for (const row of (data ?? []) as TlCampaignLeadCountsRpcRow[]) {
-      if (!row.campaign_id) continue;
-      out[row.campaign_id] = {
-        total: Number(row.total_leads) || 0,
-        qualified: Number(row.qualified_leads) || 0,
-        delivered: Number(row.delivered_leads) || 0,
-      };
+    const rows = (data ?? []) as TlCampaignLeadCountsRpcRow[];
+    // Old RPC (pre-disqualified) succeeds but omits the field → would show 0 forever.
+    const rpcHasDisqualified =
+      rows.length === 0 ||
+      rows.some((row) => row.disqualified_leads !== undefined && row.disqualified_leads !== null);
+
+    if (rpcHasDisqualified) {
+      for (const row of rows) {
+        if (!row.campaign_id) continue;
+        out[row.campaign_id] = {
+          total: Number(row.total_leads) || 0,
+          qualified: Number(row.qualified_leads) || 0,
+          disqualified: Number(row.disqualified_leads) || 0,
+          delivered: Number(row.delivered_leads) || 0,
+        };
+      }
+      return out;
     }
-    return out;
+
+    console.warn(
+      "aggregateTlLeadCountsByCampaign: RPC missing disqualified_leads, using paginated fallback"
+    );
   }
 
   if (error) {
@@ -129,15 +144,15 @@ export async function aggregateScoredLeadCountsByCampaign(
 
 export function tallyTlDashboardLeadCounts(
   leads: TlDashboardLeadRow[]
-): Record<string, { total: number; qualified: number; delivered: number }> {
-  const byCampaign: Record<string, { total: number; qualified: number; delivered: number }> = {};
+): Record<string, TlCampaignLeadCounts> {
+  const byCampaign: Record<string, TlCampaignLeadCounts> = {};
 
   for (const l of leads) {
     const campaignId = l.campaign_id;
     if (!campaignId) continue;
 
     if (!byCampaign[campaignId]) {
-      byCampaign[campaignId] = { total: 0, qualified: 0, delivered: 0 };
+      byCampaign[campaignId] = { total: 0, qualified: 0, disqualified: 0, delivered: 0 };
     }
     const bucket = byCampaign[campaignId];
     bucket.total += 1;
@@ -145,6 +160,9 @@ export function tallyTlDashboardLeadCounts(
     const qa = String(l.qa_status ?? "").trim().toLowerCase();
     if (qa === "qualified" || qa === "approved" || qa === "pass") {
       bucket.qualified += 1;
+    }
+    if (qa === "disqualified") {
+      bucket.disqualified += 1;
     }
     if (String(l.delivery_status ?? "").trim().toLowerCase() === "delivered") {
       bucket.delivered += 1;
