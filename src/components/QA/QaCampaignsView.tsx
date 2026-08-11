@@ -508,7 +508,7 @@ export function QaCampaignsView({
             size="middle"
             rowKey="id"
             dataSource={list}
-            scroll={{ x: 1384 }}
+            scroll={{ x: 1504 }}
             tableLayout="fixed"
             pagination={tablePagination}
             rowSelection={rowSelection}
@@ -607,6 +607,20 @@ export function QaCampaignsView({
                   >
                     {v}
                   </Tag>
+                ),
+              },
+              {
+                title: "Total Allocation",
+                dataIndex: "total_allocation",
+                key: "total_allocation",
+                width: 120,
+                align: "center" as const,
+                sorter: (a: Campaign, b: Campaign) =>
+                  (a.total_allocation ?? 0) - (b.total_allocation ?? 0),
+                render: (v: number | null | undefined) => (
+                  <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+                    {v != null ? Number(v).toLocaleString() : "—"}
+                  </Typography.Text>
                 ),
               },
               {
