@@ -296,7 +296,9 @@ export default function QATLCampaignsPage() {
 
   const handleSelectAllCampaigns = async (selected: boolean) => {
     if (!selected) {
-      setSelectedRowKeys([]);
+      // Ant Design also fires onChange after onSelectAll. Defer this update so
+      // that callback cannot restore selections retained from other pages.
+      queueMicrotask(() => setSelectedRowKeys([]));
       return;
     }
 
@@ -331,6 +333,15 @@ export default function QATLCampaignsPage() {
   const rowSelection = {
     selectedRowKeys,
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
+    onSelect: (campaign: Campaign, selected: boolean) => {
+      setSelectedRowKeys((currentKeys) => {
+        if (selected) {
+          return Array.from(new Set([...currentKeys, campaign.id]));
+        }
+
+        return currentKeys.filter((key) => String(key) !== campaign.id);
+      });
+    },
     onSelectAll: (selected: boolean) => {
       void handleSelectAllCampaigns(selected);
     },
