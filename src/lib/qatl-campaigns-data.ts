@@ -3,7 +3,11 @@ import { buildPaginationMeta } from "@/lib/api-pagination";
 import { enrichCampaignAllocationFields, MIS_DELIVERED_ACHIEVED_OPTIONS } from "@/lib/campaign-allocation";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
-import { countPendingAuditLeads } from "@/lib/qa-lead-audit";
+import {
+  countDisqualifiedLeads,
+  countPendingAuditLeads,
+  countQualifiedLeads,
+} from "@/lib/qa-lead-audit";
 import {
   fetchBulkCampaignTeamLeaderAssignments,
   formatTeamLeaderAssignmentLabel,
@@ -47,6 +51,8 @@ export type QatlCampaignRow = {
   job_function?: string | null;
   creatives_url?: string[] | null;
   scored_leads_count: number;
+  qualified_leads_count: number;
+  disqualified_leads_count: number;
   qa_pending_leads_count: number;
   delivered_leads_count: number;
   last_lead_activity_at: string | null;
@@ -238,6 +244,8 @@ export async function loadQatlCampaignsForDateRange(
   type CampaignBase =     Omit<
     QatlCampaignRow,
     | "scored_leads_count"
+    | "qualified_leads_count"
+    | "disqualified_leads_count"
     | "qa_pending_leads_count"
     | "delivered_leads_count"
     | "last_lead_activity_at"
@@ -285,7 +293,13 @@ export async function loadQatlCampaignsForDateRange(
 
   for (const c of campaignsList) {
     const leads = leadsByCampaign[c.id] ?? [];
+    // The QA TL campaign table represents lead activity in the selected upload
+    // date range, so campaigns without a lead in that range are not listed.
+    if (leads.length === 0) continue;
+
     const qaPending = countPendingAuditLeads(leads as { qa_status?: string | null }[]);
+    const qualified = countQualifiedLeads(leads as { qa_status?: string | null }[]);
+    const disqualified = countDisqualifiedLeads(leads as { qa_status?: string | null }[]);
     let activityMs = 0;
     let delivered = 0;
     for (const l of leads) {
@@ -308,6 +322,8 @@ export async function loadQatlCampaignsForDateRange(
       ...enriched,
       assigned_team_leader_name,
       scored_leads_count: leads.length,
+      qualified_leads_count: qualified,
+      disqualified_leads_count: disqualified,
       qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,
       last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,
@@ -315,8 +331,17 @@ export async function loadQatlCampaignsForDateRange(
     });
   }
 
-  // Latest-launched campaigns first (start_date), then newest created.
+  // Campaigns with the newest lead activity appear first. Campaigns without
+  // activity in the selected range fall back to their launch/creation date.
   visible.sort((a, b) => {
+    const aActivity = a.last_lead_activity_at
+      ? new Date(a.last_lead_activity_at).getTime()
+      : 0;
+    const bActivity = b.last_lead_activity_at
+      ? new Date(b.last_lead_activity_at).getTime()
+      : 0;
+    if (bActivity !== aActivity) return bActivity - aActivity;
+
     const aLaunch = a.start_date
       ? new Date(a.start_date).getTime()
       : a.created_at

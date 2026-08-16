@@ -63,6 +63,10 @@ function utcEndOfDayInTz(dateStr: string, tz: string): string {
   return dayjs.tz(`${dateStr} 23:59:59.999`, "YYYY-MM-DD HH:mm:ss.SSS", tz).utc().toISOString();
 }
 
+function utcStartOfDayInTz(dateStr: string, tz: string): string {
+  return dayjs.tz(`${dateStr} 00:00:00.000`, "YYYY-MM-DD HH:mm:ss.SSS", tz).utc().toISOString();
+}
+
 function isQualifiedQa(qa: string | null | undefined): boolean {
   const q = String(qa ?? "").trim().toLowerCase();
   return q === "qualified" || q === "approved" || q === "pass";
@@ -77,10 +81,11 @@ type LeadRow = {
   created_at: string;
 };
 
-async function fetchLeadsThroughEndDate(
+async function fetchLeadsInDateRange(
   admin: NonNullable<ReturnType<typeof getAdminClientSafe>>,
   orgId: string,
   campaignIds: string[],
+  startUtc: string,
   endUtc: string
 ): Promise<LeadRow[]> {
   if (campaignIds.length === 0) return [];
@@ -94,6 +99,7 @@ async function fetchLeadsThroughEndDate(
       .select("qa_status, created_at")
       .eq("organization_id", orgId)
       .in("campaign_id", campaignIds)
+      .gte("created_at", startUtc)
       .lte("created_at", endUtc)
       .order("created_at", { ascending: true })
       .range(offset, offset + LEADS_PAGE_SIZE - 1);
@@ -148,7 +154,9 @@ export async function GET(request: Request) {
     const tzParam = url.searchParams.get("tz");
     const appTz = isValidTimeZone(tzParam) ? tzParam : "UTC";
     const today = dayjs().tz(appTz).format("YYYY-MM-DD");
+    const startDate = url.searchParams.get("start_date") || today;
     const endDate = url.searchParams.get("end_date") || today;
+    const startUtc = utcStartOfDayInTz(startDate, appTz);
     const endUtc = utcEndOfDayInTz(endDate, appTz);
     const weekEnd = dayjs.tz(endDate, "YYYY-MM-DD", appTz).endOf("week").format("YYYY-MM-DD");
 
@@ -222,7 +230,7 @@ export async function GET(request: Request) {
 
     let leads: LeadRow[] = [];
     try {
-      leads = await fetchLeadsThroughEndDate(admin, orgId, campaignIds, endUtc);
+      leads = await fetchLeadsInDateRange(admin, orgId, campaignIds, startUtc, endUtc);
     } catch (leadsErr) {
       const msg = leadsErr instanceof Error ? leadsErr.message : "Failed to load leads";
       return NextResponse.json({ error: msg }, { status: 500 });

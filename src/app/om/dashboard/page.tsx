@@ -188,7 +188,7 @@ export default function OperationsManagerDashboardPage() {
   const [activeView, setActiveView] = useState<"campaign" | "team">("campaign");
   const [selectedDateRange, setSelectedDateRange] = useState<[Dayjs, Dayjs]>(() => {
     const end = dayjs();
-    const start = dayjs().subtract(30, "day");
+    const start = end.startOf("month");
     return [start, end];
   });
   const [campaignTypeFilter, setCampaignTypeFilter] = useState<string | null>(null);
@@ -243,15 +243,14 @@ export default function OperationsManagerDashboardPage() {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   }, []);
 
-  // KPI cards are cumulative "as of" the selected end date — default (today)
-  // means "till now"; picking an earlier date shows the numbers as they stood
-  // on that date, so the cards actually move with the date picker.
+  // Keep KPI data in sync with the selected date range, just like the
+  // performance charts and detail drawers.
   const summaryApiUrl = useMemo(() => {
     const start = selectedDateRange[0].format("YYYY-MM-DD");
     const end = selectedDateRange[1].format("YYYY-MM-DD");
-    const params = new URLSearchParams({ start_date: start, end_date: end });
+    const params = new URLSearchParams({ start_date: start, end_date: end, tz: timeZone });
     return `/api/tl/dashboard/summary?${params.toString()}`;
-  }, [selectedDateRange]);
+  }, [selectedDateRange, timeZone]);
 
   const summaryQuery = useCachedApiQuery<DashboardSummaryResponse>(
     ["tl", "dashboard", "summary", summaryApiUrl],

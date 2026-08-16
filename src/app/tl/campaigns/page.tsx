@@ -18,6 +18,8 @@ import {
   Input,
   Select,
   Empty,
+  Modal,
+  Transfer,
 } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import {
@@ -25,7 +27,6 @@ import {
   FundProjectionScreenOutlined,
   TeamOutlined,
   SendOutlined,
-  EyeOutlined,
   UserAddOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -52,6 +53,7 @@ type CampaignRow = {
   start_date: string | null;
   end_date: string | null;
   created_at: string;
+  total_allocation: number | null;
   total_leads: number;
   total_agents: number;
   qualified_leads: number;
@@ -91,12 +93,22 @@ export default function TLCampaignsPage() {
   const { hasTLAccess, hasRole, isInitialized } = useAuth();
   const isOperationsManager = hasRole("operations_manager");
   const isAdmin = hasRole("admin");
-  const campaignDetailHref = (campaignId: string) =>
-    isAdmin ? `/admin/campaigns/${campaignId}` : `/tl/campaigns/${campaignId}`;
+  const campaignDetailHref = useCallback(
+    (campaignId: string) =>
+      isAdmin ? `/admin/campaigns/${campaignId}` : `/tl/campaigns/${campaignId}`,
+    [isAdmin]
+  );
   const [isOffline, setIsOffline] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [assignTlCampaign, setAssignTlCampaign] = useState<CampaignRow | null>(null);
+  const [teamLeaders, setTeamLeaders] = useState<
+    { id: string; full_name: string | null; email: string | null }[]
+  >([]);
+  const [selectedTeamLeaderIds, setSelectedTeamLeaderIds] = useState<string[]>([]);
+  const [teamLeadersLoading, setTeamLeadersLoading] = useState(false);
+  const [assigningTeamLeaders, setAssigningTeamLeaders] = useState(false);
   const { page, pageSize, applyPaginationMeta, resetPage, tablePagination } =
     useServerTablePagination();
 
@@ -221,6 +233,88 @@ export default function TLCampaignsPage() {
       }
     },
     [refreshLists]
+  );
+
+  useEffect(() => {
+    if (!assignTlCampaign) return;
+
+    let cancelled = false;
+    setTeamLeadersLoading(true);
+    Promise.all([
+      fetch("/api/tl/team-leaders", { credentials: "include" }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load team leaders");
+        return data as {
+          team_leaders?: { id: string; full_name: string | null; email: string | null }[];
+        };
+      }),
+      fetch(`/api/tl/campaigns/${assignTlCampaign.id}`, { credentials: "include" }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to load campaign assignments");
+        return data as {
+          campaign?: {
+            assigned_team_leader_id?: string | null;
+            team_leader_assignments?: { team_leader_id: string }[];
+          };
+        };
+      }),
+    ])
+      .then(([teamLeadersData, campaignData]) => {
+        if (cancelled) return;
+        setTeamLeaders(teamLeadersData.team_leaders ?? []);
+        const assignments = campaignData.campaign?.team_leader_assignments ?? [];
+        const assignedIds = assignments.map((assignment) => assignment.team_leader_id);
+        const legacyId = campaignData.campaign?.assigned_team_leader_id;
+        setSelectedTeamLeaderIds(
+          legacyId && !assignedIds.includes(legacyId) ? [...assignedIds, legacyId] : assignedIds
+        );
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          message.error(error instanceof Error ? error.message : "Failed to load team leaders");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTeamLeadersLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignTlCampaign]);
+
+  const handleAssignTeamLeaders = useCallback(async () => {
+    if (!assignTlCampaign) return;
+
+    setAssigningTeamLeaders(true);
+    try {
+      const res = await fetch(`/api/tl/campaigns/${assignTlCampaign.id}/assign-team-leaders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ team_leader_ids: selectedTeamLeaderIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to assign team leaders");
+
+      message.success("Team leader assignments updated");
+      setAssignTlCampaign(null);
+      refreshLists();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Failed to assign team leaders");
+    } finally {
+      setAssigningTeamLeaders(false);
+    }
+  }, [assignTlCampaign, refreshLists, selectedTeamLeaderIds]);
+
+  const teamLeaderTransferData = useMemo(
+    () =>
+      teamLeaders.map((teamLeader) => ({
+        key: teamLeader.id,
+        title: teamLeader.full_name || teamLeader.email || "Unknown",
+        description: teamLeader.email || "",
+      })),
+    [teamLeaders]
   );
 
   const leadMetricColumns: ColumnsType<CampaignRow> = useMemo(
@@ -350,6 +444,14 @@ export default function TLCampaignsPage() {
           },
         ]),
       {
+        title: "Total Allocation",
+        dataIndex: "total_allocation",
+        key: "total_allocation",
+        width: 130,
+        align: "center",
+        render: (value: number | null) => (value ?? 0).toLocaleString(),
+      },
+      {
         title: "Status",
         dataIndex: "status",
         key: "status",
@@ -439,21 +541,13 @@ export default function TLCampaignsPage() {
         fixed: "right",
         render: (_: unknown, r: CampaignRow) => (
           <div style={{ display: "flex", gap: 8, flexWrap: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-            <Tooltip title="View">
-              <Button
-                type="text"
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => router.push(campaignDetailHref(r.id))}
-              />
-            </Tooltip>
             {isOperationsManager ? (
               <Tooltip title="Assign Team Leader">
                 <Button
                   type="text"
                   size="small"
                   icon={<UserAddOutlined />}
-                  onClick={() => router.push(`${campaignDetailHref(r.id)}?assignTl=1`)}
+                  onClick={() => setAssignTlCampaign(r)}
                 />
               </Tooltip>
             ) : (
@@ -489,7 +583,15 @@ export default function TLCampaignsPage() {
         ),
       },
     ],
-    [page, pageSize, handleStatusChange, isOperationsManager, isAdmin, leadMetricColumns, router]
+    [
+      page,
+      pageSize,
+      campaignDetailHref,
+      handleStatusChange,
+      isOperationsManager,
+      leadMetricColumns,
+      router,
+    ]
   );
 
   const campaignSummary = summaryStats;
@@ -620,6 +722,50 @@ export default function TLCampaignsPage() {
           </Col>
         ))}
       </Row>
+
+      <Modal
+        title={`Assign Team Leaders${assignTlCampaign ? `: ${assignTlCampaign.name}` : ""}`}
+        open={Boolean(assignTlCampaign)}
+        onCancel={() => setAssignTlCampaign(null)}
+        onOk={handleAssignTeamLeaders}
+        confirmLoading={assigningTeamLeaders}
+        okText="Save Assignments"
+        width={560}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary">
+          Move team leaders between the lists to assign or unassign them from this campaign.
+        </Typography.Paragraph>
+        {teamLeadersLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
+            <Spin size="large" />
+          </div>
+        ) : teamLeaders.length === 0 ? (
+          <Empty description="No Team Leaders found in your organization" />
+        ) : (
+          <Transfer
+            dataSource={teamLeaderTransferData}
+            titles={["Available", "Assigned"]}
+            targetKeys={selectedTeamLeaderIds}
+            onChange={(targetKeys) => setSelectedTeamLeaderIds(targetKeys.map(String))}
+            render={(item) => (
+              <span>
+                <strong>{item.title}</strong>
+                {item.description && (
+                  <span style={{ color: "#6b7280", marginLeft: 8 }}>({item.description})</span>
+                )}
+              </span>
+            )}
+            showSearch
+            filterOption={(inputValue, item) =>
+              (item.title?.toLowerCase() ?? "").includes(inputValue.toLowerCase()) ||
+              (item.description?.toLowerCase() ?? "").includes(inputValue.toLowerCase())
+            }
+            listStyle={{ width: 240, height: 320 }}
+            pagination
+          />
+        )}
+      </Modal>
 
       <Card
         title="All Campaigns"
