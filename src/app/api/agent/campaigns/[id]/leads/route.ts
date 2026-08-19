@@ -7,6 +7,7 @@ import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { logAudit } from "@/lib/audit/log";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 import { checkDuplicateLead } from "@/lib/leads/checkDuplicateLead";
+import { normalizeBillableStatus } from "@/lib/leads/billable-status";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,7 @@ export async function GET(
     }
 
     const { page, limit, offset } = parseListPagination(new URL(request.url).searchParams);
-    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_type, lead_tagging, lead_disposition, delivery_status, delivered_at";
+    const leadsSelectBase = "id, lead_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_type, lead_tagging, lead_disposition, delivery_status, delivered_at, billable_status";
     const leadsSelectExtended = leadsSelectBase + ", salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, address2, address_link, actual_employee_size, industry_type_link";
     let leadsList: unknown[] | null = null;
     let leadsError: { message?: string } | null = null;
@@ -558,6 +559,7 @@ export async function PATCH(
       lead_disposition,
       followup_date,
       notes,
+      billable_status,
     } = body ?? {};
 
     if (!leadRowId) {
@@ -649,6 +651,17 @@ export async function PATCH(
     if (status !== undefined && typeof status === "string" && status.length > 0) updates.status = status;
     if (followup_date !== undefined) updates.followup_date = followup_date || null;
     if (notes !== undefined) updates.notes = notes || null;
+    if (billable_status !== undefined) {
+      if (billable_status === null || billable_status === "") {
+        updates.billable_status = null;
+      } else {
+        const normalized = normalizeBillableStatus(billable_status);
+        if (!normalized) {
+          return NextResponse.json({ error: "Invalid billable_status" }, { status: 400 });
+        }
+        updates.billable_status = normalized;
+      }
+    }
 
     for (const key of Object.keys(updates)) {
       if (AGENT_READONLY_LEAD_FIELD_SET.has(key)) {

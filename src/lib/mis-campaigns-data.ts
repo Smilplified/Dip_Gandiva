@@ -4,6 +4,7 @@ import { enrichCampaignAllocationFields, MIS_DELIVERED_ACHIEVED_OPTIONS } from "
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
 import { countPendingAuditLeads } from "@/lib/qa-lead-audit";
+import { isBillableLeadStatus } from "@/lib/leads/billable-status";
 
 const LEADS_PAGE_SIZE = 1000;
 
@@ -43,6 +44,7 @@ export type MisCampaignRow = {
   job_function?: string | null;
   creatives_url?: string[] | null;
   scored_leads_count: number;
+  billable_leads_count: number;
   qa_pending_leads_count: number;
   delivered_leads_count: number;
   last_lead_activity_at: string | null;
@@ -103,7 +105,7 @@ async function fetchMisLeadsForCounts(
     const { data, error } = await applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
-        .select("campaign_id, created_at, delivery_status, qa_status")
+        .select("campaign_id, created_at, delivery_status, qa_status, billable_status")
         .eq("organization_id", orgId)
         .in("campaign_id", campaignIds)
         .gte("created_at", uploadRange.startUtc)
@@ -287,10 +289,12 @@ export async function loadMisCampaignsForDateRange(
     const qaPending = countPendingAuditLeads(leads as { qa_status?: string | null }[]);
     let activityMs = 0;
     let delivered = 0;
+    let billable = 0;
     for (const l of leads) {
       const createdMs = new Date(String(l.created_at)).getTime();
       if (Number.isFinite(createdMs) && createdMs > activityMs) activityMs = createdMs;
       if (isDeliveredStatus(l.delivery_status)) delivered += 1;
+      if (isBillableLeadStatus(l.billable_status)) billable += 1;
     }
 
     const metrics = { total: leads.length, qualified: 0, delivered };
@@ -302,6 +306,7 @@ export async function loadMisCampaignsForDateRange(
         ? tlNames[c.assigned_team_leader_id] ?? null
         : null,
       scored_leads_count: leads.length,
+      billable_leads_count: billable,
       qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,
       last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,

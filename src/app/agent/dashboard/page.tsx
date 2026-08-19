@@ -112,6 +112,7 @@ export default function AgentDashboardPage() {
       qualifiedLeads: 0,
       disqualifiedLeads: 0,
       qualifiedRatePct: 0,
+      billableLeads: 0,
     };
     return [
       {
@@ -148,8 +149,11 @@ export default function AgentDashboardPage() {
       },
       {
         title: "Billable Leads",
-        value: "0",
-        change: "No billable leads yet",
+        value: s.billableLeads.toLocaleString(),
+        change:
+          s.billableLeads > 0
+            ? "Attended-Billable leads"
+            : "No billable leads yet",
         icon: <DollarCircleOutlined />,
         color: "#08979c",
         bgColor: "#e6fffb",

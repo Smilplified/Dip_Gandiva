@@ -9,6 +9,7 @@ import {
   summarizeAgentLeads,
   type AgentLeadRow,
 } from "@/lib/agent-dashboard-metrics";
+import { isBillableLeadStatus } from "@/lib/leads/billable-status";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ async function fetchLeadRows(
   for (;;) {
     let query = supabase
       .from("leads")
-      .select("campaign_id, status, qa_status, created_at")
+      .select("campaign_id, status, qa_status, billable_status, created_at")
       .in("campaign_id", campaignIds);
 
     if (agentId) {
@@ -102,6 +103,7 @@ export async function GET(request: Request) {
         qualifiedLeads: 0,
         disqualifiedLeads: 0,
         qualifiedRatePct: 0,
+        billableLeads: 0,
       },
       leadTrend: [],
       campaignLeads: [],
@@ -159,11 +161,11 @@ export async function GET(request: Request) {
 
     const leadsByCampaign: Record<
       string,
-      { total: number; active: number; won: number; qualified: number }
+      { total: number; active: number; won: number; qualified: number; billable: number }
     > = {};
     for (const l of agentLeads) {
       if (!leadsByCampaign[l.campaign_id]) {
-        leadsByCampaign[l.campaign_id] = { total: 0, active: 0, won: 0, qualified: 0 };
+        leadsByCampaign[l.campaign_id] = { total: 0, active: 0, won: 0, qualified: 0, billable: 0 };
       }
       const b = leadsByCampaign[l.campaign_id];
       b.total += 1;
@@ -172,6 +174,7 @@ export async function GET(request: Request) {
       if (st === "closed_won") b.won += 1;
       const qa = String(l.qa_status ?? "").trim().toLowerCase();
       if (qa === "qualified" || qa === "approved" || qa === "pass") b.qualified += 1;
+      if (isBillableLeadStatus(l.billable_status)) b.billable += 1;
     }
 
     const totalCampaigns = campaignIds.length;
@@ -195,6 +198,7 @@ export async function GET(request: Request) {
         qualifiedLeads: leadSummary.qualifiedLeads,
         disqualifiedLeads: leadSummary.disqualifiedLeads,
         qualifiedRatePct: leadSummary.qualifiedRatePct,
+        billableLeads: leadSummary.billableLeads,
       },
       leadTrend: buildAgentLeadTrend(agentLeads),
       campaignLeads: buildAgentCampaignLeadBars(campaigns, agentLeads),

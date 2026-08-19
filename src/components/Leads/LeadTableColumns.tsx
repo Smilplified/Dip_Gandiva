@@ -8,6 +8,7 @@ import type { ColumnsType, ColumnType } from "antd/es/table";
 import { EditOutlined, CopyOutlined, DownloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Lead } from "@/types/lead.types";
+import { BILLABLE_STATUS_OPTIONS } from "@/lib/leads/billable-status";
 import { LeadTableRecordingCell } from "@/components/Leads/LeadTableRecordingCell";
 import { tableSerialNumber } from "@/lib/table-pagination";
 import { useAuth } from "@/context/AuthContext";
@@ -19,6 +20,8 @@ import {
   LEAD_MEETING_DATE_TIME_LABEL,
   LEAD_MEETING_SET_DATE_TIME_LABEL,
 } from "@/lib/lead-field-labels";
+
+export { BILLABLE_STATUS_OPTIONS };
 
 const STATUS_COLORS: Record<string, string> = {
   new: "default",
@@ -73,18 +76,6 @@ type ColumnConfig = {
   showVoiceRecordings?: boolean;
   onVoiceRecordingsChange?: () => void;
 };
-
-export const BILLABLE_STATUS_OPTIONS = [
-  "Attended",
-  "Attended-Billable",
-  "Attended-Non-Billable",
-  "Attended-Dispute",
-  "TO BE Rescheduled",
-  "Decline",
-  "Disqualified",
-  "Client Reject",
-  "Future confirmed",
-].map((status) => ({ label: status, value: status }));
 
 function formatLeadDateTimeCell(value: string | null | undefined): string {
   if (!value?.trim()) return "—";
@@ -581,7 +572,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
                   />
                 </span>
               ) : (
-                v || "â€”"
+                v || "—"
               ),
           } as NonNullable<TableProps<Lead>["columns"]>[number],
         ]

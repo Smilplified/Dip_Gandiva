@@ -8,11 +8,12 @@ import {
   isLeadPendingAudit,
   isLeadQualified,
 } from "@/lib/qa-lead-audit";
+import { countBillableLeads } from "@/lib/leads/billable-status";
 
 const LEADS_PAGE_SIZE = 1000;
 
 const MIS_DASHBOARD_LEAD_SELECT =
-  "id, status, qa_status, assigned_agent_id, created_at, campaign_id, call_back, lead_tagging";
+  "id, status, qa_status, assigned_agent_id, created_at, campaign_id, call_back, lead_tagging, billable_status";
 
 export type MisDashboardLeadRow = {
   id: string;
@@ -23,6 +24,7 @@ export type MisDashboardLeadRow = {
   campaign_id: string;
   call_back: string | null;
   lead_tagging: string | null;
+  billable_status: string | null;
 };
 
 export type MisDashboardStats = {
@@ -34,6 +36,7 @@ export type MisDashboardStats = {
   qaApprovedLeads: number;
   qaRejectedLeads: number;
   callBackLeads: number;
+  billableLeads: number;
 };
 
 export type MisCampaignPerformanceRow = {
@@ -128,6 +131,7 @@ export function buildMisDashboardAggregates(
   const pendingLeads = countPendingAuditLeads(leads);
   const qaRejectedLeads = countDisqualifiedLeads(leads);
   const callBackLeads = leads.filter((l) => isCallBackLead(l)).length;
+  const billableLeads = countBillableLeads(leads);
 
   const leadStatusMap = new Map<string, number>();
   const agentMap = new Map<
@@ -220,6 +224,7 @@ export function buildMisDashboardAggregates(
       qaApprovedLeads,
       qaRejectedLeads,
       callBackLeads,
+      billableLeads,
     },
     leadStatus: Array.from(leadStatusMap.entries()).map(([status, count]) => ({ status, count })),
     campaignPerformance: Array.from(campaignPerformanceMap.values()).sort(

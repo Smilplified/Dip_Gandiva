@@ -316,13 +316,28 @@ export default function AgentCampaignDetailPage() {
     [form]
   );
 
-  const handleBillableStatusChange = useCallback((lead: Lead, nextStatus: string | null) => {
-    setLeads((prev) =>
-      prev.map((row) =>
-        row.id === lead.id ? { ...row, billable_status: nextStatus } : row
-      )
-    );
-  }, []);
+  const handleBillableStatusChange = useCallback(async (lead: Lead, nextStatus: string | null) => {
+    if (!params.id) return;
+    const campaignId = String(params.id);
+    try {
+      const res = await fetch(`/api/agent/campaigns/${campaignId}/leads`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: lead.id, billable_status: nextStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update billable status");
+      message.success(nextStatus ? "Billable status updated" : "Billable status cleared");
+      setLeads((prev) =>
+        prev.map((row) =>
+          row.id === lead.id ? { ...row, billable_status: nextStatus } : row
+        )
+      );
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Failed to update billable status");
+    }
+  }, [params.id]);
 
   const leadColumns = useMemo(
     () =>

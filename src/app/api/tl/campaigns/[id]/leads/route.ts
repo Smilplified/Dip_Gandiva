@@ -11,6 +11,7 @@ import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 import { logAudit } from "@/lib/audit/log";
 import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
+import { normalizeBillableStatus } from "@/lib/leads/billable-status";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +148,7 @@ export async function PATCH(
       followup_date,
       notes,
       delivery_status,
+      billable_status,
     } = body ?? {};
 
     if (!leadRowId) {
@@ -277,9 +279,21 @@ export async function PATCH(
         return NextResponse.json({ error: "Invalid delivery_status" }, { status: 400 });
       }
     }
+    if (billable_status !== undefined) {
+      if (billable_status === null || billable_status === "") {
+        updates.billable_status = null;
+      } else {
+        const normalized = normalizeBillableStatus(billable_status);
+        if (!normalized) {
+          return NextResponse.json({ error: "Invalid billable_status" }, { status: 400 });
+        }
+        updates.billable_status = normalized;
+      }
+    }
 
     const canEditQa = roleNames.includes("qa");
     const canEditDelivery = roleNames.includes("mis");
+    const canEditBillable = roleNames.includes("mis") || roleNames.includes("admin");
     let previousQaStatus: string | null = null;
     let previousDeliveryStatus: string | null = null;
     let qaHistoryContext: {
@@ -365,6 +379,9 @@ export async function PATCH(
     }
     if (delivery_status !== undefined && !canEditDelivery) {
       return NextResponse.json({ error: "Only MIS can update delivery status" }, { status: 403 });
+    }
+    if (billable_status !== undefined && !canEditBillable) {
+      return NextResponse.json({ error: "Only MIS can update billable status" }, { status: 403 });
     }
 
     if (updates.delivery_status !== undefined) {
