@@ -20,6 +20,15 @@ export type DuplicateLeadMatch = {
     | "First Name + Last Name + Company Domain";
 };
 
+export type DuplicateLeadRecord = DuplicateLeadInput & {
+  id?: unknown;
+  lead_id?: unknown;
+};
+
+type DuplicateCheckOptions = {
+  includeProspectLinkedIn?: boolean;
+};
+
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
@@ -72,6 +81,69 @@ function normalizeLinkedInUrl(value: unknown): string {
   }
 }
 
+/** Applies the shared duplicate rules to a candidate and supplied lead records. */
+export function findDuplicateLeadMatch(
+  lead: DuplicateLeadInput,
+  existingLeads: DuplicateLeadRecord[],
+  { includeProspectLinkedIn = true }: DuplicateCheckOptions = {}
+): DuplicateLeadMatch | null {
+  const candidate = {
+    firstName: normalizeText(lead.first_name),
+    lastName: normalizeText(lead.last_name),
+    companyBase: normalizeCompanyBase(lead.company_name),
+    domainBase: normalizeCompanyBase(lead.domain, true),
+    linkedInUrl: normalizeLinkedInUrl(lead.contact_linkedin_url),
+    jobTitleLink: normalizeLinkedInUrl(lead.job_title_link),
+    email: normalizeText(lead.email),
+  };
+
+  for (const row of existingLeads) {
+    const existingFirstName = normalizeText(row.first_name);
+    const existingLastName = normalizeText(row.last_name);
+    const sameName =
+      Boolean(candidate.firstName && candidate.lastName) &&
+      candidate.firstName === existingFirstName &&
+      candidate.lastName === existingLastName;
+    const leadId = String(row.lead_id ?? row.id ?? "existing lead");
+    const existingCompanyBase = normalizeCompanyBase(row.company_name);
+    const existingDomainBase = normalizeCompanyBase(row.domain, true);
+
+    if (candidate.email && candidate.email === normalizeText(row.email)) {
+      return { leadId, reason: "Email ID" };
+    }
+    if (
+      includeProspectLinkedIn &&
+      candidate.linkedInUrl &&
+      candidate.linkedInUrl === normalizeLinkedInUrl(row.contact_linkedin_url)
+    ) {
+      return { leadId, reason: "Prospect LinkedIn URL" };
+    }
+    if (
+      candidate.jobTitleLink &&
+      candidate.jobTitleLink === normalizeLinkedInUrl(row.job_title_link)
+    ) {
+      return { leadId, reason: "Job Title Link" };
+    }
+    if (
+      sameName &&
+      candidate.companyBase &&
+      candidate.companyBase === existingCompanyBase
+    ) {
+      return { leadId, reason: "First Name + Last Name + Company Name" };
+    }
+    if (
+      sameName &&
+      ((candidate.domainBase && candidate.domainBase === existingDomainBase) ||
+        (candidate.companyBase && candidate.companyBase === existingDomainBase) ||
+        (candidate.domainBase && candidate.domainBase === existingCompanyBase))
+    ) {
+      return { leadId, reason: "First Name + Last Name + Company Domain" };
+    }
+  }
+
+  return null;
+}
+
 /** Finds a manually-created lead's duplicate within the same campaign only. */
 export async function checkDuplicateLead(
   supabase: SupabaseClient,
@@ -85,16 +157,6 @@ export async function checkDuplicateLead(
     lead: DuplicateLeadInput;
   }
 ): Promise<DuplicateLeadMatch | null> {
-  const candidate = {
-    firstName: normalizeText(lead.first_name),
-    lastName: normalizeText(lead.last_name),
-    companyBase: normalizeCompanyBase(lead.company_name),
-    domainBase: normalizeCompanyBase(lead.domain, true),
-    linkedInUrl: normalizeLinkedInUrl(lead.contact_linkedin_url),
-    jobTitleLink: normalizeLinkedInUrl(lead.job_title_link),
-    email: normalizeText(lead.email),
-  };
-
   const pageSize = 1000;
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
@@ -106,49 +168,9 @@ export async function checkDuplicateLead(
 
     if (error) throw new Error(error.message);
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
-    for (const row of rows) {
-      const existingFirstName = normalizeText(row.first_name);
-      const existingLastName = normalizeText(row.last_name);
-      const sameName =
-        Boolean(candidate.firstName && candidate.lastName) &&
-        candidate.firstName === existingFirstName &&
-        candidate.lastName === existingLastName;
-      const leadId = String(row.lead_id ?? row.id);
-      const existingCompanyBase = normalizeCompanyBase(row.company_name);
-      const existingDomainBase = normalizeCompanyBase(row.domain, true);
-
-      if (candidate.email && candidate.email === normalizeText(row.email)) {
-        return { leadId, reason: "Email ID" };   
-      }
-      if (
-        candidate.linkedInUrl &&
-        candidate.linkedInUrl === normalizeLinkedInUrl(row.contact_linkedin_url)
-      ) {
-        return { leadId, reason: "Prospect LinkedIn URL" };
-      }
-      if (
-        candidate.jobTitleLink &&
-        candidate.jobTitleLink === normalizeLinkedInUrl(row.job_title_link)
-      ) {
-        return { leadId, reason: "Job Title Link" };
-      }
-      if (
-        sameName &&
-        candidate.companyBase &&
-        candidate.companyBase === existingCompanyBase                                          
-      ) {
-        return { leadId, reason: "First Name + Last Name + Company Name" };
-      }
-      if (
-        sameName &&
-        ((candidate.domainBase && candidate.domainBase === existingDomainBase) ||
-          (candidate.companyBase && candidate.companyBase === existingDomainBase) ||
-          (candidate.domainBase && candidate.domainBase === existingCompanyBase))
-      ) {
-        return { leadId, reason: "First Name + Last Name + Company Domain" };
-      }
-    }
+    const rows = (data ?? []) as DuplicateLeadRecord[];
+    const match = findDuplicateLeadMatch(lead, rows);
+    if (match) return match;
 
     if (rows.length < pageSize) return null;
   }

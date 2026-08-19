@@ -500,15 +500,19 @@ export default function AgentCampaignDetailPage() {
       if (!res.ok) throw new Error(data.error || "Import failed");
       const created = data.created ?? 0;
       const updated = data.updated ?? 0;
+      const duplicates = data.duplicates ?? 0;
       const total = data.total ?? created + updated;
       const parts: string[] = [];
       if (created > 0) parts.push(`${created} new`);
       if (updated > 0) parts.push(`${updated} updated`);
-      message.success(
-        parts.length > 0
-          ? `Import complete: ${parts.join(", ")} (${total} rows)`
-          : `Processed ${total} rows`
-      );
+      if (duplicates > 0) parts.push(`${duplicates} duplicate${duplicates === 1 ? "" : "s"} skipped`);
+      message.success({
+        content:
+          parts.length > 0
+            ? `Import complete: ${parts.join(", ")} (${total} rows)`
+            : `Processed ${total} rows`,
+        duration: 60,
+      });
       if (data.errors?.length) {
         message.warning(
           data.errors.slice(0, 3).join("; ") +
