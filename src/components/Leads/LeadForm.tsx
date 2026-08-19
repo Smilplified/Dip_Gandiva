@@ -91,7 +91,7 @@ function toGoogleSearchUrl(query: string): string {
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 }
 
-function LeadAddressLineField({ form }: { form: FormInstance }) {
+function LeadAddressLineField({ form, required = false }: { form: FormInstance; required?: boolean }) {
   const address = Form.useWatch("address", form);
   const city = Form.useWatch("city", form);
   const state = Form.useWatch("state", form);
@@ -115,6 +115,7 @@ function LeadAddressLineField({ form }: { form: FormInstance }) {
     <Form.Item
       label="Address Line 1"
       name="address"
+      rules={required ? [{ required: true, message: "Please enter Address Line 1" }] : undefined}
       extra={
         googleHref ? (
           <Typography.Link href={googleHref} target="_blank" rel="noopener noreferrer">
@@ -134,12 +135,14 @@ function LeadUrlFormField({
   label,
   placeholder,
   showOpenLink,
+  required = false,
 }: {
   form: FormInstance;
   name: string;
   label: string;
   placeholder?: string;
   showOpenLink: boolean;
+  required?: boolean;
 }) {
   const value = Form.useWatch(name, form);
   const href = showOpenLink ? toExternalUrl(value) : null;
@@ -148,6 +151,7 @@ function LeadUrlFormField({
     <Form.Item
       label={label}
       name={name}
+      rules={required ? [{ required: true, message: `Please enter ${label}` }] : undefined}
       extra={
         href ? (
           <Typography.Link href={href} target="_blank" rel="noopener noreferrer">
@@ -173,6 +177,8 @@ type LeadFormProps = {
   /** Agent per-lead type (options from campaign.lead_type). */
   showLeadTypeField?: boolean;
   leadTypeOptions?: { value: string; label: string }[];
+  /** Hide the contact phone input where a campaign does not collect it. */
+  hidePhoneNumber?: boolean;
 };
 
 export function LeadForm({
@@ -184,6 +190,7 @@ export function LeadForm({
   campaignName = null,
   showLeadTypeField = false,
   leadTypeOptions = [],
+  hidePhoneNumber = false,
 }: LeadFormProps) {
   const showOpenLink = mode === "edit";
   const useCampaignCq =
@@ -201,6 +208,7 @@ export function LeadForm({
     (!isCloudThatAg || shouldShowDemandForCloudThatAgTagging(watchedLeadTagging));
   const { profile, hasRole, user } = useAuth();
   const isAgentEntry = hasRole("agent");
+  const isAgentCampaignCreate = isAgentEntry && mode === "create";
   const loggedInQaName =
     profile?.full_name?.trim() || profile?.email?.trim() || user?.email?.trim() || "";
   const [showMoreCq, setShowMoreCq] = useState(false);
@@ -618,43 +626,45 @@ export function LeadForm({
                     <Input placeholder="email@example.com" type="email" />
                   </Form.Item>
                 </Col>
-                <Col xs={24} sm={12}>
-                  <Form.Item
-                    label="Phone Number"
-                    name="phone"
-                    rules={isAgentEntry ? phoneNumericFormRules("Phone Number") : undefined}
-                    normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
-                  >
-                    <Input placeholder="+1 555 123 4567" />
-                  </Form.Item>
-                </Col>
+                {!hidePhoneNumber && (
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      label="Phone Number"
+                      name="phone"
+                      rules={isAgentEntry ? phoneNumericFormRules("Phone Number") : undefined}
+                      normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
+                    >
+                      <Input placeholder="+1 555 123 4567" />
+                    </Form.Item>
+                  </Col>
+                )}
                 <Col xs={24} sm={12}>
                   <Form.Item
                     label="Direct Number"
                     name="direct_number"
-                    rules={isAgentEntry ? phoneNumericFormRules("Direct Number") : undefined}
+                    rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter Direct Number" }, ...phoneNumericFormRules("Direct Number")] : isAgentEntry ? phoneNumericFormRules("Direct Number") : undefined}
                     normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
                   >
                     <Input placeholder="+1 555 987 6543" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Job Title" name="job_title">
+                  <Form.Item label="Job Title" name="job_title" rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter Job Title" }] : undefined}>
                     <Input placeholder="Job title" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Job Title Level" name="job_level">
+                  <Form.Item label="Job Title Level" name="job_level" rules={isAgentCampaignCreate ? [{ required: true, message: "Please select Job Title Level" }] : undefined}>
                     <Select placeholder="Select" options={JOB_LEVEL_OPTIONS} allowClear />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Department" name="department">
+                  <Form.Item label="Department" name="department" rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter Department" }] : undefined}>
                     <Input placeholder="Department" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Job Function" name="job_function">
+                  <Form.Item label="Job Function" name="job_function" rules={isAgentCampaignCreate ? [{ required: true, message: "Please select Job Function" }] : undefined}>
                     <Select placeholder="Select" options={JOB_FUNCTION_OPTIONS} allowClear />
                   </Form.Item>
                 </Col>
@@ -665,17 +675,18 @@ export function LeadForm({
                     label="Job Title Link"
                     placeholder="URL"
                     showOpenLink={showOpenLink}
+                    required={isAgentCampaignCreate}
                   />
                 </Col>
                 {isAgentEntry && (
                   <>
                     <Col xs={24} sm={12}>
-                      <Form.Item label="Tenurity" name="tenurity">
+                      <Form.Item label="Tenurity" name="tenurity" rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter Tenurity" }] : undefined}>
                         <Input placeholder="Tenurity" />
                       </Form.Item>
                     </Col>
                     <Col xs={24} sm={12}>
-                      <Form.Item label="VV Status" name="vv_status">
+                      <Form.Item label="VV Status" name="vv_status" rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter VV Status" }] : undefined}>
                         <Input placeholder="VV Status" />
                       </Form.Item>
                     </Col>
@@ -1070,7 +1081,7 @@ export function LeadForm({
                   <Form.Item
                     label="Corporate Number"
                     name="company_number"
-                    rules={isAgentEntry ? phoneNumericFormRules("Corporate Number") : undefined}
+                    rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter Corporate Number" }, ...phoneNumericFormRules("Corporate Number")] : isAgentEntry ? phoneNumericFormRules("Corporate Number") : undefined}
                     normalize={isAgentEntry ? normalizePhoneNumeric : undefined}
                   >
                     <Input placeholder="Company phone" />
@@ -1082,15 +1093,15 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24}>
-                  <LeadAddressLineField form={form} />
+                  <LeadAddressLineField form={form} required={isAgentCampaignCreate} />
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="City" name="city">
+                  <Form.Item label="City" name="city" rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter City" }] : undefined}>
                     <Input placeholder="City" />
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="State" name="state">
+                  <Form.Item label="State" name="state" rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter State" }] : undefined}>
                     <Input placeholder="State / Region" />
                   </Form.Item>
                 </Col>
@@ -1100,7 +1111,7 @@ export function LeadForm({
                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
-                  <Form.Item label="Zip / Postal Code" name="zip_code">
+                  <Form.Item label="Zip / Postal Code" name="zip_code" rules={isAgentCampaignCreate ? [{ required: true, message: "Please enter Zip / Postal Code" }] : undefined}>
                     <Input placeholder="e.g. 90210, SW1A 1AA" />
                   </Form.Item>
                 </Col>
@@ -1135,6 +1146,7 @@ export function LeadForm({
                     label="Company Website Link"
                     placeholder="https://company.com"
                     showOpenLink={showOpenLink}
+                    required={isAgentCampaignCreate}
                   />
                 </Col>
                 <Col xs={24} sm={12}>
@@ -1189,6 +1201,7 @@ export function LeadForm({
                     label="Company LinkedIn URL"
                     placeholder="https://linkedin.com/company/..."
                     showOpenLink={showOpenLink}
+                    required={isAgentCampaignCreate}
                   />
                 </Col>
                 <Col xs={24}>

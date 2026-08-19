@@ -30,6 +30,7 @@ type AgentCampaignRow = {
   end_date: string | null;
   created_at: string;
   total_leads: number;
+  billable_leads_count?: number;
   qualified_leads: number;
 };
 
@@ -185,6 +186,21 @@ export default function AgentCampaignsPage() {
         ),
       },
       {
+        title: "Billable Leads",
+        dataIndex: "billable_leads_count",
+        key: "billable_leads_count",
+        width: 120,
+        align: "center" as const,
+        render: (v: number | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Tag color={count > 0 ? "cyan" : "default"} style={{ margin: 0, fontWeight: 600 }}>
+              {count}
+            </Tag>
+          );
+        },
+      },
+      {
         title: "Start Date",
         dataIndex: "start_date",
         key: "start_date",
@@ -321,7 +337,7 @@ export default function AgentCampaignsPage() {
         dataSource={campaigns}
         rowKey="id"
         loading={loading}
-        scroll={{ x: 1030 }}
+        scroll={{ x: 1150 }}
         tableLayout="fixed"
         pagination={tablePagination}
         locale={{

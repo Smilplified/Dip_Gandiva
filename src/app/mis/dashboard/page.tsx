@@ -25,6 +25,7 @@ import {
   CloudUploadOutlined,
   ClockCircleOutlined,
   ArrowUpOutlined,
+  DollarCircleOutlined,
 } from "@ant-design/icons";
 import {
   AreaChart,
@@ -206,6 +207,14 @@ export default function MISDashboardPage() {
         color: "#f59e0b",
         bgColor: "#fffbe6",
       },
+      {
+        title: "Billable Leads",
+        value: "0",
+        change: "No billable leads yet",
+        icon: <DollarCircleOutlined />,
+        color: "#08979c",
+        bgColor: "#e6fffb",
+      },
     ];
   }, [data]);
 
@@ -317,9 +326,16 @@ export default function MISDashboardPage() {
         </div>
       ) : (
         <>
-          <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 20,
+              marginBottom: 24,
+            }}
+          >
             {statsCards.map((stat, index) => (
-              <Col xs={24} sm={12} xl={6} key={index}>
+              <div key={index}>
                 <Card
                   bordered={false}
                   style={{ ...cardStyle, height: "100%" }}
@@ -394,9 +410,9 @@ export default function MISDashboardPage() {
                     </div>
                   </div>
                 </Card>
-              </Col>
+              </div>
             ))}
-          </Row>
+          </div>
 
           <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
             {secondaryCards.map((card, index) => (

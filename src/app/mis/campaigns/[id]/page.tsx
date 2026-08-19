@@ -519,6 +519,14 @@ export default function MISCampaignDetailPage() {
     }
   }, [id, loadCampaignLeads]);
 
+  const handleBillableStatusChange = useCallback((lead: Lead, nextStatus: string | null) => {
+    setLeads((prev) =>
+      prev.map((row) =>
+        row.id === lead.id ? { ...row, billable_status: nextStatus } : row
+      )
+    );
+  }, []);
+
   const leadColumns = useMemo(
     () =>
       getLeadTableColumns({
@@ -526,6 +534,8 @@ export default function MISCampaignDetailPage() {
         onEdit: openEditLeadDrawer,
         showDeliveryStatus: true,
         onDeliveryStatusChange: handleDeliveryStatusChange,
+        showBillableStatus: true,
+        onBillableStatusChange: handleBillableStatusChange,
         markingDeliveredLeadId,
         pagination: { current: leadsPage, pageSize: leadsPageSize },
         showMeetingSetDate: false,
@@ -536,6 +546,7 @@ export default function MISCampaignDetailPage() {
       }),
     [
       handleDeliveryStatusChange,
+      handleBillableStatusChange,
       id,
       leadsPage,
       leadsPageSize,

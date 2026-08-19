@@ -22,6 +22,7 @@ type LeadDrawerContentProps = {
   campaignName?: string | null;
   showLeadTypeField?: boolean;
   leadTypeOptions?: { value: string; label: string }[];
+  hidePhoneNumber?: boolean;
 };
 
 export function LeadDrawerContent({
@@ -34,6 +35,7 @@ export function LeadDrawerContent({
   campaignName = null,
   showLeadTypeField = false,
   leadTypeOptions = [],
+  hidePhoneNumber = false,
 }: LeadDrawerContentProps) {
   return (
     <>
@@ -49,6 +51,7 @@ export function LeadDrawerContent({
         campaignName={campaignName}
         showLeadTypeField={showLeadTypeField}
         leadTypeOptions={leadTypeOptions}
+        hidePhoneNumber={hidePhoneNumber}
       />
     </>
   );

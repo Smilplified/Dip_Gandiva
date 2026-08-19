@@ -33,6 +33,9 @@ type ColumnConfig = {
   showActions?: boolean;
   onEdit?: (lead: Lead) => void;
   showDeliveryStatus?: boolean;
+  /** Show the MIS-only billable status selector after Delivery. */
+  showBillableStatus?: boolean;
+  onBillableStatusChange?: (lead: Lead, status: string | null) => void;
   /** When false, shows Meeting Date & Time instead of QA Status. */
   showQaStatus?: boolean;
   /** When false, hides the Date Meeting Set column. */
@@ -70,6 +73,18 @@ type ColumnConfig = {
   showVoiceRecordings?: boolean;
   onVoiceRecordingsChange?: () => void;
 };
+
+export const BILLABLE_STATUS_OPTIONS = [
+  "Attended",
+  "Attended-Billable",
+  "Attended-Non-Billable",
+  "Attended-Dispute",
+  "TO BE Rescheduled",
+  "Decline",
+  "Disqualified",
+  "Client Reject",
+  "Future confirmed",
+].map((status) => ({ label: status, value: status }));
 
 function formatLeadDateTimeCell(value: string | null | undefined): string {
   if (!value?.trim()) return "—";
@@ -261,6 +276,8 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     showActions = true,
     onEdit,
     showDeliveryStatus = false,
+    showBillableStatus = false,
+    onBillableStatusChange,
     showQaStatus = true,
     showMeetingSetDate = true,
     showAppointment = true,
@@ -532,6 +549,40 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
                 </span>
               );
             },
+          } as NonNullable<TableProps<Lead>["columns"]>[number],
+        ]
+      : []),
+    ...(showBillableStatus
+      ? [
+          {
+            title: "Billable Status",
+            dataIndex: "billable_status",
+            key: "billable_status",
+            width: 190,
+            fixed: "right" as const,
+            align: "center",
+            onCell: () => ({ style: { paddingInline: 6 } }),
+            render: (v: string | null | undefined, record: Lead) =>
+              onBillableStatusChange ? (
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  style={{ display: "inline-flex", justifyContent: "center", maxWidth: "100%" }}
+                >
+                  <Select
+                    size="small"
+                    value={v ?? undefined}
+                    placeholder="Select status"
+                    style={{ width: 172, maxWidth: "100%" }}
+                    options={BILLABLE_STATUS_OPTIONS}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(nextStatus) => onBillableStatusChange(record, nextStatus ?? null)}
+                    allowClear
+                  />
+                </span>
+              ) : (
+                v || "â€”"
+              ),
           } as NonNullable<TableProps<Lead>["columns"]>[number],
         ]
       : []),

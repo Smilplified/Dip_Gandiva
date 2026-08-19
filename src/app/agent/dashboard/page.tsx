@@ -23,6 +23,7 @@ import {
   EyeOutlined,
   SearchOutlined,
   ClockCircleOutlined,
+  DollarCircleOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@/context/AuthContext";
 import { useAgentDashboard, type AgentDashboardCampaignRow } from "@/hooks/useAgentDashboard";
@@ -145,6 +146,14 @@ export default function AgentDashboardPage() {
         color: "#ef4444",
         bgColor: "#fff1f0",
       },
+      {
+        title: "Billable Leads",
+        value: "0",
+        change: "No billable leads yet",
+        icon: <DollarCircleOutlined />,
+        color: "#08979c",
+        bgColor: "#e6fffb",
+      },
     ];
   }, [summary]);
 
@@ -205,11 +214,18 @@ export default function AgentDashboardPage() {
       )}
 
       {!dashboardReady ? (
-        <StatCardsRowSkeleton />
+        <StatCardsRowSkeleton count={5} />
       ) : (
-        <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 20,
+            marginBottom: 24,
+          }}
+        >
           {statsCards.map((stat, index) => (
-            <Col xs={24} sm={12} xl={6} key={index}>
+            <div key={index}>
               <Card
                 bordered={false}
                 style={{ ...cardStyle, height: "100%" }}
@@ -252,9 +268,9 @@ export default function AgentDashboardPage() {
                   </div>
                 </div>
               </Card>
-            </Col>
+            </div>
           ))}
-        </Row>
+        </div>
       )}
 
       {!dashboardReady ? (

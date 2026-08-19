@@ -51,6 +51,7 @@ type Campaign = {
   created_at?: string;
   assigned_team_leader_name?: string | null;
   scored_leads_count?: number;
+  billable_leads_count?: number;
   qa_pending_leads_count?: number;
   delivered_leads_count?: number;
   leads?: Lead[];
@@ -391,6 +392,21 @@ export default function MISCampaignsPage() {
             {v}
           </Tag>
         ),
+      },
+      {
+        title: "Billable Leads",
+        dataIndex: "billable_leads_count",
+        key: "billable_leads_count",
+        width: 120,
+        align: "center",
+        render: (v: number | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Tag color={count > 0 ? "cyan" : "default"} style={{ margin: 0, fontWeight: 600 }}>
+              {count}
+            </Tag>
+          );
+        },
       },
       {
         title: "Leads",

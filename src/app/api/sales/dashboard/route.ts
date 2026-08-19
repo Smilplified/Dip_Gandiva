@@ -125,9 +125,6 @@ export async function GET() {
     const startPrev30 = start60;
     const endPrev30 = start30;
 
-    const startTrend = addDays(startToday, -6);
-    const endTrend = addDays(startToday, 1);
-
     const startNext7 = now;
     const endNext7 = addDays(now, 7);
     const startPrev7 = addDays(now, -14);
@@ -186,45 +183,45 @@ export async function GET() {
 
     const followUpTrend = computePercentChange(next7Pending ?? 0, prev7Pending ?? 0);
 
-    // ── Lead Trend (last 7 days) ────────────────────────────────────────
+    // ── Lead Trend (latest seven dates with lead activity) ──────────────
     const { data: trendLeads } = await makeLeadQuery("created_at, converted_at")
-      .gte("created_at", startTrend.toISOString());
+      .order("created_at", { ascending: true });
 
-    const dayBuckets = [];
-    for (let i = 0; i < 7; i++) {
-      const day = addDays(startTrend, i);
-      const label = day.toLocaleDateString("en-US", { weekday: "short" });
-      dayBuckets.push({ start: day, label, leads: 0, conversions: 0 });
+    const dayKey = (value: string) => value.slice(0, 10);
+    const activityDays = new Set<string>();
+    for (const lead of trendLeads ?? []) {
+      const createdAt = (lead as any).created_at as string | null;
+      const convertedAt = (lead as any).converted_at as string | null;
+      if (createdAt) activityDays.add(dayKey(createdAt));
+      if (convertedAt) activityDays.add(dayKey(convertedAt));
     }
 
-    for (const l of trendLeads ?? []) {
-      const createdAt = (l as any).created_at as string | null;
-      const convertedAt = (l as any).converted_at as string | null;
-      if (createdAt) {
-        const d = new Date(createdAt);
-        const idx = Math.floor((d.getTime() - startTrend.getTime()) / (24 * 60 * 60 * 1000));
-        if (idx >= 0 && idx < 7) dayBuckets[idx].leads++;
-      }
-      if (convertedAt) {
-        const d = new Date(convertedAt);
-        const idx = Math.floor((d.getTime() - startTrend.getTime()) / (24 * 60 * 60 * 1000));
-        if (idx >= 0 && idx < 7) dayBuckets[idx].conversions++;
-      }
+    const trendDays = Array.from(activityDays).sort().slice(-7);
+    const trendBuckets = new Map(
+      trendDays.map((day) => [day, { leads: 0, conversions: 0 }])
+    );
+    for (const lead of trendLeads ?? []) {
+      const createdAt = (lead as any).created_at as string | null;
+      const convertedAt = (lead as any).converted_at as string | null;
+      if (createdAt) trendBuckets.get(dayKey(createdAt))!.leads += 1;
+      if (convertedAt) trendBuckets.get(dayKey(convertedAt))!.conversions += 1;
     }
 
-    const leadTrendData = dayBuckets.map((b) => ({
-      date: b.label,
-      leads: b.leads,
-      conversions: b.conversions,
+    const leadTrendData = trendDays.map((day) => ({
+      date: new Date(`${day}T00:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      leads: trendBuckets.get(day)?.leads ?? 0,
+      conversions: trendBuckets.get(day)?.conversions ?? 0,
     }));
 
-    // ── Lead Pipeline (bar chart) by lead status (last 30 days) ────────
+    // ── Lead Pipeline (bar chart) by lead status ────────────────────────
     const statusOrder = LEAD_STATUS_OPTIONS.map((s) => s.value);
     const statusCounts: Record<string, { count: number; value: number }> = {};
     for (const v of statusOrder) statusCounts[v] = { count: 0, value: 0 };
 
-    const { data: pipelineLeads } = await makeLeadQuery("status, budget")
-      .gte("created_at", start30.toISOString());
+    const { data: pipelineLeads } = await makeLeadQuery("status, budget");
 
     for (const l of pipelineLeads ?? []) {
       const st = ((l as any).status as string | null) ?? "new";
@@ -242,8 +239,7 @@ export async function GET() {
     });
 
     // ── Lead Source (pie chart) ─────────────────────────────────────────
-    const { data: sourcesLeads } = await makeLeadQuery("lead_source")
-      .gte("created_at", start30.toISOString());
+    const { data: sourcesLeads } = await makeLeadQuery("lead_source");
 
     const sourceCounts = new Map<string, number>();
     for (const l of sourcesLeads ?? []) {
@@ -269,10 +265,8 @@ export async function GET() {
       });
     }
 
-    // ── Recent Leads table (last 24h) ───────────────────────────────────
-    const start24 = addDays(now, -1);
+    // ── Recent Leads table (latest seven accessible leads) ──────────────
     const { data: recentLeadsRows } = await makeLeadQuery("id, lead_name, first_name, last_name, company_name, lead_source, status, budget, created_at")
-      .gte("created_at", start24.toISOString())
       .order("created_at", { ascending: false })
       .limit(7);
 
