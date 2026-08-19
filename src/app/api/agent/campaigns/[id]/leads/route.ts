@@ -319,6 +319,7 @@ export async function POST(
         company_name: normalizedCompanyName,
         domain: normalizedDomain,
         contact_linkedin_url,
+        job_title_link,
         email: normalizedEmail,
       },
     });

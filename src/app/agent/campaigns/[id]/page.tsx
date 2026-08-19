@@ -391,7 +391,6 @@ export default function AgentCampaignDetailPage() {
             <div>
               <p>This lead already exists in this campaign and cannot be created.</p>
               {json.duplicate_lead_id && <p>Existing Lead ID: {json.duplicate_lead_id}</p>}
-              {json.duplicate_reason && <p>Match reason: {json.duplicate_reason}</p>}
             </div>
           ),
         });

@@ -678,15 +678,6 @@ export function LeadForm({
                     required={isAgentCampaignCreate}
                   />
                 </Col>
-                <Col xs={24}>
-                  <LeadUrlFormField
-                    form={form}
-                    name="contact_linkedin_url"
-                    label="Prospect LinkedIn URL"
-                    placeholder="https://linkedin.com/in/..."
-                    showOpenLink={showOpenLink}
-                  />
-                </Col>
                 {isAgentEntry && (
                   <>
                     <Col xs={24} sm={12}>

@@ -6,6 +6,7 @@ type DuplicateLeadInput = {
   company_name?: unknown;
   domain?: unknown;
   contact_linkedin_url?: unknown;
+  job_title_link?: unknown;
   email?: unknown;
 };
 
@@ -14,6 +15,7 @@ export type DuplicateLeadMatch = {
   reason:
     | "Email ID"
     | "Prospect LinkedIn URL"
+    | "Job Title Link"
     | "First Name + Last Name + Company Name"
     | "First Name + Last Name + Company Domain";
 };
@@ -89,6 +91,7 @@ export async function checkDuplicateLead(
     companyBase: normalizeCompanyBase(lead.company_name),
     domainBase: normalizeCompanyBase(lead.domain, true),
     linkedInUrl: normalizeLinkedInUrl(lead.contact_linkedin_url),
+    jobTitleLink: normalizeLinkedInUrl(lead.job_title_link),
     email: normalizeText(lead.email),
   };
 
@@ -96,7 +99,7 @@ export async function checkDuplicateLead(
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, lead_id, first_name, last_name, company_name, domain, contact_linkedin_url, email")
+      .select("id, lead_id, first_name, last_name, company_name, domain, contact_linkedin_url, job_title_link, email")
       .eq("campaign_id", campaignId)
       .eq("organization_id", organizationId)
       .range(from, from + pageSize - 1);
@@ -120,9 +123,15 @@ export async function checkDuplicateLead(
       }
       if (
         candidate.linkedInUrl &&
-        candidate.linkedInUrl === normalizeLinkedInUrl(row.contact_linkedin_url)   
+        candidate.linkedInUrl === normalizeLinkedInUrl(row.contact_linkedin_url)
       ) {
         return { leadId, reason: "Prospect LinkedIn URL" };
+      }
+      if (
+        candidate.jobTitleLink &&
+        candidate.jobTitleLink === normalizeLinkedInUrl(row.job_title_link)
+      ) {
+        return { leadId, reason: "Job Title Link" };
       }
       if (
         sameName &&
