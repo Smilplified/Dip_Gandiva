@@ -100,6 +100,8 @@ type CampaignFile = {
   download_url: string | null;
 };
 
+const STANDARD_LEAD_TYPE_OPTIONS = ["AG", "SWP", "BANT", "HQL", "CD", "CDQA", "Tele Survey"];
+
 export default function AgentCampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -285,7 +287,12 @@ export default function AgentCampaignDetailPage() {
   }, [leadSearch, dateRange, leadTaggingFilter, resetPage]);
 
   const leadTypeOptions = useMemo(
-    () => parseCampaignLeadTypeOptions(campaign?.lead_type),
+    () => {
+      const campaignOptions = parseCampaignLeadTypeOptions(campaign?.lead_type);
+      const values = new Set(STANDARD_LEAD_TYPE_OPTIONS);
+      campaignOptions.forEach((option) => values.add(option.value));
+      return [...values].map((value) => ({ value, label: value }));
+    },
     [campaign?.lead_type]
   );
 
@@ -309,6 +316,14 @@ export default function AgentCampaignDetailPage() {
     [form]
   );
 
+  const handleBillableStatusChange = useCallback((lead: Lead, nextStatus: string | null) => {
+    setLeads((prev) =>
+      prev.map((row) =>
+        row.id === lead.id ? { ...row, billable_status: nextStatus } : row
+      )
+    );
+  }, []);
+
   const leadColumns = useMemo(
     () =>
       getLeadTableColumns({
@@ -316,13 +331,15 @@ export default function AgentCampaignDetailPage() {
         onEdit: openEditLeadDrawer,
         pagination: { current: page, pageSize },
         showDeliveryStatus: true,
+        showBillableStatus: true,
+        onBillableStatusChange: handleBillableStatusChange,
         showFollowupDate: false,
         showVoiceRecordings: true,
         onVoiceRecordingsChange: () => {
           void fetchLeads();
         },
       }),
-    [page, pageSize, fetchLeads, openEditLeadDrawer]
+    [page, pageSize, fetchLeads, handleBillableStatusChange, openEditLeadDrawer]
   );
 
   const closeLeadDrawer = useCallback(() => {
@@ -367,6 +384,19 @@ export default function AgentCampaignDetailPage() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
+      if (res.status === 409) {
+        Modal.error({
+          title: "Duplicate Lead Found",
+          content: (
+            <div>
+              <p>This lead already exists in this campaign and cannot be created.</p>
+              {json.duplicate_lead_id && <p>Existing Lead ID: {json.duplicate_lead_id}</p>}
+              {json.duplicate_reason && <p>Match reason: {json.duplicate_reason}</p>}
+            </div>
+          ),
+        });
+        return;
+      }
       if (!res.ok) throw new Error(json.error || "Failed to create lead");
 
       message.success("Lead added. Add another below or close when done.");
@@ -1041,6 +1071,7 @@ export default function AgentCampaignDetailPage() {
           campaignName={campaign?.name}
           showLeadTypeField
           leadTypeOptions={leadTypeOptions}
+          hidePhoneNumber
           introText={
             drawerMode === "create"
               ? "Add a new lead to this campaign. After saving, the form will reset so you can add another. Close when finished."

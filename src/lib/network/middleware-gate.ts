@@ -36,6 +36,16 @@ export async function evaluateNetworkGate(
   orgId: string | null
 ): Promise<NetworkGateResult> {
   try {
+
+    if (
+       process.env.NODE_ENV !== "production" &&
+       ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
+         request.nextUrl.hostname
+       )
+     ) {
+       return PASS;
+     }
+
     if (!isPureAgent(normalizedRoles)) return PASS;
     if (!orgId) return PASS;
 

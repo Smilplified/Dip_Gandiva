@@ -617,7 +617,7 @@ export default function SalesDashboard() {
             title={
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Text strong style={{ fontSize: 16 }}>Recent Leads</Text>
-                <Text type="secondary" style={{ fontSize: 13 }}>Last 24 hours</Text>
+                <Text type="secondary" style={{ fontSize: 13 }}>Latest 7 leads</Text>
               </div>
             }
             bordered={false}

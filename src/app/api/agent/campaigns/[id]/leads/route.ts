@@ -6,6 +6,7 @@ import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { logAudit } from "@/lib/audit/log";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
+import { checkDuplicateLead } from "@/lib/leads/checkDuplicateLead";
 
 export const dynamic = "force-dynamic";
 
@@ -309,46 +310,28 @@ export async function POST(
       );
     }
 
-    // Duplicate lead check for Agent users based on
-    // first_name, last_name, email, company_name, and domain
-    if (
-      normalizedFirstName &&
-      normalizedLastName &&
-      normalizedEmail &&
-      normalizedCompanyName &&
-      normalizedDomain
-    ) {
-      const { data: duplicateLeads, error: duplicateError } = await supabase
-        .from("leads")
-        .select("id, lead_id")
-        .eq("organization_id", orgId)
-        .eq("campaign_id", campaignId)
-        .eq("first_name", normalizedFirstName)
-        .eq("last_name", normalizedLastName)
-        .eq("email", normalizedEmail)
-        .eq("company_name", normalizedCompanyName)
-        .eq("domain", normalizedDomain)
-        .limit(1);
-
-      if (duplicateError) {
-        return NextResponse.json(
-          { error: duplicateError.message },
-          { status: 500 }
-        );
-      }
-
-      if (duplicateLeads && duplicateLeads.length > 0) {
-        const existing = duplicateLeads[0] as { id: string; lead_id: string | null };
-        return NextResponse.json(
-          {
-            error: "Duplicate lead",
-            message:
-              "A lead with the same first name, last name, email, company name, and domain already exists.",
-            duplicate_lead_id: existing.lead_id ?? existing.id,
-          },
-          { status: 409 }
-        );
-      }
+    const duplicate = await checkDuplicateLead(supabase, {
+      campaignId,
+      organizationId: orgId,
+      lead: {
+        first_name: normalizedFirstName,
+        last_name: normalizedLastName,
+        company_name: normalizedCompanyName,
+        domain: normalizedDomain,
+        contact_linkedin_url,
+        email: normalizedEmail,
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        {
+          error: "Duplicate lead",
+          message: "This lead already exists in this campaign and cannot be created.",
+          duplicate_lead_id: duplicate.leadId,
+          duplicate_reason: duplicate.reason,
+        },
+        { status: 409 }
+      );
     }
 
     const leadStatus =
