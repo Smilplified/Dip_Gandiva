@@ -10,6 +10,7 @@ async function verifyAdmin(): Promise<{
   error: NextResponse | null;
   user: { id: string } | null;
   orgId: string | null;
+  isAdminSupport?: boolean;
 }> {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -23,12 +24,13 @@ async function verifyAdmin(): Promise<{
     .select("roles(name)")
     .eq("user_id", user.id);
 
-  const isAdmin = (roleRows ?? []).some(
-    (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() === "admin"
+  const actorRoles = (roleRows ?? []).map(
+    (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() ?? ""
   );
+  const hasUsersAccess = actorRoles.some((role) => ["admin", "admin_support"].includes(role));
 
-  if (!isAdmin) {
-    return { error: NextResponse.json({ error: "Forbidden: Admin role required" }, { status: 403 }), user: null, orgId: null };
+  if (!hasUsersAccess) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }), user: null, orgId: null };
   }
 
   const { data: currentProfile } = await supabase
@@ -42,7 +44,7 @@ async function verifyAdmin(): Promise<{
     return { error: NextResponse.json({ error: "Your account is not assigned to an organization" }, { status: 400 }), user: null, orgId: null };
   }
 
-  return { error: null, user, orgId };
+  return { error: null, user, orgId, isAdminSupport: actorRoles.includes("admin_support") && !actorRoles.includes("admin") };
 }
 
 export async function PATCH(
@@ -50,7 +52,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error: authErr, user: adminUser, orgId } = await verifyAdmin();
+    const { error: authErr, user: adminUser, orgId, isAdminSupport } = await verifyAdmin();
     if (authErr) return authErr;
 
     const { id } = await params;
@@ -90,6 +92,17 @@ export async function PATCH(
     const typedTarget = targetUser as { id: string; organization_id: string | null };
     if (typedTarget.organization_id !== orgId) {
       return NextResponse.json({ error: "Cannot update user from another organization" }, { status: 403 });
+    }
+
+    const { data: targetRoleRows } = await admin
+      .from("user_roles")
+      .select("roles(name)")
+      .eq("user_id", id);
+    const targetIsAdmin = (targetRoleRows ?? []).some(
+      (row: { roles: { name: string } | null }) => row.roles?.name?.toLowerCase() === "admin"
+    );
+    if (isAdminSupport && targetIsAdmin) {
+      return NextResponse.json({ error: "Admin Support cannot manage Admin users" }, { status: 403 });
     }
 
     if (status && !["active", "inactive"].includes(status)) {
@@ -148,6 +161,10 @@ export async function PATCH(
         (existingRoleRows ?? [])[0] as { roles: { name: string } | null } | undefined
       )?.roles?.name;
       roleNameNormalized = (existingName ?? "").toLowerCase().replace(/\s+/g, "_");
+    }
+
+    if (isAdminSupport && roleNameNormalized === "admin") {
+      return NextResponse.json({ error: "Admin Support cannot assign the Admin role" }, { status: 403 });
     }
 
     if (body.role_id && roleRequiresClientBinding(roleNameNormalized) && !body.client_id) {
@@ -252,7 +269,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error: authErr, user: adminUser, orgId } = await verifyAdmin();
+    const { error: authErr, user: adminUser, orgId, isAdminSupport } = await verifyAdmin();
     if (authErr) return authErr;
 
     const { id } = await params;
@@ -279,6 +296,17 @@ export async function DELETE(
     const typedTarget = targetUser as { id: string; organization_id: string | null };
     if (typedTarget.organization_id !== orgId) {
       return NextResponse.json({ error: "Cannot delete user from another organization" }, { status: 403 });
+    }
+
+    const { data: targetRoleRows } = await admin
+      .from("user_roles")
+      .select("roles(name)")
+      .eq("user_id", id);
+    const targetIsAdmin = (targetRoleRows ?? []).some(
+      (row: { roles: { name: string } | null }) => row.roles?.name?.toLowerCase() === "admin"
+    );
+    if (isAdminSupport && targetIsAdmin) {
+      return NextResponse.json({ error: "Admin Support cannot manage Admin users" }, { status: 403 });
     }
 
     if (id === adminUser?.id) {

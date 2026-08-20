@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_ROLES = [
   { name: "Admin", description: "Full access to organization settings and Users" },
+  { name: "admin_support", description: "Restricted access to Users, Devices, and Settings only" },
   { name: "Team Leader", description: "Manage campaigns and agents within the team" },
   { name: "Agent", description: "Assigned to campaigns and leads" },
   { name: "Sales Manager", description: "Sales manager – can view entire sales team performance" },

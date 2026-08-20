@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminClientSafe } from "@/lib/supabase/admin";
+import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { verifyOrgAdmin } from "@/lib/devices/api-auth";
 import { normalizeRoleName } from "@/lib/auth/config";
 
@@ -9,10 +9,14 @@ export async function GET(request: Request) {
   try {
     const auth = await verifyOrgAdmin();
     if ("error" in auth && auth.error) return auth.error;
-    const { orgId, supabase } = auth as Exclude<
+    const { orgId } = auth as Exclude<
       Awaited<ReturnType<typeof verifyOrgAdmin>>,
       { error: NextResponse }
     >;
+    const admin = getAdminClientSafe();
+    if (!admin) {
+      return NextResponse.json({ error: ADMIN_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+    }
 
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
@@ -20,7 +24,7 @@ export async function GET(request: Request) {
     const role = url.searchParams.get("role");
     const q = url.searchParams.get("q")?.trim();
 
-    let query = supabase
+    let query = admin
       .from("trusted_devices")
       .select(
         "id, user_id, device_name, browser, os, ip_at_registration, location_approx, status, approved_at, approved_by, revoked_at, last_seen_at, created_at, last_notified_at"
@@ -66,8 +70,8 @@ export async function GET(request: Request) {
 
     if (userIds.length > 0) {
       const [{ data: users }, { data: roleRows }] = await Promise.all([
-        supabase.from("users").select("id, full_name, email").in("id", userIds),
-        supabase.from("user_roles").select("user_id, roles(name)").in("user_id", userIds),
+        admin.from("users").select("id, full_name, email").in("id", userIds),
+        admin.from("user_roles").select("user_id, roles(name)").in("user_id", userIds),
       ]);
 
       const rolesByUser = new Map<string, string[]>();
@@ -125,7 +129,7 @@ export async function GET(request: Request) {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-    const { count: pendingCount } = await supabase
+    const { count: pendingCount } = await admin
       .from("trusted_devices")
       .select("id", { count: "exact", head: true })
       .eq("organization_id", orgId)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Table,
   Button,
@@ -38,9 +38,15 @@ type UserRow = Tables<"users"> & {
   roles: { name: string }[];
 };
 type ClientOption = { id: string; name: string };
+const ADMIN_ROLES = ["admin"];
+const ADMIN_SUPPORT_ROLES = ["admin_support"];
 
 export default function AdminUsersPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const activeAllowedRoles = pathname.startsWith("/admin-support")
+    ? ADMIN_SUPPORT_ROLES
+    : ADMIN_ROLES;
   const { hasRole, profile, isInitialized } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<Tables<"roles">[]>([]);
@@ -65,10 +71,10 @@ export default function AdminUsersPage() {
   // Redirect if not admin
   useEffect(() => {
     if (!isInitialized) return;
-    if (!hasRole("admin")) {
+    if (!activeAllowedRoles.some((role) => hasRole(role))) {
       router.replace("/login");
     }
-  }, [isInitialized, hasRole, router]);
+  }, [activeAllowedRoles, isInitialized, hasRole, router]);
 
   const fetchUsersAndRoles = useCallback(async () => {
     setLoading(true);
@@ -103,11 +109,11 @@ export default function AdminUsersPage() {
   }, []);
 
   useEffect(() => {
-    if (isInitialized && hasRole("admin")) {
+    if (isInitialized && activeAllowedRoles.some((role) => hasRole(role))) {
       fetchUsersAndRoles();
       fetchClients();
     }
-  }, [isInitialized, hasRole, fetchUsersAndRoles, fetchClients]);
+  }, [activeAllowedRoles, isInitialized, hasRole, fetchUsersAndRoles, fetchClients]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredUsers = useMemo(() => {
@@ -355,7 +361,7 @@ export default function AdminUsersPage() {
     );
   }
 
-  if (!hasRole("admin")) {
+  if (!activeAllowedRoles.some((role) => hasRole(role))) {
     return null;
   }
 

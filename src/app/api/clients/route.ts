@@ -21,11 +21,11 @@ export async function GET() {
       .select("roles(name)")
       .eq("user_id", user.id);
 
-    const isAdmin = (roleRows ?? []).some(
-      (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() === "admin"
+    const hasUsersAccess = (roleRows ?? []).some(
+      (r: { roles: { name: string } | null }) => ["admin", "admin_support"].includes(r.roles?.name?.toLowerCase() ?? "")
     );
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Forbidden: Admin role required" }, { status: 403 });
+    if (!hasUsersAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { data: profile } = await supabase

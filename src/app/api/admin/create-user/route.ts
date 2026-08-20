@@ -21,12 +21,14 @@ export async function POST(request: Request) {
       .select("roles(name)")
       .eq("user_id", user.id);
 
-    const isAdmin = (roleRows ?? []).some(
-      (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() === "admin"
+    const actorRoles = (roleRows ?? []).map(
+      (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() ?? ""
     );
+    const hasUsersAccess = actorRoles.some((role) => ["admin", "admin_support"].includes(role));
+    const isAdminSupport = actorRoles.includes("admin_support") && !actorRoles.includes("admin");
 
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Forbidden: Admin role required" }, { status: 403 });
+    if (!hasUsersAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -73,6 +75,10 @@ export async function POST(request: Request) {
       roleNameNormalized = ((selectedRole as { name?: string } | null)?.name ?? "")
         .toLowerCase()
         .replace(/\s+/g, "_");
+    }
+
+    if (isAdminSupport && roleNameNormalized === "admin") {
+      return NextResponse.json({ error: "Admin Support cannot create Admin users" }, { status: 403 });
     }
 
     if (roleRequiresClientBinding(roleNameNormalized) && !client_id) {

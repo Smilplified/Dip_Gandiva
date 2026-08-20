@@ -19,10 +19,10 @@ async function verifyAdmin() {
     .select("roles(name)")
     .eq("user_id", user.id);
 
-  const isAdmin = (roleRows ?? []).some(
-    (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() === "admin"
+  const hasUsersAccess = (roleRows ?? []).some(
+    (r: { roles: { name: string } | null }) => ["admin", "admin_support"].includes(r.roles?.name?.toLowerCase() ?? "")
   );
-  if (!isAdmin) {
+  if (!hasUsersAccess) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
