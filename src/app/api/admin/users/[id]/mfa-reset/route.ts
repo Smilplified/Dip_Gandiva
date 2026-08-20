@@ -21,10 +21,11 @@ async function verifyAdmin() {
     .select("roles(name)")
     .eq("user_id", user.id);
 
-  const isAdmin = (roleRows ?? []).some(
-    (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() === "admin"
+  const actorRoles = (roleRows ?? []).map(
+    (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() ?? ""
   );
-  if (!isAdmin) {
+  const hasUsersAccess = actorRoles.some((role) => ["admin", "admin_support"].includes(role));
+  if (!hasUsersAccess) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
@@ -38,7 +39,11 @@ async function verifyAdmin() {
     return { error: NextResponse.json({ error: "No organization" }, { status: 400 }) };
   }
 
-  return { adminUser: user, orgId };
+  return {
+    adminUser: user,
+    orgId,
+    isAdminSupport: actorRoles.includes("admin_support") && !actorRoles.includes("admin"),
+  };
 }
 
 export async function POST(
@@ -48,7 +53,11 @@ export async function POST(
   try {
     const auth = await verifyAdmin();
     if ("error" in auth && auth.error) return auth.error;
-    const { adminUser, orgId } = auth as { adminUser: { id: string }; orgId: string };
+    const { adminUser, orgId, isAdminSupport } = auth as {
+      adminUser: { id: string };
+      orgId: string;
+      isAdminSupport: boolean;
+    };
 
     const { id: targetUserId } = await params;
     if (!targetUserId) {
@@ -72,6 +81,19 @@ export async function POST(
 
     if ((target as { organization_id: string }).organization_id !== orgId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (isAdminSupport) {
+      const { data: targetRoles } = await admin
+        .from("user_roles")
+        .select("roles(name)")
+        .eq("user_id", targetUserId);
+      const targetIsAdmin = (targetRoles ?? []).some(
+        (row: { roles: { name: string } | null }) => row.roles?.name?.toLowerCase() === "admin"
+      );
+      if (targetIsAdmin) {
+        return NextResponse.json({ error: "Admin Support cannot manage Admin users" }, { status: 403 });
+      }
     }
 
     // Remove email enrollment + backup codes

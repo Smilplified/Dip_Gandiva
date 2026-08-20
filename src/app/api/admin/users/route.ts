@@ -19,12 +19,11 @@ export async function GET() {
       .select("roles(name)")
       .eq("user_id", user.id);
 
-    const isAdmin = (roleRows ?? []).some(
-      (r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() === "admin"
-    );
+    const roleNames = (roleRows ?? []).map((r: { roles: { name: string } | null }) => r.roles?.name?.toLowerCase() ?? "");
+    const hasUsersAccess = roleNames.some((role) => ["admin", "admin_support"].includes(role));
 
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Forbidden: Admin role required" }, { status: 403 });
+    if (!hasUsersAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Get current user's organization
@@ -99,7 +98,9 @@ export async function GET() {
 
     return NextResponse.json({
       users: usersWithRoles,
-      roles: rolesRes.data ?? [],
+      roles: (rolesRes.data ?? []).filter(
+        (role: { name?: string | null }) => !roleNames.includes("admin_support") || role.name?.toLowerCase() !== "admin"
+      ),
     });
   } catch (err) {
     console.error("Fetch users error:", err);

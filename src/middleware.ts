@@ -28,6 +28,9 @@ const DEVICE_SENSITIVE_PREFIXES = [
   "/admin/users",
   "/admin/roles",
   "/admin/settings",
+  "/admin-support/devices",
+  "/admin-support/users",
+  "/admin-support/settings",
 ];
 
 function isDeviceSensitivePath(pathname: string) {
@@ -245,6 +248,7 @@ export async function middleware(request: NextRequest) {
       pathname === "/" ||
       pathname === "/dashboard" ||
       pathname.startsWith("/admin") ||
+      pathname.startsWith("/admin-support") ||
       pathname.startsWith("/agent") ||
       pathname.startsWith("/tl") ||
       pathname.startsWith("/sales") ||

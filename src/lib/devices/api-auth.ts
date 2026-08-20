@@ -27,6 +27,7 @@ export async function getDeviceApiUser() {
     .filter(Boolean);
   const primaryRole = roles[0] ?? "user";
   const isAdmin = roles.includes("admin");
+  const isAdminSupport = roles.includes("admin_support");
   const fullName =
     (profile as { full_name: string | null; email: string | null } | null)?.full_name?.trim() ||
     (profile as { email: string | null } | null)?.email ||
@@ -39,6 +40,7 @@ export async function getDeviceApiUser() {
     roles,
     primaryRole,
     isAdmin,
+    isAdminSupport,
     fullName,
   };
 }
@@ -47,7 +49,7 @@ export async function verifyOrgAdmin() {
   const ctx = await getDeviceApiUser();
   if ("error" in ctx && ctx.error) return { error: ctx.error };
   const c = ctx as Awaited<ReturnType<typeof getDeviceApiUser>> & { error?: undefined };
-  if (!("isAdmin" in c) || !c.isAdmin) {
+  if (!("isAdmin" in c) || (!c.isAdmin && !c.isAdminSupport)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   return c;
