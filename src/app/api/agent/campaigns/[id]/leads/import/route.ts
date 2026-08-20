@@ -94,6 +94,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let uploadLock: { campaignId: string; token: string } | null = null;
   try {
     const supabase = await createClient();
     const {
@@ -151,6 +152,29 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    const lockToken = crypto.randomUUID();
+    const { data: lockAcquired, error: lockError } = await supabase.rpc(
+      "acquire_campaign_upload_lock" as never,
+      {
+        p_campaign_id: campaignId,
+        p_lock_token: lockToken,
+        p_lock_seconds: 120,
+      } as never
+    );
+    if (lockError) {
+      return NextResponse.json({ error: lockError.message }, { status: 500 });
+    }
+    if (!lockAcquired) {
+      return NextResponse.json(
+        {
+          error:
+            "Another lead upload is currently processing for this campaign. Please try again shortly.",
+        },
+        { status: 409 }
+      );
+    }
+    uploadLock = { campaignId, token: lockToken };
 
     const errors: string[] = [];
     const duplicateRows: Array<{
@@ -426,5 +450,20 @@ export async function POST(
       { error: "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    if (uploadLock) {
+      try {
+        const releaseClient = await createClient();
+        await releaseClient.rpc(
+          "release_campaign_upload_lock" as never,
+          {
+            p_campaign_id: uploadLock.campaignId,
+            p_lock_token: uploadLock.token,
+          } as never
+        );
+      } catch (releaseError) {
+        console.error("Agent lead import lock release error:", releaseError);
+      }
+    }
   }
 }

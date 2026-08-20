@@ -36,13 +36,16 @@ export type OpsPerformanceSummary = {
 
 export type AgentDailyRow = {
   date: string;
+  team_leader_name: string;
   agent_id: string;
   agent_name: string;
+  lead_type: string;
   qualified: number;
   disqualified: number;
   rectified: number;
   tbd: number;
   grand_total: number;
+  qual_pct: number;
 };
 
 export type AgentConsolidatedRow = {
@@ -315,6 +318,7 @@ export async function buildOpsPerformanceReport(
     endUtc: string;
     appTz: string;
     userLabel: (id: string, fallback?: string | null) => string;
+    teamLeaderNamesByCampaign: Map<string, string>;
     agentIds: Set<string>;
     restrictLeadsToAgents?: boolean;
     qaUsers: QaUserRef[];
@@ -322,6 +326,7 @@ export async function buildOpsPerformanceReport(
     qaNameToId: Map<string, string>;
     campaignIds: string[];
     campaignNameById: Map<string, string>;
+    leadTypeByCampaign: Map<string, string>;
     leadFilters?: OpsLeadFetchFilters;
   }
 ): Promise<OpsPerformanceReport> {
@@ -332,6 +337,7 @@ export async function buildOpsPerformanceReport(
     endUtc,
     appTz,
     userLabel,
+    teamLeaderNamesByCampaign,
     agentIds,
     restrictLeadsToAgents = false,
     qaUsers,
@@ -339,6 +345,7 @@ export async function buildOpsPerformanceReport(
     qaNameToId,
     campaignIds,
     campaignNameById,
+    leadTypeByCampaign,
     leadFilters,
   } = params;
 
@@ -386,7 +393,11 @@ export async function buildOpsPerformanceReport(
 
     const agentId = resolveLeadAgentId(lead);
     if (agentId && agentIds.has(agentId)) {
-      const dailyKey = `${day}:${agentId}`;
+      const teamLeaderName = teamLeaderNamesByCampaign.get(lead.campaign_id) ?? "Unassigned";
+      const leadType = leadTypeByCampaign.get(lead.campaign_id) ?? "Unspecified";
+      // Group campaign work by date, TL, agent, and lead type. This combines campaigns
+      // with the same lead type while keeping distinct TL assignments on separate rows.
+      const dailyKey = JSON.stringify([day, agentId, teamLeaderName, leadType]);
       if (!dailyByAgent.has(dailyKey)) dailyByAgent.set(dailyKey, emptyCounts());
       addOutcome(dailyByAgent.get(dailyKey)!, lead.qa_status);
 
@@ -453,19 +464,33 @@ export async function buildOpsPerformanceReport(
 
   const agentDaily: AgentDailyRow[] = [...dailyByAgent.entries()]
     .map(([key, counts]) => {
-      const [date, agentId] = key.split(":");
+      const [date, agentId, teamLeaderName, leadType] = JSON.parse(key) as [
+        string,
+        string,
+        string,
+        string,
+      ];
       return {
         date,
+        team_leader_name: teamLeaderName,
         agent_id: agentId,
         agent_name: userLabel(agentId),
+        lead_type: leadType,
         qualified: counts.qualified,
         disqualified: counts.disqualified,
         rectified: counts.rectified,
         tbd: counts.tbd,
         grand_total: grandTotal(counts),
+        qual_pct: qualPct(counts),
       };
     })
-    .sort((a, b) => b.date.localeCompare(a.date) || a.agent_name.localeCompare(b.agent_name));
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        a.team_leader_name.localeCompare(b.team_leader_name) ||
+        a.agent_name.localeCompare(b.agent_name) ||
+        a.lead_type.localeCompare(b.lead_type)
+    );
 
   const agentConsolidated: AgentConsolidatedRow[] = [...consolidatedByAgent.entries()]
     .map(([agentId, counts]) => ({

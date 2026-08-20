@@ -311,6 +311,14 @@ export default function OpsPerformanceReportDashboard() {
           render: (d: string) => dayjs(d).format("DD MMM YYYY"),
         },
         {
+          title: "TL Name",
+          dataIndex: "team_leader_name",
+          key: "team_leader_name",
+          width: 180,
+          fixed: "left",
+          ellipsis: true,
+        },
+        {
           title: "Agent Name",
           dataIndex: "agent_name",
           key: "agent_name",
@@ -318,7 +326,15 @@ export default function OpsPerformanceReportDashboard() {
           fixed: "left",
           ellipsis: true,
         },
-      ]).map((col) =>
+        {
+          title: "Lead Type",
+          dataIndex: "lead_type",
+          key: "lead_type",
+          width: 150,
+          ellipsis: true,
+        },
+      ])
+        .map((col) =>
         col.key === "tbd"
           ? {
               ...col,
@@ -327,7 +343,15 @@ export default function OpsPerformanceReportDashboard() {
               render: (v: number) => coloredCount(v, "#f59e0b"),
             }
           : col
-      ),
+        )
+        .concat({
+          title: "Qual %",
+          dataIndex: "qual_pct",
+          key: "qual_pct",
+          width: 90,
+          sorter: (a, b) => a.qual_pct - b.qual_pct,
+          render: (v: number) => coloredQualPct(v),
+        }),
     []
   );
 
@@ -410,10 +434,10 @@ export default function OpsPerformanceReportDashboard() {
         label: "All Agents — Daily Performance",
         children: (
           <ReportTable<AgentDailyRow>
-            rowKey={(r) => `${r.date}:${r.agent_id}`}
+            rowKey={(r) => `${r.date}:${r.agent_id}:${r.team_leader_name}:${r.lead_type}`}
             columns={agentDailyColumns}
             dataSource={agentDailyData}
-            scrollX={900}
+            scrollX={1050}
             resetKey={queryUrl}
           />
         ),

@@ -132,6 +132,17 @@ export async function GET(request: NextRequest) {
     const campaignRows = await resolveOpsReportCampaigns(admin, orgId, filters);
     const campaignIds = campaignRows.map((c) => c.id);
     const campaignNameById = new Map(campaignRows.map((c) => [c.id, c.name]));
+    const leadTypeByCampaign = new Map(
+      campaignRows.map((campaign) => [campaign.id, campaign.lead_type?.trim() || "Unspecified"])
+    );
+    const teamLeaderNamesByCampaign = new Map(
+      campaignRows.map((campaign) => [
+        campaign.id,
+        campaign.assigned_team_leader_id
+          ? userLabel(campaign.assigned_team_leader_id)
+          : "Unassigned",
+      ])
+    );
 
     const report = await buildOpsPerformanceReport(admin, orgId, {
       startDate: filters.startDate,
@@ -140,6 +151,7 @@ export async function GET(request: NextRequest) {
       endUtc: filters.endUtc,
       appTz,
       userLabel,
+      teamLeaderNamesByCampaign,
       agentIds,
       restrictLeadsToAgents,
       qaUsers,
@@ -147,6 +159,7 @@ export async function GET(request: NextRequest) {
       qaNameToId,
       campaignIds,
       campaignNameById,
+      leadTypeByCampaign,
       leadFilters: {
         channels: filters.channels,
         qaStatuses: filters.qaStatuses,

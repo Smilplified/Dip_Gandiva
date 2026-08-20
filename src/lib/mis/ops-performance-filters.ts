@@ -113,6 +113,7 @@ type CampaignRow = {
   client_id: string | null;
   lead_type: string | null;
   geography: string | null;
+  assigned_team_leader_id: string | null;
 };
 
 function campaignMatchesLeadTypes(leadType: string | null, selected: string[]): boolean {
@@ -126,10 +127,15 @@ export async function resolveOpsReportCampaigns(
   admin: SupabaseClient,
   orgId: string,
   filters: Pick<OpsReportFilterParams, "campaignIds" | "leadTypes" | "regions">
-): Promise<{ id: string; name: string }[]> {
+): Promise<{
+  id: string;
+  name: string;
+  lead_type: string | null;
+  assigned_team_leader_id: string | null;
+}[]> {
   const { data, error } = await admin
     .from("campaigns")
-    .select("id, name, client_id, lead_type, geography")
+    .select("id, name, client_id, lead_type, geography, assigned_team_leader_id")
     .eq("organization_id", orgId);
 
   if (error) throw new Error(error.message);
@@ -151,7 +157,12 @@ export async function resolveOpsReportCampaigns(
     });
   }
 
-  return rows.map((c) => ({ id: c.id, name: c.name }));
+  return rows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    lead_type: c.lead_type,
+    assigned_team_leader_id: c.assigned_team_leader_id,
+  }));
 }
 
 export async function resolveOpsReportAgentScope(

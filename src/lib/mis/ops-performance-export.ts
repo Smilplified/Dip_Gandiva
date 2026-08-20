@@ -49,23 +49,29 @@ function rowsToRecords(
 function agentDailyToRows(rows: AgentDailyRow[]): Record<string, unknown>[] {
   const headers = [
     "Date",
+    "TL Name",
     "Agent Name",
+    "Lead Type",
     "Qualified",
     "Disqualified",
     "Rectified",
     "QA Pending",
     "Grand Total",
+    "Qual %",
   ];
   return rowsToRecords(
     headers,
     rows.map((r) => [
       dayjs(r.date).format("DD MMM YYYY"),
+      r.team_leader_name,
       r.agent_name,
+      r.lead_type,
       r.qualified,
       r.disqualified,
       r.rectified,
       r.tbd,
       r.grand_total,
+      `${r.qual_pct}%`,
     ])
   );
 }

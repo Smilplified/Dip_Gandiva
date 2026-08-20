@@ -497,6 +497,13 @@ export default function AgentCampaignDetailPage() {
         body: JSON.stringify({ leads: parsedLeads }),
       });
       const data = await res.json();
+      if (res.status === 409) {
+        message.warning(
+          data.error ||
+            "Another lead upload is currently processing for this campaign. Please try again shortly."
+        );
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Import failed");
       const created = data.created ?? 0;
       const updated = data.updated ?? 0;
