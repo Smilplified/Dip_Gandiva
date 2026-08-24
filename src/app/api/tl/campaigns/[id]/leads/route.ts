@@ -44,6 +44,7 @@ export async function PATCH(
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const useAdminDataClient =
       roleNames.includes("mis") ||
+      roleNames.includes("mis_tl") ||
       roleNames.includes("admin") ||
       roleNames.includes("qa") ||
       roleNames.includes("email_marketing_manager");
@@ -292,8 +293,9 @@ export async function PATCH(
     }
 
     const canEditQa = roleNames.includes("qa");
-    const canEditDelivery = roleNames.includes("mis");
-    const canEditBillable = roleNames.includes("mis") || roleNames.includes("admin");
+    const canEditDelivery = roleNames.includes("mis") || roleNames.includes("mis_tl");
+    const canEditBillable =
+      roleNames.includes("mis") || roleNames.includes("mis_tl") || roleNames.includes("admin");
     let previousQaStatus: string | null = null;
     let previousDeliveryStatus: string | null = null;
     let qaHistoryContext: {

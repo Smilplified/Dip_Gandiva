@@ -48,33 +48,53 @@ const QA_STATUS_FILTER_OPTIONS = [
 type AgentOption = { id: string; name: string };
 
 type TeamLeaderLeadsPageProps = {
-  /** MIS / EMM reuse this page with org-wide leads and role-specific campaign links. */
-  variant?: "tl" | "mis" | "emm";
+  /** MIS / EMM / MIS TL reuse this page with org-wide leads and role-specific campaign links. */
+  variant?: "tl" | "mis" | "emm" | "mistl";
 };
 
-/** Reusable view — MIS/EMM render this with org-wide variant; TL is the default. */
+/** Reusable view — MIS/EMM/MIS TL render this with org-wide variant; TL is the default. */
 export function TeamLeaderLeadsView({ variant = "tl" }: TeamLeaderLeadsPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { hasTLAccess, hasRole, isInitialized } = useAuth();
-  const isOrgWideView = variant === "mis" || variant === "emm";
+  const isOrgWideView = variant === "mis" || variant === "emm" || variant === "mistl";
   const canAccessPage = isOrgWideView
     ? variant === "emm"
       ? hasRole("email_marketing_manager") || hasRole("admin")
-      : hasRole("mis") || hasRole("admin")
+      : variant === "mistl"
+        ? hasRole("mis_tl") || hasRole("admin")
+        : hasRole("mis") || hasRole("admin")
     : hasTLAccess();
-  const leadsApiPath = isOrgWideView ? "/api/mis/leads" : "/api/tl/leads";
+  const leadsApiPath = isOrgWideView
+    ? variant === "mistl"
+      ? "/api/mistl/leads"
+      : "/api/mis/leads"
+    : "/api/tl/leads";
   const campaignLinkPrefix =
-    variant === "emm" ? "/emm/campaigns" : variant === "mis" ? "/mis/campaigns" : "/tl/campaigns";
+    variant === "emm"
+      ? "/emm/campaigns"
+      : variant === "mistl"
+        ? "/mistl/campaigns"
+        : variant === "mis"
+          ? "/mis/campaigns"
+          : "/tl/campaigns";
   const queryKeyPrefix =
     variant === "emm"
       ? (["emm", "leads"] as const)
-      : variant === "mis"
-        ? (["mis", "leads"] as const)
-        : (["tl", "leads"] as const);
+      : variant === "mistl"
+        ? (["mistl", "leads"] as const)
+        : variant === "mis"
+          ? (["mis", "leads"] as const)
+          : (["tl", "leads"] as const);
   const exportFilenamePrefix =
-    variant === "emm" ? "emm-leads" : variant === "mis" ? "mis-leads" : "tl-leads";
+    variant === "emm"
+      ? "emm-leads"
+      : variant === "mistl"
+        ? "mistl-leads"
+        : variant === "mis"
+          ? "mis-leads"
+          : "tl-leads";
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [leadSearch, setLeadSearch] = useState("");
