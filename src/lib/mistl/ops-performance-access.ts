@@ -9,6 +9,7 @@ export const MISTL_OPS_REPORT_ROLES = [
   "operations_manager",
 ] as const;
 
+
 export function canAccessMistlOpsReports(
   roleNames: Array<string | null | undefined>
 ): boolean {
