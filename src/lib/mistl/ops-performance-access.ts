@@ -3,6 +3,7 @@ import { normalizeRoleName } from "@/lib/auth/config";
 /** Roles allowed to view MIS TL Ops Performance reports (UI + API). */
 export const MISTL_OPS_REPORT_ROLES = [
   "mis",
+  "mis_tl",
   "admin",
   "sales_manager",
   "operations_manager",
