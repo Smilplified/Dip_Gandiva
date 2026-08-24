@@ -318,6 +318,53 @@ export async function POST(
         upsertPayload.lead_tagging = tagging;
       }
 
+      const duplicateCandidate: DuplicateLeadRecord = {
+        first_name,
+        last_name,
+        company_name,
+        domain,
+        contact_linkedin_url: fields.contact_linkedin_url,
+        job_title_link: fields.job_title_link,
+        email,
+      };
+      const duplicateCheckOptions = {
+        includeProspectLinkedIn: true,
+        includeJobTitleLink: true,
+      };
+      const campaignLeadsToCheck = existingLeadId
+        ? campaignLeadRecords.filter(
+            (lead) => String(lead.id ?? "") !== existingLeadId
+          )
+        : campaignLeadRecords;
+      const campaignDuplicate = findDuplicateLeadMatch(
+        duplicateCandidate,
+        campaignLeadsToCheck,
+        duplicateCheckOptions
+      );
+      const fileDuplicate = campaignDuplicate
+        ? null
+        : findDuplicateLeadMatch(
+            duplicateCandidate,
+            acceptedFileLeadRecords,
+            duplicateCheckOptions
+          );
+      const duplicate = campaignDuplicate ?? fileDuplicate;
+
+      if (duplicate) {
+        const source = campaignDuplicate ? "campaign" : "file";
+        duplicateRows.push({
+          row: i + 1,
+          lead_name: derivedName,
+          existing_lead_id: duplicate.leadId,
+          reason: duplicate.reason,
+          source,
+        });
+        errors.push(
+          `Row ${i + 1}: Duplicate lead (${duplicate.leadId}) by ${duplicate.reason} found in ${source}.`
+        );
+        continue;
+      }
+
       if (existingLeadId) {
         const updatePayload = { ...upsertPayload };
         for (const key of LEAD_IMPORT_PHONE_FIELD_KEYS) {
@@ -339,6 +386,15 @@ export async function POST(
         } else if (!updatedRow) {
           errors.push(`Row ${i + 1}: Lead not found or not assigned to you`);
         } else {
+          const campaignLeadIndex = campaignLeadRecords.findIndex(
+            (lead) => String(lead.id ?? "") === existingLeadId
+          );
+          if (campaignLeadIndex >= 0) {
+            campaignLeadRecords[campaignLeadIndex] = {
+              ...campaignLeadRecords[campaignLeadIndex],
+              ...duplicateCandidate,
+            };
+          }
           updated++;
         }
         continue;
@@ -347,41 +403,6 @@ export async function POST(
       if (!derivedName && !company_name && !email && !phone) {
         errors.push(
           `Row ${i + 1}: At least one of name, company, email, or phone is required`
-        );
-        continue;
-      }
-
-      const duplicateCandidate: DuplicateLeadRecord = {
-        first_name,
-        last_name,
-        company_name,
-        domain,
-        job_title_link: fields.job_title_link,
-        email,
-      };
-      const campaignDuplicate = findDuplicateLeadMatch(
-        duplicateCandidate,
-        campaignLeadRecords,
-        { includeProspectLinkedIn: false }
-      );
-      const fileDuplicate = campaignDuplicate
-        ? null
-        : findDuplicateLeadMatch(duplicateCandidate, acceptedFileLeadRecords, {
-            includeProspectLinkedIn: false,
-          });
-      const duplicate = campaignDuplicate ?? fileDuplicate;
-
-      if (duplicate) {
-        const source = campaignDuplicate ? "campaign" : "file";
-        duplicateRows.push({
-          row: i + 1,
-          lead_name: derivedName,
-          existing_lead_id: duplicate.leadId,
-          reason: duplicate.reason,
-          source,
-        });
-        errors.push(
-          `Row ${i + 1}: Duplicate lead (${duplicate.leadId}) found in ${source}.`
         );
         continue;
       }

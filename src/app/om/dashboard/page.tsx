@@ -1462,6 +1462,11 @@ export default function OperationsManagerDashboardPage() {
             <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
               {[
                 {
+                  label: "Total allocation",
+                  value: selectedCampaign?.total_allocation ?? 0,
+                  color: "#0891b2",
+                },
+                {
                   label: "Total leads",
                   value: selectedCampaignDetail.summary.total_leads,
                   color: "#8b5cf6",
@@ -1482,7 +1487,7 @@ export default function OperationsManagerDashboardPage() {
                   color: "#0ea5e9",
                 },
               ].map((item) => (
-                <Col xs={12} sm={6} key={item.label}>
+                <Col xs={12} flex="1 1 180px" key={item.label}>
                   <div
                     style={{
                       background: "#fff",
