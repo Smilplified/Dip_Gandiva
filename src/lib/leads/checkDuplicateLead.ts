@@ -27,6 +27,7 @@ export type DuplicateLeadRecord = DuplicateLeadInput & {
 
 type DuplicateCheckOptions = {
   includeProspectLinkedIn?: boolean;
+  includeJobTitleLink?: boolean;
 };
 
 function normalizeText(value: unknown): string {
@@ -85,7 +86,10 @@ function normalizeLinkedInUrl(value: unknown): string {
 export function findDuplicateLeadMatch(
   lead: DuplicateLeadInput,
   existingLeads: DuplicateLeadRecord[],
-  { includeProspectLinkedIn = true }: DuplicateCheckOptions = {}
+  {
+    includeProspectLinkedIn = true,
+    includeJobTitleLink = true,
+  }: DuplicateCheckOptions = {}
 ): DuplicateLeadMatch | null {
   const candidate = {
     firstName: normalizeText(lead.first_name),
@@ -119,6 +123,7 @@ export function findDuplicateLeadMatch(
       return { leadId, reason: "Prospect LinkedIn URL" };
     }
     if (
+      includeJobTitleLink &&
       candidate.jobTitleLink &&
       candidate.jobTitleLink === normalizeLinkedInUrl(row.job_title_link)
     ) {

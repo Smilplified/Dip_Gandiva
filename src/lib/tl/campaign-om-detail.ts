@@ -43,6 +43,7 @@ export type OmCampaignDetailResponse = {
     status: string;
     start_date: string | null;
     end_date: string | null;
+    total_allocation: number;
     qualified_leads: number;
     disqualified_leads: number;
     delivered_leads: number;
@@ -164,7 +165,7 @@ export async function fetchOmCampaignDetail(
 ): Promise<OmCampaignDetailResponse | null> {
   const { data: campaign, error: campaignError } = await admin
     .from("campaigns")
-    .select("id, name, campaign_code, status, start_date, end_date")
+    .select("id, name, campaign_code, status, start_date, end_date, total_allocation")
     .eq("organization_id", params.orgId)
     .eq("id", params.campaignId)
     .single();
@@ -178,6 +179,7 @@ export async function fetchOmCampaignDetail(
     status: string;
     start_date: string | null;
     end_date: string | null;
+    total_allocation: number | null;
     assigned_team_leader_id: string | null;
   };
 
@@ -342,6 +344,7 @@ export async function fetchOmCampaignDetail(
       status: camp.status,
       start_date: camp.start_date,
       end_date: camp.end_date,
+      total_allocation: Math.max(0, Number(camp.total_allocation ?? 0) || 0),
       qualified_leads: qualifiedLeads,
       disqualified_leads: disqualifiedLeads,
       delivered_leads: deliveredLeads,
