@@ -6,7 +6,7 @@ import GlobalSearch from "@/components/shared/GlobalSearch";
 export default function MISTLHeader() {
   return (
     <CrmHeader
-      roleLabel="MIS TL"
+      roleLabel="MIS"
       fallbackName="MIS TL User"
       profilePath="/mistl/profile"
       showSettings={false}
