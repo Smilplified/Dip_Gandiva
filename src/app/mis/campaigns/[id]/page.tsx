@@ -460,7 +460,7 @@ export default function MISCampaignDetailPage() {
 
   const handleDeliveryStatusChange = useCallback(async (
     lead: Lead,
-    nextStatus: "pending" | "not_delivered" | "delivered"
+    nextStatus: "pending" | "not_delivered" | "delivered" | "client_rejected"
   ) => {
     if (!id) return;
     const currentStatus = lead.delivery_status ?? "pending";

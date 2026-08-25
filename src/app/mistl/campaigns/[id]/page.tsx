@@ -118,12 +118,12 @@ function OverviewRowOrEmpty({ label, value }: { label: string; value: React.Reac
   );
 }
 
-export default function QATLCampaignDetailPage() {
+export default function MISTLCampaignDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string | undefined;
   const { hasRole, isInitialized } = useAuth();
-  const isQatlAuthorized = isInitialized && (hasRole("qa_tl") || hasRole("admin"));
+  const isMistlAuthorized = isInitialized && (hasRole("mis_tl") || hasRole("admin"));
   const canEditQaAudit = hasRole("qa") || hasRole("admin");
   const initialLeadsLoadDoneRef = useRef(false);
   const leadsFetchGenRef = useRef(0);
@@ -187,7 +187,7 @@ export default function QATLCampaignDetailPage() {
         setLoading(true);
       }
       try {
-        const url = buildListApiUrl(`/api/qatl/campaigns/${campaignId}`, {
+        const url = buildListApiUrl(`/api/mistl/campaigns/${campaignId}`, {
           page,
           limit,
         });
@@ -211,7 +211,7 @@ export default function QATLCampaignDetailPage() {
           );
         } else {
           message.error("Failed to load campaign");
-          routerRef.current.replace("/qatl/campaigns");
+          routerRef.current.replace("/mistl/campaigns");
         }
         return false;
       } finally {
@@ -234,18 +234,18 @@ export default function QATLCampaignDetailPage() {
 
   useEffect(() => {
     if (!id) {
-      router.replace("/qatl/campaigns");
+      router.replace("/mistl/campaigns");
       return;
     }
     if (!isInitialized) return;
-    if (!isQatlAuthorized) {
+    if (!isMistlAuthorized) {
       router.replace("/login");
       return;
     }
-  }, [id, isInitialized, isQatlAuthorized, router]);
+  }, [id, isInitialized, isMistlAuthorized, router]);
 
   useEffect(() => {
-    if (!id || !isQatlAuthorized) return;
+    if (!id || !isMistlAuthorized) return;
 
     const silent = initialLeadsLoadDoneRef.current;
     initialLeadsLoadDoneRef.current = true;
@@ -256,7 +256,7 @@ export default function QATLCampaignDetailPage() {
       pageSize: leadsPageSize,
       syncPageFromResponse: false,
     });
-  }, [id, isQatlAuthorized, leadsPage, leadsPageSize, loadCampaignLeads]);
+  }, [id, isMistlAuthorized, leadsPage, leadsPageSize, loadCampaignLeads]);
 
   const filteredLeads = leads.filter((l) => {
     const matchesSearch = !leadSearch.trim()
@@ -307,7 +307,7 @@ export default function QATLCampaignDetailPage() {
     if (prevLead) {
       if (form.isFieldsTouched()) {
         setPreviousConfirmOpen(true);
-        (window as unknown as { __qatl_prev_lead?: Lead })["__qatl_prev_lead"] = prevLead;
+        (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"] = prevLead;
         return;
       }
       openEditLeadDrawer(prevLead);
@@ -320,7 +320,7 @@ export default function QATLCampaignDetailPage() {
       const values = await form.validateFields();
       setSavingDrawer(true);
       const payload = { ...buildLeadPayload(values), id: editingLead.id };
-      const res = await fetch(`/api/qatl/campaigns/${id}/leads`, {
+      const res = await fetch(`/api/tl/campaigns/${id}/leads`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -346,9 +346,9 @@ export default function QATLCampaignDetailPage() {
   };
 
   const handleConfirmPreviousSave = async () => {
-    const prevLead = (window as unknown as { __qatl_prev_lead?: Lead })["__qatl_prev_lead"];
+    const prevLead = (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"];
     setPreviousConfirmOpen(false);
-    (window as unknown as { __qatl_prev_lead?: Lead })["__qatl_prev_lead"] = undefined;
+    (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"] = undefined;
     if (!prevLead) return;
     await handleDrawerSave(false);
     openEditLeadDrawer(prevLead);
@@ -362,7 +362,7 @@ export default function QATLCampaignDetailPage() {
     }
     setExporting(true);
     try {
-      const url = buildListApiUrl(`/api/qatl/campaigns/${id}`, { export: "all" });
+      const url = buildListApiUrl(`/api/mistl/campaigns/${id}`, { export: "all" });
       const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load leads for export");
@@ -432,7 +432,7 @@ export default function QATLCampaignDetailPage() {
     if (!id || parsedLeads.length === 0) return;
     setImporting(true);
     try {
-      const res = await fetch(`/api/qatl/campaigns/${id}/leads/import`, {
+      const res = await fetch(`/api/tl/campaigns/${id}/leads/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -464,7 +464,7 @@ export default function QATLCampaignDetailPage() {
   ) => {
     if (!id) return;
     const currentStatus = lead.delivery_status ?? "pending";
-    // Allow re-click when delivered but date or QA TL user was never recorded (legacy backfill)
+    // Allow re-click when delivered but date or MIS TL user was never recorded (legacy backfill)
     const alreadyDelivered = currentStatus === "delivered";
     const missingDeliveryMeta = !lead.delivered_at || !lead.delivered_by;
     if (nextStatus === currentStatus && !(alreadyDelivered && missingDeliveryMeta)) {
@@ -473,7 +473,7 @@ export default function QATLCampaignDetailPage() {
     }
     setMarkingDeliveredLeadId(lead.id);
     try {
-      const res = await fetch(`/api/qatl/campaigns/${id}/leads`, {
+      const res = await fetch(`/api/tl/campaigns/${id}/leads`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -486,6 +486,8 @@ export default function QATLCampaignDetailPage() {
           ? alreadyDelivered
             ? "Delivery details recorded"
             : "Lead marked as delivered"
+          : nextStatus === "client_rejected"
+          ? "Lead marked client rejected"
           : nextStatus === "not_delivered"
           ? "Lead marked as not delivered"
           : "Delivery status set to pending"
@@ -499,6 +501,9 @@ export default function QATLCampaignDetailPage() {
               delivery_status: "delivered",
               delivered_at: row.delivered_at ?? new Date().toISOString(),
             };
+          }
+          if (nextStatus === "client_rejected") {
+            return { ...row, delivery_status: "client_rejected" };
           }
           return {
             ...row,
@@ -519,6 +524,28 @@ export default function QATLCampaignDetailPage() {
     }
   }, [id, loadCampaignLeads]);
 
+  const handleBillableStatusChange = useCallback(async (lead: Lead, nextStatus: string | null) => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/tl/campaigns/${id}/leads`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: lead.id, billable_status: nextStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update billable status");
+      message.success(nextStatus ? "Billable status updated" : "Billable status cleared");
+      setLeads((prev) =>
+        prev.map((row) =>
+          row.id === lead.id ? { ...row, billable_status: nextStatus } : row
+        )
+      );
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Failed to update billable status");
+    }
+  }, [id]);
+
   const leadColumns = useMemo(
     () =>
       getLeadTableColumns({
@@ -526,6 +553,9 @@ export default function QATLCampaignDetailPage() {
         onEdit: openEditLeadDrawer,
         showDeliveryStatus: true,
         onDeliveryStatusChange: handleDeliveryStatusChange,
+        allowClientRejectedDelivery: true,
+        showBillableStatus: true,
+        onBillableStatusChange: handleBillableStatusChange,
         markingDeliveredLeadId,
         pagination: { current: leadsPage, pageSize: leadsPageSize },
         showMeetingSetDate: false,
@@ -536,6 +566,7 @@ export default function QATLCampaignDetailPage() {
       }),
     [
       handleDeliveryStatusChange,
+      handleBillableStatusChange,
       id,
       leadsPage,
       leadsPageSize,
@@ -553,7 +584,7 @@ export default function QATLCampaignDetailPage() {
     );
   }
 
-  if (!isQatlAuthorized) {
+  if (!isMistlAuthorized) {
     return null;
   }
 
@@ -580,7 +611,7 @@ export default function QATLCampaignDetailPage() {
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
       <div style={{ marginBottom: 20 }}>
         <Link
-          href="/qatl/campaigns"
+          href="/mistl/campaigns"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -919,7 +950,7 @@ export default function QATLCampaignDetailPage() {
         open={previousConfirmOpen}
         onCancel={() => {
           setPreviousConfirmOpen(false);
-          (window as unknown as { __qatl_prev_lead?: Lead })["__qatl_prev_lead"] = undefined;
+          (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"] = undefined;
         }}
         onOk={handleConfirmPreviousSave}
         okText="Save & Previous"

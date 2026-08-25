@@ -63,6 +63,7 @@ export async function POST(request: Request) {
       seniority,
       job_function,
       creatives_url,
+      lead_aggregated,
       campaign_questions,
     } = body;
 
@@ -172,6 +173,7 @@ export async function POST(request: Request) {
         seniority: seniority != null && typeof seniority === "string" ? seniority.trim() || null : null,
         job_function: job_function != null && typeof job_function === "string" ? job_function.trim() || null : null,
         creatives_url: Array.isArray(creatives_url) && creatives_url.length > 0 ? creatives_url.filter((v) => v && typeof v === "string").map((v) => String(v).trim()).filter(Boolean) : null,
+        lead_aggregated: lead_aggregated != null && typeof lead_aggregated === "string" ? lead_aggregated.trim() || null : null,
         campaign_questions: campaignQuestionsToDbValue(
           normalizeCampaignQuestions(campaign_questions)
         ),

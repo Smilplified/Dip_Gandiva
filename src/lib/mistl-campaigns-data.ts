@@ -3,22 +3,15 @@ import { buildPaginationMeta } from "@/lib/api-pagination";
 import { enrichCampaignAllocationFields, MIS_DELIVERED_ACHIEVED_OPTIONS } from "@/lib/campaign-allocation";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { applyScoredLeadTaggingFilter } from "@/lib/lead-tagging";
-import {
-  countDisqualifiedLeads,
-  countPendingAuditLeads,
-  countQualifiedLeads,
-} from "@/lib/qa-lead-audit";
-import {
-  fetchBulkCampaignTeamLeaderAssignments,
-  formatTeamLeaderAssignmentLabel,
-} from "@/lib/campaign/team-leader-assignments";
+import { countPendingAuditLeads } from "@/lib/qa-lead-audit";
+import { isBillableLeadStatus } from "@/lib/leads/billable-status";
 
 const LEADS_PAGE_SIZE = 1000;
 
-const qatlExportLeadsSelect =
+const mistlExportLeadsSelect =
   "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, client_feedback_status, delivered_at, delivered_by, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, address2, address_link, actual_employee_size, industry_type_link, delivery_remark, rectification_status, rectification_qa_name, rectification_date, disqualification_reasons, disqualification_reason, rectified_reason";
 
-export type QatlCampaignRow = {
+export type MistlCampaignRow = {
   id: string;
   campaign_id?: string | null;
   campaign_code?: string | null;
@@ -50,10 +43,8 @@ export type QatlCampaignRow = {
   seniority?: string | null;
   job_function?: string | null;
   creatives_url?: string[] | null;
-  lead_aggregated?: string | null;
   scored_leads_count: number;
-  qualified_leads_count: number;
-  disqualified_leads_count: number;
+  billable_leads_count: number;
   qa_pending_leads_count: number;
   delivered_leads_count: number;
   client_rejected_leads_count: number;
@@ -61,7 +52,7 @@ export type QatlCampaignRow = {
   leads?: Record<string, unknown>[];
 };
 
-export type QatlCampaignsSummary = {
+export type MistlCampaignsSummary = {
   campaign_count: number;
   total_scored_leads: number;
   total_qa_pending_leads: number;
@@ -100,7 +91,7 @@ export async function fetchDistinctLeadTypes(
   return [...types].sort((a, b) => a.localeCompare(b));
 }
 
-async function fetchQatlLeadsForCounts(
+async function fetchMistlLeadsForCounts(
   supabase: SupabaseClient,
   orgId: string,
   campaignIds: string[],
@@ -115,7 +106,7 @@ async function fetchQatlLeadsForCounts(
     const { data, error } = await applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
-        .select("campaign_id, created_at, delivery_status, client_feedback_status, qa_status")
+        .select("campaign_id, created_at, delivery_status, client_feedback_status, qa_status, billable_status")
         .eq("organization_id", orgId)
         .in("campaign_id", campaignIds)
         .gte("created_at", uploadRange.startUtc)
@@ -135,7 +126,7 @@ async function fetchQatlLeadsForCounts(
   return all;
 }
 
-async function fetchQatlLeadsForExport(
+async function fetchMistlLeadsForExport(
   supabase: SupabaseClient,
   orgId: string,
   campaignIds: string[],
@@ -150,7 +141,7 @@ async function fetchQatlLeadsForExport(
     const { data, error } = await applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
-        .select(qatlExportLeadsSelect)
+        .select(mistlExportLeadsSelect)
         .eq("organization_id", orgId)
         .in("campaign_id", campaignIds)
         .gte("created_at", uploadRange.startUtc)
@@ -170,7 +161,7 @@ async function fetchQatlLeadsForExport(
   return enrichLeadsWithCreatorNames(supabase, all, orgId);
 }
 
-export async function loadQatlCampaignsForDateRange(
+export async function loadMistlCampaignsForDateRange(
   supabase: SupabaseClient,
   orgId: string,
   startUtc: string,
@@ -185,8 +176,8 @@ export async function loadQatlCampaignsForDateRange(
     leadType?: string;
   }
 ): Promise<{
-  campaigns: QatlCampaignRow[];
-  summary: QatlCampaignsSummary;
+  campaigns: MistlCampaignRow[];
+  summary: MistlCampaignsSummary;
   lead_types: string[];
   pagination?: ReturnType<typeof buildPaginationMeta>;
 }> {
@@ -209,7 +200,7 @@ export async function loadQatlCampaignsForDateRange(
           id, campaign_id, campaign_code, name, client_name, description, industry, geography, target_designation, lead_type, status,
           start_date, end_date, created_at, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation,
           weekly_call, weekly_report, additional_comments, assigned_team_leader_id,
-          employee_size, abm, seniority, job_function, creatives_url, lead_aggregated
+          employee_size, abm, seniority, job_function, creatives_url
         `)
         .eq("organization_id", orgId)
         .order("start_date", { ascending: false, nullsFirst: false })
@@ -244,10 +235,8 @@ export async function loadQatlCampaignsForDateRange(
   if (campaignsError) throw new Error(campaignsError.message);
 
   type CampaignBase =     Omit<
-    QatlCampaignRow,
+    MistlCampaignRow,
     | "scored_leads_count"
-    | "qualified_leads_count"
-    | "disqualified_leads_count"
     | "qa_pending_leads_count"
     | "delivered_leads_count"
     | "client_rejected_leads_count"
@@ -267,19 +256,22 @@ export async function loadQatlCampaignsForDateRange(
     };
   }
 
-  const tlByCampaign = await fetchBulkCampaignTeamLeaderAssignments(
-    supabase,
-    campaignsList.map((c) => ({
-      id: c.id,
-      assigned_team_leader_id: c.assigned_team_leader_id,
-    }))
-  );
+  const tlIds = [
+    ...new Set(campaignsList.map((c) => c.assigned_team_leader_id).filter(Boolean)),
+  ] as string[];
+  const tlNames: Record<string, string> = {};
+  if (tlIds.length > 0) {
+    const { data: tlUsers } = await supabase.from("users").select("id, full_name, email").in("id", tlIds);
+    ((tlUsers ?? []) as { id: string; full_name: string | null; email: string | null }[]).forEach((u) => {
+      tlNames[u.id] = u.full_name || u.email || "Unknown";
+    });
+  }
 
   const campaignIds = campaignsList.map((c) => c.id);
   const uploadRange = { startUtc, endUtc };
   const rawLeads = includeLeads
-    ? await fetchQatlLeadsForExport(supabase, orgId, campaignIds, uploadRange)
-    : await fetchQatlLeadsForCounts(supabase, orgId, campaignIds, uploadRange);
+    ? await fetchMistlLeadsForExport(supabase, orgId, campaignIds, uploadRange)
+    : await fetchMistlLeadsForCounts(supabase, orgId, campaignIds, uploadRange);
 
   const leadsByCampaign: Record<string, Record<string, unknown>[]> = {};
   for (const c of campaignsList) {
@@ -292,65 +284,45 @@ export async function loadQatlCampaignsForDateRange(
     }
   }
 
-  const visible: QatlCampaignRow[] = [];
+  const visible: MistlCampaignRow[] = [];
 
   for (const c of campaignsList) {
     const leads = leadsByCampaign[c.id] ?? [];
-    // The QA TL campaign table represents lead activity in the selected upload
-    // date range, so campaigns without a lead in that range are not listed.
-    if (leads.length === 0) continue;
-
     const qaPending = countPendingAuditLeads(leads as { qa_status?: string | null }[]);
-    const qualified = countQualifiedLeads(leads as { qa_status?: string | null }[]);
-    const disqualified = countDisqualifiedLeads(leads as { qa_status?: string | null }[]);
     let activityMs = 0;
     let delivered = 0;
+    let billable = 0;
     let clientRejected = 0;
     for (const l of leads) {
       const createdMs = new Date(String(l.created_at)).getTime();
       if (Number.isFinite(createdMs) && createdMs > activityMs) activityMs = createdMs;
       if (isDeliveredStatus(l.delivery_status)) delivered += 1;
+      if (isBillableLeadStatus(l.billable_status)) billable += 1;
       if (String(l.delivery_status ?? "").trim().toLowerCase() === "client_rejected") {
         clientRejected += 1;
       }
     }
 
-    // Client-rejected leads have their own delivery status, so Achieved equals Delivered.
     const metrics = { total: leads.length, qualified: 0, delivered };
     const enriched = enrichCampaignAllocationFields(c, metrics, MIS_DELIVERED_ACHIEVED_OPTIONS);
-    const assigned_team_leader_name = formatTeamLeaderAssignmentLabel(
-      tlByCampaign[c.id] ?? []
-    );
-
-    const leadsWithTl = includeLeads
-      ? leads.map((l) => ({ ...l, team_leader_name: assigned_team_leader_name }))
-      : undefined;
 
     visible.push({
       ...enriched,
-      assigned_team_leader_name,
+      assigned_team_leader_name: c.assigned_team_leader_id
+        ? tlNames[c.assigned_team_leader_id] ?? null
+        : null,
       scored_leads_count: leads.length,
-      qualified_leads_count: qualified,
-      disqualified_leads_count: disqualified,
+      billable_leads_count: billable,
       qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,
       client_rejected_leads_count: clientRejected,
       last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,
-      leads: leadsWithTl,
+      leads: includeLeads ? leads : undefined,
     });
   }
 
-  // Campaigns with the newest lead activity appear first. Campaigns without
-  // activity in the selected range fall back to their launch/creation date.
+  // Latest-launched campaigns first (start_date), then newest created.
   visible.sort((a, b) => {
-    const aActivity = a.last_lead_activity_at
-      ? new Date(a.last_lead_activity_at).getTime()
-      : 0;
-    const bActivity = b.last_lead_activity_at
-      ? new Date(b.last_lead_activity_at).getTime()
-      : 0;
-    if (bActivity !== aActivity) return bActivity - aActivity;
-
     const aLaunch = a.start_date
       ? new Date(a.start_date).getTime()
       : a.created_at
@@ -368,7 +340,7 @@ export async function loadQatlCampaignsForDateRange(
     return bCreated - aCreated;
   });
 
-  const summary: QatlCampaignsSummary = {
+  const summary: MistlCampaignsSummary = {
     campaign_count: visible.filter((c) => (c.scored_leads_count ?? 0) > 0).length,
     total_scored_leads: visible.reduce((sum, c) => sum + (c.scored_leads_count ?? 0), 0),
     total_qa_pending_leads: visible.reduce((sum, c) => sum + (c.qa_pending_leads_count ?? 0), 0),

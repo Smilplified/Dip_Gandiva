@@ -36,6 +36,8 @@ type ColumnConfig = {
   /** Show the MIS-only billable status selector after Delivery. */
   showBillableStatus?: boolean;
   onBillableStatusChange?: (lead: Lead, status: string | null) => void;
+  /** Adds Client Rejected to the Delivery dropdown. */
+  allowClientRejectedDelivery?: boolean;
   /** When false, shows Meeting Date & Time instead of QA Status. */
   showQaStatus?: boolean;
   /** When false, hides the Date Meeting Set column. */
@@ -55,7 +57,7 @@ type ColumnConfig = {
   markingDeliveredLeadId?: string | null;
   onDeliveryStatusChange?: (
     lead: Lead,
-    status: "pending" | "not_delivered" | "delivered"
+    status: "pending" | "not_delivered" | "delivered" | "client_rejected"
   ) => void;
   /** Pass when the table uses pagination so Sr. No. continues across pages. */
   pagination?: { current: number; pageSize: number };
@@ -278,6 +280,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
     showDeliveryStatus = false,
     showBillableStatus = false,
     onBillableStatusChange,
+    allowClientRejectedDelivery = false,
     showQaStatus = true,
     showMeetingSetDate = true,
     showAppointment = true,
@@ -449,7 +452,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
                     (record.delivery_status ?? "pending") === String(value),
                 }),
             render: (v: Lead["delivery_status"], record: Lead) => {
-              const status = (v ?? "pending") as "pending" | "not_delivered" | "delivered";
+              const status = (v ?? "pending") as "pending" | "not_delivered" | "delivered" | "client_rejected";
               const delivered = status === "delivered";
               // Allow re-clicking if delivered but delivery metadata was never recorded (legacy)
               const canRedeliver =
@@ -459,12 +462,16 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
                   ? "green"
                   : status === "not_delivered"
                   ? "default"
+                  : status === "client_rejected"
+                  ? "red"
                   : "orange";
               const statusText =
                 status === "delivered"
                   ? "Delivered"
                   : status === "not_delivered"
                   ? "Not Delivered"
+                  : status === "client_rejected"
+                  ? "Client Rejected"
                   : "Pending";
               const wrapWithDeliveryTooltip = (content: React.ReactNode) => {
                 if (!delivered) return content;
@@ -500,6 +507,9 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
                         { label: "Pending", value: "pending" },
                         { label: "Not Delivered", value: "not_delivered" },
                         { label: "Delivered", value: "delivered" },
+                        ...(allowClientRejectedDelivery
+                          ? [{ label: "Client Rejected", value: "client_rejected" }]
+                          : []),
                       ]}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(nextStatus) => {
@@ -511,7 +521,7 @@ export function getLeadTableColumns(config: ColumnConfig = {}) {
                         }
                         onDeliveryStatusChange(
                           record,
-                          nextStatus as "pending" | "not_delivered" | "delivered"
+                          nextStatus as "pending" | "not_delivered" | "delivered" | "client_rejected"
                         );
                       }}
                     />

@@ -49,14 +49,9 @@ type Campaign = {
   start_date: string | null;
   end_date: string | null;
   created_at?: string;
-  lead_aggregated?: string | null;
-  total_allocation?: number | null;
-  achieved?: number | null;
-  pending_allocation?: number | null;
   assigned_team_leader_name?: string | null;
   scored_leads_count?: number;
-  qualified_leads_count?: number;
-  disqualified_leads_count?: number;
+  billable_leads_count?: number;
   qa_pending_leads_count?: number;
   delivered_leads_count?: number;
   client_rejected_leads_count?: number;
@@ -113,11 +108,10 @@ function KpiCard({
   );
 }
 
-export default function QATLCampaignsPage() {
+export default function MISTLCampaignsPage() {
   const router = useRouter();
-  const { status } = useRoleGuard(["qa_tl", "admin"]);
+  const { status } = useRoleGuard(["mis_tl", "admin"]);
   const [exporting, setExporting] = useState(false);
-  const [selectingAll, setSelectingAll] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -127,10 +121,10 @@ export default function QATLCampaignsPage() {
     useServerTablePagination();
   const [isOffline, setIsOffline] = useState(false);
 
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() => {
-    const end = dayjs();
-    return [end.startOf("month"), end];
-  });
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
+    dayjs().subtract(3, "month"),
+    dayjs(),
+  ]);
 
   useEffect(() => {
     resetPage();
@@ -152,14 +146,14 @@ export default function QATLCampaignsPage() {
   }, []);
 
   const buildUrl = useCallback(
-    (opts?: { includeLeads?: boolean; campaignIds?: string[]; page?: number; limit?: number }) => {
+    (opts?: { includeLeads?: boolean; campaignIds?: string[] }) => {
       const exportIds = opts?.campaignIds ?? [];
-      return buildListApiUrl("/api/qatl/campaigns", {
+      return buildListApiUrl("/api/mistl/campaigns", {
         start_date: dateRange[0].format("YYYY-MM-DD"),
         end_date: dateRange[1].format("YYYY-MM-DD"),
         tz: clientTimeZone,
-        page: opts?.page ?? (exportIds.length > 0 ? 1 : page),
-        limit: opts?.limit ?? (exportIds.length > 0 ? exportIds.length : pageSize),
+        page: exportIds.length > 0 ? 1 : page,
+        limit: exportIds.length > 0 ? exportIds.length : pageSize,
         q: debouncedSearch || undefined,
         status: statusFilter || undefined,
         lead_type: leadTypeFilter || undefined,
@@ -178,7 +172,7 @@ export default function QATLCampaignsPage() {
     navigator.onLine;
 
   const campaignsQuery = useQuery({
-    queryKey: ["qatl", "campaigns", "list", listUrl],
+    queryKey: ["mistl", "campaigns", "list", listUrl],
     queryFn: async () => {
       const res = await fetch(listUrl, { credentials: "include" });
       const data = await res.json();
@@ -253,18 +247,13 @@ export default function QATLCampaignsPage() {
 
     setExporting(true);
     try {
-      const exportCampaigns: Campaign[] = [];
-      const batchSize = 100;
-      for (let index = 0; index < selectedIds.length; index += batchSize) {
-        const campaignIds = selectedIds.slice(index, index + batchSize);
-        const res = await fetch(buildUrl({ includeLeads: true, campaignIds }), {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to load export data");
-        exportCampaigns.push(...((data.campaigns ?? []) as Campaign[]));
-      }
+      const res = await fetch(buildUrl({ includeLeads: true, campaignIds: selectedIds }), {
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load export data");
 
+      const exportCampaigns = (data.campaigns ?? []) as Campaign[];
       const returnedIds = new Set(exportCampaigns.map((c) => c.id));
       const missingIds = selectedIds.filter((id) => !returnedIds.has(id));
       if (missingIds.length > 0) {
@@ -287,7 +276,7 @@ export default function QATLCampaignsPage() {
       }
 
       const stamp = `${dateRange[0].format("YYYY-MM-DD")}_${dateRange[1].format("YYYY-MM-DD")}`;
-      downloadExcel(exportLeads, `qatl-campaigns-export_${stamp}.xlsx`);
+      downloadExcel(exportLeads, `mis-campaigns-export_${stamp}.xlsx`);
       message.success(
         `Exported ${exportLeads.length} leads from ${exportCampaigns.length} campaign${exportCampaigns.length !== 1 ? "s" : ""} (${rangeLabel})`
       );
@@ -298,57 +287,9 @@ export default function QATLCampaignsPage() {
     }
   };
 
-  const handleSelectAllCampaigns = async (selected: boolean) => {
-    if (!selected) {
-      // Ant Design also fires onChange after onSelectAll. Defer this update so
-      // that callback cannot restore selections retained from other pages.
-      queueMicrotask(() => setSelectedRowKeys([]));
-      return;
-    }
-
-    setSelectingAll(true);
-    try {
-      const firstPageSize = 100;
-      const firstRes = await fetch(buildUrl({ page: 1, limit: firstPageSize }), {
-        credentials: "include",
-      });
-      const firstData = await firstRes.json();
-      if (!firstRes.ok) throw new Error(firstData.error || "Failed to select campaigns");
-
-      const totalPages = firstData.pagination?.totalPages ?? 1;
-      const allCampaigns = [...((firstData.campaigns ?? []) as Campaign[])];
-      for (let currentPage = 2; currentPage <= totalPages; currentPage += 1) {
-        const res = await fetch(buildUrl({ page: currentPage, limit: firstPageSize }), {
-          credentials: "include",
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to select campaigns");
-        allCampaigns.push(...((data.campaigns ?? []) as Campaign[]));
-      }
-
-      setSelectedRowKeys([...new Set(allCampaigns.map((campaign) => campaign.id))]);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "Failed to select all campaigns");
-    } finally {
-      setSelectingAll(false);
-    }
-  };
-
   const rowSelection = {
     selectedRowKeys,
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
-    onSelect: (campaign: Campaign, selected: boolean) => {
-      setSelectedRowKeys((currentKeys) => {
-        if (selected) {
-          return Array.from(new Set([...currentKeys, campaign.id]));
-        }
-
-        return currentKeys.filter((key) => String(key) !== campaign.id);
-      });
-    },
-    onSelectAll: (selected: boolean) => {
-      void handleSelectAllCampaigns(selected);
-    },
     preserveSelectedRowKeys: true,
     columnWidth: 48,
   };
@@ -368,7 +309,7 @@ export default function QATLCampaignsPage() {
         ),
       },
       {
-        title: "Campaign Number",
+        title: "Campaign Code",
         dataIndex: "campaign_code",
         key: "campaign_code",
         width: 120,
@@ -381,14 +322,6 @@ export default function QATLCampaignsPage() {
         ),
       },
       {
-        title: "Aggregator",
-        dataIndex: "lead_aggregated",
-        key: "lead_aggregated",
-        width: 180,
-        ellipsis: true,
-        render: (v: string | null) => tableEllipsisCell(v),
-      },
-      {
         title: "Campaign",
         dataIndex: "name",
         key: "name",
@@ -398,17 +331,26 @@ export default function QATLCampaignsPage() {
         render: (v: string | null) => tableEllipsisCell(v),
       },
       {
-        title: "Region",
-        dataIndex: "geography",
-        key: "geography",
-        width: 140,
+        title: "Lead Type",
+        dataIndex: "lead_type",
+        key: "lead_type",
+        width: 110,
         ellipsis: true,
         render: (v: string | null) => tableEllipsisCell(v),
       },
       {
-        title: "Lead Type",
-        dataIndex: "lead_type",
-        key: "lead_type",
+        title: "Industry",
+        dataIndex: "industry",
+        key: "industry",
+        width: 160,
+        ellipsis: { showTitle: false },
+        className: "table-col-campaign-name",
+        render: (v: string | null) => tableEllipsisCell(v),
+      },
+      {
+        title: "Geography",
+        dataIndex: "geography",
+        key: "geography",
         width: 110,
         ellipsis: true,
         render: (v: string | null) => tableEllipsisCell(v),
@@ -421,7 +363,7 @@ export default function QATLCampaignsPage() {
         responsive: ["md"],
         render: (v: string | null) => (
           <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-            {v ? new Date(v).toLocaleDateString() : "â€”"}
+            {v ? new Date(v).toLocaleDateString() : "—"}
           </Typography.Text>
         ),
       },
@@ -433,7 +375,7 @@ export default function QATLCampaignsPage() {
         responsive: ["md"],
         render: (v: string | null) => (
           <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-            {v ? new Date(v).toLocaleDateString() : "â€”"}
+            {v ? new Date(v).toLocaleDateString() : "—"}
           </Typography.Text>
         ),
       },
@@ -453,73 +395,17 @@ export default function QATLCampaignsPage() {
         ),
       },
       {
-        title: "Total Allocation",
-        dataIndex: "total_allocation",
-        key: "total_allocation",
-        width: 130,
+        title: "Billable Leads",
+        dataIndex: "billable_leads_count",
+        key: "billable_leads_count",
+        width: 120,
         align: "center",
-        render: (v: number | null | undefined) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
-            {Number(v ?? 0).toLocaleString()}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "Achieved",
-        dataIndex: "achieved",
-        key: "achieved",
-        width: 96,
-        align: "center",
-        sorter: (a, b) => (a.achieved ?? 0) - (b.achieved ?? 0),
-        sortDirections: ["descend", "ascend"] as const,
-        render: (v: number | null | undefined) => {
-          const count = v ?? 0;
-          return (
-            <Typography.Text
-              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#2563eb" : undefined }}
-            >
-              {count}
-            </Typography.Text>
-          );
-        },
-      },
-      {
-        title: "Client Rejected",
-        dataIndex: "client_rejected_leads_count",
-        key: "client_rejected_leads_count",
-        width: 128,
-        align: "center",
-        sorter: (a, b) =>
-          (a.client_rejected_leads_count ?? 0) - (b.client_rejected_leads_count ?? 0),
-        sortDirections: ["descend", "ascend"] as const,
         render: (v: number | undefined) => {
           const count = v ?? 0;
           return (
-            <Typography.Text
-              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#dc2626" : undefined }}
-            >
+            <Tag color={count > 0 ? "cyan" : "default"} style={{ margin: 0, fontWeight: 600 }}>
               {count}
-            </Typography.Text>
-          );
-        },
-      },
-      {
-        title: "Pending Allocation",
-        dataIndex: "pending_allocation",
-        key: "pending_allocation",
-        width: 136,
-        align: "center",
-        sorter: (a, b) => (a.pending_allocation ?? 0) - (b.pending_allocation ?? 0),
-        sortDirections: ["descend", "ascend"] as const,
-        render: (v: number | null | undefined, record: Campaign) => {
-          if ((record.client_rejected_leads_count ?? 0) === 0) return String.fromCharCode(0x2014);
-          const count = v ?? 0;
-          return (
-            <Typography.Text
-              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#d97706" : undefined }}
-            >
-              {count}
-            </Typography.Text>
+            </Tag>
           );
         },
       },
@@ -527,87 +413,6 @@ export default function QATLCampaignsPage() {
         title: "Leads",
         dataIndex: "scored_leads_count",
         key: "scored_leads_count",
-        width: 80,
-        align: "center",
-        sorter: (a, b) => (a.scored_leads_count ?? 0) - (b.scored_leads_count ?? 0),
-        sortDirections: ["descend", "ascend"] as const,
-        render: (v: number | undefined) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
-            {v ?? 0}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "Qualified",
-        dataIndex: "qualified_leads_count",
-        key: "qualified_leads_count",
-        width: 100,
-        align: "center",
-        render: (v: number | undefined) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#389e0d" : undefined }}>
-            {v ?? 0}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "Disqualified",
-        dataIndex: "disqualified_leads_count",
-        key: "disqualified_leads_count",
-        width: 115,
-        align: "center",
-        render: (v: number | undefined) => (
-          <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#cf1322" : undefined }}>
-            {v ?? 0}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "Start Date",
-        dataIndex: "start_date",
-        key: "start_date",
-        hidden: true,
-        width: 108,
-        responsive: ["md"],
-        render: (v: string | null) => (
-          <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-            {v ? new Date(v).toLocaleDateString() : "—"}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "End Date",
-        dataIndex: "end_date",
-        key: "end_date",
-        hidden: true,
-        width: 108,
-        responsive: ["md"],
-        render: (v: string | null) => (
-          <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
-            {v ? new Date(v).toLocaleDateString() : "—"}
-          </Typography.Text>
-        ),
-      },
-      {
-        title: "Status",
-        dataIndex: "status",
-        key: "status",
-        hidden: true,
-        width: 96,
-        align: "center",
-        render: (v: string) => (
-          <Tag
-            color={CAMPAIGN_STATUS_COLORS[v] ?? "default"}
-            style={{ textTransform: "capitalize", margin: 0 }}
-          >
-            {v}
-          </Tag>
-        ),
-      },
-      {
-        title: "Leads",
-        dataIndex: "scored_leads_count",
-        key: "scored_leads_count",
-        hidden: true,
         width: 80,
         align: "center",
         fixed: "right",
@@ -671,7 +476,6 @@ export default function QATLCampaignsPage() {
         title: "Client Rejected",
         dataIndex: "client_rejected_leads_count",
         key: "client_rejected_leads_count",
-        hidden: true,
         width: 128,
         align: "center",
         fixed: "right",
@@ -683,49 +487,6 @@ export default function QATLCampaignsPage() {
           return (
             <Typography.Text
               style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#dc2626" : undefined }}
-            >
-              {count}
-            </Typography.Text>
-          );
-        },
-      },
-      {
-        title: "Achieved",
-        dataIndex: "achieved",
-        key: "achieved",
-        hidden: true,
-        width: 96,
-        align: "center",
-        fixed: "right",
-        sorter: (a, b) => (a.achieved ?? 0) - (b.achieved ?? 0),
-        sortDirections: ["descend", "ascend"] as const,
-        render: (v: number | null | undefined) => {
-          const count = v ?? 0;
-          return (
-            <Typography.Text
-              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#2563eb" : undefined }}
-            >
-              {count}
-            </Typography.Text>
-          );
-        },
-      },
-      {
-        title: "Pending Allocation",
-        dataIndex: "pending_allocation",
-        key: "pending_allocation",
-        hidden: true,
-        width: 136,
-        align: "center",
-        fixed: "right",
-        sorter: (a, b) => (a.pending_allocation ?? 0) - (b.pending_allocation ?? 0),
-        sortDirections: ["descend", "ascend"] as const,
-        render: (v: number | null | undefined, record: Campaign) => {
-          if ((record.client_rejected_leads_count ?? 0) === 0) return "—";
-          const count = v ?? 0;
-          return (
-            <Typography.Text
-              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#d97706" : undefined }}
             >
               {count}
             </Typography.Text>
@@ -859,9 +620,9 @@ export default function QATLCampaignsPage() {
                 icon={<DownloadOutlined />}
                 onClick={handleExport}
                 loading={exporting}
-                disabled={loading || selectingAll || selectedRowKeys.length === 0}
+                disabled={loading || selectedRowKeys.length === 0}
               >
-                {selectingAll ? "Selecting campaigns..." : `Export${selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ""}`}
+                Export{selectedRowKeys.length > 0 ? ` (${selectedRowKeys.length})` : ""}
               </Button>
             </Space>
           </Col>
@@ -938,7 +699,7 @@ export default function QATLCampaignsPage() {
             sticky
             pagination={tablePagination}
             onRow={(record) => ({
-              onClick: () => router.push(`/qatl/campaigns/${record.id}`),
+              onClick: () => router.push(`/mistl/campaigns/${record.id}`),
               style: { cursor: "pointer" },
               onMouseEnter: (e) => {
                 e.currentTarget.style.backgroundColor = "#fafafa";

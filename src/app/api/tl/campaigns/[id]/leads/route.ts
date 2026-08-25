@@ -147,6 +147,8 @@ export async function PATCH(
       followup_date,
       notes,
       delivery_status,
+      billable_status,
+      client_feedback_status,
     } = body ?? {};
 
     if (!leadRowId) {
@@ -265,6 +267,8 @@ export async function PATCH(
       const raw = typeof delivery_status === "string" ? delivery_status.trim().toLowerCase() : "";
       if (raw === "delivered") {
         updates.delivery_status = "delivered";
+      } else if (raw === "client_rejected" || raw === "client rejected") {
+        updates.delivery_status = "client_rejected";
       } else if (raw === "not_delivered" || raw === "not delivered") {
         updates.delivery_status = "not_delivered";
         (updates as Record<string, unknown>).delivered_at = null;

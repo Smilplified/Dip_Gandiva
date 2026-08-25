@@ -96,7 +96,8 @@ export type Lead = {
   qa_status: string | null;
   /** UI-only until billable status is persisted in the database. */
   billable_status?: string | null;
-  delivery_status: "pending" | "not_delivered" | "delivered" | null;
+  client_feedback_status?: "pending" | "rejected" | null;
+  delivery_status: "pending" | "not_delivered" | "delivered" | "client_rejected" | null;
   delivered_at: string | null;
   delivered_by: string | null;
   /** MIS user who marked the lead delivered (resolved from delivered_by). */
