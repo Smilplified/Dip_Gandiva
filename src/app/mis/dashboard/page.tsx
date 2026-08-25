@@ -56,6 +56,7 @@ type MisStats = {
   qaApprovedLeads: number;
   qaRejectedLeads: number;
   callBackLeads: number;
+  billableLeads: number;
 };
 
 type DailyUploadPoint = {
@@ -209,8 +210,11 @@ export default function MISDashboardPage() {
       },
       {
         title: "Billable Leads",
-        value: "0",
-        change: "No billable leads yet",
+        value: (s?.billableLeads ?? 0).toLocaleString(),
+        change:
+          (s?.billableLeads ?? 0) > 0
+            ? "Attended-Billable leads"
+            : "No billable leads yet",
         icon: <DollarCircleOutlined />,
         color: "#08979c",
         bgColor: "#e6fffb",

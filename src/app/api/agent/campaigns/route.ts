@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildPaginationMeta, parseListPagination } from "@/lib/api-pagination";
+import { isBillableLeadStatus } from "@/lib/leads/billable-status";
 
 export const dynamic = "force-dynamic";
 
@@ -101,16 +102,16 @@ export async function GET(request: NextRequest) {
 
     const leadsByCampaign: Record<
       string,
-      { total: number; active: number; won: number; qualified: number }
+      { total: number; active: number; won: number; qualified: number; billable: number }
     > = {};
     for (const id of pageCampaignIds) {
-      leadsByCampaign[id] = { total: 0, active: 0, won: 0, qualified: 0 };
+      leadsByCampaign[id] = { total: 0, active: 0, won: 0, qualified: 0, billable: 0 };
     }
 
     if (pageCampaignIds.length > 0) {
       const { data: leadsRes, error: leadsError } = await supabase
         .from("leads")
-        .select("campaign_id, status, qa_status")
+        .select("campaign_id, status, qa_status, billable_status")
         .in("campaign_id", pageCampaignIds)
         .eq("assigned_agent_id", user.id);
 
@@ -118,7 +119,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: leadsError.message }, { status: 500 });
       }
 
-      ((leadsRes ?? []) as { campaign_id: string; status: string; qa_status: string | null }[]).forEach(
+      ((leadsRes ?? []) as {
+        campaign_id: string;
+        status: string;
+        qa_status: string | null;
+        billable_status: string | null;
+      }[]).forEach(
         (l) => {
           const bucket = leadsByCampaign[l.campaign_id];
           if (!bucket) return;
@@ -127,6 +133,7 @@ export async function GET(request: NextRequest) {
           if (l.status === "closed_won") bucket.won += 1;
           const qa = String(l.qa_status ?? "").trim().toLowerCase();
           if (qa === "qualified" || qa === "approved" || qa === "pass") bucket.qualified += 1;
+          if (isBillableLeadStatus(l.billable_status)) bucket.billable += 1;
         }
       );
     }
@@ -137,6 +144,7 @@ export async function GET(request: NextRequest) {
       active_leads: leadsByCampaign[c.id]?.active ?? 0,
       won_leads: leadsByCampaign[c.id]?.won ?? 0,
       qualified_leads: leadsByCampaign[c.id]?.qualified ?? 0,
+      billable_leads_count: leadsByCampaign[c.id]?.billable ?? 0,
     }));
 
     return NextResponse.json({

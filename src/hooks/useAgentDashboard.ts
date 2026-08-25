@@ -16,6 +16,7 @@ export type AgentDashboardSummary = {
   qualifiedLeads: number;
   disqualifiedLeads: number;
   qualifiedRatePct: number;
+  billableLeads: number;
 };
 
 export type AgentDashboardCampaignRow = {

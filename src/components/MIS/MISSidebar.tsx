@@ -20,7 +20,7 @@ const misMenuItems: CrmSidebarItem[] = [
   { key: "/mis/campaign-tracker", icon: <AimOutlined />, label: "Camp Tracker", href: "/mis/campaign-tracker" },
   { key: "/mis/lead-upload", icon: <CloudUploadOutlined />, label: "Lead Upload", href: "/mis/lead-upload" },
   { key: "/mis/leads", icon: <SolutionOutlined />, label: "Leads", href: "/mis/leads" },
-  { key: "/mis/reports", icon: <BarChartOutlined />, label: "Reports", href: "/mis/reports" },
+  // { key: "/mis/reports", icon: <BarChartOutlined />, label: "Reports", href: "/mis/reports" },
 ];
 
 export default function MISSidebar() {

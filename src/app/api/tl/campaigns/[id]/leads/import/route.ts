@@ -90,15 +90,17 @@ export async function POST(
       roleNames.includes("operations_manager") ||
       roleNames.includes("qa") ||
       roleNames.includes("mis") ||
+      roleNames.includes("mis_tl") ||
       roleNames.includes("admin") ||
       roleNames.includes("email_marketing_manager");
-    const canEditDelivery = roleNames.includes("mis");
+    const canEditDelivery = roleNames.includes("mis") || roleNames.includes("mis_tl");
     if (!canImport) {
       return NextResponse.json({ error: "You do not have permission to import leads" }, { status: 403 });
     }
-    // QA/MIS/Admin/EMM bulk import must bypass leads RLS (QA has UPDATE but no INSERT policy on user JWT).
+    // QA/MIS/MIS TL/Admin/EMM bulk import must bypass leads RLS (QA has UPDATE but no INSERT policy on user JWT).
     const useAdminDataClient =
       roleNames.includes("mis") ||
+      roleNames.includes("mis_tl") ||
       roleNames.includes("admin") ||
       roleNames.includes("email_marketing_manager") ||
       isQaImporter;

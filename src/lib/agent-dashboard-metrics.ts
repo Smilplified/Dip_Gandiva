@@ -8,12 +8,14 @@ import {
   isLeadPendingAudit,
   isLeadQualified,
 } from "@/lib/qa-lead-audit";
+import { countBillableLeads } from "@/lib/leads/billable-status";
 
 const TEAM_LEADS_PAGE_SIZE = 1000;
 
 export type AgentLeadRow = {
   campaign_id: string;
   qa_status?: string | null;
+  billable_status?: string | null;
   created_at?: string | null;
 };
 
@@ -272,5 +274,5 @@ export function summarizeAgentLeads(leads: AgentLeadRow[]) {
   const qualifiedRatePct =
     totalLeads > 0 ? Math.round((qualifiedLeads / totalLeads) * 100) : 0;
 
-  return { totalLeads, pendingLeads, qualifiedLeads, disqualifiedLeads, qualifiedRatePct };
+  return { totalLeads, pendingLeads, qualifiedLeads, disqualifiedLeads, qualifiedRatePct, billableLeads: countBillableLeads(leads) };
 }

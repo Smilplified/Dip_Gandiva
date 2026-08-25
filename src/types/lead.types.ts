@@ -94,7 +94,6 @@ export type Lead = {
   qa_audited_by_id: string | null;
   qa_audited_at: string | null;
   qa_status: string | null;
-  /** UI-only until billable status is persisted in the database. */
   billable_status?: string | null;
   client_feedback_status?: "pending" | "rejected" | null;
   delivery_status: "pending" | "not_delivered" | "delivered" | "client_rejected" | null;
