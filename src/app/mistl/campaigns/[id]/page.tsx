@@ -460,7 +460,7 @@ export default function MISTLCampaignDetailPage() {
 
   const handleDeliveryStatusChange = useCallback(async (
     lead: Lead,
-    nextStatus: "pending" | "not_delivered" | "delivered"
+    nextStatus: "pending" | "not_delivered" | "delivered" | "client_rejected"
   ) => {
     if (!id) return;
     const currentStatus = lead.delivery_status ?? "pending";
@@ -486,6 +486,8 @@ export default function MISTLCampaignDetailPage() {
           ? alreadyDelivered
             ? "Delivery details recorded"
             : "Lead marked as delivered"
+          : nextStatus === "client_rejected"
+          ? "Lead marked client rejected"
           : nextStatus === "not_delivered"
           ? "Lead marked as not delivered"
           : "Delivery status set to pending"
@@ -499,6 +501,9 @@ export default function MISTLCampaignDetailPage() {
               delivery_status: "delivered",
               delivered_at: row.delivered_at ?? new Date().toISOString(),
             };
+          }
+          if (nextStatus === "client_rejected") {
+            return { ...row, delivery_status: "client_rejected" };
           }
           return {
             ...row,
@@ -548,6 +553,7 @@ export default function MISTLCampaignDetailPage() {
         onEdit: openEditLeadDrawer,
         showDeliveryStatus: true,
         onDeliveryStatusChange: handleDeliveryStatusChange,
+        allowClientRejectedDelivery: true,
         showBillableStatus: true,
         onBillableStatusChange: handleBillableStatusChange,
         markingDeliveredLeadId,

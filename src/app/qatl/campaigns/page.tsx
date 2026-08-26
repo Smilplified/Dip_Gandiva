@@ -49,13 +49,17 @@ type Campaign = {
   start_date: string | null;
   end_date: string | null;
   created_at?: string;
+  lead_aggregated?: string | null;
   total_allocation?: number | null;
+  achieved?: number | null;
+  pending_allocation?: number | null;
   assigned_team_leader_name?: string | null;
   scored_leads_count?: number;
   qualified_leads_count?: number;
   disqualified_leads_count?: number;
   qa_pending_leads_count?: number;
   delivered_leads_count?: number;
+  client_rejected_leads_count?: number;
   leads?: Lead[];
 };
 
@@ -364,7 +368,7 @@ export default function QATLCampaignsPage() {
         ),
       },
       {
-        title: "Campaign Code",
+        title: "Campaign Number",
         dataIndex: "campaign_code",
         key: "campaign_code",
         width: 120,
@@ -377,6 +381,14 @@ export default function QATLCampaignsPage() {
         ),
       },
       {
+        title: "Aggregator",
+        dataIndex: "lead_aggregated",
+        key: "lead_aggregated",
+        width: 180,
+        ellipsis: true,
+        render: (v: string | null) => tableEllipsisCell(v),
+      },
+      {
         title: "Campaign",
         dataIndex: "name",
         key: "name",
@@ -384,6 +396,61 @@ export default function QATLCampaignsPage() {
         ellipsis: { showTitle: false },
         className: "table-col-campaign-name",
         render: (v: string | null) => tableEllipsisCell(v),
+      },
+      {
+        title: "Region",
+        dataIndex: "geography",
+        key: "geography",
+        width: 140,
+        ellipsis: true,
+        render: (v: string | null) => tableEllipsisCell(v),
+      },
+      {
+        title: "Lead Type",
+        dataIndex: "lead_type",
+        key: "lead_type",
+        width: 110,
+        ellipsis: true,
+        render: (v: string | null) => tableEllipsisCell(v),
+      },
+      {
+        title: "Start Date",
+        dataIndex: "start_date",
+        key: "start_date",
+        width: 108,
+        responsive: ["md"],
+        render: (v: string | null) => (
+          <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+            {v ? new Date(v).toLocaleDateString() : "â€”"}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "End Date",
+        dataIndex: "end_date",
+        key: "end_date",
+        width: 108,
+        responsive: ["md"],
+        render: (v: string | null) => (
+          <Typography.Text style={{ fontSize: 13, whiteSpace: "nowrap" }}>
+            {v ? new Date(v).toLocaleDateString() : "â€”"}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        key: "status",
+        width: 96,
+        align: "center",
+        render: (v: string) => (
+          <Tag
+            color={CAMPAIGN_STATUS_COLORS[v] ?? "default"}
+            style={{ textTransform: "capitalize", margin: 0 }}
+          >
+            {v}
+          </Tag>
+        ),
       },
       {
         title: "Total Allocation",
@@ -398,12 +465,77 @@ export default function QATLCampaignsPage() {
         ),
       },
       {
-        title: "Lead Type",
-        dataIndex: "lead_type",
-        key: "lead_type",
-        width: 110,
-        ellipsis: true,
-        render: (v: string | null) => tableEllipsisCell(v),
+        title: "Achieved",
+        dataIndex: "achieved",
+        key: "achieved",
+        width: 96,
+        align: "center",
+        sorter: (a, b) => (a.achieved ?? 0) - (b.achieved ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | null | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#2563eb" : undefined }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
+        title: "Client Rejected",
+        dataIndex: "client_rejected_leads_count",
+        key: "client_rejected_leads_count",
+        width: 128,
+        align: "center",
+        sorter: (a, b) =>
+          (a.client_rejected_leads_count ?? 0) - (b.client_rejected_leads_count ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#dc2626" : undefined }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
+        title: "Pending Allocation",
+        dataIndex: "pending_allocation",
+        key: "pending_allocation",
+        width: 136,
+        align: "center",
+        sorter: (a, b) => (a.pending_allocation ?? 0) - (b.pending_allocation ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | null | undefined, record: Campaign) => {
+          if ((record.client_rejected_leads_count ?? 0) === 0) return String.fromCharCode(0x2014);
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#d97706" : undefined }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
+        title: "Leads",
+        dataIndex: "scored_leads_count",
+        key: "scored_leads_count",
+        width: 80,
+        align: "center",
+        sorter: (a, b) => (a.scored_leads_count ?? 0) - (b.scored_leads_count ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | undefined) => (
+          <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>
+            {v ?? 0}
+          </Typography.Text>
+        ),
       },
       {
         title: "Qualified",
@@ -433,6 +565,7 @@ export default function QATLCampaignsPage() {
         title: "Start Date",
         dataIndex: "start_date",
         key: "start_date",
+        hidden: true,
         width: 108,
         responsive: ["md"],
         render: (v: string | null) => (
@@ -445,6 +578,7 @@ export default function QATLCampaignsPage() {
         title: "End Date",
         dataIndex: "end_date",
         key: "end_date",
+        hidden: true,
         width: 108,
         responsive: ["md"],
         render: (v: string | null) => (
@@ -457,6 +591,7 @@ export default function QATLCampaignsPage() {
         title: "Status",
         dataIndex: "status",
         key: "status",
+        hidden: true,
         width: 96,
         align: "center",
         render: (v: string) => (
@@ -472,6 +607,7 @@ export default function QATLCampaignsPage() {
         title: "Leads",
         dataIndex: "scored_leads_count",
         key: "scored_leads_count",
+        hidden: true,
         width: 80,
         align: "center",
         fixed: "right",
@@ -525,6 +661,71 @@ export default function QATLCampaignsPage() {
                 fontWeight: 600,
                 color: count > 0 ? "#16a34a" : undefined,
               }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
+        title: "Client Rejected",
+        dataIndex: "client_rejected_leads_count",
+        key: "client_rejected_leads_count",
+        hidden: true,
+        width: 128,
+        align: "center",
+        fixed: "right",
+        sorter: (a, b) =>
+          (a.client_rejected_leads_count ?? 0) - (b.client_rejected_leads_count ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#dc2626" : undefined }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
+        title: "Achieved",
+        dataIndex: "achieved",
+        key: "achieved",
+        hidden: true,
+        width: 96,
+        align: "center",
+        fixed: "right",
+        sorter: (a, b) => (a.achieved ?? 0) - (b.achieved ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | null | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#2563eb" : undefined }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
+        title: "Pending Allocation",
+        dataIndex: "pending_allocation",
+        key: "pending_allocation",
+        hidden: true,
+        width: 136,
+        align: "center",
+        fixed: "right",
+        sorter: (a, b) => (a.pending_allocation ?? 0) - (b.pending_allocation ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | null | undefined, record: Campaign) => {
+          if ((record.client_rejected_leads_count ?? 0) === 0) return "—";
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#d97706" : undefined }}
             >
               {count}
             </Typography.Text>

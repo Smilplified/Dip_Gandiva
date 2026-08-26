@@ -92,6 +92,7 @@ type LoadedCampaign = {
   seniority: string | null;
   job_function: string | null;
   creatives_url: string[] | null;
+  lead_aggregated: string | null;
   weekly_call: string | null;
   weekly_report: string | null;
   additional_comments: string | null;
@@ -210,6 +211,9 @@ export default function SalesCreateCampaignPage() {
           seniority: campaign.seniority ?? "",
           job_function: campaign.job_function ?? "",
           creatives_url: campaign.creatives_url?.length ? campaign.creatives_url : undefined,
+          lead_aggregated: campaign.lead_aggregated
+            ? campaign.lead_aggregated.split(",").map((name) => name.trim()).filter(Boolean)
+            : undefined,
           weekly_call: campaign.weekly_call ?? "",
           weekly_report: campaign.weekly_report ?? "",
           additional_comments: campaign.additional_comments ?? "",
@@ -295,6 +299,10 @@ export default function SalesCreateCampaignPage() {
         seniority: values.seniority?.trim() || null,
         job_function: values.job_function?.trim() || null,
         creatives_url: values.creatives_url?.filter((u: string) => u?.trim()) || null,
+        lead_aggregated: values.lead_aggregated
+          ?.map((name: string) => name?.trim())
+          .filter(Boolean)
+          .join(", ") || null,
         weekly_call: values.weekly_call,
         weekly_report: values.weekly_report,
         additional_comments: values.additional_comments,
@@ -464,6 +472,37 @@ export default function SalesCreateCampaignPage() {
             <Col span={24}>
               <Form.Item name="description" label="Overview (Description)">
                 <TextArea rows={3} placeholder="Campaign objective / brief" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col xs={24}>
+              <Form.Item label="Aggregator Name">
+                <Form.List name="lead_aggregated">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map(({ key, name, ...restField }) => (
+                        <Space key={key} style={{ display: "flex", marginBottom: 8 }} align="baseline">
+                          <Form.Item
+                            {...restField}
+                            name={[name]}
+                            rules={[{ required: true, whitespace: true, message: "Enter an aggregator name" }]}
+                            style={{ flex: 1, marginBottom: 0, minWidth: 200 }}
+                          >
+                            <Input placeholder="Enter aggregator name" />
+                          </Form.Item>
+                          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                        </Space>
+                      ))}
+                      <Form.Item style={{ marginBottom: 0 }}>
+                        <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                          Create Aggregator
+                        </Button>
+                      </Form.Item>
+                    </>
+                  )}
+                </Form.List>
               </Form.Item>
             </Col>
           </Row>

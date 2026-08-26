@@ -54,6 +54,7 @@ type Campaign = {
   billable_leads_count?: number;
   qa_pending_leads_count?: number;
   delivered_leads_count?: number;
+  client_rejected_leads_count?: number;
   leads?: Lead[];
 };
 
@@ -465,6 +466,27 @@ export default function MISTLCampaignsPage() {
                 fontWeight: 600,
                 color: count > 0 ? "#16a34a" : undefined,
               }}
+            >
+              {count}
+            </Typography.Text>
+          );
+        },
+      },
+      {
+        title: "Client Rejected",
+        dataIndex: "client_rejected_leads_count",
+        key: "client_rejected_leads_count",
+        width: 128,
+        align: "center",
+        fixed: "right",
+        sorter: (a, b) =>
+          (a.client_rejected_leads_count ?? 0) - (b.client_rejected_leads_count ?? 0),
+        sortDirections: ["descend", "ascend"] as const,
+        render: (v: number | undefined) => {
+          const count = v ?? 0;
+          return (
+            <Typography.Text
+              style={{ fontSize: 13, fontWeight: 600, color: count > 0 ? "#dc2626" : undefined }}
             >
               {count}
             </Typography.Text>

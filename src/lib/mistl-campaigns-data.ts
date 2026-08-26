@@ -9,7 +9,7 @@ import { isBillableLeadStatus } from "@/lib/leads/billable-status";
 const LEADS_PAGE_SIZE = 1000;
 
 const mistlExportLeadsSelect =
-  "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, delivered_at, delivered_by, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, address2, address_link, actual_employee_size, industry_type_link, delivery_remark, rectification_status, rectification_qa_name, rectification_date, disqualification_reasons, disqualification_reason, rectified_reason";
+  "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, client_feedback_status, delivered_at, delivered_by, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, address2, address_link, actual_employee_size, industry_type_link, delivery_remark, rectification_status, rectification_qa_name, rectification_date, disqualification_reasons, disqualification_reason, rectified_reason";
 
 export type MistlCampaignRow = {
   id: string;
@@ -47,6 +47,7 @@ export type MistlCampaignRow = {
   billable_leads_count: number;
   qa_pending_leads_count: number;
   delivered_leads_count: number;
+  client_rejected_leads_count: number;
   last_lead_activity_at: string | null;
   leads?: Record<string, unknown>[];
 };
@@ -105,7 +106,7 @@ async function fetchMistlLeadsForCounts(
     const { data, error } = await applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
-        .select("campaign_id, created_at, delivery_status, qa_status, billable_status")
+        .select("campaign_id, created_at, delivery_status, client_feedback_status, qa_status, billable_status")
         .eq("organization_id", orgId)
         .in("campaign_id", campaignIds)
         .gte("created_at", uploadRange.startUtc)
@@ -238,6 +239,7 @@ export async function loadMistlCampaignsForDateRange(
     | "scored_leads_count"
     | "qa_pending_leads_count"
     | "delivered_leads_count"
+    | "client_rejected_leads_count"
     | "last_lead_activity_at"
     | "leads"
     | "assigned_team_leader_name"
@@ -290,11 +292,15 @@ export async function loadMistlCampaignsForDateRange(
     let activityMs = 0;
     let delivered = 0;
     let billable = 0;
+    let clientRejected = 0;
     for (const l of leads) {
       const createdMs = new Date(String(l.created_at)).getTime();
       if (Number.isFinite(createdMs) && createdMs > activityMs) activityMs = createdMs;
       if (isDeliveredStatus(l.delivery_status)) delivered += 1;
       if (isBillableLeadStatus(l.billable_status)) billable += 1;
+      if (String(l.delivery_status ?? "").trim().toLowerCase() === "client_rejected") {
+        clientRejected += 1;
+      }
     }
 
     const metrics = { total: leads.length, qualified: 0, delivered };
@@ -309,6 +315,7 @@ export async function loadMistlCampaignsForDateRange(
       billable_leads_count: billable,
       qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,
+      client_rejected_leads_count: clientRejected,
       last_lead_activity_at: activityMs > 0 ? new Date(activityMs).toISOString() : null,
       leads: includeLeads ? leads : undefined,
     });

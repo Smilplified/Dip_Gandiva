@@ -24,7 +24,7 @@ export type EnrichCampaignAllocationOptions = {
 /** Achieved = MIS-delivered leads (`leads.delivery_status = 'delivered'`). */
 export const MIS_DELIVERED_ACHIEVED_OPTIONS: EnrichCampaignAllocationOptions = {
   achievedFallback: "delivered",
-  capToAllocation: true,
+  capToAllocation: false,
 };
 
 function hasNumericValue(value: number | null | undefined): value is number {

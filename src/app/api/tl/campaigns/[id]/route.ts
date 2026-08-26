@@ -65,7 +65,7 @@ export async function GET(
 
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("id, campaign_id, campaign_code, client_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, employee_size, abm, seniority, job_function, creatives_url, campaign_questions, created_at")
+      .select("id, campaign_id, campaign_code, client_id, name, client_name, description, industry, geography, target_designation, lead_type, status, start_date, end_date, cpl, revenue, booked, total_allocation, post_qa, achieved, pending_allocation, weekly_call, weekly_report, additional_comments, assigned_team_leader_id, employee_size, abm, seniority, job_function, creatives_url, lead_aggregated, campaign_questions, created_at")
       .eq("id", campaignId)
       .eq("organization_id", orgId)
       .single();
@@ -337,6 +337,7 @@ export async function PATCH(
       seniority,
       job_function,
       creatives_url,
+      lead_aggregated,
       campaign_questions,
     } = body;
 
@@ -405,6 +406,7 @@ export async function PATCH(
     if (seniority !== undefined) updates.seniority = seniority != null && typeof seniority === "string" ? seniority.trim() || null : null;
     if (job_function !== undefined) updates.job_function = job_function != null && typeof job_function === "string" ? job_function.trim() || null : null;
     if (creatives_url !== undefined) updates.creatives_url = Array.isArray(creatives_url) && creatives_url.length > 0 ? creatives_url.filter((v) => v && typeof v === "string").map((v) => String(v).trim()).filter(Boolean) : null;
+    if (lead_aggregated !== undefined) updates.lead_aggregated = lead_aggregated != null && typeof lead_aggregated === "string" ? lead_aggregated.trim() || null : null;
     if (campaign_questions !== undefined) {
       updates.campaign_questions = campaignQuestionsToDbValue(
         normalizeCampaignQuestions(campaign_questions)

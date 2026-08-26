@@ -233,6 +233,9 @@ export async function POST(
         canEditDelivery && deliveryStatusRaw === "delivered"
           ? "delivered"
           : canEditDelivery &&
+            (deliveryStatusRaw === "client_rejected" || deliveryStatusRaw === "client rejected")
+          ? "client_rejected"
+          : canEditDelivery &&
             (deliveryStatusRaw === "not_delivered" || deliveryStatusRaw === "not delivered")
           ? "not_delivered"
           : canEditDelivery && deliveryStatusRaw === "pending"
@@ -245,7 +248,7 @@ export async function POST(
       const deliveredAtFromCsv = normalizeImportTimestampField(fields.delivered_at);
       const existingDelivery = rowId ? existingDeliveryByLeadId.get(rowId) : undefined;
       const resolvedDeliveredAt =
-        effectiveDeliveryStatus === "delivered"
+        effectiveDeliveryStatus === "delivered" || effectiveDeliveryStatus === "client_rejected"
           ? deliveredAtFromCsv ??
             existingDelivery?.delivered_at ??
             new Date().toISOString()
@@ -253,7 +256,7 @@ export async function POST(
           ? null
           : undefined;
       const resolvedDeliveredBy =
-        effectiveDeliveryStatus === "delivered"
+        effectiveDeliveryStatus === "delivered" || effectiveDeliveryStatus === "client_rejected"
           ? existingDelivery?.delivered_by ?? user.id
           : effectiveDeliveryStatus === "not_delivered" || effectiveDeliveryStatus === "pending"
           ? null
@@ -448,11 +451,11 @@ export async function POST(
               ...upsertPayload,
               delivery_status: effectiveDeliveryStatus ?? "not_delivered",
               delivered_at:
-                effectiveDeliveryStatus === "delivered"
+                effectiveDeliveryStatus === "delivered" || effectiveDeliveryStatus === "client_rejected"
                   ? (resolvedDeliveredAt as string)
                   : null,
               delivered_by:
-                effectiveDeliveryStatus === "delivered" ? user.id : null,
+                effectiveDeliveryStatus === "delivered" || effectiveDeliveryStatus === "client_rejected" ? user.id : null,
               channel: candidateChannel,
               created_by: user.id,
             } as never);

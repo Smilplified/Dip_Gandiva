@@ -11,7 +11,6 @@ import { fetchUserRoleNames } from "@/lib/auth/server-roles";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
 import { logAudit } from "@/lib/audit/log";
 import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
-import { normalizeBillableStatus } from "@/lib/leads/billable-status";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +149,7 @@ export async function PATCH(
       notes,
       delivery_status,
       billable_status,
+      client_feedback_status,
     } = body ?? {};
 
     if (!leadRowId) {
@@ -268,6 +268,8 @@ export async function PATCH(
       const raw = typeof delivery_status === "string" ? delivery_status.trim().toLowerCase() : "";
       if (raw === "delivered") {
         updates.delivery_status = "delivered";
+      } else if (raw === "client_rejected" || raw === "client rejected") {
+        updates.delivery_status = "client_rejected";
       } else if (raw === "not_delivered" || raw === "not delivered") {
         updates.delivery_status = "not_delivered";
         (updates as Record<string, unknown>).delivered_at = null;
@@ -280,22 +282,9 @@ export async function PATCH(
         return NextResponse.json({ error: "Invalid delivery_status" }, { status: 400 });
       }
     }
-    if (billable_status !== undefined) {
-      if (billable_status === null || billable_status === "") {
-        updates.billable_status = null;
-      } else {
-        const normalized = normalizeBillableStatus(billable_status);
-        if (!normalized) {
-          return NextResponse.json({ error: "Invalid billable_status" }, { status: 400 });
-        }
-        updates.billable_status = normalized;
-      }
-    }
 
     const canEditQa = roleNames.includes("qa");
     const canEditDelivery = roleNames.includes("mis") || roleNames.includes("mis_tl");
-    const canEditBillable =
-      roleNames.includes("mis") || roleNames.includes("mis_tl") || roleNames.includes("admin");
     let previousQaStatus: string | null = null;
     let previousDeliveryStatus: string | null = null;
     let qaHistoryContext: {
@@ -380,10 +369,7 @@ export async function PATCH(
       }
     }
     if (delivery_status !== undefined && !canEditDelivery) {
-      return NextResponse.json({ error: "Only MIS can update delivery status" }, { status: 403 });
-    }
-    if (billable_status !== undefined && !canEditBillable) {
-      return NextResponse.json({ error: "Only MIS can update billable status" }, { status: 403 });
+      return NextResponse.json({ error: "Only MIS or MIS TL can update delivery status" }, { status: 403 });
     }
 
     if (updates.delivery_status !== undefined) {
