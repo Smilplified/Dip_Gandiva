@@ -71,6 +71,7 @@ type Campaign = {
   total_allocation?: number | null;
   post_qa?: number | null;
   achieved?: number | null;
+  rectified_leads_count?: number;
   pending_allocation?: number | null;
   weekly_call?: string | null;
   weekly_report?: string | null;
@@ -729,6 +730,7 @@ export default function QATLCampaignDetailPage() {
               { label: "Total Allocation", value: campaign.total_allocation },
               { label: "Post QA", value: campaign.post_qa },
               { label: "Achieved", value: campaign.achieved },
+              { label: "Rectified", value: campaign.rectified_leads_count },
               { label: "Pending Allocation", value: campaign.pending_allocation },
               { label: "Industry", value: campaign.industry },
             ]}

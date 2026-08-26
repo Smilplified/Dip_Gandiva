@@ -13,7 +13,7 @@ const LEADS_PAGE_SIZE = 1000;
 
 /** Minimal columns for dashboard KPIs / list counts / charts. */
 export const LEADS_SELECT_AUDIT =
-  "id, campaign_id, qa_status, created_at, updated_at, qa_audited_at, audit_date, delivery_status";
+  "id, campaign_id, qa_status, rectification_status, created_at, updated_at, qa_audited_at, audit_date, delivery_status";
 
 /** `delivered_by_mis` is a legacy value still present in older rows. */
 function isDeliveredLead(deliveryStatus: unknown): boolean {
@@ -23,6 +23,14 @@ function isDeliveredLead(deliveryStatus: unknown): boolean {
 
 function countDeliveredLeads(leads: Record<string, unknown>[]): number {
   return leads.filter((l) => isDeliveredLead(l.delivery_status)).length;
+}
+
+function countRectifiedLeads(leads: Record<string, unknown>[]): number {
+  return leads.filter(
+    (lead) =>
+      String(lead.qa_status ?? "").trim().toLowerCase() === "rectified" &&
+      String(lead.rectification_status ?? "").trim().toLowerCase() === "rectified"
+  ).length;
 }
 
 const leadsSelectBase =
@@ -69,6 +77,7 @@ export type QaCampaignRow = {
   leads_audited: number;
   leads_pending_audit: number;
   leads_qualified: number;
+  leads_rectified: number;
   leads_disqualified: number;
   leads_delivered: number;
 };
@@ -263,6 +272,7 @@ export async function loadQaCampaignsForDateRange(
     | "leads_audited"
     | "leads_pending_audit"
     | "leads_qualified"
+    | "leads_rectified"
     | "leads_disqualified"
     | "leads_delivered"
     | "assigned_team_leader_name"
@@ -320,6 +330,7 @@ export async function loadQaCampaignsForDateRange(
       leads_audited: countAuditedLeads(leads as { qa_status?: string | null }[]),
       leads_pending_audit: countPendingAuditLeads(leads as { qa_status?: string | null }[]),
       leads_qualified: countQualifiedLeads(leads as { qa_status?: string | null }[]),
+      leads_rectified: countRectifiedLeads(leads),
       leads_disqualified: countDisqualifiedLeads(leads as { qa_status?: string | null }[]),
       leads_delivered: countDeliveredLeads(leads),
     });
