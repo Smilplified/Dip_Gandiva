@@ -160,3 +160,31 @@ export async function fetchAllQatlCampaignScoredLeads(
 
   return { rows: all, total };
 }
+
+/** Count scored leads whose QA and rectification statuses are both Rectified. */
+export async function countQatlCampaignRectifiedLeads(
+  admin: SupabaseClient,
+  campaignId: string
+): Promise<number> {
+  let offset = 0;
+  let count = 0;
+
+  for (;;) {
+    const { data, error } = await applyScoredLeadTaggingFilter(
+      admin
+        .from("leads")
+        .select("qa_status, rectification_status")
+        .eq("campaign_id", campaignId)
+    ).range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as { qa_status?: string | null; rectification_status?: string | null }[];
+    count += rows.filter(
+      (lead) =>
+        String(lead.qa_status ?? "").trim().toLowerCase() === "rectified" &&
+        String(lead.rectification_status ?? "").trim().toLowerCase() === "rectified"
+    ).length;
+    if (rows.length < LEADS_PAGE_SIZE) return count;
+    offset += LEADS_PAGE_SIZE;
+  }
+}

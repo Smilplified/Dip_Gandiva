@@ -9,6 +9,7 @@ import {
 } from "@/lib/campaign-allocation";
 import { aggregateTlLeadCountsByCampaign } from "@/lib/tl/dashboard-leads";
 import {
+  countQatlCampaignRectifiedLeads,
   fetchAllQatlCampaignScoredLeads,
   fetchQatlCampaignScoredLeadsPage,
   type QatlCampaignLeadRow,
@@ -186,7 +187,10 @@ export async function GET(
       team_leader_name: assigned_team_leader_name,
     }));
 
-    const leadCounts = await aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]);
+    const [leadCounts, rectifiedLeadsCount] = await Promise.all([
+      aggregateTlLeadCountsByCampaign(admin, orgId, [campaignId]),
+      countQatlCampaignRectifiedLeads(admin, campaignId),
+    ]);
     const metrics = leadCounts[campaignId] ?? { total: 0, qualified: 0, disqualified: 0, delivered: 0 };
     const campaignWithAllocation = enrichCampaignAllocationFields(
       campaignWithTlName,
@@ -214,7 +218,7 @@ export async function GET(
     }
 
     return NextResponse.json({
-      campaign: campaignWithAllocation,
+      campaign: { ...campaignWithAllocation, rectified_leads_count: rectifiedLeadsCount },
       leads: leadsWithRecordings,
       leads_pagination: buildPaginationMeta(leadsPage, leadsLimit, leadsTotal),
       files: filesWithUrls,

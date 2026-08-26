@@ -243,6 +243,16 @@ export function QaCampaignDetailView({
     [campaign?.campaign_questions]
   );
 
+  const rectifiedLeadCount = useMemo(
+    () =>
+      leads.filter(
+        (lead) =>
+          String(lead.qa_status ?? "").trim().toLowerCase() === "rectified" &&
+          String(lead.rectification_status ?? "").trim().toLowerCase() === "rectified"
+      ).length,
+    [leads]
+  );
+
   const fetchCampaign = useCallback(async (campaignId: string) => {
     setLoading(true);
     try {
@@ -672,6 +682,7 @@ export function QaCampaignDetailView({
               { label: "Total Allocation", value: campaign.total_allocation },
               { label: "Post QA", value: campaign.post_qa },
               { label: "Achieved", value: campaign.achieved },
+              { label: "Rectified", value: rectifiedLeadCount },
               { label: "Pending Allocation", value: campaign.pending_allocation },
               { label: "Industry", value: campaign.industry },
             ]}

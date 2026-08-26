@@ -53,6 +53,7 @@ export type QatlCampaignRow = {
   lead_aggregated?: string | null;
   scored_leads_count: number;
   qualified_leads_count: number;
+  rectified_leads_count: number;
   disqualified_leads_count: number;
   qa_pending_leads_count: number;
   delivered_leads_count: number;
@@ -115,7 +116,7 @@ async function fetchQatlLeadsForCounts(
     const { data, error } = await applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
-        .select("campaign_id, created_at, delivery_status, client_feedback_status, qa_status")
+        .select("campaign_id, created_at, delivery_status, client_feedback_status, qa_status, rectification_status")
         .eq("organization_id", orgId)
         .in("campaign_id", campaignIds)
         .gte("created_at", uploadRange.startUtc)
@@ -247,6 +248,7 @@ export async function loadQatlCampaignsForDateRange(
     QatlCampaignRow,
     | "scored_leads_count"
     | "qualified_leads_count"
+    | "rectified_leads_count"
     | "disqualified_leads_count"
     | "qa_pending_leads_count"
     | "delivered_leads_count"
@@ -302,6 +304,11 @@ export async function loadQatlCampaignsForDateRange(
 
     const qaPending = countPendingAuditLeads(leads as { qa_status?: string | null }[]);
     const qualified = countQualifiedLeads(leads as { qa_status?: string | null }[]);
+    const rectified = leads.filter(
+      (lead) =>
+        String(lead.qa_status ?? "").trim().toLowerCase() === "rectified" &&
+        String(lead.rectification_status ?? "").trim().toLowerCase() === "rectified"
+    ).length;
     const disqualified = countDisqualifiedLeads(leads as { qa_status?: string | null }[]);
     let activityMs = 0;
     let delivered = 0;
@@ -331,6 +338,7 @@ export async function loadQatlCampaignsForDateRange(
       assigned_team_leader_name,
       scored_leads_count: leads.length,
       qualified_leads_count: qualified,
+      rectified_leads_count: rectified,
       disqualified_leads_count: disqualified,
       qa_pending_leads_count: qaPending,
       delivered_leads_count: delivered,

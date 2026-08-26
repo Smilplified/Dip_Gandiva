@@ -56,6 +56,7 @@ type Campaign = {
   assigned_team_leader_name?: string | null;
   scored_leads_count?: number;
   qualified_leads_count?: number;
+  rectified_leads_count?: number;
   disqualified_leads_count?: number;
   qa_pending_leads_count?: number;
   delivered_leads_count?: number;
@@ -511,8 +512,7 @@ export default function QATLCampaignsPage() {
         align: "center",
         sorter: (a, b) => (a.pending_allocation ?? 0) - (b.pending_allocation ?? 0),
         sortDirections: ["descend", "ascend"] as const,
-        render: (v: number | null | undefined, record: Campaign) => {
-          if ((record.client_rejected_leads_count ?? 0) === 0) return String.fromCharCode(0x2014);
+        render: (v: number | null | undefined) => {
           const count = v ?? 0;
           return (
             <Typography.Text
@@ -545,6 +545,18 @@ export default function QATLCampaignsPage() {
         align: "center",
         render: (v: number | undefined) => (
           <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#389e0d" : undefined }}>
+            {v ?? 0}
+          </Typography.Text>
+        ),
+      },
+      {
+        title: "Rectified",
+        dataIndex: "rectified_leads_count",
+        key: "rectified_leads_count",
+        width: 96,
+        align: "center",
+        render: (v: number | undefined) => (
+          <Typography.Text style={{ fontSize: 13, fontWeight: 600, color: (v ?? 0) > 0 ? "#d97706" : undefined }}>
             {v ?? 0}
           </Typography.Text>
         ),
