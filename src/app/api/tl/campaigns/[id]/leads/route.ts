@@ -43,6 +43,7 @@ export async function PATCH(
     const roleNames = await fetchUserRoleNames(supabase, user.id);
     const useAdminDataClient =
       roleNames.includes("mis") ||
+      roleNames.includes("mis_tl") ||
       roleNames.includes("admin") ||
       roleNames.includes("qa") ||
       roleNames.includes("email_marketing_manager");
@@ -283,7 +284,7 @@ export async function PATCH(
     }
 
     const canEditQa = roleNames.includes("qa");
-    const canEditDelivery = roleNames.includes("mis");
+    const canEditDelivery = roleNames.includes("mis") || roleNames.includes("mis_tl");
     let previousQaStatus: string | null = null;
     let previousDeliveryStatus: string | null = null;
     let qaHistoryContext: {
@@ -368,7 +369,7 @@ export async function PATCH(
       }
     }
     if (delivery_status !== undefined && !canEditDelivery) {
-      return NextResponse.json({ error: "Only MIS can update delivery status" }, { status: 403 });
+      return NextResponse.json({ error: "Only MIS or MIS TL can update delivery status" }, { status: 403 });
     }
 
     if (updates.delivery_status !== undefined) {
