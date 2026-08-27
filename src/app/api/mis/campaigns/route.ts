@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClientSafe, ADMIN_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/admin";
 import { resolveDateRangeParams } from "@/lib/date-range-tz";
-import { loadMisCampaignsForDateRange } from "@/lib/mis-campaigns-data";
+import { loadMistlCampaignsForDateRange } from "@/lib/mistl-campaigns-data";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       roleNames.includes("admin") ||
       roleNames.includes("email_marketing_manager");
     if (!canView) {
-      return NextResponse.json({ error: "Forbidden: MIS or Admin role required" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: MIS TL or Admin role required" }, { status: 403 });
     }
 
     const admin = getAdminClientSafe();
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       campaignIds.length > 0 ? Math.max(requestedLimit, campaignIds.length) : requestedLimit
     );
 
-    const { campaigns, summary, lead_types, pagination } = await loadMisCampaignsForDateRange(
+    const { campaigns, summary, lead_types, pagination } = await loadMistlCampaignsForDateRange(
       admin,
       orgId,
       range.startUtc,
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
       pagination,
     });
   } catch (err) {
-    console.error("MIS campaigns list error:", err);
+    console.error("MISTL campaigns list error:", err);
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
