@@ -362,7 +362,7 @@ export default function MISTLCampaignDetailPage() {
     }
     setExporting(true);
     try {
-      const url = buildListApiUrl(`/api/mistl/campaigns/${id}`, { export: "all" });
+      const url = buildListApiUrl(`/api/mis/campaigns/${id}`, { export: "all" });
       const res = await fetch(url, { credentials: "include" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load leads for export");
