@@ -118,12 +118,12 @@ function OverviewRowOrEmpty({ label, value }: { label: string; value: React.Reac
   );
 }
 
-export default function MISCampaignDetailPage() {
+export default function MISTLCampaignDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string | undefined;
   const { hasRole, isInitialized } = useAuth();
-  const isMisAuthorized = isInitialized && (hasRole("mis") || hasRole("admin"));
+  const isMistlAuthorized = isInitialized && (hasRole("mis") || hasRole("admin"));
   const canEditQaAudit = hasRole("qa") || hasRole("admin");
   const initialLeadsLoadDoneRef = useRef(false);
   const leadsFetchGenRef = useRef(0);
@@ -238,14 +238,14 @@ export default function MISCampaignDetailPage() {
       return;
     }
     if (!isInitialized) return;
-    if (!isMisAuthorized) {
+    if (!isMistlAuthorized) {
       router.replace("/login");
       return;
     }
-  }, [id, isInitialized, isMisAuthorized, router]);
+  }, [id, isInitialized, isMistlAuthorized, router]);
 
   useEffect(() => {
-    if (!id || !isMisAuthorized) return;
+    if (!id || !isMistlAuthorized) return;
 
     const silent = initialLeadsLoadDoneRef.current;
     initialLeadsLoadDoneRef.current = true;
@@ -256,7 +256,7 @@ export default function MISCampaignDetailPage() {
       pageSize: leadsPageSize,
       syncPageFromResponse: false,
     });
-  }, [id, isMisAuthorized, leadsPage, leadsPageSize, loadCampaignLeads]);
+  }, [id, isMistlAuthorized, leadsPage, leadsPageSize, loadCampaignLeads]);
 
   const filteredLeads = leads.filter((l) => {
     const matchesSearch = !leadSearch.trim()
@@ -307,7 +307,7 @@ export default function MISCampaignDetailPage() {
     if (prevLead) {
       if (form.isFieldsTouched()) {
         setPreviousConfirmOpen(true);
-        (window as unknown as { __mis_prev_lead?: Lead })["__mis_prev_lead"] = prevLead;
+        (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"] = prevLead;
         return;
       }
       openEditLeadDrawer(prevLead);
@@ -346,9 +346,9 @@ export default function MISCampaignDetailPage() {
   };
 
   const handleConfirmPreviousSave = async () => {
-    const prevLead = (window as unknown as { __mis_prev_lead?: Lead })["__mis_prev_lead"];
+    const prevLead = (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"];
     setPreviousConfirmOpen(false);
-    (window as unknown as { __mis_prev_lead?: Lead })["__mis_prev_lead"] = undefined;
+    (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"] = undefined;
     if (!prevLead) return;
     await handleDrawerSave(false);
     openEditLeadDrawer(prevLead);
@@ -464,7 +464,7 @@ export default function MISCampaignDetailPage() {
   ) => {
     if (!id) return;
     const currentStatus = lead.delivery_status ?? "pending";
-    // Allow re-click when delivered but date or MIS user was never recorded (legacy backfill)
+    // Allow re-click when delivered but date or MIS TL user was never recorded (legacy backfill)
     const alreadyDelivered = currentStatus === "delivered";
     const missingDeliveryMeta = !lead.delivered_at || !lead.delivered_by;
     if (nextStatus === currentStatus && !(alreadyDelivered && missingDeliveryMeta)) {
@@ -486,6 +486,8 @@ export default function MISCampaignDetailPage() {
           ? alreadyDelivered
             ? "Delivery details recorded"
             : "Lead marked as delivered"
+          : nextStatus === "client_rejected"
+          ? "Lead marked client rejected"
           : nextStatus === "not_delivered"
           ? "Lead marked as not delivered"
           : "Delivery status set to pending"
@@ -499,6 +501,9 @@ export default function MISCampaignDetailPage() {
               delivery_status: "delivered",
               delivered_at: row.delivered_at ?? new Date().toISOString(),
             };
+          }
+          if (nextStatus === "client_rejected") {
+            return { ...row, delivery_status: "client_rejected" };
           }
           return {
             ...row,
@@ -548,6 +553,7 @@ export default function MISCampaignDetailPage() {
         onEdit: openEditLeadDrawer,
         showDeliveryStatus: true,
         onDeliveryStatusChange: handleDeliveryStatusChange,
+        allowClientRejectedDelivery: true,
         showBillableStatus: true,
         onBillableStatusChange: handleBillableStatusChange,
         markingDeliveredLeadId,
@@ -578,7 +584,7 @@ export default function MISCampaignDetailPage() {
     );
   }
 
-  if (!isMisAuthorized) {
+  if (!isMistlAuthorized) {
     return null;
   }
 
@@ -605,7 +611,7 @@ export default function MISCampaignDetailPage() {
     <div style={{ width: "100%", padding: "0 24px 32px" }}>
       <div style={{ marginBottom: 20 }}>
         <Link
-          href="/mis/campaigns"
+          href="/mistl/campaigns"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -944,7 +950,7 @@ export default function MISCampaignDetailPage() {
         open={previousConfirmOpen}
         onCancel={() => {
           setPreviousConfirmOpen(false);
-          (window as unknown as { __mis_prev_lead?: Lead })["__mis_prev_lead"] = undefined;
+          (window as unknown as { __mistl_prev_lead?: Lead })["__mistl_prev_lead"] = undefined;
         }}
         onOk={handleConfirmPreviousSave}
         okText="Save & Previous"

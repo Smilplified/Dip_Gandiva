@@ -23,18 +23,18 @@ export type DuplicateLeadMatch = {
 export type DuplicateLeadRecord = DuplicateLeadInput & {
   id?: unknown;
   lead_id?: unknown;
-};
+};  
 
 type DuplicateCheckOptions = {
   includeProspectLinkedIn?: boolean;
   includeJobTitleLink?: boolean;
 };
 
-function normalizeText(value: unknown): string {
+export function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
-function normalizeDomain(value: unknown): string {
+export function normalizeDomain(value: unknown): string {
   const raw = normalizeText(value);
   if (!raw) return "";
   const withProtocol = /^https?:\/\//.test(raw) ? raw : `https://${raw}`;
@@ -49,7 +49,7 @@ function normalizeDomain(value: unknown): string {
  * Produces a comparable company key from either a company name or domain.
  * For example: "ABC Pvt Ltd", "abc.com", and "www.abc.co.in" become "abc".
  */
-function normalizeCompanyBase(value: unknown, isDomain = false): string {
+export function normalizeCompanyBase(value: unknown, isDomain = false): string {
   let raw = normalizeText(value);
   if (!raw) return "";
 
@@ -64,7 +64,7 @@ function normalizeCompanyBase(value: unknown, isDomain = false): string {
   return raw.replace(/[^a-z0-9]/g, "");
 }
 
-function normalizeLinkedInUrl(value: unknown): string {
+export function normalizeLinkedInUrl(value: unknown): string {
   const raw = normalizeText(value);
   if (!raw) return "";
   const withProtocol = /^https?:\/\//.test(raw) ? raw : `https://${raw}`;

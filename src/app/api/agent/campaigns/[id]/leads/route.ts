@@ -6,10 +6,24 @@ import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { logAudit } from "@/lib/audit/log";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
-import { checkDuplicateLead } from "@/lib/leads/checkDuplicateLead";
 import { normalizeBillableStatus } from "@/lib/leads/billable-status";
 
 export const dynamic = "force-dynamic";
+
+function buildDuplicateLeadResponse(payload?: {
+  duplicate_lead_id?: string | null;
+  duplicate_reason?: string | null;
+}) {
+  return NextResponse.json(
+    {
+      error: "Duplicate lead",
+      message: "This lead already exists in this campaign.",
+      duplicate_lead_id: payload?.duplicate_lead_id ?? null,
+      duplicate_reason: payload?.duplicate_reason ?? null,
+    },
+    { status: 409 }
+  );
+}
 
 export async function GET(
   request: Request,
@@ -311,40 +325,10 @@ export async function POST(
       );
     }
 
-    const duplicate = await checkDuplicateLead(supabase, {
-      campaignId,
-      organizationId: orgId,
-      lead: {
-        first_name: normalizedFirstName,
-        last_name: normalizedLastName,
-        company_name: normalizedCompanyName,
-        domain: normalizedDomain,
-        contact_linkedin_url,
-        job_title_link,
-        email: normalizedEmail,
-      },
-    });
-    if (duplicate) {
-      return NextResponse.json(
-        {
-          error: "Duplicate lead",
-          message: "This lead already exists in this campaign and cannot be created.",
-          duplicate_lead_id: duplicate.leadId,
-          duplicate_reason: duplicate.reason,
-        },
-        { status: 409 }
-      );
-    }
-
     const leadStatus =
       typeof status === "string" && status.length > 0 ? status : "new";
 
-    const { data: inserted, error: insertError } = await supabase
-      .from("leads")
-      .insert({
-        organization_id: orgId,
-        campaign_id: campaignId,
-        assigned_agent_id: user.id,
+    const leadPayload = {
         name: derivedName || null,
         first_name: normalizedFirstName || null,
         last_name: normalizedLastName || null,
@@ -405,18 +389,43 @@ export async function POST(
         qa_name: qa_name || null,
         asset_title: asset_title || null,
         status: leadStatus,
+        lead_disposition: lead_disposition || null,
         followup_date: followup_date || null,
         notes: notes || null,
         created_by: user.id,
-      } as never)
-      .select("id, lead_id")
-      .single();
+      };
+
+    const { data: inserted, error: insertError } = await supabase.rpc(
+      "agent_create_campaign_lead" as never,
+      {
+        p_campaign_id: campaignId,
+        p_payload: leadPayload,
+      } as never
+    );
 
     if (insertError) {
+      if (insertError.code === "23505") {
+        return buildDuplicateLeadResponse();
+      }
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    const row = inserted as { id: string; lead_id: string | null } | null;
+    const insertedResult = (inserted ?? null) as
+      | {
+          duplicate?: boolean;
+          duplicate_lead_id?: string | null;
+          duplicate_reason?: string | null;
+          id?: string;
+          lead_id?: string | null;
+        }
+      | null;
+    if (insertedResult?.duplicate) {
+      return buildDuplicateLeadResponse(insertedResult);
+    }
+
+    const row = insertedResult
+      ? { id: insertedResult.id ?? "", lead_id: insertedResult.lead_id ?? null }
+      : null;
 
     void logAudit({
       organizationId: orgId,
@@ -676,24 +685,42 @@ export async function PATCH(
       );
     }
 
-    const { data: updated, error: updateError } = await supabase
-      .from("leads")
-      .update(updates as never)
-      .eq("id", leadRowId)
-      .eq("campaign_id", campaignId)
-      .eq("organization_id", orgId)
-      .eq("assigned_agent_id", user.id)
-      .select("id, lead_id")
-      .maybeSingle();
+    const { data: updated, error: updateError } = await supabase.rpc(
+      "agent_update_campaign_lead" as never,
+      {
+        p_campaign_id: campaignId,
+        p_lead_id: leadRowId,
+        p_payload: updates,
+      } as never
+    );
 
     if (updateError) {
+      if (updateError.code === "23505") {
+        return buildDuplicateLeadResponse();
+      }
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
-    if (!updated) {
+    const updatedResult = (updated ?? null) as
+      | {
+          not_found?: boolean;
+          duplicate?: boolean;
+          duplicate_lead_id?: string | null;
+          duplicate_reason?: string | null;
+          id?: string;
+          lead_id?: string | null;
+        }
+      | null;
+    if (updatedResult?.duplicate) {
+      return buildDuplicateLeadResponse(updatedResult);
+    }
+    if (!updatedResult || updatedResult.not_found) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
-    const updatedRow = updated as { id: string; lead_id: string | null };
+    const updatedRow = {
+      id: updatedResult.id ?? String(leadRowId),
+      lead_id: updatedResult.lead_id ?? null,
+    };
     void logAudit({
       organizationId: orgId,
       actorId: user.id,
