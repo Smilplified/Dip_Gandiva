@@ -12,6 +12,7 @@ import {
   findDuplicateLeadMatch,
   type DuplicateLeadRecord,
 } from "@/lib/leads/checkDuplicateLead";
+import { isLeadDuplicateDbError } from "@/lib/leads/leadDuplicateDbError";
 
 export const dynamic = "force-dynamic";
 
@@ -382,7 +383,20 @@ export async function POST(
           .maybeSingle();
 
         if (updateError) {
-          errors.push(`Row ${i + 1}: ${updateError.message}`);
+          if (isLeadDuplicateDbError(updateError)) {
+            duplicateRows.push({
+              row: i + 1,
+              lead_name: derivedName ?? null,
+              existing_lead_id: "existing lead",
+              reason: updateError.hint ?? "Duplicate lead",
+              source: "campaign",
+            });
+            errors.push(
+              `Row ${i + 1}: Duplicate lead (${updateError.hint ?? "Duplicate lead"}) found in campaign.`
+            );
+          } else {
+            errors.push(`Row ${i + 1}: ${updateError.message}`);
+          }
         } else if (!updatedRow) {
           errors.push(`Row ${i + 1}: Lead not found or not assigned to you`);
         } else {
@@ -427,7 +441,23 @@ export async function POST(
       } as never);
 
       if (insertError) {
-        errors.push(`Row ${pending.row}: ${insertError.message}`);
+        if (isLeadDuplicateDbError(insertError)) {
+          duplicateRows.push({
+            row: pending.row,
+            lead_name:
+              typeof pending.payload.name === "string"
+                ? pending.payload.name
+                : null,
+            existing_lead_id: "existing lead",
+            reason: insertError.hint ?? "Duplicate lead",
+            source: "campaign",
+          });
+          errors.push(
+            `Row ${pending.row}: Duplicate lead (${insertError.hint ?? "Duplicate lead"}) found in campaign.`
+          );
+        } else {
+          errors.push(`Row ${pending.row}: ${insertError.message}`);
+        }
       } else {
         created++;
       }
