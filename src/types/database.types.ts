@@ -816,6 +816,32 @@ export type Database = {
           dq_reason_code?: string | null;
         };
       };
+      lead_duplicate_keys: {
+        Row: {
+          lead_id: string;
+          organization_id: string;
+          campaign_id: string;
+          key_type: string;
+          normalized_value: string;
+          created_at: string;
+        };
+        Insert: {
+          lead_id: string;
+          organization_id: string;
+          campaign_id: string;
+          key_type: string;
+          normalized_value: string;
+          created_at?: string;
+        };
+        Update: {
+          lead_id?: string;
+          organization_id?: string;
+          campaign_id?: string;
+          key_type?: string;
+          normalized_value?: string;
+          created_at?: string;
+        };
+      };
       campaign_metrics: {
         Row: {
           id: string;
@@ -1125,8 +1151,34 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      agent_create_campaign_lead: {
+        Args: { p_campaign_id: string; p_payload: Json };
+        Returns: Json;
+      };
+      agent_import_campaign_leads: {
+        Args: { p_campaign_id: string; p_rows: Json };
+        Returns: Json;
+      };
+      agent_update_campaign_lead: {
+        Args: { p_campaign_id: string; p_lead_id: string; p_payload: Json };
+        Returns: Json;
+      };
       get_my_organization_id: { Args: Record<string, never>; Returns: string };
       is_org_admin: { Args: { check_user_id?: string }; Returns: boolean };
+      lead_duplicate_audit_report: {
+        Args: { p_organization_id?: string | null; p_campaign_id?: string | null };
+        Returns: {
+          campaign_id: string;
+          campaign_name: string;
+          lead_db_id: string;
+          lead_id: string;
+          agent_name: string;
+          creation_time: string;
+          duplicate_reason: string;
+          recommended_original_row_to_keep: string;
+          extra_rows_requiring_review: string;
+        }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

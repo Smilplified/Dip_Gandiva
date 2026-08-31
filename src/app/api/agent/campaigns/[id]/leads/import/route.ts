@@ -8,10 +8,6 @@ import {
   pickAndSanitizeLeadImportFields,
 } from "@/lib/lead-import-sanitize";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
-import {
-  findDuplicateLeadMatch,
-  type DuplicateLeadRecord,
-} from "@/lib/leads/checkDuplicateLead";
 
 export const dynamic = "force-dynamic";
 
@@ -152,41 +148,7 @@ export async function POST(
       );
     }
 
-    const errors: string[] = [];
-    const duplicateRows: Array<{
-      row: number;
-      lead_name: string | null;
-      existing_lead_id: string;
-      reason: string;
-      source: "campaign" | "file";
-    }> = [];
-    let created = 0;
-    let updated = 0;
-    const campaignLeadRecords: DuplicateLeadRecord[] = [];
-    const duplicateSelect =
-      "id, lead_id, first_name, last_name, company_name, domain, contact_linkedin_url, job_title_link, email";
-    const duplicatePageSize = 1000;
-
-    for (let from = 0; ; from += duplicatePageSize) {
-      const { data, error } = await supabase
-        .from("leads")
-        .select(duplicateSelect)
-        .eq("campaign_id", campaignId)
-        .eq("organization_id", orgId)
-        .range(from, from + duplicatePageSize - 1);
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-      const page = (data ?? []) as DuplicateLeadRecord[];
-      campaignLeadRecords.push(...page);
-      if (page.length < duplicatePageSize) break;
-    }
-
-    const acceptedFileLeadRecords: DuplicateLeadRecord[] = [];
-    const pendingInserts: Array<{
-      row: number;
-      payload: Record<string, unknown>;
-    }> = [];
+    const sanitizedRows: Record<string, unknown>[] = [];
 
     for (let i = 0; i < rawLeads.length; i++) {
       const row = finalizeImportedLeadRow(
@@ -217,32 +179,6 @@ export async function POST(
         [first_name, last_name].filter(Boolean).join(" ").trim() ||
         name ||
         null;
-
-      let existingLeadId: string | null = rowId || null;
-
-      if (!existingLeadId && rowLeadId) {
-        const { data: existingByLeadId, error: lookupError } = await supabase
-          .from("leads")
-          .select("id")
-          .eq("lead_id", rowLeadId)
-          .eq("campaign_id", campaignId)
-          .eq("organization_id", orgId)
-          .eq("assigned_agent_id", user.id)
-          .maybeSingle();
-
-        if (lookupError) {
-          errors.push(`Row ${i + 1}: ${lookupError.message}`);
-          continue;
-        }
-        existingLeadId =
-          (existingByLeadId as { id: string } | null)?.id ?? null;
-        if (!existingLeadId) {
-          errors.push(
-            `Row ${i + 1}: Lead not found (${rowLeadId}). Export leads first and keep the lead_id column when editing.`
-          );
-          continue;
-        }
-      }
 
       const leadStatus =
         typeof fields.status === "string" && fields.status.length > 0
@@ -318,128 +254,61 @@ export async function POST(
         upsertPayload.lead_tagging = tagging;
       }
 
-      const duplicateCandidate: DuplicateLeadRecord = {
-        first_name,
-        last_name,
-        company_name,
-        domain,
-        contact_linkedin_url: fields.contact_linkedin_url,
-        job_title_link: fields.job_title_link,
-        email,
+      const rpcRow: Record<string, unknown> = {
+        ...upsertPayload,
       };
-      const duplicateCheckOptions = {
-        includeProspectLinkedIn: true,
-        includeJobTitleLink: true,
-      };
-      const campaignLeadsToCheck = existingLeadId
-        ? campaignLeadRecords.filter(
-            (lead) => String(lead.id ?? "") !== existingLeadId
-          )
-        : campaignLeadRecords;
-      const campaignDuplicate = findDuplicateLeadMatch(
-        duplicateCandidate,
-        campaignLeadsToCheck,
-        duplicateCheckOptions
-      );
-      const fileDuplicate = campaignDuplicate
-        ? null
-        : findDuplicateLeadMatch(
-            duplicateCandidate,
-            acceptedFileLeadRecords,
-            duplicateCheckOptions
-          );
-      const duplicate = campaignDuplicate ?? fileDuplicate;
-
-      if (duplicate) {
-        const source = campaignDuplicate ? "campaign" : "file";
-        duplicateRows.push({
-          row: i + 1,
-          lead_name: derivedName,
-          existing_lead_id: duplicate.leadId,
-          reason: duplicate.reason,
-          source,
-        });
-        errors.push(
-          `Row ${i + 1}: Duplicate lead (${duplicate.leadId}) by ${duplicate.reason} found in ${source}.`
-        );
-        continue;
+      if (rowId) rpcRow.id = rowId;
+      if (rowLeadId) rpcRow.lead_id = rowLeadId;
+      for (const key of LEAD_IMPORT_PHONE_FIELD_KEYS) {
+        if (!(key in fields)) delete rpcRow[key];
       }
-
-      if (existingLeadId) {
-        const updatePayload = { ...upsertPayload };
-        for (const key of LEAD_IMPORT_PHONE_FIELD_KEYS) {
-          if (!(key in fields)) delete updatePayload[key];
-        }
-
-        const { data: updatedRow, error: updateError } = await supabase
-          .from("leads")
-          .update(updatePayload as never)
-          .eq("id", existingLeadId)
-          .eq("campaign_id", campaignId)
-          .eq("organization_id", orgId)
-          .eq("assigned_agent_id", user.id)
-          .select("id")
-          .maybeSingle();
-
-        if (updateError) {
-          errors.push(`Row ${i + 1}: ${updateError.message}`);
-        } else if (!updatedRow) {
-          errors.push(`Row ${i + 1}: Lead not found or not assigned to you`);
-        } else {
-          const campaignLeadIndex = campaignLeadRecords.findIndex(
-            (lead) => String(lead.id ?? "") === existingLeadId
-          );
-          if (campaignLeadIndex >= 0) {
-            campaignLeadRecords[campaignLeadIndex] = {
-              ...campaignLeadRecords[campaignLeadIndex],
-              ...duplicateCandidate,
-            };
-          }
-          updated++;
-        }
-        continue;
+      if (derivedName !== null) {
+        rpcRow.name = derivedName;
       }
-
-      if (!derivedName && !company_name && !email && !phone) {
-        errors.push(
-          `Row ${i + 1}: At least one of name, company, email, or phone is required`
-        );
-        continue;
-      }
-
-      acceptedFileLeadRecords.push({
-        ...duplicateCandidate,
-        lead_id: `Upload row ${i + 1}`,
-      });
-      pendingInserts.push({
-        row: i + 1,
-        payload: upsertPayload,
-      });
+      sanitizedRows.push(rpcRow);
     }
 
-    for (const pending of pendingInserts) {
-      const { error: insertError } = await supabase.from("leads").insert({
-        organization_id: orgId,
-        campaign_id: campaignId,
-        assigned_agent_id: user.id,
-        ...pending.payload,
-        created_by: user.id,
-      } as never);
+    const { data: importResult, error: importError } = await supabase.rpc(
+      "agent_import_campaign_leads" as never,
+      {
+        p_campaign_id: campaignId,
+        p_rows: sanitizedRows,
+      } as never
+    );
 
-      if (insertError) {
-        errors.push(`Row ${pending.row}: ${insertError.message}`);
-      } else {
-        created++;
+    if (importError) {
+      if (importError.code === "23505") {
+        return NextResponse.json(
+          {
+            created: 0,
+            updated: 0,
+            total: rawLeads.length,
+            duplicates: rawLeads.length,
+            duplicate_rows: [],
+            errors: ["Duplicate lead. This lead already exists in this campaign."],
+          },
+          { status: 409 }
+        );
       }
+      return NextResponse.json({ error: importError.message }, { status: 500 });
     }
+
+    const result = (importResult ?? {}) as {
+      created?: number;
+      updated?: number;
+      total?: number;
+      duplicates?: number;
+      duplicate_rows?: unknown[];
+      errors?: string[];
+    };
 
     return NextResponse.json({
-      created,
-      updated,
-      total: rawLeads.length,
-      duplicates: duplicateRows.length,
-      duplicate_rows: duplicateRows,
-      errors,
+      created: result.created ?? 0,
+      updated: result.updated ?? 0,
+      total: result.total ?? rawLeads.length,
+      duplicates: result.duplicates ?? 0,
+      duplicate_rows: result.duplicate_rows ?? [],
+      errors: result.errors ?? [],
     });
   } catch (err) {
     console.error("Agent leads import error:", err);
