@@ -12,6 +12,7 @@ import {
   fetchBulkCampaignTeamLeaderAssignments,
   formatTeamLeaderAssignmentLabel,
 } from "@/lib/campaign/team-leader-assignments";
+import { resolveUserDisplayNames } from "@/lib/campaign/team-leader-display";
 
 const LEADS_PAGE_SIZE = 1000;
 const CAMPAIGN_IDS_PER_QUERY = 100;
@@ -69,6 +70,47 @@ export type QatlCampaignsSummary = {
   total_qa_pending_leads: number;
   total_delivered_leads: number;
 };
+
+type LeadAgentHierarchyRow = {
+  id: string;
+  reporting_manager_id: string | null;
+};
+
+async function resolveLeadTeamLeaderNames(
+  supabase: SupabaseClient,
+  leads: Array<{ created_by?: string | null; assigned_agent_id?: string | null }>
+): Promise<Record<string, string | null>> {
+  const actorIds = Array.from(
+    new Set(
+      leads
+        .flatMap((lead) => [lead.assigned_agent_id, lead.created_by])
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+  if (actorIds.length === 0) return {};
+
+  const { data: actorRows } = await supabase
+    .from("users")
+    .select("id, reporting_manager_id")
+    .in("id", actorIds);
+
+  const actors = (actorRows ?? []) as LeadAgentHierarchyRow[];
+  const teamLeaderIds = Array.from(
+    new Set(
+      actors
+        .map((actor) => actor.reporting_manager_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+  const teamLeaderNames = await resolveUserDisplayNames(supabase, teamLeaderIds);
+
+  return Object.fromEntries(
+    actors.map((actor) => [
+      actor.id,
+      actor.reporting_manager_id ? teamLeaderNames[actor.reporting_manager_id] ?? null : null,
+    ])
+  );
+}
 
 function escapeIlikePattern(value: string): string {
   return value.replace(/%/g, "").replace(/_/g, "");
@@ -171,7 +213,17 @@ async function fetchQatlLeadsForExport(
     offset += LEADS_PAGE_SIZE;
   }
 
-  return enrichLeadsWithCreatorNames(supabase, all, orgId);
+  const leadsWithNames = await enrichLeadsWithCreatorNames(supabase, all, orgId);
+  const teamLeaderNameByActorId = await resolveLeadTeamLeaderNames(supabase, all);
+  return leadsWithNames.map((lead) => {
+    const actorId = [lead.assigned_agent_id, lead.created_by].find(
+      (value): value is string => typeof value === "string" && value.length > 0
+    );
+    return {
+      ...lead,
+      team_leader_name: teamLeaderNameByActorId[actorId ?? ""] ?? null,
+    };
+  });
 }
 
 export async function loadQatlCampaignsForDateRange(
@@ -332,9 +384,7 @@ export async function loadQatlCampaignsForDateRange(
       tlByCampaign[c.id] ?? []
     );
 
-    const leadsWithTl = includeLeads
-      ? leads.map((l) => ({ ...l, team_leader_name: assigned_team_leader_name }))
-      : undefined;
+    const leadsWithTl = includeLeads ? leads : undefined;
 
     visible.push({
       ...enriched,
