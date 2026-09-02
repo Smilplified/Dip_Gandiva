@@ -20,6 +20,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const LEADS_PAGE_SIZE = 1000;
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 export type OpsPerformanceSummary = {
   total_leads: number;
@@ -235,14 +236,15 @@ async function fetchOrgLeadRows(
   if (campaignIds.length === 0) return [];
 
   const all: LeadRow[] = [];
-  let offset = 0;
-
-  for (;;) {
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    let offset = 0;
+    for (;;) {
     let query = supabase
       .from("leads")
       .select(LEAD_SELECT)
       .eq("organization_id", orgId)
-      .in("campaign_id", campaignIds)
+      .in("campaign_id", campaignIdBatch)
       .gte("created_at", startUtc)
       .lte("created_at", endUtc)
       .order("created_at", { ascending: true })
@@ -259,8 +261,9 @@ async function fetchOrgLeadRows(
       matchesQaStatusFilter(l.qa_status, leadFilters?.qaStatuses)
     );
     all.push(...chunk);
-    if ((data ?? []).length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+      if ((data ?? []).length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;
@@ -275,14 +278,15 @@ async function fetchQaAuditLeadRows(
   if (campaignIds.length === 0) return [];
 
   const all: LeadRow[] = [];
-  let offset = 0;
-
-  for (;;) {
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    let offset = 0;
+    for (;;) {
     let query = supabase
       .from("leads")
       .select(LEAD_SELECT)
       .eq("organization_id", orgId)
-      .in("campaign_id", campaignIds)
+      .in("campaign_id", campaignIdBatch)
       .not("qa_status", "is", null)
       .order("updated_at", { ascending: true })
       .range(offset, offset + LEADS_PAGE_SIZE - 1);
@@ -298,8 +302,9 @@ async function fetchQaAuditLeadRows(
       .filter((l) => leadHasQaOutcome(l.qa_status))
       .filter((l) => matchesQaStatusFilter(l.qa_status, leadFilters?.qaStatuses));
     all.push(...chunk);
-    if ((data ?? []).length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+      if ((data ?? []).length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;

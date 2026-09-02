@@ -11,6 +11,7 @@ import {
 import { countBillableLeads } from "@/lib/leads/billable-status";
 
 const LEADS_PAGE_SIZE = 1000;
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 const MIS_DASHBOARD_LEAD_SELECT =
   "id, status, qa_status, assigned_agent_id, created_at, campaign_id, call_back, lead_tagging, billable_status";
@@ -89,24 +90,21 @@ export async function fetchMisDashboardLeads(
   if (campaignIds.length === 0) return [];
 
   const all: MisDashboardLeadRow[] = [];
-  let offset = 0;
-
-  for (;;) {
-    const { data, error } = await applyScoredLeadTaggingFilter(
-      admin
-        .from("leads")
-        .select(MIS_DASHBOARD_LEAD_SELECT)
-        .eq("organization_id", orgId)
-        .in("campaign_id", campaignIds)
-        .order("created_at", { ascending: true })
-    ).range(offset, offset + LEADS_PAGE_SIZE - 1);
-
-    if (error) throw new Error(error.message);
-
-    const chunk = (data ?? []) as MisDashboardLeadRow[];
-    all.push(...chunk);
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await applyScoredLeadTaggingFilter(
+        admin.from("leads").select(MIS_DASHBOARD_LEAD_SELECT)
+          .eq("organization_id", orgId).in("campaign_id", campaignIdBatch)
+          .order("created_at", { ascending: true })
+      ).range(offset, offset + LEADS_PAGE_SIZE - 1);
+      if (error) throw new Error(error.message);
+      const chunk = (data ?? []) as MisDashboardLeadRow[];
+      all.push(...chunk);
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;

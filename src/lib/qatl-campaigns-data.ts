@@ -14,6 +14,7 @@ import {
 } from "@/lib/campaign/team-leader-assignments";
 
 const LEADS_PAGE_SIZE = 1000;
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 const qatlExportLeadsSelect =
   "id, lead_id, name, company_name, phone, email, city, status, qa_status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, campaign_id, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, client_feedback_status, delivered_at, delivered_by, salutation, first_name, last_name, domain, phone_number_link, department, job_title_link, tenurity, vv_status, email_status, ev_tool, see_all_employees, employee_size_link, company_website_link, sic_code, sic_code_link, naics_code, naics_code_link, ra_comment, special_comments, call_back, call_notes, primary_reason, secondary_reason, qa_comments, cq1, cq2, cq3, cq4, cq5, extra_cq, audit_date, qa_name, qa_audited_by_id, qa_audited_at, asset_title, asset_title2, address2, address_link, actual_employee_size, industry_type_link, delivery_remark, rectification_status, rectification_qa_name, rectification_date, disqualification_reasons, disqualification_reason, rectified_reason";
@@ -110,15 +111,16 @@ async function fetchQatlLeadsForCounts(
   if (campaignIds.length === 0) return [];
 
   const all: Record<string, unknown>[] = [];
-  let offset = 0;
-
-  for (;;) {
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    let offset = 0;
+    for (;;) {
     const { data, error } = await applyScoredLeadTaggingFilter(
       supabase
         .from("leads")
         .select("campaign_id, created_at, delivery_status, client_feedback_status, qa_status, rectification_status")
         .eq("organization_id", orgId)
-        .in("campaign_id", campaignIds)
+        .in("campaign_id", campaignIdBatch)
         .gte("created_at", uploadRange.startUtc)
         .lte("created_at", uploadRange.endUtc)
     )
@@ -129,8 +131,9 @@ async function fetchQatlLeadsForCounts(
 
     const chunk = (data ?? []) as Record<string, unknown>[];
     all.push(...chunk);
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;

@@ -10,6 +10,7 @@ import {
 import { buildPaginationMeta } from "@/lib/api-pagination";
 
 const LEADS_PAGE_SIZE = 1000;
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 /** Minimal columns for dashboard KPIs / list counts / charts. */
 export const LEADS_SELECT_AUDIT =
@@ -109,10 +110,12 @@ export async function fetchScoredLeadsForCampaigns(
   if (campaignIds.length === 0) return [];
 
   const all: Record<string, unknown>[] = [];
-  let offset = 0;
   let useExtendedSelect = mode === "full";
 
-  for (;;) {
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    let offset = 0;
+    for (;;) {
     const select =
       mode === "audit"
         ? LEADS_SELECT_AUDIT
@@ -127,7 +130,7 @@ export async function fetchScoredLeadsForCampaigns(
         .from("leads")
         .select(select)
         .eq("organization_id", orgId)
-        .in("campaign_id", campaignIds)
+        .in("campaign_id", campaignIdBatch)
     );
 
     if (uploadRange) {
@@ -149,7 +152,8 @@ export async function fetchScoredLeadsForCampaigns(
       useExtendedSelect = false;
       offset = 0;
       all.length = 0;
-      continue;
+      batchStart = -CAMPAIGN_IDS_PER_QUERY;
+      break;
     }
 
     if (error) throw new Error(error.message);
@@ -167,8 +171,9 @@ export async function fetchScoredLeadsForCampaigns(
         });
       }
     }
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;

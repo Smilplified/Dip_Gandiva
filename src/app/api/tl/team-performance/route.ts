@@ -184,6 +184,8 @@ function leadDayInTz(createdAt: string, appTz: string): string {
 }
 
 const LEADS_PAGE_SIZE = 1000;
+// Keep Supabase's generated `campaign_id=in.(...)` filter below URL limits.
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 /** Supabase caps at 1000 rows per request — paginate so KPIs are not truncated. */
 async function fetchLeadActivityRows(
@@ -200,24 +202,31 @@ async function fetchLeadActivityRows(
   const select =
     "id, campaign_id, assigned_agent_id, created_by, qa_status, delivery_status, created_at";
   const all: LeadActivityRow[] = [];
-  let offset = 0;
 
-  for (;;) {
-    const { data, error } = await admin
-      .from("leads")
-      .select(select)
-      .eq("organization_id", params.orgId)
-      .in("campaign_id", params.campaignIds)
-      .gte("created_at", params.startUtc)
-      .lte("created_at", params.endUtc)
-      .order("created_at", { ascending: true })
-      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+  for (let batchStart = 0; batchStart < params.campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = params.campaignIds.slice(
+      batchStart,
+      batchStart + CAMPAIGN_IDS_PER_QUERY
+    );
+    let offset = 0;
 
-    if (error) throw error;
-    const chunk = (data ?? []) as LeadActivityRow[];
-    all.push(...chunk);
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+    for (;;) {
+      const { data, error } = await admin
+        .from("leads")
+        .select(select)
+        .eq("organization_id", params.orgId)
+        .in("campaign_id", campaignIdBatch)
+        .gte("created_at", params.startUtc)
+        .lte("created_at", params.endUtc)
+        .order("created_at", { ascending: true })
+        .range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+      if (error) throw error;
+      const chunk = (data ?? []) as LeadActivityRow[];
+      all.push(...chunk);
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;
@@ -245,23 +254,30 @@ async function fetchQaAuditLeadRows(
   const select =
     "id, qa_status, qa_name, qa_audited_by_id, qa_audited_at, qa_comments, audit_date, updated_at";
   const all: QaAuditLeadRow[] = [];
-  let offset = 0;
 
-  for (;;) {
-    const { data, error } = await admin
-      .from("leads")
-      .select(select)
-      .eq("organization_id", orgId)
-      .in("campaign_id", campaignIds)
-      .not("qa_status", "is", null)
-      .order("updated_at", { ascending: true })
-      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(
+      batchStart,
+      batchStart + CAMPAIGN_IDS_PER_QUERY
+    );
+    let offset = 0;
 
-    if (error) throw error;
-    const chunk = (data ?? []) as QaAuditLeadRow[];
-    all.push(...chunk.filter((l) => leadHasQaOutcome(l.qa_status)));
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+    for (;;) {
+      const { data, error } = await admin
+        .from("leads")
+        .select(select)
+        .eq("organization_id", orgId)
+        .in("campaign_id", campaignIdBatch)
+        .not("qa_status", "is", null)
+        .order("updated_at", { ascending: true })
+        .range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+      if (error) throw error;
+      const chunk = (data ?? []) as QaAuditLeadRow[];
+      all.push(...chunk.filter((l) => leadHasQaOutcome(l.qa_status)));
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;
@@ -414,14 +430,7 @@ export async function GET(request: Request) {
     // to their effective TL when reporting_manager_id is not set.
     const allCampIds = (campaigns ?? []).map((c) => (c as { id: string }).id);
     let allCampAssignments: { campaign_id: string; agent_id: string }[] = [];
-    if (allCampIds.length > 0) {
-      const { data: caRows } = await admin
-        .from("campaign_assignments")
-        .select("campaign_id, agent_id")
-        .in("campaign_id", allCampIds)
-        .eq("is_active", true);
-      allCampAssignments = (caRows ?? []) as { campaign_id: string; agent_id: string }[];
-    }
+   
 
     const actualTlIdSet = new Set(allTLs.map((tl) => tl.id));
 
