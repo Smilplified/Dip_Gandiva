@@ -31,7 +31,7 @@ type LeadAgentHierarchyRow = {
 };
 
 async function resolveLeadTeamLeaderNames(
-  admin: ReturnType<typeof getAdminClientSafe>,
+  admin: NonNullable<ReturnType<typeof getAdminClientSafe>>,
   leads: Array<{ created_by?: string | null; assigned_agent_id?: string | null }>,
   fallbackTeamLeaderName: string | null
 ): Promise<Record<string, string | null>> {
