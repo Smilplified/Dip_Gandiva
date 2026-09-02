@@ -25,6 +25,63 @@ import { resolvePrimaryAuditRole } from "@/lib/audit/actor-role";
 
 export const dynamic = "force-dynamic";
 
+type LeadAgentHierarchyRow = {
+  id: string;
+  reporting_manager_id: string | null;
+};
+
+async function resolveLeadTeamLeaderNames(
+  admin: ReturnType<typeof getAdminClientSafe>,
+  leads: Array<{ created_by?: string | null; assigned_agent_id?: string | null }>,
+  fallbackTeamLeaderName: string | null
+): Promise<Record<string, string | null>> {
+  const actorIds = Array.from(
+    new Set(
+      leads
+        .flatMap((lead) => [lead.created_by, lead.assigned_agent_id])
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
+  if (actorIds.length === 0) return {};
+
+  const { data: actorRows } = await admin
+    .from("users")
+    .select("id, reporting_manager_id")
+    .in("id", actorIds);
+
+  const actors = (actorRows ?? []) as LeadAgentHierarchyRow[];
+  const teamLeaderIds = Array.from(
+    new Set(
+      actors
+        .map((actor) => actor.reporting_manager_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+
+  const teamLeaderNames =
+    teamLeaderIds.length > 0 ? await resolveUserDisplayNames(admin, teamLeaderIds) : {};
+  const actorTeamLeaderNameById = new Map<string, string | null>();
+
+  actors.forEach((actor) => {
+    actorTeamLeaderNameById.set(
+      actor.id,
+      actor.reporting_manager_id
+        ? teamLeaderNames[actor.reporting_manager_id] ?? fallbackTeamLeaderName
+        : fallbackTeamLeaderName
+    );
+  });
+
+  const result: Record<string, string | null> = {};
+  leads.forEach((lead) => {
+    const key = lead.created_by ?? lead.assigned_agent_id;
+    if (!key) return;
+    result[key] = actorTeamLeaderNameById.get(key) ?? fallbackTeamLeaderName;
+  });
+
+  return result;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -182,9 +239,16 @@ export async function GET(
 
     // Voice recordings load lazily via POST /api/leads/voice-recordings.
     const leadsWithNames = await enrichLeadsWithCreatorNames(admin ?? supabase, leadsList, orgId);
+    const teamLeaderNameByActorId = await resolveLeadTeamLeaderNames(
+      admin,
+      leadsList,
+      assigned_team_leader_name
+    );
     const leadsWithRecordings = leadsWithNames.map((lead) => ({
       ...lead,
-      team_leader_name: assigned_team_leader_name,
+      team_leader_name:
+        teamLeaderNameByActorId[lead.created_by ?? lead.assigned_agent_id ?? ""] ??
+        assigned_team_leader_name,
     }));
 
     const [leadCounts, rectifiedLeadsCount] = await Promise.all([

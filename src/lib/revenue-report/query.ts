@@ -303,6 +303,7 @@ export async function resolveRevenueReportCampaignIds(
 
 const POST_QA_STATUSES = new Set(["qualified", "registered", "attended", "no_show", "approved", "pass"]);
 const LEADS_PAGE_SIZE = 1000;
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 type PeriodLeadRow = {
   campaign_id: string;
@@ -381,22 +382,24 @@ export async function aggregateLeadMetricsByCampaignInPeriod(
   for (const id of campaignIds) byCampaign[id] = emptyPeriodMetrics();
   if (campaignIds.length === 0) return { byCampaign, monthlyRevenue };
 
-  let offset = 0;
-  for (;;) {
-    const { data, error } = await supabase
-      .from("leads")
-      .select(
-        "campaign_id, status, qa_status, delivery_status, delivered_at, qa_audited_at, updated_at, created_at"
-      )
-      .eq("organization_id", orgId)
-      .in("campaign_id", campaignIds)
-      .order("created_at", { ascending: true })
-      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select(
+          "campaign_id, status, qa_status, delivery_status, delivered_at, qa_audited_at, updated_at, created_at"
+        )
+        .eq("organization_id", orgId)
+        .in("campaign_id", campaignIdBatch)
+        .order("created_at", { ascending: true })
+        .range(offset, offset + LEADS_PAGE_SIZE - 1);
 
-    if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message);
 
-    const chunk = (data ?? []) as PeriodLeadRow[];
-    for (const lead of chunk) {
+      const chunk = (data ?? []) as PeriodLeadRow[];
+      for (const lead of chunk) {
       const activityAt = leadActivityTimestamp(lead);
       if (!isTimestampInPeriod(activityAt, dateFrom, dateTo)) continue;
 
@@ -430,8 +433,9 @@ export async function aggregateLeadMetricsByCampaignInPeriod(
       }
     }
 
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return { byCampaign, monthlyRevenue };
@@ -482,10 +486,7 @@ export async function fetchRevenueReportRows(
     return { rows: [], monthlyRevenue: {} };
   }
 
-  const { data, error } = await supabase
-    .from("campaigns")
-    .select(
-      `
+  const campaignSelect = `
       id, campaign_id, campaign_code, name, client_id, client_name, lead_type, campaign_type,
       lead_aggregated, status, start_date, end_date, geography, cpl, revenue, booked,
       total_allocation, post_qa, achieved, pending_allocation, weekly_call, weekly_report,
@@ -493,14 +494,18 @@ export async function fetchRevenueReportRows(
       campaign_metrics(
         sponsor_name, total_campaign_spend, total_leads_delivered, channel_split
       )
-    `
-    )
-    .eq("organization_id", orgId)
-    .in("id", campaignIds);
-
-  if (error) throw new Error(error.message);
-
-  const campaigns = (data ?? []) as CampaignDbRow[];
+    `;
+  const campaigns: CampaignDbRow[] = [];
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    const { data, error } = await supabase
+      .from("campaigns")
+      .select(campaignSelect)
+      .eq("organization_id", orgId)
+      .in("id", campaignIdBatch);
+    if (error) throw new Error(error.message);
+    campaigns.push(...((data ?? []) as CampaignDbRow[]));
+  }
   const ids = campaigns.map((c) => c.id);
 
   const cplByCampaign: Record<string, number | null> = {};

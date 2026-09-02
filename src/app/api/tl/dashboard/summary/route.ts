@@ -19,6 +19,8 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const LEADS_PAGE_SIZE = 1000;
+// Keep Supabase's generated `campaign_id=in.(...)` filter below URL limits.
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 export type DashboardSummaryResponse = {
   scope: "organization" | "team";
@@ -91,24 +93,31 @@ async function fetchLeadsInDateRange(
   if (campaignIds.length === 0) return [];
 
   const all: LeadRow[] = [];
-  let offset = 0;
 
-  for (;;) {
-    const { data, error } = await admin
-      .from("leads")
-      .select("qa_status, created_at")
-      .eq("organization_id", orgId)
-      .in("campaign_id", campaignIds)
-      .gte("created_at", startUtc)
-      .lte("created_at", endUtc)
-      .order("created_at", { ascending: true })
-      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(
+      batchStart,
+      batchStart + CAMPAIGN_IDS_PER_QUERY
+    );
+    let offset = 0;
 
-    if (error) throw error;
-    const chunk = (data ?? []) as LeadRow[];
-    all.push(...chunk);
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+    for (;;) {
+      const { data, error } = await admin
+        .from("leads")
+        .select("qa_status, created_at")
+        .eq("organization_id", orgId)
+        .in("campaign_id", campaignIdBatch)
+        .gte("created_at", startUtc)
+        .lte("created_at", endUtc)
+        .order("created_at", { ascending: true })
+        .range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+      if (error) throw error;
+      const chunk = (data ?? []) as LeadRow[];
+      all.push(...chunk);
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;

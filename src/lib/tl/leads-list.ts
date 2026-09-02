@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const LEADS_PAGE_SIZE = 1000;
+// Avoid oversized Supabase `campaign_id=in.(...)` requests for large organizations.
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 const LEADS_SELECT_BASE =
   "id, lead_id, campaign_id, name, company_name, phone, email, city, status, followup_date, notes, assigned_agent_id, created_by, creator_display_name, created_at, updated_at, lead_type, job_title, job_function, job_level, direct_number, industry, company_number, employee_size, address, state, country, zip_code, founded_years, founded_years_link, revenue_range, revenue_link, contact_linkedin_url, company_linkedin_url, scored, scored_timezone, appointment, appointment_timezone, lead_tagging, lead_disposition, delivery_status, delivered_at, delivered_by";
@@ -40,36 +42,46 @@ export async function fetchTlLeadsForCampaigns(
 ): Promise<Record<string, unknown>[]> {
   if (campaignIds.length === 0) return [];
 
-  const all: Record<string, unknown>[] = [];
-  let offset = 0;
   let useExtendedSelect = true;
 
-  for (;;) {
-    const select = (useExtendedSelect ? LEADS_SELECT_EXTENDED : LEADS_SELECT_BASE) + QA_EXTRA;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const all: Record<string, unknown>[] = [];
+    let retryWithBaseSelect = false;
 
-    const { data, error } = await supabase
-      .from("leads")
-      .select(select)
-      .in("campaign_id", campaignIds)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + LEADS_PAGE_SIZE - 1);
+    for (let batchStart = 0; batchStart < campaignIds.length && !retryWithBaseSelect; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+      const campaignIdBatch = campaignIds.slice(
+        batchStart,
+        batchStart + CAMPAIGN_IDS_PER_QUERY
+      );
+      let offset = 0;
 
-    if (error && useExtendedSelect && isMissingColumnError(error.message)) {
-      useExtendedSelect = false;
-      offset = 0;
-      all.length = 0;
-      continue;
+      for (;;) {
+        const select = (useExtendedSelect ? LEADS_SELECT_EXTENDED : LEADS_SELECT_BASE) + QA_EXTRA;
+        const { data, error } = await supabase
+          .from("leads")
+          .select(select)
+          .in("campaign_id", campaignIdBatch)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + LEADS_PAGE_SIZE - 1);
+
+        if (error && useExtendedSelect && isMissingColumnError(error.message)) {
+          useExtendedSelect = false;
+          retryWithBaseSelect = true;
+          break;
+        }
+        if (error) throw new Error(error.message);
+
+        const chunk = (data ?? []) as unknown as Record<string, unknown>[];
+        all.push(...chunk);
+        if (chunk.length < LEADS_PAGE_SIZE) break;
+        offset += LEADS_PAGE_SIZE;
+      }
     }
 
-    if (error) throw new Error(error.message);
-
-    const chunk = (data ?? []) as unknown as Record<string, unknown>[];
-    all.push(...chunk);
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+    if (!retryWithBaseSelect) return all;
   }
 
-  return all;
+  return [];
 }
 
 /** Single-page fetch with total count for TL org leads list API. */
@@ -97,58 +109,67 @@ export async function fetchTlLeadsPageForCampaigns(
   let select = opts.select ?? TL_LEADS_LIST_SELECT;
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    let query = supabase
-      .from("leads")
-      .select(select, { count: "exact" })
-      .in("campaign_id", campaignIds)
-      .order("created_at", { ascending: false });
+    const candidateRows: Record<string, unknown>[] = [];
+    let total = 0;
+    let retryWithBaseSelect = false;
 
-    if (organizationId) {
-      query = query.eq("organization_id", organizationId);
-    }
+    // Fetch enough rows from every batch to form the requested globally sorted page.
+    for (let batchStart = 0; batchStart < campaignIds.length && !retryWithBaseSelect; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+      const campaignIdBatch = campaignIds.slice(
+        batchStart,
+        batchStart + CAMPAIGN_IDS_PER_QUERY
+      );
+      let query = supabase
+        .from("leads")
+        .select(select, { count: "exact" })
+        .in("campaign_id", campaignIdBatch)
+        .order("created_at", { ascending: false });
 
-    if (search) {
-      const safe = search.replace(/%/g, "").replace(/_/g, "");
-      if (safe.length > 0) {
-        query = query.or(
-          `name.ilike.%${safe}%,company_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,lead_id.ilike.%${safe}%`
-        );
+      if (organizationId) query = query.eq("organization_id", organizationId);
+
+      if (search) {
+        const safe = search.replace(/%/g, "").replace(/_/g, "");
+        if (safe.length > 0) {
+          query = query.or(
+            `name.ilike.%${safe}%,company_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%,lead_id.ilike.%${safe}%`
+          );
+        }
       }
+
+      const realAgentIds = (agentIds ?? []).filter(Boolean);
+      if (realAgentIds.length > 0 && includeUnassigned) {
+        const idList = realAgentIds.map((id) => `"${id}"`).join(",");
+        query = query.or(`assigned_agent_id.is.null,assigned_agent_id.in.(${idList})`);
+      } else if (realAgentIds.length > 0) {
+        query = query.in("assigned_agent_id", realAgentIds);
+      } else if (includeUnassigned) {
+        query = query.is("assigned_agent_id", null);
+      }
+
+      if (dateFrom) query = query.gte("created_at", `${dateFrom}T00:00:00.000Z`);
+      if (dateTo) query = query.lte("created_at", `${dateTo}T23:59:59.999Z`);
+      query = applyTlLeadsQaStatusFilter(query, qaStatus);
+
+      const { data, error, count } = await query.range(0, offset + limit - 1);
+      if (error && useExtendedSelect && isMissingColumnError(error.message)) {
+        useExtendedSelect = false;
+        select = LEADS_SELECT_BASE + QA_EXTRA;
+        retryWithBaseSelect = true;
+        break;
+      }
+      if (error) throw new Error(error.message);
+
+      total += count ?? 0;
+      candidateRows.push(...((data ?? []) as unknown as Record<string, unknown>[]));
     }
 
-    const realAgentIds = (agentIds ?? []).filter(Boolean);
-    if (realAgentIds.length > 0 && includeUnassigned) {
-      const idList = realAgentIds.map((id) => `"${id}"`).join(",");
-      query = query.or(`assigned_agent_id.is.null,assigned_agent_id.in.(${idList})`);
-    } else if (realAgentIds.length > 0) {
-      query = query.in("assigned_agent_id", realAgentIds);
-    } else if (includeUnassigned) {
-      query = query.is("assigned_agent_id", null);
-    }
+    if (retryWithBaseSelect) continue;
 
-    if (dateFrom) {
-      query = query.gte("created_at", `${dateFrom}T00:00:00.000Z`);
-    }
-    if (dateTo) {
-      query = query.lte("created_at", `${dateTo}T23:59:59.999Z`);
-    }
-
-    query = applyTlLeadsQaStatusFilter(query, qaStatus);
-
-    const { data, error, count } = await query.range(offset, offset + limit - 1);
-
-    if (error && useExtendedSelect && isMissingColumnError(error.message)) {
-      useExtendedSelect = false;
-      select = LEADS_SELECT_BASE + QA_EXTRA;
-      continue;
-    }
-
-    if (error) throw new Error(error.message);
-
-    return {
-      rows: (data ?? []) as unknown as Record<string, unknown>[],
-      total: count ?? 0,
-    };
+    candidateRows.sort((a, b) => {
+      const createdAtDiff = String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
+      return createdAtDiff || String(b.id ?? "").localeCompare(String(a.id ?? ""));
+    });
+    return { rows: candidateRows.slice(offset, offset + limit), total };
   }
 
   return { rows: [], total: 0 };

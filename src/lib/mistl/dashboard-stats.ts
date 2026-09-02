@@ -11,6 +11,7 @@ import {
 import { countBillableLeads } from "@/lib/leads/billable-status";
 
 const LEADS_PAGE_SIZE = 1000;
+const CAMPAIGN_IDS_PER_QUERY = 100;
 
 const MISTL_DASHBOARD_LEAD_SELECT =
   "id, status, qa_status, assigned_agent_id, created_at, campaign_id, call_back, lead_tagging, billable_status";
@@ -89,15 +90,16 @@ export async function fetchMistlDashboardLeads(
   if (campaignIds.length === 0) return [];
 
   const all: MistlDashboardLeadRow[] = [];
-  let offset = 0;
-
-  for (;;) {
+  for (let batchStart = 0; batchStart < campaignIds.length; batchStart += CAMPAIGN_IDS_PER_QUERY) {
+    const campaignIdBatch = campaignIds.slice(batchStart, batchStart + CAMPAIGN_IDS_PER_QUERY);
+    let offset = 0;
+    for (;;) {
     const { data, error } = await applyScoredLeadTaggingFilter(
       admin
         .from("leads")
         .select(MISTL_DASHBOARD_LEAD_SELECT)
         .eq("organization_id", orgId)
-        .in("campaign_id", campaignIds)
+        .in("campaign_id", campaignIdBatch)
         .order("created_at", { ascending: true })
     ).range(offset, offset + LEADS_PAGE_SIZE - 1);
 
@@ -105,8 +107,9 @@ export async function fetchMistlDashboardLeads(
 
     const chunk = (data ?? []) as MistlDashboardLeadRow[];
     all.push(...chunk);
-    if (chunk.length < LEADS_PAGE_SIZE) break;
-    offset += LEADS_PAGE_SIZE;
+      if (chunk.length < LEADS_PAGE_SIZE) break;
+      offset += LEADS_PAGE_SIZE;
+    }
   }
 
   return all;

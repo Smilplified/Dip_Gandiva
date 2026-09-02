@@ -6,6 +6,11 @@ import { normalizeExtraCq } from "@/lib/extra-cq";
 import { enrichLeadsWithCreatorNames } from "@/lib/lead-display-names";
 import { logAudit } from "@/lib/audit/log";
 import { normalizeLeadTaggingValue } from "@/lib/lead-tagging";
+import { checkDuplicateLead } from "@/lib/leads/checkDuplicateLead";
+import {
+  isLeadDuplicateDbError,
+  leadDuplicateApiPayload,
+} from "@/lib/leads/leadDuplicateDbError";
 import { normalizeBillableStatus } from "@/lib/leads/billable-status";
 
 export const dynamic = "force-dynamic";
@@ -404,8 +409,8 @@ export async function POST(
     );
 
     if (insertError) {
-      if (insertError.code === "23505") {
-        return buildDuplicateLeadResponse();
+      if (isLeadDuplicateDbError(insertError)) {
+        return NextResponse.json(leadDuplicateApiPayload(insertError), { status: 409 });
       }
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
