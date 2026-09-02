@@ -278,8 +278,7 @@ export default function QATLCampaignsPage() {
         enrichLeadsForExport(
           (c.leads ?? []) as Lead[],
           c.name,
-          c.lead_type,
-          c.assigned_team_leader_name
+          c.lead_type
         )
       );
       if (exportLeads.length === 0) {
